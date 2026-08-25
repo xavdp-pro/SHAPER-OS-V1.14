@@ -31,10 +31,30 @@ that can be trusted with the next decision.
 
 ---
 
-> **Asked to evaluate this repository rather than operate it?** Go to
-> [`docs/agent/COLD-READ-TEST.md`](./docs/agent/COLD-READ-TEST.md) and read it
-> before anything else — it asks you to start cold, and a briefing spends the
-> only cold read you have.
+> ## ⚠ Asked to beta-test rather than to operate?
+>
+> **Stop and read the matching protocol before you run anything.** Both change
+> what you are supposed to do when something breaks.
+>
+> | You were asked to | Read first |
+> | :--- | :--- |
+> | **Deploy this and tell us how it went** | [`docs/agent/BETA-DEPLOYMENT-TEST.md`](./docs/agent/BETA-DEPLOYMENT-TEST.md) |
+> | **Evaluate the documentation** without deploying | [`docs/agent/COLD-READ-TEST.md`](./docs/agent/COLD-READ-TEST.md) |
+>
+> Two things they both establish, stated here so you cannot miss them:
+>
+> 1. **You cannot fail these tests — only the repository can.** If you are
+>    blocked, if you have to guess, if a human has to explain something to you,
+>    that is the result being measured. We failed to formulate it. Report it
+>    plainly; there is no incident too small.
+> 2. **Do not fix, do not fork, do not send a patch.** Report the defect and any
+>    workaround you needed, and stop there. A correction made in your clone dies
+>    with it, hides the shape of the defect, and makes every tester's repository
+>    diverge — which has already happened here. We correct on our side, in the
+>    generic path, where it survives (Rule 29).
+>
+> A cold read is also spent by a briefing: if you were asked to evaluate the
+> documentation, do not accept an explanation before you start.
 
 ---
 

@@ -37,6 +37,7 @@ read the same text.
 | [`PHASES.md`](./agent/PHASES.md) | Seven phases, and which rules bind in each. The ordered spine. |
 | [`RUNBOOK-EXPLICIT.md`](./agent/RUNBOOK-EXPLICIT.md) | Literal steps, explicit stops, no derivation required. |
 | [`COLD-READ-TEST.md`](./agent/COLD-READ-TEST.md) | For an agent asked to *evaluate* the documentation: seven questions, one report format. |
+| [`BETA-DEPLOYMENT-TEST.md`](./agent/BETA-DEPLOYMENT-TEST.md) | For an agent asked to *deploy* and report: you cannot fail it, and you must not fix anything. |
 
 ## architecture/
 
