@@ -344,6 +344,16 @@ The `univ-` prefix provides a unified sovereign brand across Git, container name
   * At every deployment the agent enumerates the engines actually reachable from
     the target host, sends a bounded ping, measures, and selects the **cheapest
     engine that satisfies the declared depth and throughput**.
+  * **Where cost does not discriminate, measured speed does.** Free engines all
+    cost the same, so among those that satisfy the declared depth the default is
+    the one with the **highest measured throughput** — tokens per second observed
+    from the target host, on a bounded prompt, not a figure read from a vendor
+    page or a public ranking. Published speed has already been wrong here: the
+    fastest model on paper timed out twice from inside an LXC while a slower one
+    did the work.
+  * **The measurement is part of the deployment, not a preliminary.** An engine
+    adopted without a recorded ping is an undocumented dependency, even when it
+    answers: a healthy bridge proves the bridge, never the model behind it.
   * The selected engine, its measurement and the moment of measurement are
     written to the deployment log. **An engine chosen without a recorded
     measurement is an undocumented dependency** and fails Rule 0G.

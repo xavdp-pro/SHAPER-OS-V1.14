@@ -25,10 +25,10 @@ ls software/packages
 
 ## Step 1 — Read these four files, in this order
 
-1. [`../../LAW.md`](../../LAW.md)
+1. [`LAW.md`](../../LAW.md)
 2. [`./BOOT-CONTRACT.md`](./BOOT-CONTRACT.md)
-3. [`../../START-HERE.md`](../human/START-HERE.md)
-4. [`../../KEYS-AND-ACCOUNTS.md`](../human/KEYS-AND-ACCOUNTS.md)
+3. [`docs/human/START-HERE.md`](../human/START-HERE.md)
+4. [`docs/human/KEYS-AND-ACCOUNTS.md`](../human/KEYS-AND-ACCOUNTS.md)
 
 Then `software/RULES.md` in full. Do not summarise it for yourself and do not
 skip sections because they look unrelated.
@@ -56,7 +56,7 @@ For the target tier, every required key must be present, non-empty, and not a
 placeholder such as `changeme`, `xxx`, or `your-key-here`.
 
 - **A key is missing or is a placeholder → STOP.** Name the exact key, give the
-  vendor console URL from [`../../KEYS-AND-ACCOUNTS.md`](../human/KEYS-AND-ACCOUNTS.md),
+  vendor console URL from [`docs/human/KEYS-AND-ACCOUNTS.md`](../human/KEYS-AND-ACCOUNTS.md),
   and wait for the human. Do not build. Do not launch. Do not "start without it
   and add it later".
 - **All keys present:** copy the validated values into `software/.env` and into
@@ -66,12 +66,31 @@ placeholder such as `changeme`, `xxx`, or `your-key-here`.
 
 Do not reorder. Do not skip. Each command must succeed before the next one runs.
 
-**First, get the universe slug from the human.** Do not invent it. It is
-lowercase, no spaces, letters, digits and hyphens only, and the directory is
-always `<univ_slug>-dev` at the repository root (Rule 1). If the human has not
-given you one, ask for it before continuing.
+**First, get the universe slug from the human.** Do not invent it, and **do not
+derive it from something else you were given**: a container name, a host name or
+a ticket number is not a slug, and a tester who assumed the two were the same
+said afterwards that he should have asked. It is lowercase, letters, digits and
+hyphens only (Rule 1).
+
+**Where the universe directory goes.** `<univ_slug>-dev/` beside the repository
+root is the default. A universe carrying real work belongs **outside** the
+repository — this one is generic and publishes what it contains — and then the
+deploy script needs `SHAPER_ROOT` pointing at the `software/` tree, since it can
+no longer find it by walking up.
+
+**Write the universe's INTENT before you create anything.** Principle 1 is
+*intent precedes form*, and it is broken by habit: a tester created the container
+first and used the human's request as an implicit intention. Copy
+`software/universes/_template/INTENT.md`, state in it what this universe is for
+and its four to six invariants, and only then run the commands below.
 
 ```bash
+# 4.0 — the intention, first
+mkdir -p <univ_slug>-dev/context
+cp software/universes/_template/INTENT.md          <univ_slug>-dev/INTENT.md
+cp software/universes/_template/context/AGENT-CONTEXT.md <univ_slug>-dev/context/AGENT-CONTEXT.md
+# then edit both: a template left with its placeholders is an unfinished universe
+
 # 4.1 — from the repository root
 cp .env.example software/.env
 cp software/resources/vault-resources.dev.example.json \
@@ -107,6 +126,19 @@ directory — the universe references the bricks, it never contains them.
 - **`podman-up.sh` does not exit 0 → STOP.** Show the container logs.
 - **`npm run test:live` is red → STOP.** Live tests run *after* the stack is up;
   if you ran them before, that is your error, not a failure of the system.
+
+## Step 4b — Which lifecycle is this? Ask, do not deduce
+
+DEV and TEST look identical while they run and differ completely at the end: a
+TEST universe is **destroyed** once it has proved itself (Rule 10), a DEV one is
+kept. "A test VPS" describes a machine, not a lifecycle, and a tester read it as
+DEV while the operator may have meant TEST — which is why two universes were
+still running days later.
+
+If the human has not said which, **ask in one sentence**: *"Is this DEV, which I
+keep, or TEST, which I destroy after the proof?"* Then write the answer into the
+universe's `INTENT.md` and its manifest `environment`, so that the next agent
+does not have to guess what you guessed.
 
 ## Step 5 — Public tier (tier-b), only if the human asks for voice or a public URL
 

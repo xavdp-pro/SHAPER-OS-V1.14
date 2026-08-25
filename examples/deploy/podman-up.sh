@@ -7,6 +7,13 @@ set -euo pipefail
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
 SLUG="${UNIV_SLUG:-$(basename "$UNIV")}"
 
+# NOTE ON IMAGE TAGS — this script is the DEV example, and it runs `:latest` on
+# purpose: in DEV you want what you just built. PROD never pulls a floating tag
+# (Rule 10, LIFECYCLE.md): it checks out an immutable `v1.x.y` and deploys the
+# images built from it. A tester read the `:latest` here as the repository
+# contradicting its own law, which it was not — it was this script never saying
+# which lifecycle it belonged to.
+
 # The universe declares its posture in its manifest; the image must not decide it.
 # brick-helm bakes NODE_ENV=production for build optimisation, which is right, but
 # it says nothing about whether this deployment is a laptop or a business. Without

@@ -165,6 +165,26 @@ brick's declared `depth` and `throughput`. Record the choice and the measurement
 in the deployment log — a model chosen without a recorded measurement is an
 undocumented dependency.
 
+**When several candidates cost the same — which is the normal case on a free
+tier — take the fastest one you measured.** Not the fastest advertised: tokens
+per second observed from this host, on a bounded prompt, timed. The ranking a
+vendor publishes describes their infrastructure on a good day, not the path
+between your container and their endpoint.
+
+Concretely, on the default free tier:
+
+```
+1. opencode models                 → what is actually reachable from here
+2. for each candidate: a bounded prompt, timed → measured tok/s and time to
+                                     first token, or a timeout, which is an answer
+3. keep those that satisfy the brick's declared depth
+4. among them, take the highest measured throughput
+5. write the winner, its number, and the moment of measurement into the log
+```
+
+A candidate that times out is not slow, it is **absent** — record it as such, so
+the next deployment does not spend its budget rediscovering the same silence.
+
 ---
 
 ## Where concrete engine names are allowed to live

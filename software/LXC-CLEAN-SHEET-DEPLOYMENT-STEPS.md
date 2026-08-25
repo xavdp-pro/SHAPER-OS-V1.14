@@ -7,7 +7,7 @@
 > vous lisez `<univ_slug>`, substituez le nom de votre univers. Aucun univers
 > concret n'est livré avec ce dépôt — voir [`../univs/README.md`](../univs/README.md).
 
-Ce document détaille la séquence exacte et chronologique permettant de monter un univers Shaper OS / KovZu complet sur un conteneur **LXC vierge** (Debian 12 / Ubuntu 24.04), jusqu'à la **prise de relais autonome par l'agent IA**.
+Ce document détaille la séquence exacte et chronologique permettant de monter un univers Shaper OS / KovZu complet sur un conteneur **LXC vierge** (Debian 13, conformément à la règle 11 ; Debian 12 et Ubuntu 24.04 restent utilisables), jusqu'à la **prise de relais autonome par l'agent IA**.
 
 ---
 
@@ -51,7 +51,7 @@ Pour permettre à Podman de tourner sans restriction dans le conteneur LXC :
 ---
 
 ### Étape 1 — Provisioning OS & Outils d'Ingénierie
-Exécuté sur le système Debian 12 vierge :
+Exécuté sur le système Debian 13 vierge :
 ```bash
 apt-get update && apt-get install -y   podman   git   curl   wget   jq   ripgrep   openssh-server   openssh-client   python3   python3-pip   rsync   unzip   ca-certificates
 ```
@@ -97,7 +97,15 @@ ici ouvrait en écriture universelle des répertoires que personne n'utilisait.
 
 ---
 
-### Étape 4 — Déploiement des 9 Briques Podman Shaper OS
+### Étape 4 — Déploiement de la pile complète (9 conteneurs)
+
+> **Ce n'est pas « la base ».** Le socle exécutable est de **cinq** briques —
+> vault, logger, bridge, queue, maestro — et c'est ce que déclare
+> `manifest.tier-a.json`. Les neuf conteneurs ci-dessous sont la pile complète
+> de ce guide : le socle, plus le cockpit, la GED, le vectoriel et le tunnel.
+> Un testeur a hésité entre les deux comptes ; les trois lectures possibles de
+> « la base » sont réconciliées dans
+> [`../docs/architecture/BRICKS.md`](../docs/architecture/BRICKS.md).
 Lancement coordonné du cluster avec `universes/<univ_slug>/deploy/podman-up.sh` :
 * 🔐 **`<univ_slug>-vault`** (:8610) — Coffre-fort chiffré AES-256-GCM
 * 📜 **`<univ_slug>-logger`** (:8620) — Collecteur d'audit JSONL et bus SSE
