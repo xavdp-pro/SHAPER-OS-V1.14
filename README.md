@@ -66,6 +66,7 @@ purpose explains.
 ├── INTENT.md          ← what this kit is for, and its invariants
 ├── NOTICE.md          ← authorship, AI-assisted writing, licence
 │
+├── univs/             ← the demonstration universes shipped with the repo
 ├── docs/human/        ← install, prove, operate, vocabulary
 ├── docs/agent/        ← the four documents an AI agent reads
 ├── docs/architecture/ ← bricks, cognition requirements, fractal security
@@ -435,10 +436,10 @@ bash scripts/build-all-bricks.sh
 ### 3. Deploy the WordPress Fractal Pair
 ```bash
 # Start the Parent Supervisor & Manager Gateway (Tier 2)
-bash univ-wordpress-father/deploy/podman-up.sh
+bash univs/univ-wordpress-father/deploy/podman-up.sh
 
 # Start the Child WordPress & MariaDB Store (Tier 3)
-bash univ-wordpress-child/deploy/podman-up.sh
+bash univs/univ-wordpress-child/deploy/podman-up.sh
 ```
 
 ### 4. Access Live Dashboards
