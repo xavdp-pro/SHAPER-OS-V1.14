@@ -12,6 +12,9 @@
  *   node scripts/shaper-tool-scaffold.mjs create --slug crm --name "CRM & Pipeline Pro" --desc "Client and quote management"
  */
 
+// The universe slug belongs to the operator: this repository ships none.
+const univSlug = process.env.UNIV_SLUG || '<univ_slug>';
+
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,12 +109,12 @@ CMD ["node", "server.js"]
 
   // 3. Quadlet .container
   fs.writeFileSync(path.join(brickDir, `${slug}.container`), `[Unit]
-Description=Shaper OS — ${toolName} (univ9-${slug})
+Description=Shaper OS — ${toolName} (${univSlug}-${slug})
 After=network-online.target
 
 [Container]
 Image=localhost/shaper-${slug}:latest
-ContainerName=univ9-${slug}
+ContainerName=${univSlug}-${slug}
 Network=host
 Environment=PORT=${port}
 Environment=DATA_DIR=/data/${slug}
@@ -291,7 +294,7 @@ describe('${slug}-engine', () => {
   console.log(`   🔌 Port    : :${port}`);
   console.log(`\nTo build and run the Podman container:`);
   console.log(`   podman build -t localhost/shaper-${slug}:latest -f bricks/brick-${slug}/Containerfile .`);
-  console.log(`   podman run -d --name univ9-${slug} --network host -v $(pwd)/data/${slug}:/data/${slug}:rw,z localhost/shaper-${slug}:latest\n`);
+  console.log(`   podman run -d --name ${univSlug}-${slug} --network host -v $(pwd)/data/${slug}:/data/${slug}:rw,z localhost/shaper-${slug}:latest\n`);
 }
 
 const args = process.argv.slice(2);

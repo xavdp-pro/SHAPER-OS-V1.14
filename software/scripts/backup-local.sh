@@ -24,7 +24,7 @@ DUMP_DIR="${SHAPER_DIR}/data/_staging_dump"
 mkdir -p "$DUMP_DIR"
 if command -v mariadb-dump &>/dev/null; then
   mariadb-dump -h 127.0.0.1 -u helm_user -phelm_password_local helm_db > "${DUMP_DIR}/helm_db.sql" 2>/dev/null || true
-elif podman exec univ9-helm mariadb-dump -u helm_user -phelm_password_local helm_db > "${DUMP_DIR}/helm_db.sql" 2>/dev/null; then
+elif podman exec "${UNIV_SLUG:?set UNIV_SLUG}-helm" mariadb-dump -u helm_user -phelm_password_local helm_db > "${DUMP_DIR}/helm_db.sql" 2>/dev/null; then
   echo "[backup-local] MariaDB dump successfully extracted via Podman."
 else
   echo "[backup-local] Note: MariaDB dump not directly available."

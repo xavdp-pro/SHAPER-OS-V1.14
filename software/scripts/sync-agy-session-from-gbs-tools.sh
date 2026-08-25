@@ -14,7 +14,7 @@ copy_remote() {
   if scp -q "${SRC_HOST}:${SRC_HOME}/${rel}" "$dest" 2>/dev/null; then
     return 0
   fi
-  # Fallback when univ7 cannot scp directly to gbs-tools
+  # Fallback when the source universe cannot scp directly to gbs-tools
   ssh "$SRC_HOST" "cat '${SRC_HOME}/${rel}'" > "$dest"
 }
 

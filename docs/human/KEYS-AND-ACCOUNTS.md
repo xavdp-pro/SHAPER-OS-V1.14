@@ -48,7 +48,7 @@ Template file: [`.env.example`](../../.env.example) → copy to `.env` or `softw
 2. **AI Agent's Strict Obligation (Mandatory Check & Halt)**:
    - **Inspect First**: Before running `podman-up.sh` or deploying any stack, the AI agent **MUST inspect the `.env`** to ensure that every required key for the requested tier is present, non-empty, and valid.
    - **Proactive Reclamation**: If a key is missing or is a placeholder, the AI agent **MUST HALT** and explicitly ask the human vibe-coder for the key, providing the direct signup/console link. The agent **MUST NOT** launch containers blindly hoping keys exist.
-   - **Multi-Podman Key Propagation**: The AI agent is responsible for copying/syncing the validated keys into all required `.env` locations across universes and Podman containers (`software/.env`, `deploy/env`, `deploy/univ9.env`).
+   - **Multi-Podman Key Propagation**: The AI agent is responsible for copying/syncing the validated keys into all required `.env` locations across universes and Podman containers (`software/.env`, `deploy/env`, `deploy/<univ_slug>.env`).
 
 ---
 

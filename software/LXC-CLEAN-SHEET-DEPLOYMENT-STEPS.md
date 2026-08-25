@@ -3,12 +3,16 @@
 > **Perimeter law**: Deployed stack = **P1 socle + P2 agentic** (KovZu Helm). P3 client tools are out of scope here.  
 > See [`docs/PERIMETERS.md`](./docs/PERIMETERS.md).
 
+> **Le slug appartient à l'opérateur.** Cette procédure est générique : partout où
+> vous lisez `<univ_slug>`, substituez le nom de votre univers. Aucun univers
+> concret n'est livré avec ce dépôt — voir [`../univs/README.md`](../univs/README.md).
+
 Ce document détaille la séquence exacte et chronologique permettant de monter un univers Shaper OS / KovZu complet sur un conteneur **LXC vierge** (Debian 12 / Ubuntu 24.04), jusqu'à la **prise de relais autonome par l'agent IA**.
 
 ---
 
 ## 🎯 Définition du Succès (Critère d'Accomplissement Total)
-> **Le système est réputé réussi quand, sur un conteneur LXC vierge, une séquence automatisée déploie l'écosystème et que l'agent IA (`univ9-bridge-opencode`) prend le commandement, découvre son environnement, manipule les briques Podman et répond à l'opérateur.**
+> **Le système est réputé réussi quand, sur un conteneur LXC vierge, une séquence automatisée déploie l'écosystème et que l'agent IA (`<univ_slug>-bridge-opencode`) prend le commandement, découvre son environnement, manipule les briques Podman et répond à l'opérateur.**
 >
 > **Trois horloges de restauration (ne jamais dire « &lt; 120 s » sans ça) :**
 > 1. **Images déjà dans notre registry / cache Podman** — déploiement **rapide**.
@@ -78,16 +82,16 @@ chmod -R 777 /data/ged /data/workspaces /data/timelines
 ---
 
 ### Étape 4 — Déploiement des 9 Briques Podman Shaper OS
-Lancement coordonné du cluster avec `universes/univ9/deploy/podman-up.sh` :
-* 🔐 **`univ9-vault`** (:8610) — Coffre-fort chiffré AES-256-GCM
-* 📜 **`univ9-logger`** (:8620) — Collecteur d'audit JSONL et bus SSE
-* 📬 **`univ9-queue`** (:8640) — File d'attente de jobs asynchrones
-* 🎼 **`univ9-maestro`** (:8530) — Orchestrateur et supervision d'état
-* 📂 **`univ9-ged`** (:8660) — Hub documentaire souverain et OCR
-* 🧠 **`univ9-qdrant`** (:6333) — Base vectorielle sémantique
-* 🎛️ **`univ9-helm`** (:8650) — Cockpit de pilotage universel KovZu
-* 🌐 **`univ9-tunnel`** — Passerelle d'accès distante sécurisée
-* 🤖 **`univ9-bridge-opencode`** (:4440) — Runtime de l'Agent IA
+Lancement coordonné du cluster avec `universes/<univ_slug>/deploy/podman-up.sh` :
+* 🔐 **`<univ_slug>-vault`** (:8610) — Coffre-fort chiffré AES-256-GCM
+* 📜 **`<univ_slug>-logger`** (:8620) — Collecteur d'audit JSONL et bus SSE
+* 📬 **`<univ_slug>-queue`** (:8640) — File d'attente de jobs asynchrones
+* 🎼 **`<univ_slug>-maestro`** (:8530) — Orchestrateur et supervision d'état
+* 📂 **`<univ_slug>-ged`** (:8660) — Hub documentaire souverain et OCR
+* 🧠 **`<univ_slug>-qdrant`** (:6333) — Base vectorielle sémantique
+* 🎛️ **`<univ_slug>-helm`** (:8650) — Cockpit de pilotage universel KovZu
+* 🌐 **`<univ_slug>-tunnel`** — Passerelle d'accès distante sécurisée
+* 🤖 **`<univ_slug>-bridge-opencode`** (:4440) — Runtime de l'Agent IA
 
 ---
 
@@ -95,11 +99,11 @@ Lancement coordonné du cluster avec `universes/univ9/deploy/podman-up.sh` :
 Injection des identifiants et des wrappers dans le conteneur de l'agent :
 ```bash
 # Injection de la clé SSH dans l'agent
-podman exec univ9-bridge-opencode mkdir -p /root/.ssh
-podman cp /root/.ssh/id_ed25519 univ9-bridge-opencode:/root/.ssh/id_ed25519
-podman cp /root/.ssh/id_ed25519.pub univ9-bridge-opencode:/root/.ssh/id_ed25519.pub
-podman exec univ9-bridge-opencode chmod 700 /root/.ssh
-podman exec univ9-bridge-opencode chmod 600 /root/.ssh/id_ed25519
+podman exec <univ_slug>-bridge-opencode mkdir -p /root/.ssh
+podman cp /root/.ssh/id_ed25519 <univ_slug>-bridge-opencode:/root/.ssh/id_ed25519
+podman cp /root/.ssh/id_ed25519.pub <univ_slug>-bridge-opencode:/root/.ssh/id_ed25519.pub
+podman exec <univ_slug>-bridge-opencode chmod 700 /root/.ssh
+podman exec <univ_slug>-bridge-opencode chmod 600 /root/.ssh/id_ed25519
 
 # Déploiement du wrapper /usr/local/bin/podman
 cat << 'EOF_WRAPPER' > /tmp/podman-wrapper.sh
@@ -114,8 +118,8 @@ done
 exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes root@localhost podman $CMD
 EOF_WRAPPER
 chmod +x /tmp/podman-wrapper.sh
-podman cp /tmp/podman-wrapper.sh univ9-bridge-opencode:/usr/local/bin/podman
-podman cp /tmp/podman-wrapper.sh univ9-bridge-opencode:/usr/local/bin/docker
+podman cp /tmp/podman-wrapper.sh <univ_slug>-bridge-opencode:/usr/local/bin/podman
+podman cp /tmp/podman-wrapper.sh <univ_slug>-bridge-opencode:/usr/local/bin/docker
 rm -f /tmp/podman-wrapper.sh
 ```
 

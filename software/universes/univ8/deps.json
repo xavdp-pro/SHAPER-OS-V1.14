@@ -1,4 +1,0 @@
-{
-  "universe": "univ8",
-  "requires": ["@shaper/vault", "@shaper/logger", "@shaper/maestro", "@shaper/agent", "@shaper/bridge-agy"]
-}

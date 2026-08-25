@@ -130,7 +130,7 @@ All administrative, document, and software operations run sovereignly on this in
   }
   console.log(`\nTo initialize and start the client universe:`);
   console.log(`   export UNIV9_ENV_FILE=universes/univ-${slug}/deploy/${slug}.env`);
-  console.log(`   bash universes/univ9/deploy/podman-up.sh\n`);
+  console.log(`   bash universes/${slug}/deploy/podman-up.sh\n`);
 }
 
 const args = process.argv.slice(2);

@@ -230,7 +230,7 @@ SHAPER OS uses **two complementary layers** — never one replacing the other:
   * **Zero Blind Execution**: The AI agent MUST NEVER start deployment blindly hoping secrets exist or using dummy placeholders that return 401s.
   * **Proactive Key Reclamation**: If any required secret (`VAULT_MASTER_KEY`, `JWT_SECRET`, `DEEPGRAM_API_KEY`, `GROQ_API_KEY`, Cloudflare tunnel token) is missing or empty, the AI agent **MUST HALT IMMEDIATELY**, explain which key is missing, provide the exact vendor signup/console URL, and wait for the human to paste it.
 * **Multi-Podman Key Propagation**:
-  * The AI agent is strictly responsible for copying and propagating the validated `.env` across all universe and Podman runtime directories (`software/.env`, `deploy/env`, `deploy/univ9.env`).
+  * The AI agent is strictly responsible for copying and propagating the validated `.env` across all universe and Podman runtime directories (`software/.env`, `deploy/env`, `deploy/<univ_slug>.env`).
 * **The "Standard vs Freestyle" Guarantee & Responsibility Matrix**:
   * **Standard Recipe ("La Sauce Robuste")**: When the human respects the checklist and provides a complete, valid `.env`, the entire Shaper OS deployment pipeline is guaranteed to be **100% deterministic, predictable, autonomous, and green from end to end**.
   * **Freestyle Mode ("Liberté Totale")**: The human user is 100% free to go freestyle, test with partial keys, run experimental stacks, or customize rules. However, managing degraded/inactive services in freestyle mode is the **user's full responsibility with their AI agent**. The core baseline cannot be considered failing if the standard formula was bypassed.
@@ -260,7 +260,7 @@ SHAPER OS uses **two complementary layers** — never one replacing the other:
 
 * **Mandatory `univ-` Git Repository Prefix (Everywhere)**: All Git repositories across the entire ecosystem MUST STRICTLY begin with the prefix `univ-`. No exceptions are permitted.
   * Master Core Framework: `univ-shaper-os` (or `univ-shaper`)
-  * Business Universes: `univ-immo`, `univ-sinistre`, `univ-artisan`, `univ-ciel`, `univ8`
+  * Business Universes: `univ-immo`, `univ-sinistre`, `univ-artisan`, `univ-ciel`
   * Standalone Engines / Tools: `univ-vault`, `univ-app-shell`, `univ-mail-agent`
 
 The `univ-` prefix provides a unified sovereign brand across Git, container namespaces, and system services while internally distinguishing deployable applications from composable logic packages.
@@ -268,7 +268,7 @@ The `univ-` prefix provides a unified sovereign brand across Git, container name
 | Element Type | Scope / Layer | Canonical Naming Convention | Real-World Examples |
 | :--- | :--- | :--- | :--- |
 | Composable Logic Bricks | NPM Scope `@shaper/` | `@shaper/<brick>` | `@shaper/vault`, `@shaper/logger`, `@shaper/queue` (**P1**); `@shaper/maestro`, `@shaper/mail-agent`, bridges (**P2**); `@shaper/waf`, `@shaper/variables`, `@shaper/ai-client` (**planned** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)) |
-| Vertical Universes (Apps) | Apps / Containers | `univ-<vertical>` | `univ-sinistre` (Legal & Insurance), `univ-artisan` (Construction/BTP), `univ-crm`, `univ-webmail`, `univ-wiki`, `univ8` |
+| Vertical Universes (Apps) | Apps / Containers | `univ-<vertical>` | `univ-sinistre` (Legal & Insurance), `univ-artisan` (Construction/BTP), `univ-crm`, `univ-webmail`, `univ-wiki` |
 | AI Agent Bridges | Apps / Containers | `univ-bridge-<agent>` | `univ-bridge-agy`, `univ-bridge-opencode`, `univ-bridge-claude` |
 | Master Repository | Git Organization | `univ-shaper-os` | `xavdp-pro/univ-shaper-os` (Master Git) |
 
@@ -415,7 +415,7 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
 ---
 
 ### Rule 13: Hybrid WireGuard Private Mesh Network & Mandatory Peer Naming
-* All distributed nodes (`univ7`, cloud VPS, bare-metal Proxmox) join the private encrypted mesh:
+* All distributed nodes (universe hosts, cloud VPS, bare-metal Proxmox) join the private encrypted mesh:
   * Central gateway on subnet `10.87.78.0/24` (or configured mesh subnet).
   * Dynamic peer key registration.
   * Persistent keepalive (`PersistentKeepalive = 25`) for firewall/NAT traversal.

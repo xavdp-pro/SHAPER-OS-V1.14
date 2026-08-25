@@ -88,7 +88,10 @@ function trackedFiles() {
     const base = parts[parts.length - 1];
     if (SKIPPED_FILES.has(base)) return false;
     return SCANNED_EXTENSIONS.has(path.extname(base)) || base.startsWith('.env');
-  }).map((rel) => path.join(REPO, rel));
+  }).map((rel) => path.join(REPO, rel))
+    // A file git still lists but that is already gone from disk is a normal
+    // transient state mid-refactor. The guard must report leaks, not crash on it.
+    .filter((abs) => fs.existsSync(abs));
 }
 
 describe('domain agnosticism', () => {

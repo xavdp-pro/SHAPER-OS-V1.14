@@ -35,6 +35,7 @@ function canonFiles() {
       || rel.startsWith('docs/') || rel.startsWith('doctrine/')
       || /^software\/(bricks|packages)\/[^/]+\/INTENT\.md$/.test(rel);
   }).map((rel) => [rel, path.join(REPO, rel)])
+    .filter(([, abs]) => fs.existsSync(abs))
     // A document may declare itself a dated snapshot. The declaration lives in the
     // file, in the first lines a reader sees — not hidden in this test.
     .filter(([, abs]) => !/^>?\s*\*\*Status\*\*:\s*dated snapshot/m.test(

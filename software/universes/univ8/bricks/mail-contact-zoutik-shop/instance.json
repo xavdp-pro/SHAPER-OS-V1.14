@@ -1,9 +1,0 @@
-{
-  "slug": "mail-contact-zoutik-shop",
-  "kind": "mail",
-  "mailbox": "contact@zoutik.example.com",
-  "vaultKey": "secret/mail/contact-zoutik-shop",
-  "cadenceSeconds": 300,
-  "contextPath": "./context/AGENT-CONTEXT.md",
-  "checkpointPath": "./state/checkpoint.json"
-}

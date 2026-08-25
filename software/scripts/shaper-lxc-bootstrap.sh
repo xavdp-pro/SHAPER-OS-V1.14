@@ -5,6 +5,7 @@
 # DRP: 3 clocks (cached images = fast; rebuild from scratch = longer; + data delta).
 # Do not display "< 120s" as SLA. See RULES.md Rule 10.
 # ==============================================================================
+: "${UNIV_SLUG:?not set — choose the universe slug; this repository ships no universe (see univs/README.md)}"
 set -e
 
 echo "============================================================="
@@ -32,21 +33,21 @@ mkdir -p /data/{vault,logger,queue,ged,workspaces,opencode-bridge,timelines,qdra
 chmod -R 777 /data/ged /data/workspaces /data/timelines
 
 # STEP 4 : Start Shaper OS containers
-echo "[4/7] Starting Podman cluster (universes/univ9/deploy/podman-up.sh)..."
-if [ -f universes/univ9/deploy/podman-up.sh ]; then
-  bash universes/univ9/deploy/podman-up.sh
+echo "[4/7] Starting Podman cluster (universes/${UNIV_SLUG}/deploy/podman-up.sh)..."
+if [ -f universes/${UNIV_SLUG}/deploy/podman-up.sh ]; then
+  bash universes/${UNIV_SLUG}/deploy/podman-up.sh
 else
   echo "⚠️ Script podman-up.sh not found, check execution directory."
 fi
 
 # STEP 5 : Wire transparent Podman bridge into the agent
 echo "[5/7] Configuring transparent Podman bridge inside the agent..."
-if podman ps -q -f name=univ9-bridge-opencode | grep -q .; then
-  podman exec univ9-bridge-opencode mkdir -p /root/.ssh
-  podman cp /root/.ssh/id_ed25519 univ9-bridge-opencode:/root/.ssh/id_ed25519
-  podman cp /root/.ssh/id_ed25519.pub univ9-bridge-opencode:/root/.ssh/id_ed25519.pub
-  podman exec univ9-bridge-opencode chmod 700 /root/.ssh
-  podman exec univ9-bridge-opencode chmod 600 /root/.ssh/id_ed25519
+if podman ps -q -f name=${UNIV_SLUG}-bridge-opencode | grep -q .; then
+  podman exec ${UNIV_SLUG}-bridge-opencode mkdir -p /root/.ssh
+  podman cp /root/.ssh/id_ed25519 ${UNIV_SLUG}-bridge-opencode:/root/.ssh/id_ed25519
+  podman cp /root/.ssh/id_ed25519.pub ${UNIV_SLUG}-bridge-opencode:/root/.ssh/id_ed25519.pub
+  podman exec ${UNIV_SLUG}-bridge-opencode chmod 700 /root/.ssh
+  podman exec ${UNIV_SLUG}-bridge-opencode chmod 600 /root/.ssh/id_ed25519
 
   cat << 'EOF_WRAP' > /tmp/podman-wrapper.sh
 #!/bin/bash
@@ -60,8 +61,8 @@ done
 exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes root@localhost podman $CMD
 EOF_WRAP
   chmod +x /tmp/podman-wrapper.sh
-  podman cp /tmp/podman-wrapper.sh univ9-bridge-opencode:/usr/local/bin/podman
-  podman cp /tmp/podman-wrapper.sh univ9-bridge-opencode:/usr/local/bin/docker
+  podman cp /tmp/podman-wrapper.sh ${UNIV_SLUG}-bridge-opencode:/usr/local/bin/podman
+  podman cp /tmp/podman-wrapper.sh ${UNIV_SLUG}-bridge-opencode:/usr/local/bin/docker
   rm -f /tmp/podman-wrapper.sh
 fi
 

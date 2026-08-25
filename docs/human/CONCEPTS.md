@@ -101,7 +101,7 @@ Nothing is “ready to promote” until its floor is green.
 
 1. **Unit** — `npm test` (`packages/*/test`). Fast. No live stack. **Must be green on a fresh clone.**  
 2. **Integration / live** — `npm run test:live` (`universes/_template/test/socle-live.test.js`). Needs the tier-a stack **up**. **Must be green. Never skip.** Tier-b adds `npm run test:live:helm`.  
-3. **Reference live** — `npm run test:live:reference` (univ7/8/9 in the software repo). Maintainers and regression — not the first-install gate.  
+3. **Universe live** — the universe you deployed runs its own contract and live suites. Maintainers and regression — not the first-install gate.  
 4. **Operator proof** — [`PROOF.md`](./PROOF.md) order → action → log.
 
 Running live tests *before* deploy, watching them fail, and continuing anyway is a **violation**, not a strategy.  
