@@ -58,7 +58,8 @@ export WITH_HELM="${WITH_HELM:-0}"
 
 mkdir -p "$SHAPER/data/vault" \
   "$UNIV/log" "$UNIV/sav" "$UNIV/state" \
-  "$UNIV/sav/opencode-ws" "$UNIV/sav/opencode-bridge" "$UNIV/sav/tunnel"
+  "$UNIV/sav/opencode-ws" "$UNIV/sav/opencode-bridge" "$UNIV/sav/queue" \
+  "$UNIV/sav/tunnel"
 
 if [[ ! -f "$SHAPER/data/vault/vault.enc" ]]; then
   echo "[podman-up] Bootstrapping vault..."

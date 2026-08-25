@@ -19,6 +19,11 @@
   in the image and are proven by running the CLI, not by resolving a path
   (Rule 34).
 
+* **A clean-sheet build never depends on a host CLI.** The build wrapper must
+  delegate acquisition to the version-pinned `Containerfile`; it must not copy
+  a workstation binary into the build context or ask the operator to install
+  one first.
+
 * **A missing CLI is a state, not a crash.** An unhandled spawn `error` used to
   kill the whole bridge, taking every other conversation with it and leaving the
   queue watching a stream that would never speak again. The run now ends with
