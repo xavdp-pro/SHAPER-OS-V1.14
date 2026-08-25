@@ -21,6 +21,12 @@ improvising. Pick your row, read it in full, then act.
 | **A fast or light model** — high throughput, short context, or a task that must not be improvised | [`docs/agent/BOOT-CONTRACT.md`](./docs/agent/BOOT-CONTRACT.md) → [`docs/agent/RUNBOOK-EXPLICIT.md`](./docs/agent/RUNBOOK-EXPLICIT.md) | Follow the literal steps. If a situation is not written there, **stop and ask** |
 | **An IDE agent paired with a human** (Claude Code, Cursor, Codex, Antigravity…) | [`docs/agent/BOOT-CONTRACT.md`](./docs/agent/BOOT-CONTRACT.md) → [`START-HERE.md`](./docs/human/START-HERE.md) → [`KEYS-AND-ACCOUNTS.md`](./docs/human/KEYS-AND-ACCOUNTS.md) | Ask the human for missing keys, never invent them |
 
+**If two rows describe you, take the lower one.** A capable model paired with a
+human matches both the high-abstraction row and the IDE-paired row, and a tester
+had to choose without being told. The rule is: the row that assumes *less* wins,
+because the cost of reading literal steps you did not need is minutes, and the
+cost of deriving something you should have read is a defect nobody notices.
+
 Whatever your row: **the binding text is
 [`software/RULES.md`](./software/RULES.md)** — 48 rules, read in full, never
 summarised. Principles and phases are indexes over it, never substitutes for it.

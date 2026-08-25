@@ -110,7 +110,7 @@ Lancement coordonné du cluster avec `universes/<univ_slug>/deploy/podman-up.sh`
 * 🔐 **`<univ_slug>-vault`** (:8610) — Coffre-fort chiffré AES-256-GCM
 * 📜 **`<univ_slug>-logger`** (:8620) — Collecteur d'audit JSONL et bus SSE
 * 📬 **`<univ_slug>-queue`** (:8640) — File d'attente de jobs asynchrones
-* 🎼 **`<univ_slug>-maestro`** (:8530) — Orchestrateur et supervision d'état
+* 🎼 **`<univ_slug>-maestro`** (:8630) — Orchestrateur et supervision d'état
 * 📂 **`<univ_slug>-ged`** (:8660) — Hub documentaire souverain et OCR
 * 🧠 **`<univ_slug>-qdrant`** (:6333) — Base vectorielle sémantique
 * 🎛️ **`<univ_slug>-helm`** (:8650) — Cockpit de pilotage universel KovZu
@@ -159,7 +159,7 @@ for WS in /data/workspaces/Administrateur /data/workspaces/Xavier; do
 
 ## Initialisation — Déploiement Clean-Sheet
 - **Socle Opérationnel** : Podman 5.4, Python 3.11, Pip, Git, JQ, Ripgrep, Node 20.
-- **Cluster Shaper OS Actif** : Vault (:8610), Logger (:8620), Queue (:8640), Maestro (:8530), GED (:8660), Qdrant (:6333), Helm (:8650).
+- **Cluster Shaper OS Actif** : Vault (:8610), Logger (:8620), Queue (:8640), Maestro (:8630), GED (:8660), Qdrant (:6333), Helm (:8650).
 - **Prise de Relais** : Agent souverain initialisé et prêt pour les commandes utilisateur.
 EOF_J
 done

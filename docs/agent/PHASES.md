@@ -63,8 +63,14 @@ costs a question.
 
 **Purpose.** Turn declared intention into running containers.
 
-**You do.** One brick, one container. Build or pull **tagged** images — never
-`latest`. Start in the manifest's `bootOrder` groups. Generic bricks are
+**You do.** One brick, one container. Start in the manifest's `bootOrder` groups.
+
+**Image tags depend on the lifecycle, and this phase used to overstate it.** In
+**DEV** you deploy what you just built locally, and a floating tag is the honest
+way to say so. In **TEST and PROD** the tag is immutable: TEST proves a `v1.x.y`
+and PROD deploys the tag TEST proved (Rule 0E, Rule 10). A tester followed the
+DEV runbook, ran floating tags, and reasonably read this line as the repository
+breaking its own law — it was this line being wrong, not the script. Generic bricks are
 referenced and specialised, never copied.
 
 **Binding now.** Rules 0B, 0E, 0I, 1, 2, 3, 4, 8, 11, 13, 26, 32, 33, 34.

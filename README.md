@@ -165,7 +165,7 @@ Each universe possesses its own services, agent bridges, rules, dependencies, an
 ### Level 3 — Developer / DevOps (The Engineer)
 SHAPER OS is a **declarative, cellular orchestration layer** for agentic systems.
 
-An architecture is described by its topology, dependencies, capabilities, and lifecycle rules in a single lightweight `manifest.json`. SHAPER materializes this intention into executable, sandboxed services (via Rootless Podman/OCI), orchestrates processing queues, enforces quality gates, and automates zero-touch validation.
+An architecture is described by its topology, dependencies, capabilities, and lifecycle rules in a single lightweight `manifest.json`. SHAPER materializes this intention into executable, sandboxed services (Podman/OCI, rootless where the host allows it — see the note on root in the security section), orchestrates processing queues, enforces quality gates, and automates zero-touch validation.
 
 ---
 
@@ -334,7 +334,7 @@ SHAPER OS strictly rejects exposing SSH root or open administrative ports to the
 ```
 
 1. **Zero Open Inbound Ports:** The host VPS operates behind firewalls with no public administrative ports.
-2. **Podman Rootless (Zero Root):** All containers execute under an unprivileged user (`zaza`). Even a zero-day exploit in a web plugin remains confined within the container boundary.
+2. **Container isolation, and an honest note about root:** each brick runs in its own container, so a zero-day in a web plugin stays inside that container rather than reaching the host. The **rootless** posture is the target and is what a workstation install does; the documented LXC path on a VPS is not there yet — Rule 11 mandates a privileged LXD profile for nested Podman, and the deployment guide runs Podman as root inside that container. A beta tester found the two statements side by side and could not tell which was true. Both are: the isolation is real, the `Zero Root` claim was not, and it is withdrawn here rather than softened.
 3. **Multi-Tenancy Isolation:** Store `wp01` has no physical or network access to Store `wp02`'s database or uploads.
 
 ---

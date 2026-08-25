@@ -97,3 +97,30 @@ has stress-tested would encode today's guesses as tomorrow's dispatch.
   measured inventory) to engine, with the decision **and the measurement that
   justified it** written to the audit log. Replacing "the human chooses" with "a
   box chooses and nobody knows why" would break Rule 0G.
+
+---
+
+## 4. Who is the Parent when a universe runs inside an LXC?
+
+**The question.** Rule 36 states that a parent's private SSH key never leaves the
+parent. Step 5 of the LXC deployment guide copies the LXC's private key into the
+agent container. Both readings are defensible: if the **LXC** is the Parent and
+the Podman container its Child, the guide violates the rule; if the **host** is
+the Parent and the whole LXC is the Child, the key never crossed a level and the
+rule holds.
+
+**Why it is not decided here.** It is an amendment to the law — `D4` by
+[`COGNITION.md`](./COGNITION.md), never dispatched autonomously. It also decides
+more than SSH: it fixes where a fractal level begins, which governs who repairs
+whom (Rule 23) and who holds authority (Rule 24).
+
+**What must be true first.** Someone has to state whether nesting creates a
+fractal level or merely a boundary. Until then the two readings coexist and
+nobody can tell which one an agent should follow.
+
+**Meanwhile.** Do not install the SSH relay of guide step 5 without asking. A
+beta tester reached exactly this point, could not arbitrate it, and chose not to
+install it — which was the right call, and is why the contradiction surfaced
+instead of being quietly resolved in one direction.
+
+**Who decides.** The operator, explicitly.

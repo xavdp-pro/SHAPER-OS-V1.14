@@ -113,6 +113,22 @@ Scales, degradation policies, and the declaration format:
 
 ---
 
+## Where a universe directory goes
+
+A tester found two procedures creating universes in two different places and
+could not tell which was canonical. Both exist for a reason, and here is which
+applies:
+
+| Case | Location | Why |
+| :--- | :--- | :--- |
+| You are deploying a universe to use | `<univ_slug>-dev/` **beside** the repository, or anywhere outside it with `SHAPER_ROOT` pointing at `software/` | A universe holds config and data. Real work does not belong in a generic repository (INTENT invariant 18) |
+| You are running the clean-sheet TEST described in the LXC guide | `software/universes/<univ_slug>-test/` | It is destroyed at the end (Rule 10). Only its `proof/VERDICT.md` survives, and it survives *inside* the repository, which is why the folder starts there |
+| You are writing a demonstration the documentation walks through | `univs/` | Reference material, kept few — see [`../../univs/README.md`](../../univs/README.md) |
+
+The deploy script finds the software tree by walking up until it sees
+`software/`, so a universe beside the repository works with no configuration. One
+placed further away needs `SHAPER_ROOT`; without it the script halts and says so.
+
 ## The rule that governs all four classes
 
 You **reference** a generic brick and **specialise** it through the manifest. You
