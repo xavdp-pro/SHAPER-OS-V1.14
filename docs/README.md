@@ -45,6 +45,7 @@ read the same text.
 | [`BRICKS.md`](./architecture/BRICKS.md) | Four brick classes, and what breaks without each one. |
 | [`COGNITION.md`](./architecture/COGNITION.md) | How a brick declares the reasoning depth and throughput its work needs. |
 | [`FRACTAL-ARCHITECTURE-AND-SECURITY.md`](./architecture/FRACTAL-ARCHITECTURE-AND-SECURITY.md) | Fractal recursivity, PULL workers, sovereign security model. |
+| [`DEFERRED-DECISIONS.md`](./architecture/DEFERRED-DECISIONS.md) | Questions deliberately left open, with the trigger that reopens each one. |
 
 ---
 

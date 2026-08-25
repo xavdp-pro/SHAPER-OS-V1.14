@@ -64,6 +64,7 @@ measurement from the target host, never by a published ranking alone.
 | `brick-qdrant` | Vector store for semantic memory | Live |
 | `@shaper/rag` | Semantic ingestion, multi-tenant vector isolation | Live |
 | `brick-pipeline` | Multi-witness document understanding + mechanical arbiter | **TARGET — not implemented.** Treat its INTENT as a specification, not as a description of running code |
+| `brick-waf` | Sovereign routing firewall: agent-generated allow-list, routing, precomputed cache | **TARGET — not implemented.** Specification only. Positive security is generated from the application; generic signatures stay delegated to a maintained engine (Rule 28) |
 | `@shaper/mail-agent` | Inbound mail triage into jobs | Live — production mailboxes forbidden in DEV/TEST (Rule 9) |
 
 An extension is never started "because it exists". If it is not in the manifest,
