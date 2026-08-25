@@ -69,7 +69,25 @@ patched. It is about where a correction lands.
 So: **fix it, prove it, tell us everything — and let us be the ones to commit
 it.**
 
-## 3. Start from a known commit, and say which
+## 3. Declare what you knew, and what the machine knew
+
+Two declarations, because neither party can make the other's: the person who
+asked you knows what they told you in earlier sessions, and only you know what
+you actually read in this one.
+
+Then a third thing, which is the one everyone forgets: **the terrain**. List what
+the machine already held before you started — repositories, containers, images,
+caches, shell history, environment files naming other versions — and say whether
+you read any of it.
+
+A template container on this project's test host was found carrying a full clone
+of the previous version. An agent with no memory of the system would have been
+handed it in three `ls` commands, and the report would still have said "no prior
+exposure" in good faith. **A cold reader needs a cold terrain.** What the machine
+offers is exposure too, and it is the kind nobody declares, because nobody put it
+there on purpose.
+
+## 4. Start from a known commit, and say which
 
 Divergence is what makes reports impossible to compare, so:
 
@@ -85,7 +103,7 @@ still real.
 
 ---
 
-## 4. What to record, as you go
+## 5. What to record, as you go
 
 Write incidents down **when they happen**, not from memory at the end. An
 incident you reconstruct afterwards loses the error text, which is the part we
@@ -107,7 +125,7 @@ to explain to you is something the documentation should have said.
 
 ---
 
-## 5. The report
+## 6. The report
 
 One Markdown document. Deliver it whether the deployment succeeded or not.
 
@@ -119,7 +137,11 @@ Commit tested:      <git log --oneline -1>
 Host / container:   <VPS, LXC, VM, laptop — and the OS>
 Runtime:            <Podman/Docker version, Node version>
 Tier deployed:      tier-a | tier-b
-Prior exposure:     none | read version <x> | discussed previously
+Prior exposure — mine:      none | read version <x> | discussed previously
+Prior exposure — requester: <what they say they gave you, or "not declared">
+Terrain already present:    <repos, containers, images, caches, env files the
+                             machine held before you started — and whether you
+                             read them>
 
 ## Result
 <Did the stack come up? Which services? Did a real job run end to end?>
@@ -165,7 +187,7 @@ we asked for.
 
 ---
 
-## 6. What happens to your report
+## 7. What happens to your report
 
 Your fixes are reviewed and placed where they survive — which is usually not
 where you put them, and that is expected: you were deploying one universe, we
@@ -186,7 +208,7 @@ commit that carries your fix.
 
 ---
 
-## 7. Related
+## 8. Related
 
 | If you were asked to… | Read |
 | :--- | :--- |

@@ -12,14 +12,30 @@ its producer validated has not been proven (Principle 3).
 
 ## Rules of the test
 
-0. **Declare your prior exposure before anything else.** Have you read an earlier
-   version of this repository, or discussed it in a previous conversation? If so,
-   **say it in the first line of your report** and continue anyway. A reader who
-   already knows the system cannot measure whether the documents teach it — but
-   they can measure something else, and something valuable: whether a document
-   contradicts another. Cross-document contradictions are found by readers who
-   remember. Missing explanations are found by readers who do not. Both are real
-   findings; conflating them is how a test lies about what it proved.
+0. **Declare your prior exposure before anything else, and declare it twice
+   over.** Have you read an earlier version of this repository, or discussed it in
+   a previous conversation? Say it in the first line of your report and continue
+   anyway. A reader who already knows the system cannot measure whether the
+   documents teach it — but they can measure whether one document contradicts
+   another, which a newcomer never sees. Both are real findings; conflating them
+   is how a test lies about what it proved.
+
+   **Two declarations are needed, because neither party can make the other's.**
+   The person who asked you knows what they told you in earlier sessions; only
+   you know what you actually read in this one. A report carrying only one of the
+   two has an unverifiable claim at the top of it.
+
+0b. **A cold reader is not enough — the terrain must be cold too.** Before you
+   start, list what the machine already held: repositories, containers, images,
+   caches, shell history, environment files naming other versions. Then say
+   whether you read any of it.
+
+   This is not a formality. A template container on the test host was found to
+   carry a full clone of the previous version: an agent with no memory of the
+   system was handed it in three `ls` commands. Nobody had noticed, because the
+   protocol only asked what the *reader* knew. What the *machine* offers counts
+   as exposure, and it is the kind nobody declares because nobody put it there on
+   purpose.
 1. **Read cold.** Do not accept a verbal briefing first. If a human explains
    something to you before you start, that explanation is a **finding**: write it
    down as "the repository should have told me this".
@@ -64,7 +80,12 @@ Deliver one Markdown block, nothing else:
 
 ```markdown
 ## Cold-read report — <engine name and version> — <date>
-Prior exposure: none | read version <x> | discussed previously
+Prior exposure — mine:     none | read version <x> | discussed previously
+Prior exposure — declared
+  by the requester:        <what they say they gave you, or "not declared">
+Terrain already present:   <repos, containers, images, caches, env files found
+                            on the machine before you started — and whether you
+                            read them>
 Row taken: high-abstraction | fast-light | IDE-paired
 Context budget: <tokens, or "unknown">
 Read in full: <files you actually read end to end>
