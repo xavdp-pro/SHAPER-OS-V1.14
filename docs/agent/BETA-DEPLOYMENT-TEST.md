@@ -24,40 +24,50 @@ ten seconds to work out what a step meant, that pause is an incident.
 
 ---
 
-## 2. Do not fix anything. Do not fork. Do not propose a patch.
+## 2. Go all the way — and hand us the fix inside the report
 
-**This is the rule that matters most, and it is the opposite of what a capable
-agent naturally wants to do.**
+**Do not stop at the wall.** If you can reproduce a defect, understand it and
+correct it, do all three. An agent that proves a fix gives us far more than one
+that describes a symptom.
 
-When you hit a defect:
+What "all the way" means here:
 
-- **Do not correct it** — not in the code, not in a script, not in a manifest.
-- **Do not commit** anything, in your clone or anywhere else.
-- **Do not open a fork, a branch, a pull request, or a patch proposal.**
-- **Do not send us a diff.** We are not asking for one.
+1. **Reproduce it** — know what triggers it, not just that it happened once.
+2. **Fix it**, in your clone.
+3. **Prove the fix** with a non-regression test that **fails on the unpatched
+   code**. A test that would also pass without your fix demonstrates nothing and
+   we will reject it (Rule 29).
+4. **Hand it over inside the report** — the diff and the test, as text, attached
+   to the incident they belong to.
 
-Work around it locally if you must in order to continue — and then **report both
-the defect and the workaround**. Note what you had to do to get past it. That is
-information; a silent workaround is a defect deleted.
+### What we ask you not to do
 
-### Why, concretely
+- **Do not push to a shared branch**, and do not open a fork or a pull request.
+- **Do not fix silently.** A correction that appears without its incident is
+  worse than no correction: we cannot tell what it was for, and the next tester
+  meets the same wall with no record that anyone ever hit it.
 
-1. **A fix made in your clone dies in your clone.** SHAPER OS destroys its test
-   universes by design (Rule 10), and a correction that lives in an instance is
-   deleted with it. Our own law says a correction must be placed in the generic
-   path, where it survives — and only we can decide where that is (Rule 29).
-2. **A fix hides the shape of the defect.** We need to see exactly what stopped
-   you and what the error said, not what you did about it. The patch is the easy
-   part; knowing that two independent testers hit the same wall is the finding.
-3. **Parallel fixing produces divergent repositories.** This is not a
-   hypothetical: three clones of this repository recently reported three
-   different test counts — 210, 212 and 215 — because each tester corrected what
-   they met. Reconciling that costs more than the defects did.
+That is the whole restriction, and it is narrow. It is not about trust — the two
+reports we have received were both competent and both correct in what they
+patched. It is about where a correction lands.
 
-You are not being restricted because you are not trusted. You are being asked for
-the one thing only you can produce: **an honest account of what a newcomer meets.**
+### Why the patch travels in the report rather than in git
 
----
+1. **A correction placed in an instance dies with it.** This system destroys its
+   test universes by design (Rule 10). Our own law now requires a fix to sit in
+   the generic path — the brick, the package, the template — where it survives
+   the universe that found it (Rule 29). Your clone is not that place; deciding
+   where it is takes knowledge of the whole tree.
+2. **Parallel pushing diverges repositories.** Not hypothetical: three clones
+   recently reported three different test counts — 210, 212 and 215 — because
+   each tester corrected what they met, in their own history. Reconciling that
+   cost more than the defects did.
+3. **The report is what makes the fix reusable.** A diff tells us what changed.
+   The incident around it tells us why it was possible, which is what stops the
+   next one.
+
+So: **fix it, prove it, tell us everything — and let us be the ones to commit
+it.**
 
 ## 3. Start from a known commit, and say which
 
@@ -119,9 +129,14 @@ Prior exposure:     none | read version <x> | discussed previously
 - Ran:        <command>
 - Expected:   <what, and from which file>
 - Happened:   <verbatim error>
-- Status:     blocked | worked around | cosmetic
+- Status:     blocked | worked around | fixed | cosmetic
 - Next:       <what you did>
 - Human help: <none | what you were told>
+- Root cause: <why it was possible, not just what failed>
+- Fix:        <the diff, as text — or "none, here is what I suspect">
+- Proof:      <the non-regression test, and the failure message it produces
+               against the unpatched code. Without that failure message we
+               cannot tell the test proves anything.>
 
 ### 2. …
 
@@ -129,9 +144,13 @@ Prior exposure:     none | read version <x> | discussed previously
 <Places where nothing failed but you had to infer, guess, or choose. These are
 defects too — they simply have no error message.>
 
-## What I did NOT do
-<Confirm: no fix committed, no fork, no patch. If you modified anything locally
-to get past a step, list it here so we know your run is not reproducible as-is.>
+## Local state
+<What you changed in your clone, and whether the run above was done before or
+after those changes. We need to know which parts of your report describe the
+repository as published and which describe your patched version.>
+
+## Confirm
+<No push to a shared branch, no fork, no pull request. Fixes are in this report.>
 ```
 
 **An empty Incidents section is a valid report** — if it is true. It is not an
@@ -139,9 +158,18 @@ achievement to protect: a report with no incidents and no hesitations, from a
 system this size, is more likely to mean the run was shallow than that the
 documentation is perfect.
 
+**And the report is the deliverable.** A test deployment that leaves a working
+stack and no report has produced nothing we can use. A report with no working
+stack, but with what stopped it written down precisely, has produced everything
+we asked for.
+
 ---
 
 ## 6. What happens to your report
+
+Your fixes are reviewed and placed where they survive — which is usually not
+where you put them, and that is expected: you were deploying one universe, we
+are keeping every future one working.
 
 Every incident becomes, on our side, one of:
 
@@ -153,7 +181,8 @@ Every incident becomes, on our side, one of:
   happened once, from exactly this kind of report.
 
 You will not see a patch from us in return, and you should not wait for one. The
-loop closes in the repository, not between us.
+loop closes in the repository, not between us — and your name stays on the
+commit that carries your fix.
 
 ---
 

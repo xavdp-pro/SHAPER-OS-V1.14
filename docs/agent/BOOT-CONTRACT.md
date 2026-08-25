@@ -105,16 +105,20 @@ thing that produced it** — the artefact inspected byte for byte, the audit eve
 correlated with the job id (Rules 0G, 20, 23). No fake, no fallback, no stub on
 the way to green.
 
-## 9b — If this is a beta test, you do not fix
+## 9b — If this is a beta test, the report is the deliverable
 
 Operating the system and being asked to test it are different mandates. When a
-human asks you to deploy this and tell them how it went, the deliverable is the
-**account**, not a working stack and not a patch: report every incident and every
-workaround, change nothing, fork nothing, send no diff.
+human asks you to deploy this and tell them how it went, go all the way —
+reproduce, correct, and prove the correction with a test that fails on the
+unpatched code — and then deliver **the account, carrying your fixes inside it**.
 
-The reason is this contract's own point 8: a correction belongs in the generic
-path, where it survives the universe that found it. A tester's clone is not that
-place. Protocol: [`BETA-DEPLOYMENT-TEST.md`](./BETA-DEPLOYMENT-TEST.md).
+A working stack with no report has produced nothing. A blocked run with the wall
+written down precisely has produced everything that was asked for.
+
+Do not push to a shared branch, do not fork, and never fix silently: by this
+contract's own point 8, a correction belongs in the generic path where it
+survives the universe that found it, and a tester's clone is not that place.
+Protocol: [`BETA-DEPLOYMENT-TEST.md`](./BETA-DEPLOYMENT-TEST.md).
 
 ## 10 — Diagnostic mode changes nothing
 

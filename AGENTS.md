@@ -47,11 +47,14 @@ that can be trusted with the next decision.
 >    blocked, if you have to guess, if a human has to explain something to you,
 >    that is the result being measured. We failed to formulate it. Report it
 >    plainly; there is no incident too small.
-> 2. **Do not fix, do not fork, do not send a patch.** Report the defect and any
->    workaround you needed, and stop there. A correction made in your clone dies
->    with it, hides the shape of the defect, and makes every tester's repository
->    diverge — which has already happened here. We correct on our side, in the
->    generic path, where it survives (Rule 29).
+> 2. **Go all the way, and hand us the fix inside the report.** Reproduce the
+>    defect, correct it in your clone, and prove it with a test that fails on the
+>    unpatched code — then give us the diff and that test as part of your report.
+>    What we ask you not to do is push to a shared branch, open a fork, or fix
+>    silently: a correction placed in a clone dies with it, and parallel pushing
+>    diverges every repository, which has already happened here. We commit it
+>    where it survives (Rule 29). **The report is the deliverable** — a test
+>    deployment that leaves a working stack and no report produced nothing.
 >
 > A cold read is also spent by a briefing: if you were asked to evaluate the
 > documentation, do not accept an explanation before you start.
