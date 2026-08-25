@@ -111,8 +111,15 @@ most five attempts on the same drift signature, then `DEGRADED` and escalate.
 
 **Binding now.** Rules 27, 29, 35, 23.
 
-**Exit.** No known defect without a test, and no correction living only in your
-context window.
+**Where the fix goes.** In the generic path — the brick, the package, the
+template, the example script — never only in the universe where it surfaced. A
+`-test` universe is destroyed by Rule 10 and a `-dev` one is disposable, so a fix
+written into an instance is deleted with it and the next clean sheet meets the
+same wall. The test decides: if it would disappear with a universe, both the test
+and the fix are in the wrong place (Rule 29).
+
+**Exit.** No known defect without a test, no correction living only in your
+context window, and no correction living only inside a universe.
 
 **Wrong phase if.** You are about to write "it works now" anywhere.
 

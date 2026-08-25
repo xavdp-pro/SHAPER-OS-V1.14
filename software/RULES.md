@@ -587,7 +587,11 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
 ### Rule 29: Constructive Integrity (Every Fixed Bug Becomes a Test)
 * **The System Grows a Memory of Its Own Failures**: Any resolved defect — in code, in a manifest, in a WAF rule, in an agent prompt — MANDATORILY gives birth to a new non-regression test committed alongside the fix.
 * **No Fix Without Proof**: A patch whose accompanying test would still pass on the unpatched code does not demonstrate anything and is rejected.
-* **Antifragility Contract**: This is what makes the fractal tree antifragile rather than merely resilient — each incident permanently raises the floor for every universe instantiated afterwards.
+* **A Correction Lives Where It Survives**: A defect met while deploying or operating a universe is corrected in the **generic path** — the brick, the package, the template, the example deploy script — never only in the universe where it appeared. Its test is placed where it will still run after that universe is gone.
+  * **Why this is a rule and not advice**: a `-test` universe is destroyed by Rule 10, and a `-dev` one is disposable by design. A fix written into an instance is deleted with the instance, and the next clean sheet meets the same wall having learnt nothing. This is not hypothetical: the v1.7 clean-sheet verdict records *missing Queue persistence directory* among its corrections, that correction was written into `univ-v17-test`'s own deploy script, and four days later the v1.8 clean-sheet deployment stopped on the identical defect.
+  * **The test decides where the fix belongs**: if the non-regression test would disappear with a universe, the fix is in the wrong place. Move both.
+  * **A universe may still specialise**: this forbids *correcting* in an instance, not *parameterising* one. When a defect is genuinely specific to one deployment, say so in that universe's INTENT and explain why the generic path is right as it stands.
+* **Antifragility Contract**: This is what makes the fractal tree antifragile rather than merely resilient — each incident permanently raises the floor for every universe instantiated afterwards. That floor only rises where the correction outlives the universe that found it.
 
 ---
 

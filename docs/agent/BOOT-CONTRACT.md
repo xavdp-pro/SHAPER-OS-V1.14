@@ -87,8 +87,15 @@ never stays in your context. It becomes, as applicable:
 | An operational trap | A line in the deployment contract or runbook |
 | A verified outcome | A proof or a verdict file |
 
+And it goes in the **generic path**, not in the universe where you met it. A
+universe is destroyed; the brick, the package and the template survive. If the
+test you just wrote would vanish with the universe, the fix is in the wrong
+place — move both.
+
 An incident that produced only a fix produced nothing. The next agent will hit
-it again.
+it again. An incident corrected inside a universe produced nothing either: the
+next agent will hit it again on a clean sheet, which is exactly what happened
+between v1.7 and v1.8.
 
 ## 9 — Test what happens, not what is declared
 
