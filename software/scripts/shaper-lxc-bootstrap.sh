@@ -43,11 +43,22 @@ fi
 # STEP 5 : Wire transparent Podman bridge into the agent
 echo "[5/7] Configuring transparent Podman bridge inside the agent..."
 if podman ps -q -f name=${UNIV_SLUG}-bridge-opencode | grep -q .; then
+  # Only a public key travels, and it travels upward. Copying this host's private
+  # key into the agent — which this script used to do — handed the container the
+  # key to its own host, since the matching public key is already in the host's
+  # authorized_keys. Rule 36: a private key never moves, whatever the level.
   podman exec ${UNIV_SLUG}-bridge-opencode mkdir -p /root/.ssh
-  podman cp /root/.ssh/id_ed25519 ${UNIV_SLUG}-bridge-opencode:/root/.ssh/id_ed25519
-  podman cp /root/.ssh/id_ed25519.pub ${UNIV_SLUG}-bridge-opencode:/root/.ssh/id_ed25519.pub
   podman exec ${UNIV_SLUG}-bridge-opencode chmod 700 /root/.ssh
-  podman exec ${UNIV_SLUG}-bridge-opencode chmod 600 /root/.ssh/id_ed25519
+  podman exec ${UNIV_SLUG}-bridge-opencode \
+    sh -c '[ -f /root/.ssh/id_ed25519 ] || ssh-keygen -t ed25519 -N "" -q -f /root/.ssh/id_ed25519'
+
+  AGENT_PUB="$(podman exec ${UNIV_SLUG}-bridge-opencode cat /root/.ssh/id_ed25519.pub)"
+  touch /root/.ssh/authorized_keys
+  if ! grep -qF "$AGENT_PUB" /root/.ssh/authorized_keys; then
+    # Tagged so that revoking this agent later is the removal of one line.
+    echo "$AGENT_PUB # agent:${UNIV_SLUG}-bridge-opencode added $(date -I)" >> /root/.ssh/authorized_keys
+  fi
+  chmod 600 /root/.ssh/authorized_keys
 
   cat << 'EOF_WRAP' > /tmp/podman-wrapper.sh
 #!/bin/bash

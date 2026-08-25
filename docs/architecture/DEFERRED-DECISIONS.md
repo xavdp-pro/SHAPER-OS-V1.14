@@ -100,27 +100,23 @@ has stress-tested would encode today's guesses as tomorrow's dispatch.
 
 ---
 
-## 4. Who is the Parent when a universe runs inside an LXC?
+## 4. ~~Who is the Parent when a universe runs inside an LXC?~~ — withdrawn
 
-**The question.** Rule 36 states that a parent's private SSH key never leaves the
-parent. Step 5 of the LXC deployment guide copies the LXC's private key into the
-agent container. Both readings are defensible: if the **LXC** is the Parent and
-the Podman container its Child, the guide violates the rule; if the **host** is
-the Parent and the whole LXC is the Child, the key never crossed a level and the
-rule holds.
+This entry claimed that Rule 36 and step 5 of the LXC guide contradicted each
+other, and that arbitrating required first deciding where a fractal level begins.
 
-**Why it is not decided here.** It is an amendment to the law — `D4` by
-[`COGNITION.md`](./COGNITION.md), never dispatched autonomously. It also decides
-more than SSH: it fixes where a fractal level begins, which governs who repairs
-whom (Rule 23) and who holds authority (Rule 24).
+That was wrong, and it was worth being told so. **The direction of travel settles
+it without any question of level: a private key never moves.** The guide was
+copying the LXC's private key into the agent container while the matching public
+key sat in that LXC's own `authorized_keys` — handing a container the key to its
+host. No reading of *who is the Parent* makes that acceptable, and none was
+needed to see it.
 
-**What must be true first.** Someone has to state whether nesting creates a
-fractal level or merely a boundary. Until then the two readings coexist and
-nobody can tell which one an agent should follow.
+The guide now does the only correct thing: the party that needs to *initiate* the
+connection generates its own pair and sends **only its public key** to the party
+it wants to reach. Revoking an access becomes removing one line instead of
+rotating a key across everything that trusted it.
 
-**Meanwhile.** Do not install the SSH relay of guide step 5 without asking. A
-beta tester reached exactly this point, could not arbitrate it, and chose not to
-install it — which was the right call, and is why the contradiction surfaced
-instead of being quietly resolved in one direction.
-
-**Who decides.** The operator, explicitly.
+Left here rather than deleted, because a deferred decision that turns out to be a
+plain defect is worth seeing once: the instinct to arbitrate between two
+documents can hide the fact that both are wrong about something simpler.

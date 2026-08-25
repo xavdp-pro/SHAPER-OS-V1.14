@@ -120,14 +120,44 @@ Lancement coordonné du cluster avec `universes/<univ_slug>/deploy/podman-up.sh`
 ---
 
 ### Étape 5 — Câblage du Pont Podman Transparent dans l'Agent
-Injection des identifiants et des wrappers dans le conteneur de l'agent :
+
+> **Ce qui descend est une clé publique. Jamais une clé privée.**
+>
+> Cette étape copiait auparavant `/root/.ssh/id_ed25519` — la clé **privée** du
+> LXC — dans le conteneur de l'agent. Comme la publique correspondante figure
+> déjà dans l'`authorized_keys` du LXC (étape 2), cela revenait à **remettre à
+> l'agent la clé qui ouvre son propre hôte**. Un conteneur compromis n'aurait
+> pas eu à s'évader : il détenait l'accès.
+>
+> La règle 36 le dit sans condition — *« la clé privée ne quitte jamais le
+> Parent »* — et la question de savoir qui est le Parent ici ne change rien :
+> une clé privée ne se déplace pas, à aucun niveau.
+>
+> Le sens de circulation correct est l'inverse : **celui qui doit initier la
+> connexion fabrique sa propre paire et n'envoie que sa clé publique** à celui
+> qu'il veut joindre. Révoquer un accès redevient alors le retrait d'une ligne,
+> au lieu d'une rotation de clé sur tout ce qui lui faisait confiance.
+
+Le conteneur agent doit joindre le LXC pour piloter Podman. Il génère donc sa
+propre paire, et seule sa clé **publique** remonte :
+
 ```bash
-# Injection de la clé SSH dans l'agent
+# 1. L'agent fabrique sa propre identité — la privée naît et reste chez lui
 podman exec <univ_slug>-bridge-opencode mkdir -p /root/.ssh
-podman cp /root/.ssh/id_ed25519 <univ_slug>-bridge-opencode:/root/.ssh/id_ed25519
-podman cp /root/.ssh/id_ed25519.pub <univ_slug>-bridge-opencode:/root/.ssh/id_ed25519.pub
 podman exec <univ_slug>-bridge-opencode chmod 700 /root/.ssh
-podman exec <univ_slug>-bridge-opencode chmod 600 /root/.ssh/id_ed25519
+podman exec <univ_slug>-bridge-opencode \
+  ssh-keygen -t ed25519 -N '' -q -f /root/.ssh/id_ed25519
+
+# 2. Seule la publique remonte vers l'hôte LXC, et elle est identifiable
+AGENT_PUB="$(podman exec <univ_slug>-bridge-opencode cat /root/.ssh/id_ed25519.pub)"
+grep -qF "$AGENT_PUB" /root/.ssh/authorized_keys 2>/dev/null || \
+  echo "$AGENT_PUB # agent:<univ_slug>-bridge-opencode ajouté $(date -I)" \
+    >> /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys
+
+# Révoquer cet agent, plus tard, c'est retirer cette seule ligne :
+#   sed -i '/agent:<univ_slug>-bridge-opencode/d' /root/.ssh/authorized_keys
+```
 
 # Déploiement du wrapper /usr/local/bin/podman
 cat << 'EOF_WRAPPER' > /tmp/podman-wrapper.sh
