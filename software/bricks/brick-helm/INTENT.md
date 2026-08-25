@@ -13,6 +13,26 @@ Containerized modern Web Chat & Console interface (React 19 + Express 5) allowin
 7. **Free OpenCode Models Catalogue & Groq Boundary**: The model selector displays only confirmed active free models from OpenCode (`opencode/*`) and direct provider keys (`deepseek/*`). Groq models (`groq/*`) must never be exposed as general agent LLMs in Helm and are strictly dedicated to background acknowledgment synthesis.
 8. **Session Prime Isolation**: The session prime prompt (`buildSessionPrimeMessage`) must NEVER inject `CURSOR_OUTPUT_FORMAT`, `buildSkillsCatalog`, or `buildControlScopeContext`. These directives activate on the first real user message via `applyCursorLanguage()`. The prime produces only natural plain-text greeting — no tables, no bullets, no markdown formatting. Free models (Nemotron, etc.) interpret format directives literally and will format the greeting as a GFM table if these are present.
 
+9. **Four interaction surfaces, one console**: the same cockpit is reached in four postures, and the posture changes what the interface is allowed to demand of the operator's attention.
+
+| Surface | Where | What it assumes | Consequence |
+| :--- | :--- | :--- | :--- |
+| **Console** | Desktop | Eyes and hands available | Full layout; the mobile interaction mode is ignored entirely |
+| **`view`** | Mobile, default | Eyes available, one hand | Reading and light interaction |
+| **`remote`** | Mobile, spoken | Eyes elsewhere, speech available | The chat visual is hidden: the operator talks, the system answers aloud |
+| **`route`** | Driving | **Eyes on the road** | Voice is armed on entry; the chat visual is hidden; controls are large and few, so that no precise tap is ever required |
+
+   **Safety is the intent of `route`, not a styling choice.** A control that
+   requires reading or aiming is forbidden there. This is why the spoken
+   commands exist rather than being a convenience: `go` sends, `clear` erases,
+   and both accept phonetic variants and their French equivalents, because a
+   command the transcriber mishears is a command the driver has to look down to
+   repeat.
+
+   Both screen-free surfaces depend on Rule 0K: a session that ends silently
+   strands an operator who cannot see the screen. Silence is an outage there,
+   not a cosmetic defect.
+
 ---
 
 ## Cognition

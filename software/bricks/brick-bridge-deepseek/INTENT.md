@@ -1,11 +1,11 @@
 # Intent: brick-bridge-deepseek
 
 ## Role
-Dedicated HTTP/SSE agent bridge for DeepSeek R1/V3 & Ollama Cloud.
+Dedicated HTTP/SSE agent bridge for the DeepSeek and Ollama Cloud engines.
 
 ## Invariants
 - Exposes port 4350 by default (customizable per universe).
-- Default model: `deepseek-r1` (reasoning chain-of-thought).
+- No model is pinned here: reachable models are enumerated and measured from the target host at deployment (Rule 7).
 - Uses `OLLAMA_API_KEY` / `DEEPSEEK_API_KEY` from environment or vault.
 - Workspaces mounted at `/data/deepseek-ws`.
 

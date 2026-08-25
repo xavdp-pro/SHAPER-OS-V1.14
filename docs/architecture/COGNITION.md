@@ -1,5 +1,11 @@
 # Cognition Requirements — Declaring the Intelligence and Speed a Brick Needs
 
+> **Authority on engine selection.** Rule 0H and Rule 7 defer to this file: the
+> canon states *how* an engine is chosen and never *which* one. Naming a model in
+> a rule dates the rule — that is not a hypothesis, it is what happened to
+> Rule 0H, which recommended a two-generation-old model as its top tier while the
+> principle forbidding exactly that was being written.
+>
 > **Extends** Rule 21 (Distributed Multi-Agent Delegation Matrix — Abstract
 > Capacity Classes) down to the individual brick, and adds the throughput
 > dimension.
@@ -58,7 +64,38 @@ Orders of magnitude, not benchmarks. What matters is the class, not the number.
 | `T2` | ≳ 10 tok/s | Minutes acceptable | Background jobs, queued work |
 | `T3` | Any | Hours acceptable | Batch, offline analysis, bulk ingestion |
 
-## Axis 4 — Degradation policy (what happens when you cannot have it)
+## Axis 4 — Context horizon (how much history the work needs)
+
+Depth and throughput describe the thinking. They say nothing about **how far back
+the work has to see** — and that turns out to separate two agents far more than
+their raw capability does.
+
+| Horizon | The work needs | Typical of |
+| :--- | :--- | :--- |
+| `H0` | Nothing but its own input | Classification, extraction, acknowledgment |
+| `H1` | The current session | A conversation, a deployment run |
+| `H2` | The state of this universe | Diagnosis, repair, a decision about this system |
+| `H3` | The operator's accumulated usage — months of prior exchanges | Advice about direction, recognising a pattern the operator has lived through |
+
+This axis exists because of an asymmetry the operator meets daily, not because of
+theory. The same human talks to a **conversational assistant** — which carries
+`H3`, the long history of everyday use — and to a **task-scoped engineering
+agent** — which lives at `H1`/`H2`, sharp on the present work and blind to
+anything not in front of it. They are as different from each other as two vendors
+are, sometimes more.
+
+The friction is that **the human uses both the same way.** They do not switch
+register when they switch surface, and they should not have to. So the
+declaration belongs to the work, not to the person: a job that needs `H3` must be
+sent somewhere that has `H3`, and a job that only needs `H0` must never be
+charged for a horizon it will not use.
+
+A brick that requires a horizon it cannot be given must say what it does about
+it, exactly as with depth and throughput — `refuse`, `queue`, or run and record
+the limitation. An answer given at `H1` to a question that needed `H3` is not
+wrong in form; it is confident and under-informed, which is worse.
+
+## Axis 5 — Degradation policy (what happens when you cannot have it)
 
 You work with what is available. That is a fact, so it must be a **declared
 decision**, not an accident:
@@ -83,6 +120,7 @@ In the brick's `INTENT.md`:
 - capacity-class: infra-ops
 - depth: D2
 - throughput: T2
+- horizon: H2
 - degraded: queue
 - rationale: Deploys and supervises containers from a written contract; no
   ambiguity to resolve, no interactive latency requirement.
@@ -101,6 +139,7 @@ never fork):
       "capacityClass": "infra-ops",
       "depth": "D2",
       "throughput": "T2",
+      "horizon": "H2",
       "degraded": "queue"
     }
   }
@@ -127,6 +166,28 @@ in the deployment log — a model chosen without a recorded measurement is an
 undocumented dependency.
 
 ---
+
+## Where concrete engine names are allowed to live
+
+Nowhere that git tracks as prescriptive. Names belong to the **measured runtime
+matrix**, produced at each deployment and never committed:
+
+| Text | Kind | May name an engine version |
+| :--- | :--- | :--- |
+| `RULES.md`, `LAW.md`, `INTENT.md`, brick and package intents, `docs/` | Prescriptive — binds future behaviour | **No** |
+| A proof or a `VERDICT.md` | Descriptive — records what actually answered, on a date | **Yes, and it must** |
+| A doctrine survey that declares itself a dated snapshot in its opening lines | Descriptive | **Yes** |
+| The measured runtime matrix (untracked, regenerated at deploy) | Operational state | **Yes** |
+
+The distinction is enforced, not merely stated: the repository suite fails if a
+prescriptive text names a model version
+(`software/packages/wp-dns-convention/test/canon-names-no-model.test.js`). A
+document opts out by declaring itself a dated snapshot **in the first lines a
+reader sees**, never by an exception hidden in the test.
+
+The matrix records, per engine: reachability from the target host, measured
+throughput and time to first token, cost class, and the moment of measurement.
+That is what the deployment reads, and what an eventual router would read.
 
 ## What this deliberately does not do
 

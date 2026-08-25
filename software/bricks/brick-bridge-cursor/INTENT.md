@@ -1,11 +1,11 @@
 # Intent: brick-bridge-cursor
 
 ## Role
-Dedicated HTTP/SSE agent bridge for Cursor Composer 2.5 in Fast Mode.
+Dedicated HTTP/SSE agent bridge for the Cursor Composer CLI.
 
 ## Invariants
 - Exposes port 4310 by default.
-- Always uses `composer-2.5` with mode `fast`.
+- Mode is standard by default; fast is opt-in and never silent. The concrete model is whatever the installed CLI offers, verified at deployment — no version is pinned here (Rule 7).
 - Uses `CURSOR_API_KEY` / `CURSOR_TOKEN` from vault or environment.
 - Workspaces mounted at `/data/cursor-ws` (persisted on host volume `sav/cursor-ws`).
 

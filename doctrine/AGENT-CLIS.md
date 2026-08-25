@@ -1,5 +1,11 @@
 # Agent CLIs in SHAPER OS
 
+> **Status**: dated snapshot — descriptive, not canon. It records what these CLIs
+> were on the day they were measured, so it names versions on purpose. Nothing
+> here binds a future deployment: engine selection is governed by
+> [`../docs/architecture/COGNITION.md`](../docs/architecture/COGNITION.md) and Rule 7,
+> which measure rather than declare.
+>
 > How each command-line agent behaves, what its bridge must send it, and what
 > the queue and the maestro can believe about it.
 > Every fact below was verified on this host on 23 August 2026, not read from a

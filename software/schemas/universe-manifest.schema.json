@@ -45,6 +45,7 @@
               "role": { "type": "string", "enum": ["requires", "provides", "neutral"], "default": "requires", "description": "requires = consumes intelligence; provides = is an engine bridge; neutral = deterministic, no model" },
               "depth": { "type": "string", "enum": ["D0", "D1", "D2", "D3", "D4"], "description": "D0 none, D1 literal, D2 procedural, D3 derivational, D4 architectural (human co-signature)" },
               "throughput": { "type": "string", "enum": ["T0", "T1", "T2", "T3"], "description": "T0 >=500 tok/s voice ack, T1 >=50 tok/s conversation, T2 >=10 tok/s background, T3 batch" },
+              "horizon": { "type": "string", "enum": ["H0", "H1", "H2", "H3"], "description": "H0 input only, H1 session, H2 universe state, H3 operator history" },
               "degraded": { "type": "string", "enum": ["refuse", "queue", "allowed-with-note"], "description": "What to do when no engine satisfies the requirement" },
               "rationale": { "type": "string" }
             }

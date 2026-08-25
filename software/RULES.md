@@ -180,13 +180,26 @@ SHAPER OS uses **two complementary layers** — never one replacing the other:
 * **All AI Agent CLIs Are Interchangeable Commodities**:
   * SHAPER OS is strictly agnostic to the underlying AI agent CLI (`opencode`, `cursor-cli`, `claude-code`, `codex`, `openrouter`, `ollama`).
   * The system decouples the intelligence engine from the orchestration fabric via standard Bridge interfaces (`/api/conversations/*`, SSE streams). Swapping an engine requires zero structural or architectural changes.
+* **No Engine Is Named In This Canon**:
+  * A rule that names a model expires with that model. The authority on engine
+    selection is [`docs/architecture/COGNITION.md`](../docs/architecture/COGNITION.md): work declares the reasoning
+    depth and throughput it requires, and the deployment measures which engines
+    actually satisfy it **from the target host**.
+  * Concrete engine names, versions and prices live in the **measured runtime
+    matrix** produced at each deployment — never in a tracked rule, an INTENT, or
+    a brick. Published benchmarks are advisory; measured availability decides.
 * **Human-Governed Economic & Mission Arbitration**:
-  * The choice of CLI engine belongs strictly to the **human operator**, dynamically adjusted according to budget, privacy, and task complexity:
-    * **Tier 0 (Free / Sovereign / Default Bootstrap)**: `OpenCode` with free models (`deepseek-v4-flash-free`, `nemotron-3.5-lightning-free`, `nemotron-3-ultra-free`). Ideal for everyday system administration, tests, Podman orchestration, and routine operations at zero cost.
-    * **Tier 1 (Air-Gapped / 100% On-Premise Sovereign)**: `Ollama` / `vLLM` (Llama 3.3, Mistral, Qwen) for complete data isolation without external cloud dependencies.
-    * **Tier 2 (Balanced Pro / Fast Feature Building)**: `Cursor CLI` with `Composer` / `Grok 4.6` / `Claude 3.5 Sonnet` for professional coding and fast iterations.
-    * **Tier 3 (Elite Heavy Artillery / Deep Refactoring)**: `Claude Code` with `Claude 3.5 Opus` / `Sonnet` for massive multi-file architectural refactors and high-stakes reasoning.
-    * **Tier 4 (Multi-Provider Aggregators)**: `OpenRouter` for dynamic routing across diverse model providers.
+  * The choice of engine belongs to the **human operator**, adjusted according to
+    budget, privacy and task complexity. The arbitration is expressed in **classes**,
+    which outlive the products that populate them:
+    * **Class F — Free / default bootstrap**: reachable at zero cost, no paid key. The default for routine administration, tests and orchestration.
+    * **Class L — Local / air-gapped**: runs entirely inside the perimeter. Throughput is traded for sovereignty; a cloud fallback from this class is a violation, not a convenience.
+    * **Class P — Paid, balanced**: commercial engines for fast professional iteration.
+    * **Class E — Paid, frontier**: the deepest reasoning available, for high-stakes work that justifies its cost.
+    * **Class A — Aggregator**: multi-provider routing across several of the above.
+  * A class is a budget and a privacy posture, not a brand. Mapping a class to a
+    concrete engine is a deployment-time decision, recorded with the measurement
+    that justified it.
 * **Bridge Compatibility Invariant**:
   * Every CLI runtime connects to the universal KovZu / Helm cockpit and receives identical context digests (`_kovzu/CONTEXT.md`, `topology.json`, persistent memory).
 
@@ -319,10 +332,25 @@ The `univ-` prefix provides a unified sovereign brand across Git, container name
 
 ---
 
-### Rule 7: Official LLM Models & Execution Defaults
-* **Antigravity CLI & Agent Bridge (`univ-bridge-agy`)**: `gemini-3.7-flash-low` (default production setting).
-  * Flags: `effort: low`, `dangerouslySkipPermissions: true`, `outputFormat: stream-json`.
-* **OpenCode Agent (`univ-bridge-opencode`)**: `opencode/deepseek-v4-flash-free` ($0.00 / 100% free) or local sovereign Ollama (`qwen2.5-coder:7b`).
+### Rule 7: Engine Defaults Are Measured, Never Declared
+* **No default model is written in this canon.** The rule that used to live here
+  named specific models and their flags; every one of them aged, and the canon
+  aged with them. A default that must be edited when a vendor ships a new version
+  is not a rule, it is a cache.
+* **What is binding instead**:
+  * Each brick declares the cognition its work requires — capacity class, depth
+    `D0`–`D4`, throughput `T0`–`T3`, degradation policy — in its `INTENT.md`
+    ([`docs/architecture/COGNITION.md`](../docs/architecture/COGNITION.md)).
+  * At every deployment the agent enumerates the engines actually reachable from
+    the target host, sends a bounded ping, measures, and selects the **cheapest
+    engine that satisfies the declared depth and throughput**.
+  * The selected engine, its measurement and the moment of measurement are
+    written to the deployment log. **An engine chosen without a recorded
+    measurement is an undocumented dependency** and fails Rule 0G.
+* **Execution flags** belong to the bridge that wraps the CLI (Rule 34), declared
+  and pinned in its image — not in this canon.
+* **Ultra-fast engines** remain reserved for acknowledgment and voice micro-tasks
+  and are never exposed as general agent chat models (Rule 0H, Rule 0K).
 
 ---
 

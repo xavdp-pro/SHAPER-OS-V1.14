@@ -30,7 +30,7 @@ In-memory async job queue with progress tracking and SSE streaming — no extern
     "message": "required instruction",
     "conversation": "optional-session-name",
     "bridgeUrl": "http://127.0.0.1:4340",
-    "model": "opencode/nemotron-3.5-lightning-free",
+    "model": "<engine-measured-at-deployment>",
     "context": "optional extra instructions"
   }
 }
@@ -42,6 +42,6 @@ In-memory async job queue with progress tracking and SSE streaming — no extern
 | `payload.message` | yes | What the agent should do |
 | `payload.conversation` | no | Bridge conversation / workspace name |
 | `payload.bridgeUrl` | no | Default `QUEUE_BRIDGE_URL` or `:4340` |
-| `payload.model` | no | Model id for the bridge |
+| `payload.model` | no | Engine id for the bridge. Selected by measurement at deployment against the declared depth and throughput (Rule 7) — never pinned in a tracked file |
 | `payload.context` | no | Extra context text |
 | `totalSteps` | no | Progress denominator (default 1) |
