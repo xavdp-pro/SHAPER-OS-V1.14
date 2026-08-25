@@ -18,10 +18,18 @@ import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
-const SCANNED_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.json', '.sh', '.example']);
+const SCANNED_EXTENSIONS = new Set([
+  '.js', '.mjs', '.cjs', '.json', '.sh', '.example',
+  // .jsonl was missing until a committed runtime log was found still carrying a
+  // real mailbox after every source file had been sanitised. A log is a file.
+  '.jsonl', '.log', '.txt', '.yml', '.yaml', '.conf', '.ini', '.toml',
+]);
 const SKIPPED_DIRS = new Set([
   '.git', 'node_modules', 'sav', 'dist', 'build', '.vite', 'coverage', 'log', 'data',
   '.extract-cache', '.cache', 'tmp',
+  // Ground truth for OCR: these files must stay byte-identical to the images they
+  // describe, so their (deliberately fictional) content is data, not configuration.
+  'test-corpus',
 ]);
 const SKIPPED_FILES = new Set(['package-lock.json']);
 
