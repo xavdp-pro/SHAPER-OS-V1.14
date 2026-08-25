@@ -57,3 +57,50 @@ for (const rel of SCRIPTS) {
     }
   });
 }
+
+/**
+ * The universe declares its posture; the image must not decide it.
+ *
+ * brick-helm bakes NODE_ENV=production into its image, which is correct as a
+ * build optimisation and says nothing about whether a deployment is a laptop or
+ * a business. A DEV universe therefore inherited "production" and halted on an
+ * operator password it had no reason to need — found on a clean-sheet deployment
+ * by an external tester, not here.
+ *
+ * These fail on the unpatched scripts, which passed neither the posture nor the
+ * password.
+ */
+for (const rel of SCRIPTS) {
+  test(`${rel.split('/').slice(-3).join('/')} takes its posture from the universe`, async () => {
+    let script;
+    try {
+      script = await readFile(new URL(rel, import.meta.url), 'utf8');
+    } catch (error) {
+      if (error.code === 'ENOENT') return;
+      throw error;
+    }
+    if (!script.includes('shaper-helm')) return; // no cockpit in this tier
+
+    assert.match(
+      script,
+      /"environment"/,
+      'the runtime posture must be read from the universe manifest',
+    );
+    assert.match(
+      script,
+      /-e SHAPER_RUNTIME_MODE="\$SHAPER_RUNTIME_MODE"/,
+      'the posture must reach the cockpit container',
+    );
+    assert.match(
+      script,
+      /APP_PASSWORD:\?/,
+      'a production universe must be refused before start when it supplies no operator password',
+    );
+    // A default password in a shipped script is a published password.
+    assert.doesNotMatch(
+      script,
+      /APP_PASSWORD="\$\{APP_PASSWORD:-[^}]+\}"/,
+      'no fallback password may be committed',
+    );
+  });
+}

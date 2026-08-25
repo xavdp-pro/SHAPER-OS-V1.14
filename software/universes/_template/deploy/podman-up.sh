@@ -6,6 +6,24 @@ set -euo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
 SLUG="${UNIV_SLUG:-$(basename "$UNIV")}"
+
+# The universe declares its posture in its manifest; the image must not decide it.
+# brick-helm bakes NODE_ENV=production for build optimisation, which is right, but
+# it says nothing about whether this deployment is a laptop or a business. Without
+# this, a DEV universe inherited "production" from the image and halted on a
+# missing secret it had no reason to need.
+UNIV_ENV="$(sed -n 's/.*"environment"[[:space:]]*:[[:space:]]*"\([a-z]*\)".*/\1/p' "$UNIV/manifest.json" 2>/dev/null | head -1)"
+case "${SHAPER_RUNTIME_MODE:-${UNIV_ENV:-dev}}" in
+  prod|production) SHAPER_RUNTIME_MODE=production ;;
+  *)               SHAPER_RUNTIME_MODE=development ;;
+esac
+export SHAPER_RUNTIME_MODE
+# A production deployment supplies its own operator password. Refusing here beats
+# a container that crash-loops with the reason buried in podman logs.
+if [[ "$SHAPER_RUNTIME_MODE" == production ]]; then
+  : "${APP_PASSWORD:?not set — a production universe supplies its own operator password; this repository ships none}"
+fi
+
 REPO_ROOT="$(cd "$UNIV/.." && pwd)"
 SHAPER="${SHAPER_ROOT:-$REPO_ROOT/software}"
 
@@ -253,6 +271,8 @@ if [[ "$WITH_HELM" == "1" ]]; then
     -e GROQ_ACK_LLM=1 \
     -e GROQ_ACK_MODEL="${GROQ_ACK_MODEL:-groq/compound-mini}" \
     -e APP_MODE="${APP_MODE:-demo}" \
+    -e SHAPER_RUNTIME_MODE="$SHAPER_RUNTIME_MODE" \
+    -e APP_PASSWORD="${APP_PASSWORD:-}" \
     -e JWT_SECRET="$JWT_SECRET" \
     localhost/shaper-helm:latest
 

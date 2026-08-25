@@ -1,5 +1,13 @@
 # OpenCode — Free Models (without Claude Key)
 
+> **Status**: dated snapshot — descriptive, not canon. Free model catalogues
+> rotate without notice: a model named here may already have been withdrawn, and
+> at least one was. Nothing in this file binds a deployment. Engine selection is
+> governed by [`../../../../../docs/architecture/COGNITION.md`](../../../../../docs/architecture/COGNITION.md)
+> and Rule 7 — enumerate what the target host can actually reach, measure it, and
+> choose. Read this page for orientation, never as a default.
+
+
 When **agy** is at quota and one **does not want** an `ANTHROPIC_API_KEY` / Claude: run **OpenCode** on **Zen free** models.
 
 Official doc: [opencode.ai/docs/zen](https://opencode.ai/docs/zen/).  

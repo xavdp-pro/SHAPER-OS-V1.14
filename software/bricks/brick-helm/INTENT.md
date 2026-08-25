@@ -33,6 +33,8 @@ Containerized modern Web Chat & Console interface (React 19 + Express 5) allowin
    strands an operator who cannot see the screen. Silence is an outage there,
    not a cosmetic defect.
 
+10. **The image optimises; the universe decides the posture**: the image sets `NODE_ENV=production` because that is a **build** concern — React and Express run their fast paths. It carries no information about whether this deployment is a laptop or a business, and must never be read as such. The **security posture** comes from the universe's declared `environment` and travels as `SHAPER_RUNTIME_MODE`. In `development` the cockpit starts with development defaults; in `production` a missing secret is a halt, never a fallback, because a secret published in a repository is not a secret. Conflating the two once cost a clean-sheet deployment: a DEV universe inherited `production` from the image and refused to start over a password it had no reason to need.
+
 ---
 
 ## Cognition

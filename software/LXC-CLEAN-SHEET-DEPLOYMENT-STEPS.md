@@ -201,7 +201,7 @@ The message says nothing about nesting, which is why it belongs here.
 ### Inside it
 
 ```bash
-apt-get install -y podman git curl jq nodejs npm
+apt-get install -y podman git curl jq nodejs npm openssh-server rsync
 git clone --depth 1 https://github.com/xavdp-pro/SHAPER-OS-V1.8.git
 cd SHAPER-OS-V1.8/software
 TAG="v1.7.1-$(git -C .. rev-parse --short HEAD)"
