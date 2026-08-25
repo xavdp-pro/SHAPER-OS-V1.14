@@ -34,6 +34,23 @@ function canonFiles() {
       || rel === 'software/RULES.md' || rel === 'software/INTENT.md'
       || rel.startsWith('docs/') || rel.startsWith('doctrine/')
       || /^software\/(bricks|packages)\/[^/]+\/INTENT\.md$/.test(rel);
+  }).concat(
+    // Configuration and code ship defaults, and a default expires exactly like a
+    // rule does. The model pinned in .env.example, in a Containerfile, in a deploy
+    // script and in a package source had been withdrawn from its catalogue while
+    // the suite stayed green — because the guard only read Markdown.
+    out.split('\0').filter(Boolean).filter((rel) => {
+      if (rel.startsWith('software/bricks/brick-helm/app/')) return false;
+      // A parser test needs realistic input, and a test ships no default to
+      // production. Fixtures are data; only what runs is a promise.
+      if (/\.test\.[cm]?js$/.test(rel)) return false;
+      return /\.env\.example$/.test(rel)
+        || /(^|\/)Containerfile$/.test(rel)
+        || /^examples\/deploy\/.*\.sh$/.test(rel)
+        || /^software\/packages\/(bridge-opencode|opencode-bridge)\/[^/]+\.(js|mjs)$/.test(rel);
+    }),
+  ).filter((rel) => {
+    return true;
   }).map((rel) => [rel, path.join(REPO, rel)])
     .filter(([, abs]) => fs.existsSync(abs))
     // A document may declare itself a dated snapshot. The declaration lives in the

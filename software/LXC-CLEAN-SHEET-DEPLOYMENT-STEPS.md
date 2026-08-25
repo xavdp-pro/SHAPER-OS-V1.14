@@ -72,12 +72,28 @@ systemctl enable --now ssh
 
 ---
 
-### Étape 3 — Création de la Racine Persistante `/data/`
-Structure découplée garantissant la persistance totale des données :
-```bash
-mkdir -p /data/{vault,logger,queue,ged,workspaces,opencode-bridge,timelines,qdrant}
-chmod -R 777 /data/ged /data/workspaces /data/timelines
-```
+### Étape 3 — L'état persistant vit dans l'univers, pas dans `/data/`
+
+**Rien à créer à la main ici.** Cette étape demandait autrefois de créer une
+arborescence `/data/` sur l'hôte. C'était une erreur de lecture, et elle a coûté
+une hésitation à un testeur : **`/data/…` sont les chemins vus *depuis l'intérieur*
+des conteneurs**, jamais des répertoires de l'hôte.
+
+Le montage réel est celui-ci :
+
+| Sur l'hôte (ce qui existe vraiment) | Vu dans le conteneur |
+| :--- | :--- |
+| `$UNIV/sav/<brique>/` | `/data/<brique>` ou `/sav/<brique>` |
+| `$UNIV/log/` | `/data/logger` |
+| `software/data/vault/` | `/data/vault` |
+
+L'état persistant d'un univers vit donc **sous le dossier de cet univers**, ce
+qui est ce qui rend un univers déplaçable, sauvegardable et destructible d'un
+seul geste. Le script de déploiement crée ces répertoires lui-même, avant de les
+monter — un test le vérifie désormais pour chaque point de montage.
+
+Il n'y a par conséquent **aucun `chmod 777` à passer** : la ligne qui figurait
+ici ouvrait en écriture universelle des répertoires que personne n'utilisait.
 
 ---
 

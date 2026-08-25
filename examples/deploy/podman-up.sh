@@ -69,7 +69,11 @@ export OPENCODE_SERVE_PORT="${OPENCODE_SERVE_PORT:-4441}"
 export QUEUE_PORT="${QUEUE_PORT:-8640}"
 export MAESTRO_PORT="${MAESTRO_PORT:-8630}"
 export HELM_PORT="${HELM_PORT:-8650}"
-export OPENCODE_MODEL="${OPENCODE_MODEL:-opencode/nemotron-3.5-lightning-free}"
+# The engine is measured, never assumed. The default that used to sit here was
+# withdrawn from the catalogue while still being shipped, and the next deployment
+# met a model that no longer existed (Rule 7).
+: "${OPENCODE_MODEL:?not set — run 'opencode models' from this host, ping the candidates, and export the cheapest one that answers}"
+export OPENCODE_MODEL
 export DEEPGRAM_API_KEY="${DEEPGRAM_API_KEY:-}"
 export GROQ_API_KEY="${GROQ_API_KEY:-}"
 export WITH_HELM="${WITH_HELM:-0}"

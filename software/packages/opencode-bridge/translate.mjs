@@ -25,7 +25,10 @@ export function createRunState() {
 }
 
 /** Split "provider/model" into the shape prompt_async expects. */
-export function splitModel(spec, fallback = 'opencode/nemotron-3.5-lightning-free') {
+// No named fallback: a model default expires with its vendor, and this one had
+// already been withdrawn while still shipped (Rule 7). The caller supplies what
+// it measured; an empty spec stays empty rather than becoming a guess.
+export function splitModel(spec, fallback = process.env.OPENCODE_MODEL || '') {
   const raw = String(spec || fallback).trim();
   const i = raw.indexOf('/');
   if (i <= 0) return { providerID: 'opencode', modelID: raw };

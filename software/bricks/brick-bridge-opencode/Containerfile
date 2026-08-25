@@ -33,7 +33,8 @@ ENV OPENCODE_BRIDGE_BIND=0.0.0.0
 ENV OPENCODE_SERVE_PORT=4441
 ENV OPENCODE_BIN=/usr/local/bin/opencode
 ENV OPENCODE_WS_BASE=/data/opencode-ws
-ENV OPENCODE_MODEL=opencode/nemotron-3.5-lightning-free
+# No model is baked in: it is measured from the target host at deployment (Rule 7).
+ENV OPENCODE_MODEL=
 ENV TOKEN_FILE=/root/.config/opencode-bridge/token
 
 CMD ["node", "server.mjs"]

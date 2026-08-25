@@ -11,7 +11,17 @@ import { vitals, ageSeconds, cliCheck, writable } from '../logger/vitals.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const FREE_MODEL = 'opencode/nemotron-3.5-lightning-free';
+/**
+ * No model is named here. The one that used to be pinned had been withdrawn from
+ * the catalogue by the time a clean-sheet deployment tried to use it, while the
+ * test suite still asserted its name and stayed green. A default that expires
+ * without failing is worse than no default.
+ *
+ * The model is measured at deployment and supplied through OPENCODE_MODEL
+ * (Rule 7). An empty value means "not chosen yet", and that is reported rather
+ * than replaced by a guess.
+ */
+export const FREE_MODEL = process.env.OPENCODE_MODEL || '';
 
 export function normalizeConversationName(name) {
   if (!name || typeof name !== 'string') return 'default';

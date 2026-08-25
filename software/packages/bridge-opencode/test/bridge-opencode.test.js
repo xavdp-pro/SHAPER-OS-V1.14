@@ -3,8 +3,15 @@ import assert from 'node:assert/strict';
 import { FREE_MODEL, normalizeConversationName, buildOpencodeSpawnEnv, OpencodeBridgeServer } from '../index.js';
 
 describe('bridge-opencode', () => {
-  it('uses free default model', () => {
-    assert.equal(FREE_MODEL, 'opencode/nemotron-3.5-lightning-free');
+  // Non-regression (Rule 29): this test used to assert a model name, and kept
+  // passing after that model was withdrawn from the catalogue — a green suite
+  // guarding a default that no longer existed.
+  it('pins no model name, and takes it from the environment', () => {
+    assert.doesNotMatch(
+      String(FREE_MODEL),
+      /nemotron|deepseek|mimo|claude|gpt|gemini|qwen|llama/i,
+      'no model may be named in the source: it expires with its vendor',
+    );
   });
 
   it('normalizes conversation names', () => {
@@ -16,11 +23,11 @@ describe('bridge-opencode', () => {
       PATH: '/bin',
       GEMINI_API_KEY: 'AIzaX',
       ANTIGRAVITY_API_KEY: 'AQ.x',
-      OPENCODE_MODEL: 'opencode/nemotron-3.5-lightning-free',
+      OPENCODE_MODEL: 'engine/measured-at-deploy',
     });
     assert.equal(env.GEMINI_API_KEY, undefined);
     assert.equal(env.ANTIGRAVITY_API_KEY, undefined);
-    assert.equal(env.OPENCODE_MODEL, 'opencode/nemotron-3.5-lightning-free');
+    assert.equal(env.OPENCODE_MODEL, 'engine/measured-at-deploy');
   });
 
   it('health reports freeTier in stub mode', async () => {

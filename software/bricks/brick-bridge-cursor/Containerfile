@@ -18,7 +18,9 @@ ENV HOME=/root
 ENV CURSOR_BRIDGE_PORT=4310
 ENV CURSOR_BRIDGE_BIND=0.0.0.0
 ENV CURSOR_WS_BASE=/data/cursor-ws
-ENV CURSOR_MODEL=composer-2.5
+# The CLI version is pinned by Rule 34; the model it drives is not — it is
+# measured at deployment and supplied here (Rule 7).
+ENV CURSOR_MODEL=
 ENV CURSOR_MODE=normal
 
 CMD ["node", "server.js"]

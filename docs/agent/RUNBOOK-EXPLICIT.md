@@ -131,6 +131,29 @@ node scripts/test-e2e-business-flow.mjs    # MUST be 100% green
 ## Step 6 — Prove the work, not the uptime
 
 A green `/api/health` proves the stack is up. It does **not** prove a job ran.
+
+**Submitting the job.** The queue accepts one job type for agent work, and its
+shape is declared in [`../../software/packages/queue/INTENT.md`](../../software/packages/queue/INTENT.md).
+It is written here too, because a tester looked for it in the live tests, did not
+find it, and had to read `worker.js` to work it out:
+
+```bash
+curl -s -X POST "http://127.0.0.1:8640/api/jobs" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "agent.inject",
+    "totalSteps": 2,
+    "payload": {
+      "message": "Reply with the exact text: <a marker you choose>",
+      "conversation": "<a session name>",
+      "model": "<the engine you measured at deployment>"
+    }
+  }'
+```
+
+Then poll the job until it reaches a terminal state, and read `job.result.answer`
+— the persisted answer, not the streamed one.
+
 For functional proof you need all four:
 
 1. the queue job reached a terminal state and its answer is **persisted**
