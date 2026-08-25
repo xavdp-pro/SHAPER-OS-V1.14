@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "chat": "Chat Console",
+    "voice": "Car Remote Mode",
+    "maestro": "Maestro Beats",
+    "users": "Users Management",
+    "socle": "Socle Health",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "socle": {
+    "title": "Shaper Socle Supervision",
+    "allHealthy": "All services are operational",
+    "degraded": "Some services are degraded",
+    "vault": "Secrets Vault",
+    "logger": "Logging & Audit",
+    "mariadb": "Database Engine",
+    "queue": "Jobs Queue",
+    "maestro": "Cadence Orchestrator",
+    "bridge": "AI Agent Bridge"
+  },
+  "maestro": {
+    "title": "Maestro Orchestrator",
+    "subtitle": "Supervision of agent heartbeats and autonomous tasks",
+    "runNow": "Run Beat Now",
+    "status": "Status",
+    "cadence": "Cadence",
+    "lastRun": "Last Execution",
+    "taskName": "Task",
+    "actions": "Actions"
+  },
+  "users": {
+    "title": "Users Management",
+    "addUser": "Create User",
+    "email": "Email",
+    "name": "Name",
+    "role": "Role",
+    "locale": "Language",
+    "status": "Status",
+    "actions": "Actions"
+  },
+  "chat": {
+    "placeholder": "Send an instruction to OpenCode agent...",
+    "thinking": "Agent thinking...",
+    "send": "Send"
+  }
+}

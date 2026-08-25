@@ -1,0 +1,15 @@
+node_modules/
+node_modules
+dist/
+tmp/
+.env
+.env.*
+!.env.example
+data/timelines/
+test-results/
+playwright-report/
+e2e/.auth/
+e2e/.env
+*.log
+.DS_Store
+*.bak-*

@@ -1,0 +1,4 @@
+Public fixture (not a client document).
+Source: Mozilla pdf.js test corpus
+URL: https://github.com/mozilla/pdf.js/blob/master/web/compressed.tracemonkey-pldi-09.pdf
+Expected needle: TraceMonkey

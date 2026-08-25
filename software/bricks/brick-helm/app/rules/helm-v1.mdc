@@ -1,0 +1,34 @@
+---
+description: Règles projet Helm-v1 — lire le contexte avant d’implémenter
+alwaysApply: true
+---
+
+# Helm-v1
+
+Avant toute implémentation, lire :
+
+1. `mds/AGENT-CONTEXT.md` (source de vérité)
+2. `mds/regles.md` (comportement + MariaDB)
+3. `mds/VISION.md` (roadmap)
+4. `mds/AUTH-USERS.md` si touche auth / users
+
+## Identité
+
+- URL : https://helm.xavdp.pro
+- Serveur : gbs-h1 — `/apps/helm-v1/app`
+- Source : ce dépôt
+- Fork de cursorauto — **ne pas modifier cursorauto** sauf demande explicite
+
+## Règles
+
+- Chat : français — code : anglais
+- mysql2 uniquement pour la DB
+- Pas alert/confirm/prompt — modales React
+- Fetch via `src/api/client.js` uniquement
+- Zero fake / zero fallback
+- Docker / packaging : plus tard, pas maintenant
+- Commit seulement sur demande humaine
+
+## Suite prioritaire connue
+
+Auth réelle + magic links → voix mobile → WebSocket desk → POC CRM

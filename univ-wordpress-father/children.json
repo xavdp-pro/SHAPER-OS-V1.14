@@ -1,0 +1,20 @@
+[
+  {
+    "name": "univ-wordpress-child",
+    "siteSlug": "wp01",
+    "managerSlug": "wpmanager01",
+    "publicUrl": "https://${WP_SITE_HOST}",
+    "bricks": {
+      "wordpress": "http://127.0.0.1:9560",
+      "mariadb": "http://127.0.0.1:9561",
+      "logger": "http://127.0.0.1:9520"
+    },
+    "thresholds": {
+      "maxBeatAgeMultiplier": 2.0,
+      "maxPendingAgeSeconds": 120,
+      "maxErrorRate": 0.3,
+      "minFreeBytes": 104857600,
+      "maxHttpAgeSeconds": 30
+    }
+  }
+]

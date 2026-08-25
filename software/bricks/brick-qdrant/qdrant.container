@@ -1,0 +1,10 @@
+[Unit]
+Description=SHAPER OS Qdrant (Podman Quadlet)
+
+[Container]
+Image=docker.io/qdrant/qdrant:latest
+ContainerName=shaper-qdrant
+Restart=always
+
+[Install]
+WantedBy=default.target

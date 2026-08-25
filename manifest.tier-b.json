@@ -1,0 +1,151 @@
+{
+  "$schema": "./software/schemas/universe-manifest.schema.json",
+  "universe": "univX",
+  "parent": null,
+  "environment": "prod",
+  "description": "Public install: local stack + Helm /console + Cloudflare tunnel + voice",
+  "intent": "./INTENT.md",
+  "agentDeploy": "./AGENT-DEPLOY.md",
+  "shaperOs": "./software",
+  "bricks": {
+    "vault": {
+      "ref": "./software/bricks/brick-vault",
+      "package": "@shaper/vault",
+      "role": "Sovereign secret store (8610)",
+      "specialize": {
+        "bootstrap": "cd software && npm run vault:bootstrap",
+        "file": "./software/resources/vault-resources.local.json"
+      },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Deterministic secret storage and decryption. No model, ever."
+      },
+      "intent": "./software/bricks/brick-vault/INTENT.md"
+    },
+    "logger": {
+      "ref": "./software/bricks/brick-logger",
+      "package": "@shaper/logger",
+      "role": "Audit JSONL (8620)",
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Append-only structured audit. No model, ever."
+      },
+      "intent": "./software/bricks/brick-logger/INTENT.md"
+    },
+    "bridge-opencode": {
+      "ref": "./software/bricks/brick-bridge-opencode",
+      "package": "@shaper/bridge-opencode",
+      "role": "Free OpenCode bridge (4440)",
+      "cognition": {
+        "role": "provides",
+        "capacityClass": "infra-ops",
+        "depth": "D2",
+        "throughput": "T2",
+        "degraded": "allowed-with-note",
+        "rationale": "Provides cognition to the universe. Declares the floor it can supply with free models; measure from the target host before selecting one."
+      },
+      "intent": "./software/bricks/brick-bridge-opencode/INTENT.md"
+    },
+    "queue": {
+      "ref": "./software/bricks/brick-queue",
+      "package": "@shaper/queue",
+      "role": "Job queue (8640)",
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Dispatch is mechanical. Each job carries its own cognitive requirement, not the queue."
+      },
+      "intent": "./software/bricks/brick-queue/INTENT.md"
+    },
+    "maestro": {
+      "ref": "./software/bricks/brick-maestro",
+      "package": "@shaper/maestro",
+      "role": "Scheduler (8630)",
+      "specialize": {
+        "file": "./tasks/maestro-tasks.podman.json"
+      },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Scheduler and auditor. Rule 21: never executes heavy transformation itself."
+      },
+      "intent": "./software/bricks/brick-maestro/INTENT.md"
+    },
+    "helm": {
+      "ref": "./software/bricks/brick-helm",
+      "package": "helm-v2",
+      "role": "Operator web console + voice (8650)",
+      "cognition": {
+        "role": "requires",
+        "capacityClass": "fast-eval",
+        "depth": "D1",
+        "throughput": "T1",
+        "degraded": "allowed-with-note",
+        "rationale": "Cockpit surface. Conversation latency is user-visible; voice acknowledgment needs T0 and is dispatched separately."
+      },
+      "intent": "./software/bricks/brick-helm/INTENT.md"
+    },
+    "tunnel": {
+      "ref": "docker.io/cloudflare/cloudflared:latest",
+      "role": "Zero Trust tunnel → public HTTPS",
+      "specialize": {
+        "how": "Token in ./sav/tunnel/token — Cloudflare dashboard",
+        "file": "./sav/tunnel/token"
+      },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Network transport. No model."
+      }
+    }
+  },
+  "resources": {
+    "vaultBootstrap": "./software/resources/vault-resources.local.json",
+    "maestroTasks": "./tasks/maestro-tasks.podman.json",
+    "agentContext": "./context/AGENT-CONTEXT.md",
+    "tunnelToken": "./sav/tunnel/token"
+  },
+  "bootOrder": [
+    [
+      "vault",
+      "logger"
+    ],
+    [
+      "bridge-opencode"
+    ],
+    [
+      "queue"
+    ],
+    [
+      "maestro"
+    ],
+    [
+      "helm",
+      "tunnel"
+    ]
+  ],
+  "requiredAccounts": {
+    "cloudflare": "Domain DNS + Zero Trust tunnel token",
+    "deepgram": "STT + TTS in /console",
+    "groq": "Voice ack only",
+    "opencode": "Free models in bridge — no paid key"
+  },
+  "optionalAccounts": {
+    "cloudflareR2": "Cold backups — one bucket + API token",
+    "cartesia": "Alternate TTS",
+    "elevenlabs": "Alternate TTS",
+    "openrouter": "Alternate LLM routing"
+  }
+}

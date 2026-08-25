@@ -1,0 +1,27 @@
+[
+  {
+    "slug": "mail-contact-zoutik-shop",
+    "kind": "mail",
+    "bridgeType": "opencode",
+    "bridgeUrl": "http://127.0.0.1:4440",
+    "mailbox": "contact@zoutik.example.com",
+    "port": 4440,
+    "vaultKey": "secret/mail/contact-zoutik-shop",
+    "cadenceSeconds": 300,
+    "contextPath": "/data/univ8/context/AGENT-CONTEXT.md",
+    "checkpointPath": "/data/univ8/state/checkpoint.json",
+    "beatMessage": "Fetch and triage new inbox messages for univ8 exploration."
+  },
+  {
+    "slug": "ops-univ8-exploration",
+    "kind": "bridge",
+    "bridgeType": "opencode",
+    "bridgeUrl": "http://127.0.0.1:4440",
+    "mailbox": "ops@univ8.local",
+    "port": 4440,
+    "cadenceSeconds": 300,
+    "contextPath": "/data/univ8/context/AGENT-CONTEXT.md",
+    "contextText": "UNIV8 sovereign exploration sandbox — overnight ops and state monitoring.",
+    "beatMessage": "Produce overnight exploration ops briefing."
+  }
+]

@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "chat": "Consola de Chat",
+    "voice": "Modo Control Remoto",
+    "maestro": "Cadencias Maestro",
+    "users": "Usuarios",
+    "socle": "Salud del Núcleo",
+    "settings": "Ajustes",
+    "logout": "Cerrar sesión"
+  },
+  "socle": {
+    "title": "Supervisión del Núcleo Shaper",
+    "allHealthy": "Todos los servicios están operativos",
+    "degraded": "Algunos servicios están degradados",
+    "vault": "Bóveda de Secretos",
+    "logger": "Registro y Auditoría",
+    "mariadb": "Base de Datos",
+    "queue": "Cola de Trabajos",
+    "maestro": "Orquestador de Cadencias",
+    "bridge": "Puente Agente IA"
+  },
+  "maestro": {
+    "title": "Orquestador Maestro",
+    "subtitle": "Supervisión de latidos y tareas autónomas del agente",
+    "runNow": "Ejecutar Beat Ahora",
+    "status": "Estado",
+    "cadence": "Cadencia",
+    "lastRun": "Última Ejecución",
+    "taskName": "Tarea",
+    "actions": "Acciones"
+  },
+  "users": {
+    "title": "Gestión de Usuarios",
+    "addUser": "Crear Usuario",
+    "email": "Correo electrónico",
+    "name": "Nombre",
+    "role": "Rol",
+    "locale": "Idioma",
+    "status": "Estado",
+    "actions": "Acciones"
+  },
+  "chat": {
+    "placeholder": "Enviar una instrucción al agente OpenCode...",
+    "thinking": "Pensamiento del agente...",
+    "send": "Enviar"
+  }
+}

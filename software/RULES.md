@@ -1,0 +1,668 @@
+# SHAPER OS & UNIV — Fundamental Engineering Rules & Architecture Invariants
+
+This file is the **canon**. It is read in full, never summarised, never replaced by a
+pointer to itself. Rules are added, never removed to fit what the code currently does —
+when doctrine and code diverge, the gap is recorded in
+[`doctrine/CONVERGENCE-STATE.md`](../doctrine/CONVERGENCE-STATE.md).
+
+---
+
+## How to read this file
+
+**Rule numbers are identifiers, not priorities.** They are stable because 240+ references
+across the repository point at them. Their order is the order in which they were written,
+so a low number means "written early", not "matters more".
+
+**If you read only six rules before touching anything**, read these — they are what shape
+judgement rather than convention:
+
+| Rule | What it changes about how you work |
+| :--- | :--- |
+| **0G** | No fake, no fallback. A thing that cannot be done is reported, never simulated. |
+| **0A** | Which perimeter you are in — P1 socle, P2 agents, P3 business — decides what you may touch. |
+| **0B** | Nothing environment-specific is ever hardcoded. Everything is a parameter. |
+| **32** | Perfect the generic base first; business specifics go on top of it, never into it. |
+| **23** | Never modify your own running infrastructure. Repair comes from the level above. |
+| **20** | Nothing is `COMPLETED` without passing the verification contract for its type. |
+
+**Then go where your work is:**
+
+| You are… | Read |
+| :--- | :--- |
+| building or changing a brick | 0A, 0B, 0C, 0D, 0E, 32, 33 |
+| deploying or operating | 3, 10, 11, 12, 13, 16, 25, 27, 30 |
+| working on agents, bridges, delegation | 0F, 0H, 0K, 6, 7, 8, 19, 21, 23, 24 |
+| handling documents or data | 20, 22, 26, 31, and `doctrine/DOCUMENT-PIPELINE.md` |
+| shipping to a client | 0G, 0J, 10, 18, 19, 25, 31, 33 |
+
+---
+
+## Binding force is uniform. Consequence is not.
+
+These two statements are different, and only the first is about obedience:
+
+1. **Every rule is mandatory.** None is a suggestion, none is skipped for convenience,
+   none is optional because it is inconvenient today. That is [`LAW.md`](../LAW.md).
+2. **Violations do not cost the same.** Claiming they do would be visibly false, and an
+   agent that senses the falseness starts ranking rules silently by its own criteria —
+   which is worse than an explicit ranking. So here is the explicit one.
+
+What separates the tiers is **reversibility**, not importance:
+
+| Tier | A violation costs | Rules |
+| :--- | :--- | :--- |
+| **Irreversible / systemic** | Data that does not come back, a promise broken to a client, a system dead in flight | 0G · 10 (duration clause) · 22 · 23 · 26 · 30 |
+| **Structural** | The architecture degrades — repairable, but expensive | 0A · 0B · 0D · 0E · 19 · 20 · 21 · 25 · 27 · 32 · 33 |
+| **Convention** | A rename, a reformat, a rewritten commit message | 0 · 1 · 2 · 14 · 15 |
+
+**Two situations where this matters, and only two:**
+
+* **Two rules collide.** The higher tier wins, and **the arbitration is written down** — a
+  genuine collision usually means one of the two rules is badly worded and needs fixing.
+* **Time pressure forces a trade-off.** A convention can wait for the next commit. An
+  irreversible rule never waits, and "we were in a hurry" is not a reason that exists here.
+
+Outside those two cases, the tiers change nothing: you comply with all of them.
+
+---
+
+### Rule 0: Language & Collaboration Protocol
+* **English for All Technical Assets**: 100% of source code, variable/function names, API schemas, JSON payloads, Git commit messages, branch names, technical specifications, and repository documentation (`README.md`, `RULES.md`, `AGENT-CONTEXT.md`) MUST be written strictly in **English**.
+* **French for Human-Agent Pair Programming**: All strategic discussions, planning sessions, architectural reflections, live brainstormings, and human interactions are conducted fluently in **French**.
+
+---
+
+### Rule 0A: Three Perimeters Taxonomy (P1 / P2 / P3)
+
+Every component, package, brick, or app MUST be classified into **exactly one** perimeter before design or deploy. Canonical source: [`docs/PERIMETERS.md`](./docs/PERIMETERS.md).
+
+| Perimeter | Objective | Examples |
+| :--- | :--- | :--- |
+| **P1 — Minimal socle** | Secrets, audit, auth, generic jobs, boot — zero business logic, zero mandatory LLM | `@shaper/vault`, `@shaper/logger`, `@shaper/auth`, `@shaper/queue`, `@shaper/db` |
+| **P2 — Agentic** | Deterministic beats, bridges, operator cockpit (KovZu organism) | `@shaper/maestro`, `@shaper/mail-agent`, bridges, `brick-helm`, `@shaper/ged-engine`, `@shaper/rag` |
+| **P3 — Business / client tools** | Persistent vertical apps **outside** P1+P2 — separate port, volume, lifecycle | `market-intelligence`, `enterprise-chat`, `univ-sinistre`, CRM POC |
+
+* **Rule 0F alignment**: KovZu / Helm is **P2 only**. Client ERPs, scrapers, and scoped client chat are **P3** — never merged into the cockpit.
+* **Test universes** (`UNIV7`, `UNIV8`, `UNIV9`) prove **P1+P2** — they are not P3 verticals.
+* **Removed UI**: `/talk` and `/voice` redirect to `/console`. Operator voice STT/TTS inside `/console` remains **P2**.
+
+---
+
+### Rule 0B: Universal Parametric Genericity Invariant (Zero Hardcoding)
+* **Everything Behaves as a Parameterized Function**: Every script, engine, deployment workflow, container blueprint, and documentation guide MUST be engineered as a pure, parametric abstraction that receives its parameters via CLI arguments, environment variables, or configuration manifests.
+* **Multi-Infrastructure Portability**: All components must run interchangeably on Proxmox VE, LXD, raw KVM, standalone bare-metal Debian, or cloud VPS instances (Hetzner, OVH, Scaleway, AWS, home-lab) without modifying source code.
+* **Zero Hardcoded Environment Residue**: Never hardcode specific IP addresses, hypervisor node names, private subnets, tenant domains, or static credentials into code, scripts, or specifications.
+* **Mandatory Intent Header Classification (Generic vs Specific)**: Every `INTENT.md` or blueprint document in SHAPER OS MUST declare its exact classification at the very top header:
+  * `> **Intent Classification**: GENERIC INTENT (Universal / Parameterized Blueprint)` for reusable abstract bricks in `SHAPER-OS/`.
+  * `> **Intent Classification**: SPECIFIC INTENT (Universe: <univ_slug>)` for concrete instantiated deployments in experimental sandboxes or apps.
+* **Strict Distinction: Abstract Specs vs Concrete Examples**: Technical documentation must always define abstract parameterized interfaces first (e.g. `<CLIENT_MESH_IP>`, `<GATEWAY_HOST>`, `<DOMAIN_NAME>`).
+* **Explicit Demarcation of Specialized Examples**: Following any generic documentation, specialized real-world implementation examples (e.g. a specific Proxmox hypervisor, cloud node, or demonstrator) MAY be provided, but MUST ALWAYS be explicitly labeled under a dedicated section header: `### Illustrative Example (Non-Binding / Demonstration Only)`. There must be zero ambiguity between universal contracts and specific illustrative cases.
+
+---
+
+### Rule 0C: Declarative Agent-First Simplicity (High-Signal Intent)
+* **Mandatory Declarative Standard**: All future system blueprints, container specifications, agent tasks, and workflow documentations in SHAPER OS MUST ALWAYS follow the **Pure Declarative Intent Format** (4-6 high-signal bullet points defining Invariants, Environment, Runtime, and Security) rather than verbose imperative code blocks.
+* **Intent Over Boilerplate**: With modern autonomous AI agents, documentation must state the high-level intent, core invariants, and mandatory constraints clearly in plain language rather than drowning the reader in hundreds of lines of rigid low-level boilerplate.
+* **The Justified Golden Snippet Exception**: While verbose boilerplate is forbidden, **including critical minimal code snippets or exact declarations is strictly permitted and encouraged when justified** (e.g. when days of research yielded a vital 2-line solution for LXC capabilities, WireGuard flags, or subtle configs). Alternatively, store companion code in dedicated `examples/` folders.
+* **Dynamic Runtime Adaptability ("Dynamic in the Interpreted Sense")**: Architecture rules are protective guardrails, not rigid handcuffs. Systems and agents must adapt fluidly to runtime context (evaluating parameters dynamically like an interpreted engine) rather than hitting static compile-time walls.
+* **Human as the Dynamic Compass**: The human operator provides live strategic direction and intent. The AI agent must maintain a matching dynamic mindset: adapting its execution path and tooling pragmatically to the human's guidance.
+* **Minimalist Documentation Rule**: Keep documents lean, readable, high-signal, and focused strictly on the *What*, the *Why*, and the *Contract Invariants*. Less noise equals zero token waste, zero hallucinations, and maximum agility.
+
+---
+
+### Rule 0D: Dual Intent & Topology Manifest Protocol (INTENT.md + JSON)
+
+SHAPER OS uses **two complementary layers** — never one replacing the other:
+
+| Layer | File | Audience | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Declarative Intent** | `INTENT.md` | Humans & AI agents | Philosophy, invariants, security boundaries, parameterized contract |
+| **Topology Manifest** | `topology.json` (repo root) or local `deps.json` | Scripts, CI, agents, Quadlet tooling | Machine-readable dependency graph, boot order, ports, `requires` / `provides` |
+
+* **INTENT.md is mandatory** for every `@shaper/*` package and every `brick-*` directory. It answers *What* and *Why*.
+* **JSON manifests are mandatory at ecosystem level** via the canonical root file [`topology.json`](./topology.json). It answers *Who depends on Whom* and *In what order*.
+* **Optional local `deps.json`** MAY exist inside a `packages/<name>/` or `bricks/brick-<name>/` directory when a component needs to declare overrides for a specific universe — but the root `topology.json` remains the master graph.
+* **Zero duplication of philosophy in JSON**: JSON files MUST NOT repeat INTENT prose. They carry only structured fields: `id`, `type`, `requires`, `optional`, `provides`, `port`, `bootAfter`.
+* **Agent-Synthesized Defaults**: Business rules and deploy details are **not** stored in `topology.json` unless a human explicitly requests an override. Silence = agent decides freely, as long as each brick `INTENT.md` invariants are respected.
+* **Override Protocol**: When a human states a specific constraint (port, path, schema, dependency), add it to `topology.json` or a local `deps.json`. Never preemptively.
+* **Validation**: Any `doctor`, bootstrap, or deploy script MUST read `topology.json` for ordering — never hardcode dependency chains in shell scripts. The validator CLI `scripts/shaper-deps.mjs` is **planned** (see [`docs/TOPOLOGY-INTENT.md`](./docs/TOPOLOGY-INTENT.md)); until it ships, validate manually against `topology.json` and package `imports`.
+
+---
+
+### Rule 0E: Materialization Pipeline (INTENT → Podman → Proof → Registry)
+
+**Primary deployable unit**: `brick-<name>/` (INTENT + Podman image). A `packages/@shaper/*` NPM brick is **optional** — extract code only when it stabilizes or needs fast unit tests.
+
+| Step | Who | What |
+| :--- | :--- | :--- |
+| 1. **INTENT** | Human | Declares objective + invariants (the law) |
+| 2. **Materialize** | Agent | Builds Podman image + entrypoint (vibe-code). Silence = agent decides all unspecified details |
+| 3. **Test** | Agent + Human | Unit (`node --test`) → contract (Podman alone) → integration (Podman + stack peers). Must pass before registry |
+| 4. **Registry** | Human validates | Tag immutable image (`v1.x.y`), push to mesh registry. Prod never pulls floating `latest` |
+| 5. **Deploy** | Quadlet | Pulls tagged image, boots per `topology.json` graph |
+
+* **Trust model**: INTENT = law. Agent = creativity within the law. Tests = proof. Registry tag = frozen artifact you trust — not the agent's last run.
+* **Package extraction**: `packages/` is a **stabilization artifact**, not a prerequisite to deploy. Start with INTENT + Podman; extract `@shaper/*` when reuse or test speed warrants it.
+* **Machine-readable steps**: See `materializationPipeline` in [`topology.json`](./topology.json) for CI/doctor scripts.
+
+---
+
+### Rule 0F: Strict Distinction Between Operator Cockpit (KovZu / SHAPER-OS) and Client-Facing Tools
+
+* **KovZu is the Operator & Sovereign Cockpit Only**:
+  * The KovZu / Helm-v2 web console is strictly the **internal operating system cockpit** for the human administrator/operator, supervisor, and autonomous AI agents (OpenCode, Maestro, Zephir).
+  * KovZu provides agent control, timelines, live audio orchestration, system logs, vault secrets, database engines, and universe administration.
+* **Client Tools are Strictly Distinct Applications**:
+  * Any client-facing software, vertical business portals, customer dashboards, mini-apps, external deliverable widgets, or end-user interfaces (e.g. `univ-sinistre`, `univ-immo`, customer tracking UI) MUST BE built, deployed, and served as **standalone, distinct applications/containers**.
+  * Client tools MUST NEVER pollute, overload, or be merged into the KovZu operator console.
+  * KovZu acts as the engine, API provider, and intelligence orchestrator behind the scenes, while client tools consume standard REST/SSE/WebSocket endpoints with their own distinct UX, authentication boundaries, and client branding.
+
+---
+
+### Rule 0G: Strict "NO FAKE, NO FALLBACK" Testing & Validation Invariant
+
+* **Zero Simulation / Zero Mock in Integration Tests**:
+  * Tests MUST NEVER simulate, fake, mock, or emulate real operations when validating system capabilities, container runtimes, APIs, or AI agent autonomy.
+  * No mock servers, no synthetic HTTP stubs for core services, no dummy return values masquerading as real execution.
+* **Real Environment Execution Only**:
+  * Every test MUST hit the **real running services** (the real Vault AES encryption, the real Logger JSONL file on disk, the real Queue memory/redis, the real GED filesystem, the real Qdrant vector engine, the real Podman runtime).
+  * If a command is tested (e.g. `podman run --rm alpine uname -a`), it MUST actually spin up the real container and return real kernel output.
+* **Zero Silent Fallback / Fail Hard**:
+  * Tests and test runners MUST NEVER silently swallow errors, fall back to simulated success, or catch exceptions just to output a green checkmark.
+  * If a service or command fails, the test MUST fail hard, emit the exact raw error, and force a real architectural resolution.
+* **Agent Self-Validation Contract**:
+  * When the AI agent proves it can execute a task (e.g. configuring a mailbox in the Vault, querying the cluster, analyzing a document in `/data/ged/`), it must execute the real shell/API commands and verify the real state on disk / in memory. Fake results, invented numbers, or simulated completions are strictly forbidden.
+
+---
+
+### Rule 0H: Universal Interchangeable CLI Matrix & Human-Arbitrated Economics
+
+* **All AI Agent CLIs Are Interchangeable Commodities**:
+  * SHAPER OS is strictly agnostic to the underlying AI agent CLI (`opencode`, `cursor-cli`, `claude-code`, `codex`, `openrouter`, `ollama`).
+  * The system decouples the intelligence engine from the orchestration fabric via standard Bridge interfaces (`/api/conversations/*`, SSE streams). Swapping an engine requires zero structural or architectural changes.
+* **Human-Governed Economic & Mission Arbitration**:
+  * The choice of CLI engine belongs strictly to the **human operator**, dynamically adjusted according to budget, privacy, and task complexity:
+    * **Tier 0 (Free / Sovereign / Default Bootstrap)**: `OpenCode` with free models (`deepseek-v4-flash-free`, `nemotron-3.5-lightning-free`, `nemotron-3-ultra-free`). Ideal for everyday system administration, tests, Podman orchestration, and routine operations at zero cost.
+    * **Tier 1 (Air-Gapped / 100% On-Premise Sovereign)**: `Ollama` / `vLLM` (Llama 3.3, Mistral, Qwen) for complete data isolation without external cloud dependencies.
+    * **Tier 2 (Balanced Pro / Fast Feature Building)**: `Cursor CLI` with `Composer` / `Grok 4.6` / `Claude 3.5 Sonnet` for professional coding and fast iterations.
+    * **Tier 3 (Elite Heavy Artillery / Deep Refactoring)**: `Claude Code` with `Claude 3.5 Opus` / `Sonnet` for massive multi-file architectural refactors and high-stakes reasoning.
+    * **Tier 4 (Multi-Provider Aggregators)**: `OpenRouter` for dynamic routing across diverse model providers.
+* **Bridge Compatibility Invariant**:
+  * Every CLI runtime connects to the universal KovZu / Helm cockpit and receives identical context digests (`_kovzu/CONTEXT.md`, `topology.json`, persistent memory).
+
+---
+
+### Rule 0I: Pure IA-Driven Installation Doctrine (Zero Installer Monoliths / Pure Intent Synthesis)
+
+* **Zero Rigid Installation Programs ("No Hardcoded Installers")**:
+  * SHAPER OS strictly forbids writing monolithic, rigid installation programs, closed binaries, or brittle procedural shell wizards that assume fixed paths, hypervisor quirks, or rigid hardware layouts.
+* **Everything Starts from Declarative INTENT**:
+  * The human or architect declares the **INTENT** (`INTENT.md`, `topology.json`, security boundaries, required invariants).
+* **The AI Agent Directly Fabricates and Shapes the Socle**:
+  * Installation is a 100% **IA-Driven Process**: the autonomous AI agent (Antigravity at meta-level, or OpenCode / Zephir in-container) reads the declarative intent, probes the physical host and runtime limits (`cgroups`, RAM, disk, kernel version, existing packages), and **synthesizes, provisions, and configures the environment on the fly**.
+* **Dynamic Synthesis Over Fragile Scripts**:
+  * If a dependency is missing, the AI agent resolves and installs the exact right package for that specific OS runtime (`apt`, `apk`, `pip`, `npm`).
+  * If an environment configuration or port needs adjustment, the AI agent adapts dynamically without failing compile-time checks.
+  * **Summary**: The human sets the *What* and the *Why* (Intent); the AI agent dynamically constructs and validates the *How* (Materialization).
+
+---
+
+### Rule 0J: The Human Vibe-Coder & AI Agent Contract — Strict `.env` Verification, Key Propagation, and the Standard vs Freestyle Guarantee
+
+* **Human Vibe-Coder & AI Agent Partnership**:
+  * The human vibe-coder is the visionary project owner and sovereign director.
+  * The AI agent is the meticulous technical co-pilot and strict executor.
+* **Strict `.env` Pre-Flight Verification & Mandatory Halt**:
+  * **Pre-Flight Inspection**: Before building images, launching containers (`podman-up.sh`), or running tests, the AI agent **MUST ALWAYS inspect the `.env`** (at repository root, `software/.env`, or universe directory).
+  * **Zero Blind Execution**: The AI agent MUST NEVER start deployment blindly hoping secrets exist or using dummy placeholders that return 401s.
+  * **Proactive Key Reclamation**: If any required secret (`VAULT_MASTER_KEY`, `JWT_SECRET`, `DEEPGRAM_API_KEY`, `GROQ_API_KEY`, Cloudflare tunnel token) is missing or empty, the AI agent **MUST HALT IMMEDIATELY**, explain which key is missing, provide the exact vendor signup/console URL, and wait for the human to paste it.
+* **Multi-Podman Key Propagation**:
+  * The AI agent is strictly responsible for copying and propagating the validated `.env` across all universe and Podman runtime directories (`software/.env`, `deploy/env`, `deploy/univ9.env`).
+* **The "Standard vs Freestyle" Guarantee & Responsibility Matrix**:
+  * **Standard Recipe ("La Sauce Robuste")**: When the human respects the checklist and provides a complete, valid `.env`, the entire Shaper OS deployment pipeline is guaranteed to be **100% deterministic, predictable, autonomous, and green from end to end**.
+  * **Freestyle Mode ("Liberté Totale")**: The human user is 100% free to go freestyle, test with partial keys, run experimental stacks, or customize rules. However, managing degraded/inactive services in freestyle mode is the **user's full responsibility with their AI agent**. The core baseline cannot be considered failing if the standard formula was bypassed.
+
+---
+
+### Rule 0K: Inter-Container Token Synchronization, Anti-Silence Guarantee & Reborn Presentation Invariant
+
+* **Deterministic Inter-Container Token Sync**:
+  * **Priority to `.env`**: Whenever `podman-up.sh` runs, `OPENCODE_BRIDGE_TOKEN` or `CLI_BRIDGE_TOKEN` from `.env` MUST strictly overwrite any stale token on disk (`/root/.config/opencode-bridge/token`).
+  * **Shared Auth Contract**: Helm, Bridge, Queue, and Maestro MUST strictly share the identical authentication token to eliminate `HTTP 502 Unauthorized` errors on control actions (`/reset`, `/clear`, `/stop`, `/inject`).
+* **Anti-Silence & Guaranteed Final Response**:
+  * **Zero Orphaned Runs**: In any bridge adapter (`opencode-bridge`, etc.), the `session.idle` event MUST NEVER emit an empty text payload.
+  * **Error Surfacing**: If a tool or model aborts (`MessageAbortedError`, bash timeout, etc.), the error MUST be surfaced explicitly as the assistant's final text (`⚠️ Erreur outil...`).
+  * **Fallback Conclusion**: If a session concludes without a text part, a default completion summary is automatically emitted so the UI bubble and Deepgram voice engine are never starved or hung.
+* **Reborn (Session Prime) Invariant**:
+  * **Clean Rebirth**: Triggering Reborn (via UI button or voice keyword « reborn ») MUST wipe previous conversation turns on the bridge, flush the local timeline, and immediately re-inject the official Presentation Briefing (*"Bonjour [Nom] ! Je suis Zephir..."*).
+  * **UI Timeline Retention**: The UI MUST preserve the freshly returned Prime run without blanking out.
+* **Mandatory Closed-Loop Test Validation**:
+  * Any agent modifying the bridge, Helm, or voice pipeline MUST execute and confirm 100% success on:
+    1. `software/scripts/test-voice-player.mjs` (Acoustic dB verification + 401 strict rejection test).
+    2. `software/scripts/test-e2e-business-flow.mjs` (Full 6-step autonomous business flow).
+
+---
+
+### Rule 1: Canonical Naming Conventions & Mandatory `univ-` Git Prefix
+
+* **Mandatory `univ-` Git Repository Prefix (Everywhere)**: All Git repositories across the entire ecosystem MUST STRICTLY begin with the prefix `univ-`. No exceptions are permitted.
+  * Master Core Framework: `univ-shaper-os` (or `univ-shaper`)
+  * Business Universes: `univ-immo`, `univ-sinistre`, `univ-artisan`, `univ-ciel`, `univ8`
+  * Standalone Engines / Tools: `univ-vault`, `univ-app-shell`, `univ-mail-agent`
+
+The `univ-` prefix provides a unified sovereign brand across Git, container namespaces, and system services while internally distinguishing deployable applications from composable logic packages.
+
+| Element Type | Scope / Layer | Canonical Naming Convention | Real-World Examples |
+| :--- | :--- | :--- | :--- |
+| Composable Logic Bricks | NPM Scope `@shaper/` | `@shaper/<brick>` | `@shaper/vault`, `@shaper/logger`, `@shaper/queue` (**P1**); `@shaper/maestro`, `@shaper/mail-agent`, bridges (**P2**); `@shaper/waf`, `@shaper/variables`, `@shaper/ai-client` (**planned** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)) |
+| Vertical Universes (Apps) | Apps / Containers | `univ-<vertical>` | `univ-sinistre` (Legal & Insurance), `univ-artisan` (Construction/BTP), `univ-crm`, `univ-webmail`, `univ-wiki`, `univ8` |
+| AI Agent Bridges | Apps / Containers | `univ-bridge-<agent>` | `univ-bridge-agy`, `univ-bridge-opencode`, `univ-bridge-claude` |
+| Master Repository | Git Organization | `univ-shaper-os` | `xavdp-pro/univ-shaper-os` (Master Git) |
+
+* **Brick Isolation Invariant**: A `@shaper/*` package never has knowledge of the universe consuming it (zero coupling, 100% isolated unit test coverage).
+* **Universe Lifecycle Invariant**: Every deployable container/app conforms to the triumvirate lifecycle (`univ-<slug>-dev`, `univ-<slug>-test`, `univ-<slug>-prod`).
+
+---
+
+### Rule 2: Atomic Git Commits per Package & Feature
+* Every time a LEGO brick, component, or package is updated and certified, execute an atomic commit immediately:
+  ```bash
+  git add <path> && git commit -m "feat(<scope>): descriptive commit message"
+  ```
+* Maintain a clean, linear, and verifiable commit history on `origin/master`.
+
+---
+
+### Rule 3: Proactive Podman Images & Quadlets Management
+* Whenever software or configuration changes impact a container:
+  1. Rebuild the corresponding Podman image.
+  2. Push / tag the image to the local mesh registry (`10.87.78.3:5000` or local repo).
+  3. Reload Quadlets via Systemd: `systemctl daemon-reload && systemctl restart <service>`.
+
+---
+
+### Rule 4: Standard Turbinobash Layout & On-Demand Database Isolation
+* **Plesk-like CLI Hosting Heritage**: SHAPER OS inherits the battle-tested, sovereign hosting philosophy of **Turbinobash (`tb`)**—a lightweight, CLI-first alternative to bloated control panels (like Plesk or cPanel) providing zero-friction app deployment, reverse-proxying, user isolation, and automated database provisioning.
+* **Official Turbinobash Documentation & Repositories**:
+  * Core Hosting Engine: [https://github.com/xavdp-pro/turbinobash-web](https://github.com/xavdp-pro/turbinobash-web)
+  * LXC & Containers Module: [https://github.com/xavdp-pro/turbinobash-web-lx](https://github.com/xavdp-pro/turbinobash-web-lx)
+* **Standard Turbinobash File Structure (`/apps/<slug>/`)**: Every deployed application or service brick adheres strictly to the canonical Turbinobash filesystem hierarchy — **same spirit under Podman**: persist what must survive in bind-mounted volumes, never mix cache with backups:
+  ```
+  /apps/<slug>/          # or <univ>/ for a Podman universe
+  ├── app/               # Code (git) — not a substitute for volume backup
+  ├── etc/mysql/localhost/passwd
+  ├── log/               # Append-only JSONL
+  ├── sav/               # Persistent volumes (bind-mounted into Podman) — MUST be backed up
+  └── nosav/             # Cache, node_modules, image layers, bulky regenerable files — EXCLUDED from backups
+  ```
+* **On-Demand Isolated Database Convention (`user = database = slug`)**:
+  * **On-Demand Only**: A container or service instantiates a MariaDB database **strictly if and only if it requires relational state storage**.
+  * **Strict Isolation Invariant**: Whenever a database is required, it must follow `user = database = <slug>`. No shared default credentials.
+  * **Password Resolution Order**:
+    1. Primary source of truth: read directly from `/apps/<slug>/etc/mysql/localhost/passwd`.
+    2. Fallback (Dev / CI testing): read from `process.env.MYSQL_PASSWORD`.
+* **Continuous Architectural Traceability**: Document every architectural choice with *What* (concise description) and *Why* (business rationale).
+
+---
+
+### Rule 5: 100% Native Unit & Contract Tests (node --test)
+* 100% test pass rate required prior to any staging or production deployment.
+* Zero external bloated testing frameworks; use the native Node.js test runner (`node --test test/*.test.js`).
+* Cold-boot execution time under 2000ms.
+
+---
+
+### Rule 6: Targeted Agent Bootstrapping (Token Optimization & Zero Idle Waste)
+* Every AI agent is bootstrapped with an isolated, targeted context file (`AGENT-CONTEXT.md`).
+* Never re-inject entire system rulebooks into execution prompts; send only the short delta/instruction.
+* Leverage prompt caching, local deterministic idempotence checkpoints (`checkpoint.json`), and zero token consumption when idle.
+
+---
+
+### Rule 7: Official LLM Models & Execution Defaults
+* **Antigravity CLI & Agent Bridge (`univ-bridge-agy`)**: `gemini-3.7-flash-low` (default production setting).
+  * Flags: `effort: low`, `dangerouslySkipPermissions: true`, `outputFormat: stream-json`.
+* **OpenCode Agent (`univ-bridge-opencode`)**: `opencode/deepseek-v4-flash-free` ($0.00 / 100% free) or local sovereign Ollama (`qwen2.5-coder:7b`).
+
+---
+
+### Rule 8: Universal Agent Container Contract
+Every containerized AI agent must satisfy four core HTTP endpoints:
+1. `GET /api/health` — Service readiness & DB connection.
+2. `POST /api/inject` — Dynamic context ingestion (`AGENT-CONTEXT.md`).
+3. `GET /api/events` — Real-time Server-Sent Events (SSE) stream.
+4. `GET /api/metrics` — JSONL structured event logging & latency tracking.
+
+---
+
+### Rule 9: Strict Mailbox Isolation (Test/Dev vs Prod)
+* All IMAP synchronization, categorization, and message testing must strictly target dedicated test mailboxes.
+* Absolute protection against data corruption or unintended message operations in production.
+* Centralized AES-256 encrypted credential storage in `vault-engine`.
+
+---
+
+### Rule 10: The Universe Triumvirat & Cold-Boot PRA (three clocks)
+Every business universe `<slug>` operates across three strictly decoupled lifecycle stages:
+1. `univ-<slug>-dev`: Fast prototyping and vibe-coding on the `dev` branch.
+2. `univ-<slug>-test` (or `univ-test1`, `univ-test2`, `univ-testX` in parallel):
+   - **The real PRA test is strictly FROM SCRATCH**: blank LXC container, WireGuard split-mesh attachment, Podman stack boot, Vault injection, and 100% test execution.
+   - **Mandatory Destroy-After-Test Rule**: Once the test cycle is verified, the ephemeral test container **MUST BE DESTROYED** (`pct destroy <vmid>` or `lxc delete --force`) to guarantee zero residue and prove continuous cold recovery.
+3. `univ-<slug>-prod`: Initialized once, then atomic hot-updated via Git release tags (`v1.x.y`) and Quadlet reloads without service disruption.
+
+**PRA duration — three clocks (do not quote “&lt; 120s” alone):**
+
+| Clock | Condition | Duration |
+| :--- | :--- | :--- |
+| **1** | Podman images already in **our registry / local cache** | **Fast** stack deploy (this is the short clock) |
+| **2** | Images **rebuilt or pulled from zero** (no cache) | **Longer** — build/pull + start |
+| **3** | Plus **data restore** | A **delta** proportional to volume (`sav/`, DB dumps, GED, files) |
+
+Never tell a client or write in this repo that restore is “under 120 seconds” without stating which clock. The historical “&lt; 120s” figure was a **target for core start when images are cached**, not a blank-host SLA, and **not including data**. LXC/`apt` provisioning is extra on every clock.
+
+* **Zero Duration Figure — Say "fast and structured", Never a Number**:
+  * No document, pitch, README, doctrine page, or client-facing sentence in this repository states a restore or cold-boot duration — **not even to dismiss it**. A number quoted in order to be refuted still gets lifted out of its paragraph and quoted back as a promise.
+  * The sanctioned formulation is qualitative: **restore is fast and structured**. *Fast* because nothing has to be reinvented — the fractal pattern is identical at every level and the bricks are already built. *Structured* because it always follows the same deterministic order (encrypted socle → orchestration → restitution), with zero hidden state and zero manual step.
+  * The reason no figure is given is itself part of the message: the delay depends on cached vs rebuilt images, on host provisioning, and above all on **the volume of data to put back** — which has nothing in common between an empty TEST universe and years of production.
+  * **Single exception**: a measured observation inside an operational log or deployment note, which MUST state its exact conditions (cache state, data volume, what is excluded) and MUST be explicitly labelled as an observation, never an engagement.
+  * We promise the method. Never the stopwatch.
+
+---
+
+### Rule 11: Standard LXC Deployment & Nested Podman
+* For deploying on Linux VPS hosts (e.g. Debian 13 with LXD/LXC):
+  * **LXD Profile `podman-univ` mandatory**: nesting enabled, privileged mode, kernel modules `overlay,nf_nat,ip_tables,fuse,tun`.
+  * **Host Kernel Modules**: loaded via `/etc/modules-load.d/lxc-podman.conf`.
+  * **First Boot Requirement**: `apt-get update && apt-get dist-upgrade -y && apt-get clean`, followed by injecting `SKEL/etc/{bash.bashrc,inputrc}`.
+
+---
+
+### Rule 12: Secure Archive Distribution & Cold Recovery
+* All archive transfers (`PROJECT.tar.bz2`, `REMOTE.tar.bz2`) must follow:
+  * Multi-threaded compression (`pbzip2` or `tar -cjf`).
+  * Zero directory listing (`autoindex off`).
+  * Mandatory HTTP Basic Auth (`auth_basic` with hashed credentials).
+  * End-to-end TLS encryption via Cloudflare Tunnel.
+
+---
+
+### Rule 13: Hybrid WireGuard Private Mesh Network & Mandatory Peer Naming
+* All distributed nodes (`univ7`, cloud VPS, bare-metal Proxmox) join the private encrypted mesh:
+  * Central gateway on subnet `10.87.78.0/24` (or configured mesh subnet).
+  * Dynamic peer key registration.
+  * Persistent keepalive (`PersistentKeepalive = 25`) for firewall/NAT traversal.
+* **Mandatory Human-Readable Peer Comments**: Because raw WireGuard only uses cryptographic hashes, every AI agent or engineer registering a peer on the gateway (`wg0.conf`) MUST ALWAYS precede the `[Peer]` block with an explicit comment tag:
+  ```ini
+  ### Client <hostname> (CT <vmid> on <host>)
+  [Peer]
+  PublicKey = <CLIENT_PUBLIC_KEY>
+  AllowedIPs = <CLIENT_MESH_IP>/32
+  ```
+  Anonymous or untagged peer blocks are strictly prohibited to ensure instant auditability and DNS mapping.
+
+---
+
+### Rule 14: Efficient Podman Vision Containers (vision-neko)
+* **Priority to Blind Mode (0 LLM Tokens / 5ms)**: Use deterministic X11 commands (`neko-desk control <deskId> launch|paste|key|exec`) for standard application launching and document conversions.
+* **Multimodal Visual Mode via MCP (`neko-desk`)**: Use screenshots and cursor actions only when interacting with legacy graphical interfaces lacking programmatic APIs.
+
+---
+
+### Rule 15: Media Art Direction & Industrial Realism
+* Natural warm sunlight, healthy green vegetation, genuine professional expressions, and dual representation of human operators and sustainable infrastructure.
+
+---
+
+### Rule 16: Multi-level backup (container → files tar.bz2 → database → git → S3)
+This set is **enough**. Missing a level is a hole. Same idea as turbinobash-web (`tb app sudo/backup` + `/var/sav1/`) — **adapted to Podman / Shaper OS**.
+
+| Level | What | How (Shaper / Podman spirit) |
+| :--- | :--- | :--- |
+| **1. Infra — entire container** | The LXC/CT (or VM) as a whole | Host snapshot (`vzdump` / ZFS / Proxmox). Recovers the machine, not a substitute for inner levels. |
+| **2. Files — persistent volumes** | Only what must survive a recreate | Archive **Podman bind-mounts** (`<univ>/sav/*`, `/data/<slug>/` persistent volumes) as **`tar.bz2`** (pbzip2), like turbinobash app backups. **Exclude `nosav/`**, caches, image layers, `node_modules`. |
+| **3. Database** | Relational / vector state, consistent | `mysqldump` (and Qdrant snapshot, JSONL rotate if needed). Do not rely on a live volume tar alone for a crash-consistent DB. |
+| **4. Git** | Code and architecture | Immutable tagged repo. Never treat git as a data backup. |
+| **5. S3 / R2** | Off-site copy of 2+3 (and optionally 1) | Encrypted archives (AES-256-GCM), cold bucket (Cloudflare R2 / Glacier-class). Copies **the tar.bz2 and dumps**, not a second git clone pretending to be backup. |
+
+**Files (level 2) are the volumes, not the overlay.** Recreating the Podman container from a tagged image + restoring `sav/*.tar.bz2` + DB dump **is** the inner restore. Level 1 is the outer safety net (CT gone). With 1–5 together, PCA/PRA data path is covered.
+
+Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2` that leaves the host.
+
+---
+
+### Rule 17: Mandatory TTS Phonetic Dictionary, Acronym Expansion & Fine Word Karaoke
+* **Universal TTS Text Normalization (`ttsFormat.js`)**: When text is dispatched to the AI TTS synthesizer (Deepgram Aura, Cartesia, ElevenLabs), all text MUST be formatted via `formatTextForTts(text, locale)`:
+  * **Acronym Expansion**: Technical acronyms (`API`, `SQL`, `GED`, `URL`, `SSH`, `HTTP`, `HTTPS`, `CSV`, `PDF`, `TTS`, `STT`, `LLM`, `IA`, `UI`, `UX`, `OS`, `RAM`, `CPU`, `DB`, `IP`, `CLI`, `JSON`, `SDK`, `DNS`, etc.) are converted to hyphenated letters (`A-P-I`, `S-Q-L`, `G-E-D`, `C-S-V`, `J-S-O-N`) to force clean, natural letter-by-letter pronunciation instead of garbled phonetics.
+  * **Markdown & Artifact Stripping for Voice**: Code blocks (`` ``` ``), inline backticks, image links (`![...]`), raw markdown URLs, and emotion tags (`[calm]`, `[excited]`) are cleanly stripped from the spoken audio pipeline while preserving full rich markdown in the written chat bubble.
+  * **Locale Symbol Expansion**: Symbols like `%`, `&`, `@`, `+` are expanded into their natural locale equivalents (`pour cent`, `et`, `arobase`).
+* **Strict Fine-Grained Word-by-Word Karaoke Invariant**:
+  * **Zero Giant Block Highlighting**: Surlignage by entire sentences/paragraphs (`grain: 'sentence'`) is strictly forbidden. The player and markdown viewer MUST always enforce fine word granularity (`grain: 'word'`).
+  * **Clock-Synchronized Word Weighting**: For streaming providers without native word timestamps (e.g. Deepgram Aura), timings are computed via `estimateKaraokeWords` based on word length and punctuation weight, dynamically rescaled against actual PCM playback duration.
+  * **Fluid Visual Reading**: In `MarkdownContent.jsx` and `InlineKaraokeText.jsx`, only the exact word currently being spoken (`activeIndex`) is illuminated in real-time, providing a smooth, realistic, and responsive reading experience.
+
+---
+
+### Rule 18: Primary Admin Account Onboarding Protocol (Zero Unsolicited Dummy Users)
+* **Explicit Human Prompting Upon Setup Completion**: Whenever an AI agent or deployer completes the bootstrap and health checks of a new SHAPER OS / Helm universe:
+  1. The agent MUST explicitly ask the human operator for their desired primary Admin credentials:
+     * Preferred **Email address** (e.g. `xavier@xavdp.pro` or custom).
+     * **First Name / Display Name** (e.g. `Xavier`).
+     * Secure **Password**.
+  2. The agent MUST NOT leave unverified, dummy, or hardcoded mock users in the system database.
+  3. The agent provisions the account in MariaDB (`users` table) with `role: 'admin'`, seeds their dedicated workspace directory (`/data/opencode-ws/<User>`), generates the sovereign `CONTEXT.md`, and confirms the login URL to the human.
+* **Zero Legacy Demo Clutter**: Demo guest accounts from older sandboxes (such as `ivonne`) are strictly prohibited in the default base source code, registries, and production instances.
+
+---
+
+### Rule 19: Dual Semantic Register & The Toggle Law (Zero Jargon in Simple Mode)
+* **Two Abstraction Levels for Every Output**:
+  * **Simple Mode (Décideur / Business User)**: Natural language focused strictly on actions, results, and deliverables (e.g. *"Bilan Dupont généré et classé dans la GED"*). Internal system jargon (`P1`, `P2`, `P3`, `Maestro`, `KovZu`, `Podman`, `Redis`, `Tokens`, `Endpoints`) is strictly banned. Allowed positive anchor words: *Souveraineté, Autonomie, Sur-mesure, Livrable, Sécurisé, Validé*.
+  * **Technical Mode (CTO / Developer)**: Full observability, job IDs, execution trees, HTTP status codes, queue metrics, and JSONL log streams.
+* **Structural Contract, Not Just Vocabulary**: Avoiding jargon is necessary but not sufficient. Every Simple Mode restitution MUST answer three questions in order: (1) *what was done*, (2) *what artefact it produced and where it is*, (3) *what decision, if any, is expected from the human*. A message that respects the word ban but leaves the reader unable to act violates this rule.
+
+---
+
+### Rule 20: Typed Closed-Loop Quality Gate (Verification Before Delivery)
+* **Pre-Delivery Verification by Livrable Type**:
+  * No job or generated output can transition to status `COMPLETED` in `@shaper/queue` without passing its typed verification contract:
+    * **Code & Scripts**: Native unit test suite (`node --test`), linter, ephemeral sandbox.
+    * **Documents & Spreadsheets (PDF, XLSX, DOCX)**: Schema validation, mandatory metadata presence, arithmetic consistency checks (e.g. Totals HT + VAT = TTC).
+    * **Data & Imports (CSV, JSON)**: Column typing, primary key uniqueness, provenance validation.
+    * **System Actions & External Dispatch**: Payload schema check, dry-run simulation when supported.
+  * In case of failure, the job transitions to self-correction or alerts the operator with explicit machine-verifiable diagnostics.
+* **Isolation Is Required by the Contract Type, Not by the Rule**: an ephemeral sandbox exists to contain **execution**, so it is mandatory only where the verification actually runs the artefact — the `code` contract. Documents, data and actions are verified by schema, arithmetic, typing and provenance checks, which execute nothing untrusted and therefore run in the verifying process itself. Demanding a container for those buys no safety and costs privilege, deployment weight and latency. A brick that only produces documents must not be granted runtime access in the name of this rule.
+* **No Untyped Deliverable**: A job whose output type has no declared verification contract MUST NOT be silently marked `COMPLETED`. It is held in `NEEDS_CONTRACT` and escalated to the human, who declares the contract once — thereafter it is reusable for that type. Rule 0G applies: an absent contract is never a reason to pass.
+* **Activation Is Staged, and the Gap Is Declared**: strict refusal is enabled per universe with `QUALITY_GATE_ENFORCE=1` and belongs to the **hardening phase**, not to build-out. Until a universe enables it, the gate records `NEEDS_CONTRACT` and lets the job through. This is a **declared temporary state, not the target behaviour** — writing it down here is what keeps the canon honest while the product is being articulated. No universe serving a real client ships with the gate off.
+
+---
+
+### Rule 21: Distributed Multi-Agent Delegation Matrix (Abstract Capacity Classes)
+* **Abstract Capacity Classes (Vendor-Agnostic)**:
+  * Maestro is an orchestrator, supervisor, and auditor; it NEVER executes heavy transformation code directly.
+  * **`heavy-engineering`**: High-reasoning architecture, multi-file refactoring, autonomous code generation.
+  * **`rapid-iteration-ui`**: Interactive GUI components and visual refinement.
+  * **`infra-ops`**: Vulnerability scans, system administration, container orchestration.
+  * **`fast-eval`**: Streaming acknowledgments, low-latency text classification.
+  * *The concrete mapping from capacity classes to actual execution engines (e.g. CLI agents, local ONNX models, bridge daemons) is declared in `manifest.json` and can be changed without modifying the doctrine.*
+* **Human-in-the-Loop Classes Are Not Auto-Dispatchable**: A capacity class whose engine requires a human at the keyboard (interactive IDE) is declared `interactive: true` in the manifest. Maestro never auto-dispatches to it; it queues the task as `AWAITING_HUMAN` and notifies the operator. Autonomous classes and interactive classes are never mixed in one dispatch decision.
+
+---
+
+### Rule 22: Automatic Semantic Memory Ingestion & Multi-Tenant Vector Isolation (RAG)
+* **Continuous Passive Knowledge Capitalization**:
+  * Any validated file deposited in `/data/ged` emits an asynchronous event that triggers automatic chunking and vector embedding into Qdrant using a sovereign local model (`all-MiniLM-L6-v2` via ONNX).
+  * **No silent degradation**: if the sovereign embedding model is unavailable, ingestion fails loudly and the document is queued as `PENDING_EMBED`. A lexical or hash-based placeholder vector MUST NEVER be written into a semantic collection (Rule 0G).
+* **Strict Multi-Tenant Isolation**:
+  * Each Universe owns its isolated Qdrant collection. An agent can only query its own vector namespace.
+  * Parent Supervisor universes only consume aggregated metrics and structured summaries; they NEVER access raw child vector collections directly.
+
+---
+
+### Rule 23: External Healing Law (Parent Repairs Child)
+* **Zero Self-Destructive In-Flight Modification**:
+  * An AI agent NEVER modifies its own active infrastructure files, its bridge server, or its running process during execution (scie la branche sur laquelle il est assis).
+  * Any structural repair, recovery, or update on an Agent of Level $K$ is MANDATORILY performed by the Parent Supervisor Agent of Level $K+1$ (or by the human operator) operating out-of-band at cold boot.
+
+---
+
+### Rule 24: Root Guardian Law (Sentinel / Human Repairs Root)
+* **Out-of-Band Root Supervision**:
+  * For the Root Universe of a fractal tree (Level $N$, with no parent in the tree), integrity monitoring and emergency patching are performed by a **Sentinel Sidecar Agent** or by the **Human Operator using an external IDE (Cursor, Antigravity, Claude Code)** via an isolated control channel.
+
+---
+
+### Rule 25: Canary Deployment & Downward Rollback (Anti-Propagation)
+* **Progressive Fleet Updates**:
+  * Whenever a Parent Universe distributes a configuration or brick update to its child fleet:
+    1. **Canary (1/N)**: Deploy to 1 pilot child universe only.
+    2. **Observation Period**: Monitor logs and health for $T$ minutes (bake time, default 5 min).
+    3. **Phased Rollout**: If the canary passes its gate → deploy to 10%, then 100% of the fleet.
+    4. **Automatic Rollback**: At the first failure on the canary, immediately roll back without touching the rest of the fleet.
+* **The Canary Gate Is the Typed Gate (R20), Not the Health Port**:
+  * A `200 OK` on `/api/health` is a liveness signal, never a validation signal. A canary is declared green only when it has produced at least one real deliverable of its universe's nominal type **and that deliverable passed its Rule 20 typed verification contract**.
+  * Bake time without a produced-and-verified deliverable does not count as green: the rollout stops and escalates rather than proceeding blind.
+
+---
+
+### Rule 26: Complete Database Isolation (MariaDB per Universe)
+* **Zero Domino Effect on Data**:
+  * To guarantee total blast radius isolation, each Universe operates its own isolated MariaDB database/instance.
+  * The Central SaaS database holds exclusively the node inventory registry and global billing data.
+
+---
+
+### Rule 27: Reconciliation Convergence Guard (Anti-Flapping & Terminal Degraded State)
+* **A Reconciliation Loop That Cannot Give Up Is a Storm Generator**: The Maestro reconciliation engine (desired `manifest.json` ↔ observed `sav/state/observed-state.json`) MUST bound its own corrective action.
+  * **Exponential Backoff**: Repair attempts on the same drift signature back off (e.g. 30s → 1m → 2m → 4m), never retry at fixed beat cadence.
+  * **Bounded Attempts**: After `maxHealingAttempts` (default 5) on the same drift signature, the supervisor STOPS attempting repair.
+  * **Terminal `DEGRADED` State**: The child universe is marked `DEGRADED` in the parent registry, its drift signature and last diagnostic are recorded, and the human operator is alerted. `DEGRADED` is a resting state, not a retry state — it never self-clears; only an explicit human or Root Guardian action returns it to `RECONCILING`.
+  * **Fleet-Wide Circuit Breaker**: If more than 20% of a fleet enters `DEGRADED` within one bake window, the parent suspends ALL reconciliation and rollout activity on that fleet and escalates. A systemic fault must never be amplified N times.
+* **The Escalation Channel Is Declared, Never Assumed**: "Alert the operator" is meaningless until the channel exists. Each universe declares its `alerting` channel in `manifest.json` — mobile push, mail, Telegram, or an existing prod-alerting relay. The channel depends on what is being watched and is decided case by case; the doctrine imposes only the contract:
+  * It reaches a **human out-of-band** — never a UI nobody is looking at.
+  * It is **tested at deploy time** like any other brick: an unverified alert path is an absent alert path (Rule 0G).
+  * A universe with no declared channel MUST NOT be promoted beyond DEV.
+* **Rationale**: Without these bounds, one invalid manifest on a 50-child fleet produces 50 simultaneous restart loops — the reconciliation engine becomes the outage.
+
+---
+
+### Rule 28: Sovereign WAF Rule Validation (No Unproven Guardian)
+* **An AI-Generated Allow-List Is a Hypothesis, Not a Defence**: The sovereign WAF/aiguilleur allow-list is synthesized by the parent agent that knows the application's legitimate routes. It is therefore an artefact like any other and falls under Rule 20.
+  * **Mandatory Attack Corpus**: Before any WAF ruleset reaches production, it MUST pass a versioned attack corpus stored in the repository — at minimum: SQLi, XSS, path traversal (`../`), verb violation on a `GET`-only route, and rate-limit saturation.
+  * **Mandatory Legitimate Corpus**: The same ruleset MUST let through a versioned corpus of legitimate business requests. A WAF that blocks real customers is an outage, not a protection.
+  * **No Silent Rule Drift**: Any regeneration of the allow-list re-runs both corpora and is deployed to the fleet under Rule 25 (canary first).
+* **Scope Discipline**: The sovereign layer's uncontested role is **routing** (aiguillage universe → container) and **precomputed cache serving**. Generic attack signature filtering SHOULD delegate to a maintained engine (OWASP CRS via Coraza / ModSecurity) rather than being reimplemented; the doctrine forbids presenting a hand-rolled signature filter as equivalent protection.
+
+---
+
+---
+
+### Rule 29: Constructive Integrity (Every Fixed Bug Becomes a Test)
+* **The System Grows a Memory of Its Own Failures**: Any resolved defect — in code, in a manifest, in a WAF rule, in an agent prompt — MANDATORILY gives birth to a new non-regression test committed alongside the fix.
+* **No Fix Without Proof**: A patch whose accompanying test would still pass on the unpatched code does not demonstrate anything and is rejected.
+* **Antifragility Contract**: This is what makes the fractal tree antifragile rather than merely resilient — each incident permanently raises the floor for every universe instantiated afterwards.
+
+---
+
+### Rule 30: Snapshot Before Migration (Data-Bearing Changes Are Not Canary-able)
+* **Why This Rule Is Separate from Rule 25**: The canary protects against a bad configuration, because a configuration can be rolled back. A database migration **carries data**: rolling back the code does not bring back a dropped column. Progressive rollout is necessary here but not sufficient.
+* **The Non-Negotiable Sequence**:
+  1. **Full snapshot first** — the universe's MariaDB dump plus its `sav/` volumes, taken immediately before the change, never a nightly backup "close enough".
+  2. **Verified restore** — the snapshot is restored into an ephemeral sandbox and proven loadable. An unverified backup is not a backup (Rule 0G).
+  3. **Only then** apply the migration, canary first per Rule 25.
+  4. **Rollback = restore the snapshot**, not "run the reverse script".
+* **Preferred Refinement (Expand / Contract)**: where feasible, make the change non-destructive in stages — add the new column, write to both, migrate readers, and only drop the old column in a later release once every universe in the fleet is confirmed migrated. Destructive and reversible steps never travel in the same deployment.
+* **Fleet Scope**: a schema change across N per-universe databases (Rule 26) is N migrations, each with its own snapshot. One shared migration transaction across the fleet is forbidden — it would recreate the common point of failure Rule 26 exists to remove.
+
+---
+
+### Rule 31: Declared Data Lifecycle (Per Universe, Not a Universal Policy)
+* **The Doctrine Forces the Declaration, Not the Policy**: retention and erasure requirements depend entirely on the client and the use case. A personal mail-processing robot needs none; a universe holding a client's customer records needs a documented one. Imposing a single global policy would be wrong in both directions.
+* **Every Universe Declares Its `dataLifecycle` in `manifest.json`**, with at minimum:
+  * `personalData`: `true` / `false` — does this universe hold data about identifiable people?
+  * `retention`: duration or `unlimited`, per data class (GED documents, JSONL logs, vector collections, database rows).
+  * `onTermination`: what is destroyed, what is exported to the client, and in what format, when the universe is decommissioned.
+* **`personalData: false` Is a Valid and Common Answer** — but it must be written down, not left silent. Silence is not a declaration.
+* **Erasure Is Fractal**: deleting a client's data means deleting it in every store of that universe — MariaDB rows, `sav/` volumes, GED files, **and its Qdrant collection**. A vector left behind is a leak; the isolation of Rule 22 is what makes this deletion tractable in the first place.
+
+---
+
+### Rule 32: The Perfected Generic Base Comes Before Any Specialisation (Founding Method)
+* **How work is framed here, and it is not negotiable**: for each thing we build, we first **delimit a perimeter**, then we make what sits inside it **excellent, generic, extensible and open to what comes next** — a base that will interact with other systems we have not met yet. Business specifics are built *on top of it*, never *into it*.
+* **Why it is the founding logic, not a preference**: this is what makes the four promised properties true rather than claimed. A base that is perfected once is **adaptable** (bricks swap instead of being rebuilt), **scalable** (behaviour does not change with volume), **alive** (it improves without a new project), and **multidimensional** (several things advance in parallel). And it is what makes the architecture genuinely **fractal**: the pattern is only worth repeating if the pattern is good.
+* **The economic argument is explicit**: time spent perfecting the base is not time lost, it is time bought back on every project that follows. A specific requirement then costs an adaptation, not a rebuild — and often costs nothing at all because the base already covers it.
+* **Binding consequences**:
+  1. **No client requirement is ever written into a generic brick.** It goes into a P3 application or a declared handler. A brick that carries one client's particularity has stopped being a base.
+  2. **A base is finished when it is boring** — when the next specific need is met by configuration and a handler, not by editing it.
+  3. **Elasticity is part of "generic"**: the same brick must run modestly on a small VPS and hold up on a large server, by parameter and never by fork. A brick that only works at one scale is not a base.
+  4. **When a specialisation forces a change to the base**, that change must be made *generic* before being merged — the particular case reveals a missing capability, it does not authorise a special case.
+* **Applies to every agent working on this repository.** Delivering a working specific feature by contaminating a generic brick is a regression, not a delivery, however green the tests are.
+* **The total vision is what dictates the steps on the base bricks.** A brick is never perfected in the abstract, against an imagined future — it is perfected **against the whole picture of where the project is going**. Holding the complete vision is what tells us which capability the base must carry, which one it must not, and in what order to build them. This is why the doctrine is written before the code: not as ceremony, but because the map is what turns "make it generic" into a list of concrete steps. An agent that has not read the vision cannot decide what belongs in a base.
+* **A stray specific bit is not a catastrophe.** If something slightly specific slips into a brick, the sky does not fall: the day a *more* specific need arrives, we meet that same code again and generalise it then. What must hold is that **the broad lines cover a good part of the perimeter** — enough that we can walk into a client situation and discover the rest from a working base, not from nothing. Perfectionism that blocks delivery is not this rule.
+* **The level of exigence is set per thing and per moment.** Not everything deserves the same rigour at the same time, and pretending otherwise stalls the work. Each brick is made robust *at its own level of exigence*, decided by the human. The exigence of the current moment is what governs — today, a robust document pipeline.
+* **Why full conformity matters where it does**: it is what guarantees that the bases we already have are conform, functional, and **deploy at will**. Conformity is not decoration, it is what makes redeployment boring.
+* **Current sequencing — demonstrate the craft first.** Build-out comes before governance: we show that the wand is handled well, then we add the regulatory and hardening layers on a base that already works. This is not a licence to cut corners on the base — it is the opposite, since the base is precisely what is being demonstrated. What it does defer is everything *around* it: data governance, cost models, compliance. Those are listed with their reopening triggers in `doctrine/README.md`, never dropped silently.
+
+---
+
+### Rule 33: The Client Fractal Fork (Assumed Divergence, Never Contamination)
+* **The mechanism**: when a client's needs require it, we take the base bricks and **fork the whole solution fractally** for that client. The fork diverges from the original creation, and **that divergence is assumed** — it is the fruit of shaping something for a real need, not an accident to be repaired.
+* **Why this does not contradict Rule 32**: Rule 32 forbids putting a client's particularity **inside a shared generic brick**. Rule 33 authorises **a separate branch of the tree** for that client. The base stays clean for everyone; the client gets exactly what they need. This is precisely what the fractal architecture exists to make possible — a branch has the shape of the tree without being the tree.
+* **When to fork, and when not to**:
+  * **Do not fork** for a small business need. An artisan's CRM is met with base bricks, a P3 application and declared handlers. Forking there would be paying a permanent cost for a temporary difference.
+  * **Fork** when a client imposes requirements that reach into the socle itself — strict security posture, role systems, information compartmentation, regulatory constraints. Those cannot live as a configuration flag on everyone else's base.
+* **Obligations of a fork**:
+  1. It states **what it diverged from** — the base version it was cut at — and **why**. A fork whose origin is unknown cannot be maintained.
+  2. It stays inside the law: forking the solution never means abandoning `RULES.md`.
+  3. **A generic improvement discovered in a fork travels back to the base.** The particular case revealed a missing capability (Rule 32); the fork keeps its particularity, the base gains the capability.
+* **Security posture arrives with the client that demands it.** Total-paranoia mode — hardened roles, compartmentation, audited surfaces — is applied on the fork of the client who requires it, not imposed on every base from the start. Security work genuinely slows build-out; doing the preliminary work first is what buys back the time to then focus on paranoia, on effective interfaces, and on what survives in production.
+
+---
+
+### Rule 34: A Bridge Ships Everything Its CLI Needs (Prerequisites Are Declared, Pinned and Proven)
+
+A bridge exists to run a command-line agent. A bridge whose CLI **cannot start** answers `ok` on `/api/health` and does nothing — the most expensive failure shape there is, because everything downstream believes it.
+
+* **The image carries the prerequisites, not the operator's memory.** Every runtime dependency of the CLI — interpreter, shell, fonts, language data, system libraries — belongs in the brick's image and is **pinned**. If a CLI needs something absent, it is the brick's duty to install it, declared in its `INTENT.md`. An operator who must remember to install something by hand has been handed a landmine.
+
+* **A prerequisite is proven, never assumed.** The brick's health must establish that the CLI is **executable**, by running its own version command, not that a path was configured. `which` proves a string; running proves a binary. An image that only builds or only runs on some machines is not an artefact you can tag (Rule 0E).
+
+* **Three traps that cost a session each, and are now law:**
+  1. **Never mount a symlink into a container.** It arrives pointing at a path that does not exist there. Mount the resolved target.
+  2. **Never mount a launcher without its siblings.** Modern CLIs ship as a small script that executes files beside it; mount the whole version directory or nothing.
+  3. **Never assume the base image has a shell.** A launcher beginning `#!/usr/bin/env bash` fails on Alpine with `can't execute 'bash'`, and the exit code will not say so plainly.
+
+* **A CLI may be bound to its host, and that is a finding, not a defect.** Verified on `agy`: identical credentials, identical model, identical moment — succeeds on the host, refused as quota-exhausted inside a container. When a CLI cannot be containerised, its bridge **runs on the host** and the universe points at it. The universe declares the address; it never assumes the address is inside itself.
+
+* **What a bridge must publish about its CLI**: the binary it resolved, the version it obtained by running it, and whether authentication is present. `stubMode` must be visible and must never be the silent default — a simulated bridge that looks live is a lie with a long fuse.
+
+
+---
+
+### Rule 35: Experience Corrects the Intent, Not Only the Code (Constructive Integrity, Upstream)
+
+Rule 29 requires that every bug resolved gives birth to a regression test. That protects the code. It does not protect the **next universe**, which is built from `INTENT.md` and not from our test suite.
+
+* **A problem experienced updates the brick's `INTENT.md`.** Not a changelog of incidents — the *invariant the incident revealed*, stated as the brick's intent so anyone materialising it again starts from what we learned. A fix that lives only in code is a lesson one refactor away from being lost.
+
+* **Write the constraint, not the anecdote.** "A missing CLI is a state, not a crash" belongs in the intent. "On 23 August the cursor bridge died" does not; it belongs in the commit that fixed it.
+
+* **The test proves it today, the intent carries it forward.** Both are required, and they are not substitutes: a test constrains this implementation, an intent constrains every future one.
+
+* **When a rule and the code disagree, the code is what changes** — unless the rule itself was found wrong, in which case it is amended deliberately, never quietly softened to match what was built (see `CONVERGENCE-STATE.md`).
+
+---
+
+### Rule 36: Fractal SSH Authority & Ephemeral Sandbox Access Law (Clean-Sheet Dev/Test Promotion)
+
+* **Parent Authority Over Child Lifecycle**: To supervise, develop, and test improvements on a child universe without risking production, the Parent Universe ($K+1$) has the explicit authority to instantiate, access, and destroy child environments ($K$). An agent never mutates its own vital organs in-flight (Rule 23); its supervisor operates the lifecycle.
+* **Cryptographic SSH Asymmetry**:
+  * The Parent generates an **Ed25519 SSH authority key pair** stored in its Vault or `sav/ssh/id_ed25519`. The private key **never** leaves the Parent.
+  * When an ephemeral child container is provisioned, the bootstrap mechanism automatically appends the Parent's public key (`id_ed25519.pub`) into `/root/.ssh/authorized_keys`.
+* **Dynamic Suffix & Environment Separation**:
+  * **`*-prod` (Nominal)**: Permanent production universe, dedicated port base (e.g. `9200`), persistent encrypted `sav/`, production DNS/tunnel (`app.example.com`).
+  * **`*-dev` (Ephemeral Dev)**: Sandbox for active coding and prompt tuning, offset port base (e.g. `9300`), scratch storage, dev DNS/tunnel (`app-dev.example.com`).
+  * **`*-test` (Clean-Sheet Validation)**: Rebuilt **from scratch** on a blank container to eliminate caching artifacts. Runs 100% unit tests + Rule 29 regression test + Rule 20 typed deliverable on test DNS/tunnel (`app-test.example.com`).
+* **Canary Promotion & Garbage Collection**:
+  * Once the clean-sheet `-test` container passes 100% green, the git commit/tag is promoted to production via the canary protocol (Rule 25).
+  * Immediately after promotion, the Parent executes complete destruction (`podman rm -f` / `lxc delete`) of the `-dev` and `-test` containers, releasing all ports, memory, and scratch volumes (Universe Garbage Collector).
+

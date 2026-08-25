@@ -1,0 +1,12 @@
+FROM docker.io/library/mariadb:11.4
+
+COPY bricks/brick-mariadb/init.sql /docker-entrypoint-initdb.d/01-init.sql
+
+ENV MARIADB_ROOT_PASSWORD=univ9-mariadb-root-password
+ENV MARIADB_DATABASE=helm_db
+ENV MARIADB_USER=helm_user
+ENV MARIADB_PASSWORD=helm_password_local
+
+EXPOSE 3306
+
+CMD ["mariadbd"]

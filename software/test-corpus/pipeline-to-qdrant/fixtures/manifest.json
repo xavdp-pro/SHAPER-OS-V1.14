@@ -1,0 +1,64 @@
+{
+  "collection": "protocol-pipeline-qdrant",
+  "isolationCollection": "protocol-pipeline-qdrant-other",
+  "notes": "Protocol collection only. Production indexing uses one collection per universe (Rule 22). Do not create univ-pipeline-test from this runner.",
+  "fixtures": [
+    {
+      "id": "01-vector-invoice",
+      "file": "01-vector-invoice.pdf",
+      "verite": "01-vector-invoice.verite.txt",
+      "kind": "vector",
+      "origin": "software/test-corpus/00-sources/facture_prestation.pdf (synthetic, no client data)",
+      "needles": ["F-2024-00892", "12255.00", "CLT-8842", "FACTURE COMMERCIALE"],
+      "queries": [
+        {
+          "q": "FACTURE N° F-2024-00892 montant TTC 12255",
+          "expectNeedle": "F-2024-00892"
+        }
+      ]
+    },
+    {
+      "id": "02-scan-invoice",
+      "file": "02-scan-invoice.pdf",
+      "verite": "02-scan-invoice.verite.txt",
+      "kind": "raster",
+      "origin": "software/test-corpus/01-rasterise/facture_prestation_raster.pdf (150 DPI, no text layer)",
+      "needles": ["F-2024-00892", "12255", "CLT-8842"],
+      "queries": [
+        {
+          "q": "facture commerciale F-2024-00892 Société Exemple Ingénierie",
+          "expectNeedle": "F-2024-00892"
+        }
+      ]
+    },
+    {
+      "id": "03-vector-form",
+      "file": "03-vector-form.pdf",
+      "verite": "03-vector-form.verite.txt",
+      "kind": "vector",
+      "origin": "software/test-corpus/00-sources/formulaire_administratif.pdf (synthetic)",
+      "needles": ["ADM-2024-7841-K", "AG-94021", "DURAND"],
+      "queries": [
+        {
+          "q": "bordereau administratif DURAND matricule AG-94021 référence ADM-2024-7841-K",
+          "expectNeedle": "ADM-2024-7841-K"
+        }
+      ]
+    },
+    {
+      "id": "04-public-research",
+      "file": "04-public-research.pdf",
+      "verite": null,
+      "kind": "vector-public",
+      "origin": "Mozilla pdf.js test corpus: compressed.tracemonkey-pldi-09.pdf",
+      "sourceUrl": "https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf",
+      "needles": ["TraceMonkey"],
+      "queries": [
+        {
+          "q": "TraceMonkey JavaScript compiler",
+          "expectNeedle": "TraceMonkey"
+        }
+      ]
+    }
+  ]
+}

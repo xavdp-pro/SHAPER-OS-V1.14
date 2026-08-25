@@ -1,0 +1,15 @@
+{
+  "name": "UNIV9",
+  "version": "1.0.0",
+  "description": "Univers 9 SHAPER-OS : Socle Souverain + Shaper-Helm Tout-en-Un (MariaDB embarqué, Maestro UI, i18n FR/EN/ES)",
+  "universeLevel": 1,
+  "bricks": [
+    { "name": "vault", "image": "localhost/shaper-vault:latest", "port": 8610 },
+    { "name": "logger", "image": "localhost/shaper-logger:latest", "port": 8620 },
+    { "name": "queue", "image": "localhost/shaper-queue:latest", "port": 8640 },
+    { "name": "maestro", "image": "localhost/shaper-maestro:latest", "port": 8630 },
+    { "name": "bridge-opencode", "image": "localhost/shaper-bridge-opencode:latest", "port": 4440 },
+    { "name": "helm", "image": "localhost/shaper-helm:latest", "port": 8650, "features": ["embedded-mariadb", "maestro-ui", "i18n"] },
+    { "name": "tunnel", "image": "docker.io/cloudflare/cloudflared:latest" }
+  ]
+}

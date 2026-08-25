@@ -1,0 +1,14 @@
+[Unit]
+Description=SHAPER OS Maestro (Podman Quadlet)
+After=network-online.target logger.service
+
+[Container]
+Image=localhost/shaper-maestro:latest
+ContainerName=shaper-maestro
+PublishPort=127.0.0.1:8530:8530
+Environment=MAESTRO_PORT=8530
+Environment=MAESTRO_AUTO_START=0
+Restart=always
+
+[Install]
+WantedBy=default.target

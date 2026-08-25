@@ -1,0 +1,13 @@
+[Unit]
+Description=SHAPER OS Queue (Podman Quadlet)
+After=network-online.target
+
+[Container]
+Image=localhost/shaper-queue:latest
+ContainerName=shaper-queue
+PublishPort=127.0.0.1:8540:8540
+Environment=QUEUE_PORT=8540
+Restart=always
+
+[Install]
+WantedBy=default.target

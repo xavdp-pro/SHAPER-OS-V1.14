@@ -1,0 +1,35 @@
+{
+  "$schema": "./vault-resources.schema.json",
+  "version": "1.0.0",
+  "description": "Pre-vault plaintext resources for REMOTE2 bootstrap (copy to vault-resources.local.json)",
+
+  "vault": {
+    "masterKey": "<GENERATE_PASSPHRASE_OR_64_HEX>",
+    "token": "<GENERATE_RANDOM_BEARER_TOKEN>",
+    "storageFile": "data/vault/vault.enc"
+  },
+
+  "secrets": {
+    "secret/mail/contact-zoutik-shop": {
+      "slug": "contact-zoutik-shop",
+      "provider": "ovh-zimbra",
+      "imap": {
+        "host": "ssl0.ovh.net",
+        "port": 993,
+        "user": "contact@zoutik.example.com",
+        "pass": "<MAIL_IMAP_PASSWORD>",
+        "tls": true
+      },
+      "smtp": {
+        "host": "ssl0.ovh.net",
+        "port": 465,
+        "user": "contact@zoutik.example.com",
+        "pass": "<MAIL_SMTP_PASSWORD>"
+      }
+    },
+    "secret/agy/api-key": {
+      "provider": "antigravity",
+      "key": "<AGY_OR_GEMINI_API_KEY>"
+    }
+  }
+}

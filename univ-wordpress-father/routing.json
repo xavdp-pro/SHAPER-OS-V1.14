@@ -1,0 +1,16 @@
+{
+  "zone": "${WP_ZONE}",
+  "managerSlug": "wpmanager01",
+  "managerHostname": "${WP_MANAGER_HOST}",
+  "managerUrl": "https://${WP_MANAGER_HOST}",
+  "managerLocalPort": 9470,
+  "sites": [
+    {
+      "siteSlug": "wp01",
+      "child": "univ-wordpress-child",
+      "hostname": "${WP_SITE_HOST}",
+      "publicUrl": "https://${WP_SITE_HOST}",
+      "localPort": 9580
+    }
+  ]
+}

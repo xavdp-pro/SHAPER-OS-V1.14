@@ -1,0 +1,5 @@
+{
+  "universe": "univ7",
+  "description": "Deprecated — use manifest.json",
+  "manifest": "./manifest.json"
+}

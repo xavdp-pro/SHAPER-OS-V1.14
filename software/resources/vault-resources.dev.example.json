@@ -1,0 +1,13 @@
+{
+  "$schema": "./vault-resources.schema.json",
+  "version": "1.0.0",
+  "description": "Minimal DEV bootstrap — no production mailbox. Copy to vault-resources.local.json",
+
+  "vault": {
+    "masterKey": "<same as .env VAULT_MASTER_KEY>",
+    "token": "<same as .env VAULT_TOKEN>",
+    "storageFile": "data/vault/vault.enc"
+  },
+
+  "secrets": {}
+}

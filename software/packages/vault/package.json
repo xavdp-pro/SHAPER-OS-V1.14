@@ -1,0 +1,14 @@
+{
+  "name": "@shaper/vault",
+  "version": "1.0.0",
+  "description": "AES-256-GCM Encrypted Secret Store and REST Server for GBS Podman Multi-Agent Infrastructure",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "node server.js"
+  },
+  "keywords": ["vault", "security", "aes-256-gcm", "secrets", "gbs", "podman"],
+  "author": "GBS / Xavier DE POORTER",
+  "license": "MIT"
+}

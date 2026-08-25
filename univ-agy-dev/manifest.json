@@ -1,0 +1,71 @@
+{
+  "$schema": "../../schemas/universe-manifest.schema.json",
+  "universe": "univ-agy-dev",
+  "description": "Antigravity AGY & Shaper OS Dev Universe proving vitals contracts across all bricks",
+  "intent": "./INTENT.md",
+  "agentDeploy": "./AGENT-DEPLOY.md",
+
+  "bricks": {
+    "vault": {
+      "ref": "../../bricks/brick-vault",
+      "intent": "../../bricks/brick-vault/INTENT.md",
+      "package": "@shaper/vault",
+      "role": "Secret storage",
+      "specialize": {
+        "how": "Bootstrap from resources/vault-resources.local.json",
+        "file": "../../resources/vault-resources.local.json",
+        "bootstrap": "npm run vault:bootstrap"
+      }
+    },
+    "logger": {
+      "ref": "../../bricks/brick-logger",
+      "intent": "../../bricks/brick-logger/INTENT.md",
+      "package": "@shaper/logger",
+      "role": "Audit JSONL",
+      "specialize": { "how": "Use generic brick as-is" }
+    },
+    "bridge-agy": {
+      "ref": "../../bricks/brick-bridge-agy",
+      "intent": "../../bricks/brick-bridge-agy/INTENT.md",
+      "package": "@shaper/bridge-agy",
+      "role": "Antigravity CLI bridge",
+      "specialize": { "how": "Gemini models with streaming SSE" }
+    },
+    "bridge-deepseek": {
+      "ref": "../../bricks/brick-bridge-deepseek",
+      "intent": "../../bricks/brick-bridge-deepseek/INTENT.md",
+      "package": "@shaper/bridge-deepseek",
+      "role": "Ollama Cloud DeepSeek Harness bridge (gpt-oss:120b @ 262 tps)",
+      "specialize": { "how": "Default model gpt-oss:120b with streaming SSE" }
+    },
+    "queue": {
+      "ref": "../../bricks/brick-queue",
+      "intent": "../../bricks/brick-queue/INTENT.md",
+      "package": "@shaper/queue",
+      "role": "Async jobs → bridge"
+    },
+    "maestro": {
+      "ref": "../../bricks/brick-maestro",
+      "intent": "../../bricks/brick-maestro/INTENT.md",
+      "package": "@shaper/maestro",
+      "role": "Beat scheduler",
+      "specialize": {
+        "how": "MAESTRO_TASKS_FILE → ./tasks/maestro-tasks.json",
+        "file": "./tasks/maestro-tasks.json"
+      }
+    }
+  },
+
+  "resources": {
+    "vaultBootstrap": "../../resources/vault-resources.local.json",
+    "maestroTasks": "./tasks/maestro-tasks.json",
+    "agentContext": "./context/AGENT-CONTEXT.md"
+  },
+
+  "bootOrder": [
+    ["vault", "logger"],
+    ["bridge-agy", "bridge-deepseek"],
+    ["queue"],
+    ["maestro"]
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "tasks": [
+    {
+      "id": "child-worker-beat",
+      "pod": "child-worker",
+      "cadenceSeconds": 30,
+      "enabled": true
+    }
+  ]
+}

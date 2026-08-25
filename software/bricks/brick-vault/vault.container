@@ -1,0 +1,15 @@
+[Unit]
+Description=SHAPER OS Vault (Podman Quadlet)
+After=network-online.target
+
+[Container]
+Image=localhost/shaper-vault:latest
+ContainerName=shaper-vault
+PublishPort=127.0.0.1:8510:8510
+Environment=VAULT_PORT=8510
+Environment=VAULT_STORAGE_FILE=/data/vault/vault.enc
+Volume=shaper-vault-data:/data/vault:Z
+Restart=always
+
+[Install]
+WantedBy=default.target

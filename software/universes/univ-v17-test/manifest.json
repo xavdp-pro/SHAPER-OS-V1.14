@@ -1,0 +1,91 @@
+{
+  "$schema": "../../schemas/universe-manifest.schema.json",
+  "universe": "univ-v17-test",
+  "parent": "gbs-test",
+  "environment": "test",
+  "description": "Ephemeral V1.7 Tier-A clean-sheet proof in a dedicated LXC; private network only",
+  "intent": "./INTENT.md",
+  "agentDeploy": "./AGENT-DEPLOY.md",
+  "shaperOs": "../..",
+  "ports": {
+    "vault": 8610,
+    "logger": 8620,
+    "bridge-opencode": 4440,
+    "opencode-serve": 4441,
+    "queue": 8640,
+    "maestro": 8630
+  },
+  "sshAuthority": {
+    "parentPublicKey": "gbs-test:/root/.ssh/id_ed25519.pub",
+    "authorizedKeysPath": "/root/.ssh/authorized_keys"
+  },
+  "bricks": {
+    "vault": {
+      "ref": "../../bricks/brick-vault",
+      "intent": "../../bricks/brick-vault/INTENT.md",
+      "package": "@shaper/vault",
+      "role": "Encrypted test-only secret store",
+      "specialize": {
+        "how": "Generate a TEST master key locally and bootstrap inside the immutable Vault image",
+        "file": "../../resources/vault-resources.local.json"
+      }
+    },
+    "logger": {
+      "ref": "../../bricks/brick-logger",
+      "intent": "../../bricks/brick-logger/INTENT.md",
+      "package": "@shaper/logger",
+      "role": "Persistent JSONL proof and audit trail",
+      "specialize": { "how": "Bind universe-owned ./log" }
+    },
+    "bridge-opencode": {
+      "ref": "../../bricks/brick-bridge-opencode",
+      "intent": "../../bricks/brick-bridge-opencode/INTENT.md",
+      "package": "@shaper/bridge-opencode",
+      "role": "Real free-model agent runtime",
+      "specialize": {
+        "how": "Discover available OpenCode free models at deploy time, ping the selected model, persist OPENCODE_MODEL, and keep BRIDGE_OPENCODE_STUB=0"
+      }
+    },
+    "queue": {
+      "ref": "../../bricks/brick-queue",
+      "intent": "../../bricks/brick-queue/INTENT.md",
+      "package": "@shaper/queue",
+      "role": "Persistent asynchronous unit-of-work ledger",
+      "specialize": { "how": "Auto-dispatch to bridge-opencode with one TEST lane" }
+    },
+    "maestro": {
+      "ref": "../../bricks/brick-maestro",
+      "intent": "../../bricks/brick-maestro/INTENT.md",
+      "package": "@shaper/maestro",
+      "role": "TEST heartbeat scheduler",
+      "specialize": {
+        "how": "Use TEST-only local task configuration and route beats through the queue",
+        "file": "./tasks/maestro-tasks.json"
+      }
+    }
+  },
+  "resources": {
+    "lxc": {
+      "host": "gbs-test",
+      "name": "univ-v17-test",
+      "image": "debian/13",
+      "unprivileged": true,
+      "nesting": true,
+      "cpu": 4,
+      "memory": "6GiB",
+      "rootDisk": "32GiB",
+      "publicExposure": false
+    },
+    "imageTag": "v1.7.1-<git-short-sha>",
+    "vaultBootstrap": "../../resources/vault-resources.local.json",
+    "maestroTasks": "./tasks/maestro-tasks.json",
+    "agentContext": "./context/AGENT-CONTEXT.md",
+    "evidence": "./proof/"
+  },
+  "bootOrder": [
+    ["vault", "logger"],
+    ["bridge-opencode"],
+    ["queue"],
+    ["maestro"]
+  ]
+}

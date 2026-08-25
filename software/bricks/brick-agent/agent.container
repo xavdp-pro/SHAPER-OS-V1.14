@@ -1,0 +1,13 @@
+[Unit]
+Description=SHAPER OS Agent Bridge (Podman Quadlet)
+After=network-online.target vault.service logger.service
+
+[Container]
+Image=localhost/shaper-bridge-agy:latest
+ContainerName=shaper-agent-bridge
+PublishPort=127.0.0.1:4330:4330
+Environment=BRIDGE_AGY_STUB=1
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,17 @@
+FROM docker.io/library/node:20-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY packages/logger/ /logger/
+COPY packages/bridge-agy/ ./
+
+EXPOSE 4330
+ENV NODE_ENV=production
+ENV AGY_BRIDGE_PORT=4330
+ENV BRIDGE_AGY_STUB=1
+ENV AGY_WS_BASE=/data/agy-workspaces
+ENV AGY_BIN=/usr/local/bin/agy
+
+CMD ["node", "server.js"]

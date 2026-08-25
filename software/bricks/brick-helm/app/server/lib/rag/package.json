@@ -1,0 +1,13 @@
+{
+  "name": "@shaper/rag",
+  "version": "1.0.0",
+  "description": "SHAPER-OS Vector RAG & Document Indexing Engine with Qdrant",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test test/rag.test.js"
+  },
+  "keywords": ["rag", "vector", "qdrant", "embeddings", "indexing", "shaper-os"],
+  "author": "Xavier & Antigravity",
+  "license": "MIT"
+}

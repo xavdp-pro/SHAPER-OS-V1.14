@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/universe-manifest.schema.json",
+  "universe": "univX",
+  "description": "Template — copy to universes/<slug>/manifest.json",
+  "intent": "./INTENT.md",
+  "agentDeploy": "./AGENT-DEPLOY.md",
+
+  "bricks": {
+    "vault": {
+      "ref": "../../bricks/brick-vault",
+      "intent": "../../bricks/brick-vault/INTENT.md",
+      "package": "@shaper/vault",
+      "role": "<WHY this brick in this universe>",
+      "specialize": {
+        "how": "Bootstrap from resources/vault-resources.local.json",
+        "file": "../../resources/vault-resources.local.json",
+        "bootstrap": "npm run vault:bootstrap"
+      }
+    },
+    "logger": {
+      "ref": "../../bricks/brick-logger",
+      "intent": "../../bricks/brick-logger/INTENT.md",
+      "package": "@shaper/logger",
+      "role": "Audit JSONL",
+      "specialize": { "how": "Use generic brick as-is" }
+    },
+    "bridge-opencode": {
+      "ref": "../../bricks/brick-bridge-opencode",
+      "intent": "../../bricks/brick-bridge-opencode/INTENT.md",
+      "package": "@shaper/bridge-opencode",
+      "role": "Free OpenCode AI bridge",
+      "specialize": { "how": "Default model opencode/nemotron-3.5-lightning-free" }
+    },
+    "queue": {
+      "ref": "../../bricks/brick-queue",
+      "intent": "../../bricks/brick-queue/INTENT.md",
+      "package": "@shaper/queue",
+      "role": "Async jobs → bridge"
+    },
+    "maestro": {
+      "ref": "../../bricks/brick-maestro",
+      "intent": "../../bricks/brick-maestro/INTENT.md",
+      "package": "@shaper/maestro",
+      "role": "Beat scheduler",
+      "specialize": {
+        "how": "MAESTRO_TASKS_FILE → ./tasks/maestro-tasks.json",
+        "file": "./tasks/maestro-tasks.json"
+      }
+    }
+  },
+
+  "resources": {
+    "vaultBootstrap": "../../resources/vault-resources.local.json",
+    "maestroTasks": "./tasks/maestro-tasks.json",
+    "agentContext": "./context/AGENT-CONTEXT.md"
+  },
+
+  "bootOrder": [
+    ["vault", "logger"],
+    ["bridge-opencode"],
+    ["queue"],
+    ["maestro"]
+  ]
+}

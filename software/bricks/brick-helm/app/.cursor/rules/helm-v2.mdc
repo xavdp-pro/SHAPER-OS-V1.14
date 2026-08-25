@@ -1,0 +1,58 @@
+---
+description: Règles projet KovZu helm-v2 — lire le contexte avant d’implémenter
+alwaysApply: true
+---
+
+# Helm-v2 (KovZu) — cible exclusive
+
+**Tu travailles UNIQUEMENT sur helm-v2.**
+
+| | |
+|--|--|
+| URL | https://helm2.xavdp.pro |
+| Code | `/apps/helm-v2/app` |
+| Ne pas toucher | `/apps/helm-v1/app`, cursorauto |
+
+Avant toute implémentation, lire :
+
+1. `mds/AGENT-CONTEXT.md`
+2. `mds/DEMANDES-AUDIT-HELM2.md` (demandes utilisateur + conformité)
+3. `mds/INDEX-AGENTS.md`
+4. `mds/regles.md`
+5. `mds/VISION.md`
+6. `mds/AUTH-USERS.md` si touche auth / users
+
+## Règles
+
+- Chat : français — code : anglais
+- mysql2 uniquement pour la DB
+- Pas alert/confirm/prompt — modales React
+- Fetch via `src/api/client.js` uniquement
+- Zero fake / zero fallback
+- Docker / packaging : plus tard
+- Commit **autorisé en permanence** — pas besoin de demander (secrets exclus)
+- Deploy : `cd /apps/helm-v2/app && npm run deploy`
+
+## Karaoké
+
+Nécessite `TTS_PROVIDER=cartesia` (pas Deepgram).
+
+## Tests E2E — bypass login (token JWT)
+
+Les agents et Playwright **ne passent pas par le formulaire login** si `e2e/.env` contient :
+
+```env
+HELM_E2E_JWT_SECRET=<même valeur que JWT_SECRET serveur>
+HELM_E2E_USER_ID=3
+HELM_E2E_EMAIL=xavier@xavdp.pro
+```
+
+- Helper : `e2e/helpers/e2eToken.js` — cookie `ca_token` + navigation directe
+- Mint manuel : `npm run e2e:token -- /console/gbs-h1/zaza/Xavier?lang=fr`
+- Fallback : `HELM_E2E_PASSWORD` (login UI) si pas de JWT
+
+**Toujours** utiliser `applyE2eSession` / `openConsole` depuis `e2e/helpers/auth.js` pour ouvrir une page authentifiée.
+
+## Suite prioritaire
+
+Auth réelle + magic links → voix mobile → WebSocket desk → POC CRM

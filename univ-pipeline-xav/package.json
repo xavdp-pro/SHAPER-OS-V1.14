@@ -1,0 +1,9 @@
+{
+  "name": "univ-pipeline-xav",
+  "version": "1.7.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

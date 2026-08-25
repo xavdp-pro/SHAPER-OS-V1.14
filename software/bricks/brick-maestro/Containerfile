@@ -1,0 +1,18 @@
+FROM docker.io/library/node:20-alpine
+
+WORKDIR /app
+COPY packages/logger/ ./packages/logger/
+COPY packages/auth/ ./packages/auth/
+COPY packages/agent/ ./packages/agent/
+COPY packages/mail-agent/ ./packages/mail-agent/
+COPY packages/vault/ ./packages/vault/
+COPY packages/maestro/ ./packages/maestro/
+
+WORKDIR /app/packages/maestro
+
+EXPOSE 8530
+ENV NODE_ENV=production
+ENV MAESTRO_PORT=8530
+ENV MAESTRO_AUTO_START=0
+
+CMD ["node", "server.js"]

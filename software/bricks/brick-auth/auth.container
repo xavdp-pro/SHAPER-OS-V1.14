@@ -1,0 +1,13 @@
+[Unit]
+Description=SHAPER OS Auth policy sidecar (Podman Quadlet)
+After=network-online.target
+
+[Container]
+Image=localhost/shaper-auth:latest
+ContainerName=shaper-auth
+PublishPort=127.0.0.1:8550:8550
+Environment=AUTH_PORT=8550
+Restart=always
+
+[Install]
+WantedBy=default.target

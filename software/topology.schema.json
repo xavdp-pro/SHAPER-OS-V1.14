@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:shaper-os:schema:topology",
+  "title": "SHAPER OS Topology Manifest",
+  "type": "object",
+  "required": ["version", "overridePolicy", "bootLayers", "nodes"],
+  "properties": {
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "overridePolicy": { "type": "object" },
+    "materializationPipeline": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "minimalSocle": { "type": "object" },
+    "bootLayers": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "nodes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "requires": { "type": "array", "items": { "type": "string" } },
+          "optional": { "type": "array", "items": { "type": "string" } },
+          "provides": { "type": "array", "items": { "type": "string" } },
+          "optionalBrick": { "type": "boolean" }
+        }
+      }
+    },
+    "packageImports": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  }
+}

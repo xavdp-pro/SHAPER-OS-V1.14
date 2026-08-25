@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+!.env.example
+resources/*.local.json
+data/vault/
+data/backups/
+*.log
+.DS_Store
+dist/
+tmp/
+bricks/brick-bridge-opencode/bin/

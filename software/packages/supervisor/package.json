@@ -1,0 +1,7 @@
+{
+  "name": "@shaper/supervisor",
+  "version": "1.0.0",
+  "description": "Parent Supervisor and Sovereign External Healing for Shaper OS (Rule 23 & Rule 27)",
+  "main": "index.js",
+  "type": "module"
+}

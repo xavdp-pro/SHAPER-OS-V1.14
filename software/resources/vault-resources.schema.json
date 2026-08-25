@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SHAPER OS vault-resources",
+  "type": "object",
+  "required": ["version", "vault", "secrets"],
+  "properties": {
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "vault": {
+      "type": "object",
+      "required": ["masterKey"],
+      "properties": {
+        "masterKey": { "type": "string", "minLength": 8 },
+        "token": { "type": "string" },
+        "storageFile": { "type": "string" }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

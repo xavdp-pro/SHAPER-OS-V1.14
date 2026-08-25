@@ -1,0 +1,15 @@
+[Unit]
+Description=SHAPER OS Logger (Podman Quadlet)
+After=network-online.target
+
+[Container]
+Image=localhost/shaper-logger:latest
+ContainerName=shaper-logger
+PublishPort=127.0.0.1:8520:8520
+Environment=LOGGER_PORT=8520
+Environment=LOG_DIR=/data/logger
+Volume=shaper-logger-data:/data/logger:Z
+Restart=always
+
+[Install]
+WantedBy=default.target

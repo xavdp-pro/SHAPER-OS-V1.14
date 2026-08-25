@@ -1,0 +1,10 @@
+{
+  "name": "@shaper/bridge-opencode",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "node server.js"
+  }
+}

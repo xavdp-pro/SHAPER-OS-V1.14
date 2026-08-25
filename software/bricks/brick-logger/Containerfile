@@ -1,0 +1,11 @@
+FROM docker.io/library/node:20-alpine
+
+WORKDIR /app
+COPY packages/logger/ ./
+
+EXPOSE 8520
+ENV NODE_ENV=production
+ENV LOGGER_PORT=8520
+ENV LOG_DIR=/data/logger
+
+CMD ["node", "server.js"]

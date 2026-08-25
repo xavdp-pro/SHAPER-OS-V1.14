@@ -1,0 +1,37 @@
+COMPTE RENDU DE RÉUNION TECHNIQUE
+PROJET : Chaîne de traitement documentaire SHAPER
+Date de séance : 18 octobre 2024 (14h00 - 16h30)
+Lieu : Salle B2 / Visioconférence sécurisée
+Rédacteur du compte rendu : Alexandre Martin
+
+Participants présents :
+- Sophie Bernard (Chef de projet MOE)
+- Alexandre Martin (Architecte logiciel)
+- Claire Dubois (Ingénieure assurance qualité)
+- Thomas Leroy (Responsable infrastructure et déploiement)
+
+Ordre du jour :
+1. Synthèse des anomalies observées sur les flux numérisés entrants.
+2. Évaluation des contraintes d'orientation, de basculement et d'inclinaison.
+3. Définition du protocole de qualification et des jeux de tests de vérité terrain.
+4. Validation du calendrier prévisionnel de livraison du jalon 2.
+Points abordés et décisions actées :
+1. Traitement des numérisations sans couche texte :
+Il est convenu que l'absence totale de texte vectoriel impose un pré-traitement systématique.
+Les documents inclinés de moins de 10 degrés doivent être corrigés avant extraction.
+
+2. Gestion des orientations orthogonales anormales :
+Les pages tournées à 90°, 180° ou 270° feront l'objet d'une estimation probabiliste d'orientation.
+
+3. Dégradation et basse résolution :
+Les scans basse résolution (72 DPI) ou à faible contraste seront réétalonnés.
+
+Plan d'action et assignations :
+- Alexandre Martin : Finaliser l'algorithme de détection d'angle (Échéance : 25/10/2024).
+- Claire Dubois : Structurer le corpus de test et les fichiers de vérité (Échéance : 22/10/2024).
+- Thomas Leroy : Benchmarker les consommations CPU sur serveur cible (Échéance : 28/10/2024).
+Prochaine réunion fixée au vendredi 1er novembre 2024 à 10h00.
+
+SHAPER-OS Corpus de test - Page 1 / 1 - Document technique généré pour banc d'essai.
+
+

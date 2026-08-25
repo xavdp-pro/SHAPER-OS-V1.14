@@ -1,0 +1,14 @@
+[Unit]
+Description=SHAPER OS Bridge AGY (Podman Quadlet)
+After=network-online.target
+
+[Container]
+Image=localhost/shaper-bridge-agy:latest
+ContainerName=shaper-bridge-agy
+PublishPort=127.0.0.1:4330:4330
+Environment=AGY_BRIDGE_PORT=4330
+Environment=BRIDGE_AGY_STUB=1
+Restart=always
+
+[Install]
+WantedBy=default.target

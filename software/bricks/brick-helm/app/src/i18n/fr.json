@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "chat": "Console Chat",
+    "voice": "Mode Télécommande",
+    "maestro": "Maestro Cadences",
+    "users": "Utilisateurs",
+    "socle": "Santé du Socle",
+    "settings": "Paramètres",
+    "logout": "Déconnexion"
+  },
+  "socle": {
+    "title": "Supervision du Socle Shaper",
+    "allHealthy": "Tous les services sont opérationnels",
+    "degraded": "Certains services sont dégradés",
+    "vault": "Coffre-fort Secrets",
+    "logger": "Journalisation & Audit",
+    "mariadb": "Base de Données",
+    "queue": "File de Travaux",
+    "maestro": "Orchestrateur Cadences",
+    "bridge": "Bridge Agent IA"
+  },
+  "maestro": {
+    "title": "Orchestrateur Maestro",
+    "subtitle": "Supervision des battements et tâches autonomes de l'agent",
+    "runNow": "Lancer le Beat Immédiat",
+    "status": "Statut",
+    "cadence": "Cadence",
+    "lastRun": "Dernier Exécution",
+    "taskName": "Tâche",
+    "actions": "Actions"
+  },
+  "users": {
+    "title": "Gestion des Utilisateurs",
+    "addUser": "Créer un Utilisateur",
+    "email": "Email",
+    "name": "Nom",
+    "role": "Rôle",
+    "locale": "Langue",
+    "status": "Statut",
+    "actions": "Actions"
+  },
+  "chat": {
+    "placeholder": "Envoyer une instruction à l'agent OpenCode...",
+    "thinking": "Raisonnement de l'agent...",
+    "send": "Envoyer"
+  }
+}

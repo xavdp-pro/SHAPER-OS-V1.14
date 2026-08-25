@@ -1,0 +1,12 @@
+{
+  "name": "@shaper/ged-engine",
+  "version": "1.0.0",
+  "description": "Sovereign Mini-GED Document Hub for Shaper OS",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/ged.test.js",
+    "dev": "GED_DEV=1 node --watch server.js"
+  }
+}

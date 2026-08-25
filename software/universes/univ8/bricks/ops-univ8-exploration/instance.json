@@ -1,0 +1,8 @@
+{
+  "slug": "ops-univ8-exploration",
+  "kind": "bridge",
+  "mailbox": "ops@univ8.local",
+  "cadenceSeconds": 300,
+  "contextPath": "./context/AGENT-CONTEXT.md",
+  "contextText": "UNIV8 sovereign exploration sandbox."
+}

@@ -1,0 +1,24 @@
+# Debian rather than Alpine: cursor-agent ships as a bash launcher that execs
+# sibling .js files, and this base already carries bash. Installing it into
+# Alpine would need a RUN step, which rootless podman refuses to build on this
+# host — and an image that only builds on some machines is not an artefact.
+#
+# The whole version directory must be mounted, never the symlink in
+# ~/.local/bin (it would arrive dangling) nor the launcher alone (it would find
+# none of its siblings).
+FROM docker.io/library/node:20-bookworm-slim
+
+WORKDIR /app
+COPY packages/logger/ /logger/
+COPY packages/bridge-cursor/ ./
+
+EXPOSE 4310
+ENV NODE_ENV=production
+ENV HOME=/root
+ENV CURSOR_BRIDGE_PORT=4310
+ENV CURSOR_BRIDGE_BIND=0.0.0.0
+ENV CURSOR_WS_BASE=/data/cursor-ws
+ENV CURSOR_MODEL=composer-2.5
+ENV CURSOR_MODE=normal
+
+CMD ["node", "server.js"]

@@ -1,0 +1,12 @@
+{
+  "name": "opencode-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "HTTP + SSE bridge in front of the OpenCode CLI, on the shared agent-bridge contract",
+  "scripts": {
+    "start": "./start-bridge.sh",
+    "test": "node --test *.test.mjs",
+    "test:cli": "bash scripts/test-cli.sh"
+  }
+}

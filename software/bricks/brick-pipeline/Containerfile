@@ -1,0 +1,42 @@
+FROM docker.io/library/node:20-bookworm-slim
+
+# Layer 1: System Packages (Heavy layer — changes monthly/rarely)
+# Pinned APT versions guarantee reproducible builds (Rule 0E).
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends \
+      ca-certificates \
+      curl \
+      tesseract-ocr=5.3.0-2 \
+      tesseract-ocr-fra=1:4.1.0-2 \
+      tesseract-ocr-eng=1:4.1.0-2 \
+      tesseract-ocr-osd=1:4.1.0-2 \
+      poppler-utils=22.12.0-2+deb12u3 \
+      imagemagick=8:6.9.11.60+dfsg-1.6+deb12u13 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Layer 1b: Vision Witness CLI (OpenCode pinned version — Rule 34)
+ARG OPENCODE_VERSION=1.18.18
+RUN curl -fsSL https://opencode.ai/install | VERSION="${OPENCODE_VERSION}" bash \
+ && install -m 0755 "$HOME/.opencode/bin/opencode" /usr/local/bin/opencode \
+ && rm -rf "$HOME/.opencode" \
+ && opencode --version
+
+WORKDIR /app
+
+# Layer 2: Application Code (Thin layer — changes frequently)
+COPY packages/logger/ /logger/
+COPY bricks/brick-pipeline/package.json ./
+COPY bricks/brick-pipeline/index.js ./
+COPY bricks/brick-pipeline/server.js ./
+COPY bricks/brick-pipeline/lib/ ./lib/
+
+EXPOSE 8670
+
+ENV NODE_ENV=production
+ENV PIPELINE_PORT=8670
+ENV OPENCODE_BIN=/usr/local/bin/opencode
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=2s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:8670/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+
+CMD ["node", "server.js"]

@@ -1,0 +1,16 @@
+FROM docker.io/library/node:20-alpine
+
+WORKDIR /app
+COPY packages/logger/ /logger/
+COPY packages/bridge-deepseek/ ./
+
+EXPOSE 4350
+ENV NODE_ENV=production
+ENV HOME=/root
+ENV DEEPSEEK_BRIDGE_PORT=4350
+ENV DEEPSEEK_BRIDGE_BIND=0.0.0.0
+ENV DEEPSEEK_WS_BASE=/data/deepseek-ws
+ENV OLLAMA_MODEL=gpt-oss:120b
+ENV DEEPSEEK_MODEL=gpt-oss:120b
+
+CMD ["node", "server.js"]

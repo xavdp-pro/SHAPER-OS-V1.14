@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "../../helm-v1/app"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {}
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@shaper/root",
+  "version": "2.0.0",
+  "description": "SHAPER OS — Autonomous Sovereign Business Operating System",
+  "type": "module",
+  "private": true,
+  "author": "Xavier DE POORTER (XDP LLC USA)",
+  "scripts": {
+    "test": "node --test packages/*/test/*.test.js",
+    "test:live": "node --test universes/_template/test/socle-live.test.js",
+    "test:live:helm": "node --test universes/_template/test/helm-live.test.js",
+    "test:live:reference": "node --test universes/univ7/test/*.test.js universes/univ8/test/*.test.js universes/univ9/test/*.test.js",
+    "test:all": "npm test && npm run test:live",
+    "test:socle": "node scripts/pra-univ7-rebuild.mjs",
+    "test:univ7": "node --test universes/univ7/test/*.test.js",
+    "vault:bootstrap": "node scripts/bootstrap-vault-from-resources.mjs",
+    "univ7:dev": "bash universes/univ7/deploy/start-univ7-dev.sh",
+    "bricks:build": "bash scripts/build-all-bricks.sh"
+  },
+  "keywords": [
+    "shaper-os",
+    "fractal-architecture",
+    "sovereignty",
+    "ai-agents"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

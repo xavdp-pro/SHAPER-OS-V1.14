@@ -1,0 +1,89 @@
+# Cold-Read Test — For an Agent Asked to Evaluate This Repository
+
+> **You were asked to beta-test the documentation, not the software.** The
+> question is not "is SHAPER OS good?" It is: **could you have acted correctly
+> here without a human telling you things the repository should have told you?**
+
+This test is the repository's own proof obligation applied to itself. A document
+that only its author can follow has not been proven, exactly as a job that only
+its producer validated has not been proven (Principle 3).
+
+---
+
+## Rules of the test
+
+1. **Read cold.** Do not accept a verbal briefing first. If a human explains
+   something to you before you start, that explanation is a **finding**: write it
+   down as "the repository should have told me this".
+2. **Take your own row.** Start at [`../../AGENTS.md`](../../AGENTS.md) and follow
+   the path for your capability class. Do not read the other class's path until
+   the test is over — that is the thing being measured.
+3. **Do not fix anything.** This is a diagnostic (Boot Contract, point 10). You
+   report; the human decides.
+4. **Record hesitation, not just error.** A place where you *guessed correctly*
+   is still a defect. The next agent may guess differently.
+
+---
+
+## The seven questions
+
+Answer all seven. Short answers, concrete references, no diplomacy.
+
+1. **Where did you have to infer?** List every point where you supplied
+   something the repository did not state — a path, an order, a threshold, a
+   default, an intention. Quote the file and what you filled in.
+2. **Where did you hesitate between two readings?** Any place where two
+   documents could both be authoritative, or where the same word meant two
+   things.
+3. **What did you look for and not find?** Name the file you expected to exist,
+   and where you expected it.
+4. **What would you have done wrong** if no human had been watching? Be specific
+   and unflattering. This is the most valuable answer in the list.
+5. **What did you read that you did not need?** Volume is a cost. Name what your
+   row could have skipped without any loss.
+6. **Could you state, from memory after reading:** what this system is for, what
+   you were allowed to do, when you had to stop, and what counted as proof? Say
+   which of the four you could not state.
+7. **Did your capability class match your row?** If you were sent to the dense
+   path and had to reread, or to the literal path and found it insulting or
+   under-specified, say so — the routing is a claim under test.
+
+---
+
+## Report format
+
+Deliver one Markdown block, nothing else:
+
+```markdown
+## Cold-read report — <engine name and version> — <date>
+Row taken: high-abstraction | fast-light | IDE-paired
+Context budget: <tokens, or "unknown">
+Read in full: <files you actually read end to end>
+Could not read in full: <files you skimmed or skipped, and why>
+
+### 1. Inferred        <file:line> — I assumed X, the repository never said it
+### 2. Ambiguous       <file A> vs <file B> — both could be authority on X
+### 3. Missing         expected <path> — not found
+### 4. Would have done wrong
+### 5. Read but unnecessary
+### 6. Could not state from memory
+### 7. Routing verdict — correct row / wrong row, because…
+```
+
+---
+
+## What happens to your report
+
+Each finding becomes one of the following, and nothing is closed as "clarified in
+chat" (Principle 5, Rules 29 and 35):
+
+| Finding | Becomes |
+| :--- | :--- |
+| You inferred a fact | The fact is written where you looked for it |
+| Two documents both looked authoritative | One is made canonical, the other references it |
+| You could not state a rule from memory after reading it | The rule moves earlier, or gets shorter |
+| A document was unnecessary for your row | The routing is corrected, not the document deleted |
+| The row itself was wrong for your class | [`../../AGENTS.md`](../../AGENTS.md) is corrected |
+
+A report that produces no change to the repository was either perfect or not
+read. Both are worth knowing.

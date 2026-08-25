@@ -1,0 +1,13 @@
+{
+  "name": "univ8",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UNIV8 — Sovereign Multi-Agent Exploration Universe (Podman Stack & Socle PRA)",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "dev": "bash deploy/podman-up.sh",
+    "podman:up": "bash deploy/podman-up.sh",
+    "podman:down": "bash deploy/podman-down.sh"
+  }
+}

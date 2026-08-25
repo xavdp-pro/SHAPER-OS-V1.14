@@ -1,0 +1,39 @@
+FROM docker.io/library/node:20-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates procps curl iproute2 openssh-client git python3 python3-pip python3-venv jq ripgrep file zip unzip wget rsync \
+  && rm -rf /var/lib/apt/lists/*
+
+# OpenCode CLI baked into the image (not bind-mounted)
+# The CLI is fetched here, not copied from the build context.
+#
+# It used to be `COPY bricks/brick-bridge-opencode/bin/opencode`, from a path
+# that is **gitignored** and no longer exists on any machine. The image kept
+# building only where a stale copy happened to survive, and failed on a fresh
+# clone with a cryptic copier error. An image that cannot be rebuilt from the
+# repository is not an artefact (Rule 0E), and a host file the repository never
+# carried is the hidden dependency Pillar 1 forbids.
+#
+# Pin the version: an installer that follows "latest" makes the same tag produce
+# a different image tomorrow, which is the same defect wearing a nicer face.
+ARG OPENCODE_VERSION=1.18.18
+RUN curl -fsSL https://opencode.ai/install | VERSION="${OPENCODE_VERSION}" bash \
+ && install -m 0755 "$HOME/.opencode/bin/opencode" /usr/local/bin/opencode \
+ && rm -rf "$HOME/.opencode" \
+ && opencode --version
+
+WORKDIR /app
+COPY packages/opencode-bridge/ ./
+
+EXPOSE 4440
+ENV NODE_ENV=production
+ENV HOME=/root
+ENV OPENCODE_BRIDGE_PORT=4440
+ENV OPENCODE_BRIDGE_BIND=0.0.0.0
+ENV OPENCODE_SERVE_PORT=4441
+ENV OPENCODE_BIN=/usr/local/bin/opencode
+ENV OPENCODE_WS_BASE=/data/opencode-ws
+ENV OPENCODE_MODEL=opencode/nemotron-3.5-lightning-free
+ENV TOKEN_FILE=/root/.config/opencode-bridge/token
+
+CMD ["node", "server.mjs"]

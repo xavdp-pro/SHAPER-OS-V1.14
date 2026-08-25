@@ -1,0 +1,106 @@
+{
+  "$schema": "./topology.intent.schema.json",
+  "meta": {
+    "classification": "GENERIC INTENT",
+    "version": "1.0.0",
+    "description": "Canonical declarative dependency topology for SHAPER OS packages and infrastructure bricks."
+  },
+  "nodes": {
+    "@shaper/logger": {
+      "kind": "package",
+      "brick": "brick-logger",
+      "service": "logger",
+      "port": 8520,
+      "requires": [],
+      "provides": ["audit-jsonl", "log-ingest-api", "log-sse-tail"],
+      "deploy": {
+        "workingDir": "/apps/logger",
+        "volumes": [
+          { "param": "<HOST_PACKAGES_DIR>/logger", "mount": "/apps/logger", "mode": "ro" },
+          { "param": "<HOST_DATA_DIR>/logger", "mount": "/data/logger", "mode": "rw" }
+        ]
+      }
+    },
+    "@shaper/vault": {
+      "kind": "package",
+      "brick": "brick-vault",
+      "service": "vault",
+      "port": 8443,
+      "requires": [],
+      "provides": ["secret-store", "aes-256-gcm", "vault-rest-api"],
+      "deploy": {
+        "workingDir": "/apps/vault",
+        "volumes": [
+          { "param": "<HOST_PACKAGES_DIR>/vault", "mount": "/apps/vault", "mode": "ro" },
+          { "param": "<HOST_DATA_DIR>/vault", "mount": "/data/vault", "mode": "rw" }
+        ]
+      }
+    },
+    "@shaper/queue": {
+      "kind": "package",
+      "brick": "brick-queue",
+      "service": "queue",
+      "port": 8540,
+      "requires": [],
+      "provides": ["job-queue", "job-sse-progress"],
+      "deploy": {
+        "workingDir": "/apps/queue",
+        "volumes": [
+          { "param": "<HOST_PACKAGES_DIR>/queue", "mount": "/apps/queue", "mode": "ro" }
+        ]
+      }
+    },
+    "@shaper/maestro": {
+      "kind": "package",
+      "brick": "brick-maestro",
+      "service": "maestro",
+      "port": 8530,
+      "requires": ["@shaper/logger"],
+      "optionalRequires": ["@shaper/vault"],
+      "provides": ["beat-scheduler", "pod-registry", "maestro-rest-api"],
+      "imports": {
+        "@shaper/logger": "../logger/index.js"
+      },
+      "deploy": {
+        "workingDir": "/apps/maestro",
+        "after": ["network-online.target", "logger.service"],
+        "volumes": [
+          { "param": "<HOST_PACKAGES_DIR>/maestro", "mount": "/apps/maestro", "mode": "ro" },
+          { "param": "<HOST_PACKAGES_DIR>/logger", "mount": "/apps/logger", "mode": "ro" },
+          { "param": "<HOST_DATA_DIR>/maestro", "mount": "/data/maestro", "mode": "rw" }
+        ]
+      }
+    },
+    "brick-mariadb": {
+      "kind": "brick",
+      "service": "mariadb",
+      "port": 3306,
+      "requires": [],
+      "provides": ["relational-sql"],
+      "deploy": {
+        "after": ["network-online.target"],
+        "volumes": [
+          { "param": "<HOST_DATA_DIR>/mariadb", "mount": "/var/lib/mysql", "mode": "rw" }
+        ]
+      }
+    },
+    "brick-qdrant": {
+      "kind": "brick",
+      "service": "qdrant",
+      "ports": [6333, 6334],
+      "requires": [],
+      "provides": ["vector-search", "embeddings-rag"],
+      "deploy": {
+        "after": ["network-online.target"],
+        "volumes": [
+          { "param": "<HOST_DATA_DIR>/qdrant", "mount": "/qdrant/storage", "mode": "rw" }
+        ]
+      }
+    }
+  },
+  "startupTiers": [
+    ["@shaper/logger", "@shaper/vault", "brick-mariadb", "brick-qdrant"],
+    ["@shaper/queue"],
+    ["@shaper/maestro"]
+  ]
+}

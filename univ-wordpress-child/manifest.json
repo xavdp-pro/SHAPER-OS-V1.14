@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/universe-manifest.schema.json",
+  "universe": "univ-wordpress-child",
+  "parent": "univ-wordpress-father",
+  "description": "WordPress child universe. Vitals are raw measurements; the father grades them (Rule 23).",
+  "routing": {
+    "zone": "${WP_ZONE}",
+    "managerSlug": "wpmanager01",
+    "siteSlug": "wp01",
+    "publicUrl": "https://${WP_SITE_HOST}"
+  },
+  "bricks": {
+    "mariadb": { "port": 9536, "package": "docker.io/library/mariadb:11" },
+    "wordpress": { "port": 9580, "package": "docker.io/library/wordpress:6.7-php8.2-apache" },
+    "logger": { "port": 9520, "package": "@shaper/logger" },
+    "vitals-wordpress": { "port": 9560, "package": "universe-local" },
+    "vitals-mariadb": { "port": 9561, "package": "universe-local" }
+  },
+  "ports": {
+    "logger": 9520,
+    "mariadb": 9536,
+    "wordpress": 9580,
+    "vitalsWordpress": 9560,
+    "vitalsMariadb": 9561,
+    "sshd": 9522
+  },
+  "alerting": {
+    "channel": "logger",
+    "note": "DEV: logger JSONL is the declared channel. Must be replaced before any promotion past DEV (Rule 27)."
+  },
+  "dataLifecycle": {
+    "personalData": false,
+    "retention": {
+      "wordpressUploads": "unlimited",
+      "mariadb": "unlimited",
+      "logs": "30d"
+    },
+    "onTermination": "destroy sav/ volumes and MariaDB datadir; no client export"
+  }
+}

@@ -1,0 +1,12 @@
+FROM docker.io/library/node:20-alpine
+
+WORKDIR /app
+COPY packages/logger/ /logger/
+COPY packages/vault/ ./
+
+EXPOSE 8510
+ENV NODE_ENV=production
+ENV VAULT_PORT=8510
+ENV VAULT_STORAGE_FILE=/data/vault/vault.enc
+
+CMD ["node", "server.js"]

@@ -1,0 +1,14 @@
+[
+  {
+    "slug": "ops-dev-heartbeat",
+    "kind": "bridge",
+    "bridgeType": "opencode",
+    "bridgeUrl": "http://127.0.0.1:4440",
+    "mailbox": "ops@dev.local",
+    "port": 4440,
+    "cadenceSeconds": 300,
+    "contextPath": "/data/univ/context/AGENT-CONTEXT.md",
+    "contextText": "DEV universe — prove stack health. MAIL_AGENT_STUB=1; no production mailbox.",
+    "beatMessage": "Confirm the stack is alive and summarize recent audit events."
+  }
+]

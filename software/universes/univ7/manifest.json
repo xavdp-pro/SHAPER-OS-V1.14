@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/universe-manifest.schema.json",
+  "universe": "univ7",
+  "description": "Artisan BTP overnight ops watchdog — test universe",
+  "intent": "./INTENT.md",
+  "agentDeploy": "./AGENT-DEPLOY.md",
+
+  "bricks": {
+    "vault": {
+      "ref": "../../bricks/brick-vault",
+      "intent": "../../bricks/brick-vault/INTENT.md",
+      "package": "@shaper/vault",
+      "role": "Encrypt and serve secrets",
+      "specialize": {
+        "how": "Bootstrap from resources file, then run generic brick-vault image",
+        "file": "../../resources/vault-resources.local.json",
+        "bootstrap": "npm run vault:bootstrap"
+      }
+    },
+    "logger": {
+      "ref": "../../bricks/brick-logger",
+      "intent": "../../bricks/brick-logger/INTENT.md",
+      "package": "@shaper/logger",
+      "role": "JSONL audit trail for beats and ops events",
+      "specialize": {
+        "how": "No override — use generic brick as-is"
+      }
+    },
+    "maestro": {
+      "ref": "../../bricks/brick-maestro",
+      "intent": "../../bricks/brick-maestro/INTENT.md",
+      "package": "@shaper/maestro",
+      "role": "Cadence scheduler — wakes agent tasks every 300s",
+      "specialize": {
+        "how": "Point MAESTRO_TASKS_FILE to universe task registry",
+        "file": "./tasks/maestro-tasks.json"
+      }
+    },
+    "agent": {
+      "ref": "../../bricks/brick-agent",
+      "intent": "../../bricks/brick-agent/INTENT.md",
+      "package": "@shaper/agent",
+      "role": "Generic AI bridge host — one image, N instances",
+      "specialize": {
+        "how": "Add instance.json per mailbox or ops task — never copy Containerfile",
+        "instances": [
+          "./bricks/mail-contact-zoutik-shop/instance.json",
+          "./bricks/ops-univ7-storm-watch/instance.json"
+        ]
+      }
+    },
+    "bridge-agy": {
+      "ref": "../../bricks/brick-bridge-agy",
+      "intent": "../../bricks/brick-bridge-agy/INTENT.md",
+      "package": "@shaper/bridge-agy",
+      "role": "HTTP bridge to Antigravity CLI (Rule 8)",
+      "specialize": {
+        "how": "Set BRIDGE_AGY_STUB=1 for tests, live key from vault secret/agy/api-key"
+      }
+    }
+  },
+
+  "resources": {
+    "vaultBootstrap": "../../resources/vault-resources.local.json",
+    "maestroTasks": "./tasks/maestro-tasks.json",
+    "agentContext": "./context/AGENT-CONTEXT.md",
+    "checkpoint": "./state/checkpoint.json"
+  },
+
+  "bootOrder": [
+    ["vault", "logger"],
+    ["bridge-agy"],
+    ["maestro"]
+  ]
+}

@@ -1,0 +1,17 @@
+[Unit]
+Description=Shaper OS — Mini-GED Document Hub (univ9-ged)
+After=network-online.target
+
+[Container]
+Image=localhost/shaper-ged:latest
+ContainerName=univ9-ged
+Network=host
+Environment=GED_PORT=8660
+Environment=GED_DATA_DIR=/data/ged
+Volume=/data/ged:/data/ged:rw,z
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

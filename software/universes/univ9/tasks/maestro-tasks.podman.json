@@ -1,0 +1,20 @@
+[
+  {
+    "slug": "mail-contact-zoutik-shop",
+    "title": "Triage Boîte Contact Zoutik",
+    "bridgeType": "opencode",
+    "bridgeUrl": "http://127.0.0.1:4440",
+    "cadenceSeconds": 300,
+    "cadenceHuman": "5 min",
+    "isActive": true
+  },
+  {
+    "slug": "ops-univ9-exploration",
+    "title": "Supervision & Exploration Ops UNIV9",
+    "bridgeType": "opencode",
+    "bridgeUrl": "http://127.0.0.1:4440",
+    "cadenceSeconds": 300,
+    "cadenceHuman": "5 min",
+    "isActive": true
+  }
+]
