@@ -12,6 +12,14 @@ its producer validated has not been proven (Principle 3).
 
 ## Rules of the test
 
+0. **Declare your prior exposure before anything else.** Have you read an earlier
+   version of this repository, or discussed it in a previous conversation? If so,
+   **say it in the first line of your report** and continue anyway. A reader who
+   already knows the system cannot measure whether the documents teach it — but
+   they can measure something else, and something valuable: whether a document
+   contradicts another. Cross-document contradictions are found by readers who
+   remember. Missing explanations are found by readers who do not. Both are real
+   findings; conflating them is how a test lies about what it proved.
 1. **Read cold.** Do not accept a verbal briefing first. If a human explains
    something to you before you start, that explanation is a **finding**: write it
    down as "the repository should have told me this".
@@ -56,6 +64,7 @@ Deliver one Markdown block, nothing else:
 
 ```markdown
 ## Cold-read report — <engine name and version> — <date>
+Prior exposure: none | read version <x> | discussed previously
 Row taken: high-abstraction | fast-light | IDE-paired
 Context budget: <tokens, or "unknown">
 Read in full: <files you actually read end to end>
@@ -84,6 +93,12 @@ chat" (Principle 5, Rules 29 and 35):
 | You could not state a rule from memory after reading it | The rule moves earlier, or gets shorter |
 | A document was unnecessary for your row | The routing is corrected, not the document deleted |
 | The row itself was wrong for your class | [`../../AGENTS.md`](../../AGENTS.md) is corrected |
+
+A reader with prior exposure is not disqualified — the first external finding
+that reached this repository, a rule recommending a model two generations out of
+date, came from exactly such a reader, and only a reader who had seen the earlier
+version would have caught a rule contradicting a newer document. Record the
+exposure, then weigh the finding for what it is.
 
 A report that produces no change to the repository was either perfect or not
 read. Both are worth knowing.
