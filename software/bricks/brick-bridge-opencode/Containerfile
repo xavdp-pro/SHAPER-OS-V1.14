@@ -23,7 +23,7 @@ RUN curl -fsSL https://opencode.ai/install | VERSION="${OPENCODE_VERSION}" bash 
  && opencode --version
 
 WORKDIR /app
-COPY packages/opencode-bridge/ ./
+COPY packages/pkg-opencode-bridge/ ./
 
 EXPOSE 4440
 ENV NODE_ENV=production

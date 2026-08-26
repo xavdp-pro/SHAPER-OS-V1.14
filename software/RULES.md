@@ -67,7 +67,7 @@ Outside those two cases, the tiers change nothing: you comply with all of them.
 ---
 
 ### Rule 0: Language & Collaboration Protocol
-* **English for All Technical Assets**: 100% of source code, variable/function names, API schemas, JSON payloads, Git commit messages, branch names, technical specifications, and repository documentation (`README.md`, `RULES.md`, `AGENT-CONTEXT.md`) MUST be written strictly in **English**.
+* **English for All Technical Assets**: 100% of source code, variable/function names, API schemas, JSON payloads, Git commit messages, branch names, technical specifications, and repository documentation (`README.md`, `RULES.md`, `ctx-universe.md`) MUST be written strictly in **English**.
 * **French for Human-Agent Pair Programming**: All strategic discussions, planning sessions, architectural reflections, live brainstormings, and human interactions are conducted fluently in **French**.
 
 ---
@@ -78,8 +78,8 @@ Every component, package, brick, or app MUST be classified into **exactly one** 
 
 | Perimeter | Objective | Examples |
 | :--- | :--- | :--- |
-| **P1 — Minimal socle** | Secrets, audit, auth, generic jobs, boot — zero business logic, zero mandatory LLM | `@shaper/vault`, `@shaper/logger`, `@shaper/auth`, `@shaper/queue`, `@shaper/db` |
-| **P2 — Agentic** | Deterministic beats, bridges, operator cockpit (KovZu organism) | `@shaper/maestro`, `@shaper/mail-agent`, bridges, `brick-helm`, `@shaper/ged-engine`, `@shaper/rag` |
+| **P1 — Minimal socle** | Secrets, audit, auth, generic jobs, boot — zero business logic, zero mandatory LLM | `@shaper/pkg-vault`, `@shaper/pkg-logger`, `@shaper/pkg-auth`, `@shaper/pkg-queue`, `@shaper/pkg-db` |
+| **P2 — Agentic** | Deterministic beats, bridges, operator cockpit (KovZu organism) | `@shaper/pkg-maestro`, `@shaper/pkg-mail-agent`, bridges, `brick-helm`, `@shaper/pkg-ged-engine`, `@shaper/pkg-rag` |
 | **P3 — Business / client tools** | Persistent vertical apps **outside** P1+P2 — separate port, volume, lifecycle | `market-intelligence`, `enterprise-chat`, `univ-sinistre`, CRM POC |
 
 * **Rule 0F alignment**: KovZu / Helm is **P2 only**. Client ERPs, scrapers, and scoped client chat are **P3** — never merged into the cockpit.
@@ -267,7 +267,7 @@ The `univ-` prefix provides a unified sovereign brand across Git, container name
 
 | Element Type | Scope / Layer | Canonical Naming Convention | Real-World Examples |
 | :--- | :--- | :--- | :--- |
-| Composable Logic Bricks | NPM Scope `@shaper/` | `@shaper/<brick>` | `@shaper/vault`, `@shaper/logger`, `@shaper/queue` (**P1**); `@shaper/maestro`, `@shaper/mail-agent`, bridges (**P2**); `@shaper/waf`, `@shaper/variables`, `@shaper/ai-client` (**planned** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)) |
+| Composable Logic Bricks | NPM Scope `@shaper/` | `@shaper/<brick>` | `@shaper/pkg-vault`, `@shaper/pkg-logger`, `@shaper/pkg-queue` (**P1**); `@shaper/pkg-maestro`, `@shaper/pkg-mail-agent`, bridges (**P2**); `@shaper/waf`, `@shaper/variables`, `@shaper/ai-client` (**planned** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)) |
 | Vertical Universes (Apps) | Apps / Containers | `univ-<vertical>` | `univ-sinistre` (Legal & Insurance), `univ-artisan` (Construction/BTP), `univ-crm`, `univ-webmail`, `univ-wiki` |
 | AI Agent Bridges | Apps / Containers | `univ-bridge-<agent>` | `univ-bridge-agy`, `univ-bridge-opencode`, `univ-bridge-claude` |
 | Master Repository | Git Organization | `univ-shaper-os` | `xavdp-pro/univ-shaper-os` (Master Git) |
@@ -345,7 +345,7 @@ The `univ-` prefix provides a unified sovereign brand across Git, container name
 ---
 
 ### Rule 6: Targeted Agent Bootstrapping (Token Optimization & Zero Idle Waste)
-* Every AI agent is bootstrapped with an isolated, targeted context file (`AGENT-CONTEXT.md`).
+* Every AI agent is bootstrapped with an isolated, targeted context file (`ctx-universe.md`).
 * Never re-inject entire system rulebooks into execution prompts; send only the short delta/instruction.
 * Leverage prompt caching, local deterministic idempotence checkpoints (`checkpoint.json`), and zero token consumption when idle.
 
@@ -386,7 +386,7 @@ The `univ-` prefix provides a unified sovereign brand across Git, container name
 ### Rule 8: Universal Agent Container Contract
 Every containerized AI agent must satisfy four core HTTP endpoints:
 1. `GET /api/health` — Service readiness & DB connection.
-2. `POST /api/inject` — Dynamic context ingestion (`AGENT-CONTEXT.md`).
+2. `POST /api/inject` — Dynamic context ingestion (`ctx-universe.md`).
 3. `GET /api/events` — Real-time Server-Sent Events (SSE) stream.
 4. `GET /api/metrics` — JSONL structured event logging & latency tracking.
 
@@ -521,7 +521,7 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
 
 ### Rule 20: Typed Closed-Loop Quality Gate (Verification Before Delivery)
 * **Pre-Delivery Verification by Livrable Type**:
-  * No job or generated output can transition to status `COMPLETED` in `@shaper/queue` without passing its typed verification contract:
+  * No job or generated output can transition to status `COMPLETED` in `@shaper/pkg-queue` without passing its typed verification contract:
     * **Code & Scripts**: Native unit test suite (`node --test`), linter, ephemeral sandbox.
     * **Documents & Spreadsheets (PDF, XLSX, DOCX)**: Schema validation, mandatory metadata presence, arithmetic consistency checks (e.g. Totals HT + VAT = TTC).
     * **Data & Imports (CSV, JSON)**: Column typing, primary key uniqueness, provenance validation.

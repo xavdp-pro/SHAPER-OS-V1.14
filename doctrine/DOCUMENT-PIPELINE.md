@@ -308,7 +308,7 @@ Direct consequence: the stream becomes **replaceable**. An interface that misses
 
 ### Where, concretely
 
-In the **universe's own database** (Rule 26), not in a shared one. And by reusing `@shaper/queue` as the job carrier rather than inventing a parallel store: the pipeline is a queue consumer, and its progress is the job's state, enriched per page.
+In the **universe's own database** (Rule 26), not in a shared one. And by reusing `@shaper/pkg-queue` as the job carrier rather than inventing a parallel store: the pipeline is a queue consumer, and its progress is the job's state, enriched per page.
 
 > **Invariant**: everything a human can see in the modal, an agent must be able to obtain by querying the database. If a piece of information exists only in the stream, it does not exist.
 

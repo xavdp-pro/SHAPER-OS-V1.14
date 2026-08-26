@@ -44,7 +44,7 @@ THE DECISION-MAKER (Non-Technical)   THE CTO / CIO (Technical)           AI AGEN
 > 2. **Technical Mode (CTO)**: Full traceability, job identifiers, HTTP statuses, queue metrics, JSONL streams, and execution trees.
 
 ### Rule 20 — Typed Closed Control Gate (Typed Quality Gate)
-> **Statement:** No deliverable can transition to `COMPLETED` status in `@shaper/queue` without validation by a **typed verification contract**:
+> **Statement:** No deliverable can transition to `COMPLETED` status in `@shaper/pkg-queue` without validation by a **typed verification contract**:
 > * **Type 1: Code & Scripts** $\rightarrow$ Unit test suite (`node --test`), linter, ephemeral sandbox.
 > * **Type 2: Documents & Reports (PDF, DOCX, XLSX)** $\rightarrow$ JSON/XML schema validation, presence of mandatory metadata, arithmetic verification of totals (e.g., Total Incl. Tax = Total Excl. Tax + VAT).
 > * **Type 3: Data & Imports (CSV, JSON)** $\rightarrow$ Strict column typing, primary key uniqueness, traceable source.

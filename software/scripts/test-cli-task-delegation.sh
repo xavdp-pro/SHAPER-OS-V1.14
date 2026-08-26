@@ -7,7 +7,7 @@ export SHAPER_QUEUE_URL="http://127.0.0.1:${TEST_PORT}"
 
 echo "[test-cli] 1. Starting test Queue server on :${TEST_PORT}..."
 node --input-type=module -e "
-import { createQueueServer } from '${SHAPER_DIR}/packages/queue/index.js';
+import { createQueueServer } from '${SHAPER_DIR}/packages/pkg-queue/index.js';
 const s = createQueueServer({ port: ${TEST_PORT} });
 s.on('listening', () => console.log('QUEUE_READY'));
 " &

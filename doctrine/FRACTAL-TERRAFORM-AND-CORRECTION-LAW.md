@@ -137,7 +137,7 @@ flowchart TD
 
 ### The Self-Improvement Protocol:
 1. **Passive audit**: The superior agent analyzes daily logs (prompt retry rates, brick response times).
-2. **Improvement hypothesis**: It adjusts the `AGENT-CONTEXT.md` prompt or optimizes a SQL/RAG query in a cloned universe.
+2. **Improvement hypothesis**: It adjusts the `ctx-universe.md` prompt or optimizes a SQL/RAG query in a cloned universe.
 3. **Mandatory test validation**: If and only if the suite of unit tests and benchmarks is 100% green with a measurable gain, the improvement is promoted.
 4. **Zero regression risk**: If a single test fails, the modification is discarded without ever touching production.
 

@@ -23,4 +23,4 @@
 | `INTENT.md` | This file |
 | `manifest.json` | Bricks + boot order |
 | `AGENT-DEPLOY.md` | What the install agent may do |
-| `context/AGENT-CONTEXT.md` | Runtime agent only |
+| `context/ctx-universe.md` | Runtime agent only |

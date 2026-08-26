@@ -16,7 +16,7 @@ That idea repeats at four scales:
 | Scale | What it is | What you add |
 | :---: | :--- | :--- |
 | **0** | One brick / one package | Code + unit tests + `INTENT.md` |
-| **1** | One **universe** | `manifest.json`, tasks, `AGENT-CONTEXT.md` — no copy of packages |
+| **1** | One **universe** | `manifest.json`, tasks, `ctx-universe.md` — no copy of packages |
 | **2** | One **host** (laptop, VPS, LXC) | Podman, volumes, this machine’s `.env` |
 | **3** | A **fleet** | Several hosts, public domain, tunnel, optional private network |
 
@@ -72,9 +72,9 @@ First install uses perimeters 1 and 2 (local stack ± `/console`). Perimeter 3 c
 | When | Who | Reads |
 | :--- | :--- | :--- |
 | **Install** | IDE agent | Universe `INTENT.md` → `manifest.json` → `AGENT-DEPLOY.md` |
-| **Runtime** | Agent inside the stack (beats / inject) | `context/AGENT-CONTEXT.md` only |
+| **Runtime** | Agent inside the stack (beats / inject) | `context/ctx-universe.md` only |
 
-Do not use `AGENT-CONTEXT.md` to decide how to build images.
+Do not use `ctx-universe.md` to decide how to build images.
 
 ---
 

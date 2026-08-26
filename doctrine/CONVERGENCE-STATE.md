@@ -38,7 +38,7 @@ Last verified: **22 August 2026**, by reading the code (`grep` across `packages/
 | **26** | One MariaDB per universe | 🟡 | Isolation respected wherever MariaDB is used (Helm). The **queue** persists to JSONL on a volume, not to a database: `storageAdapter` is planned, no adapter written. |
 | **27** | Convergence guard + escalation channel | ⬜ | No reconciliation engine, therefore no `observed-state.json` and no `DEGRADED`. |
 | **28** | WAF validated against an attack corpus | ⬜ | No WAF. Moot until the web chain exists. |
-| **Pipeline** | Document understanding (brick-pipeline) | ⬜ | Fully a target. Today extraction lives in `packages/rag` and runs **inside the GED container**, synchronously: measured, a 20 MB file freezes that container for 4.3 s. PDF extraction is genuinely solved (per-font ToUnicode); OCR, vision, deskewing, legibility, type recognition and multiplexing all remain to be built. |
+| **Pipeline** | Document understanding (brick-pipeline) | ⬜ | Fully a target. Today extraction lives in `packages/pkg-rag` and runs **inside the GED container**, synchronously: measured, a 20 MB file freezes that container for 4.3 s. PDF extraction is genuinely solved (per-font ToUnicode); OCR, vision, deskewing, legibility, type recognition and multiplexing all remain to be built. |
 | **32-33** | Founding method: a perfect base before specialisation, fractal client fork | ✅ | Method rules, applied rather than "implemented". Writing the doctrine before the code is that method in action. |
 | **29** | Constructive integrity | ✅ | Respected: recent fixes (auth, deployment) arrived with their tests. |
 | **30** | Snapshot before migration | ⬜ | No fleet migration to date. The rule is waiting for its first case. |

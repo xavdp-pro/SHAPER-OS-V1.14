@@ -6,7 +6,7 @@
     "description": "Canonical declarative dependency topology for SHAPER OS packages and infrastructure bricks."
   },
   "nodes": {
-    "@shaper/logger": {
+    "@shaper/pkg-logger": {
       "kind": "package",
       "brick": "brick-logger",
       "service": "logger",
@@ -21,7 +21,7 @@
         ]
       }
     },
-    "@shaper/vault": {
+    "@shaper/pkg-vault": {
       "kind": "package",
       "brick": "brick-vault",
       "service": "vault",
@@ -36,7 +36,7 @@
         ]
       }
     },
-    "@shaper/queue": {
+    "@shaper/pkg-queue": {
       "kind": "package",
       "brick": "brick-queue",
       "service": "queue",
@@ -50,16 +50,16 @@
         ]
       }
     },
-    "@shaper/maestro": {
+    "@shaper/pkg-maestro": {
       "kind": "package",
       "brick": "brick-maestro",
       "service": "maestro",
       "port": 8530,
-      "requires": ["@shaper/logger"],
-      "optionalRequires": ["@shaper/vault"],
+      "requires": ["@shaper/pkg-logger"],
+      "optionalRequires": ["@shaper/pkg-vault"],
       "provides": ["beat-scheduler", "pod-registry", "maestro-rest-api"],
       "imports": {
-        "@shaper/logger": "../logger/index.js"
+        "@shaper/pkg-logger": "../pkg-logger/index.js"
       },
       "deploy": {
         "workingDir": "/apps/maestro",
@@ -99,8 +99,8 @@
     }
   },
   "startupTiers": [
-    ["@shaper/logger", "@shaper/vault", "brick-mariadb", "brick-qdrant"],
-    ["@shaper/queue"],
-    ["@shaper/maestro"]
+    ["@shaper/pkg-logger", "@shaper/pkg-vault", "brick-mariadb", "brick-qdrant"],
+    ["@shaper/pkg-queue"],
+    ["@shaper/pkg-maestro"]
   ]
 }

@@ -25,7 +25,7 @@ Public **Shaper OS** demonstration universe: a live operator cockpit visitors ca
 | `INTENT.md` | This file — law for the universe |
 | `manifest.json` | Brick graph (vault → logger → bridge → queue → maestro → helm) |
 | `AGENT-DEPLOY.md` | What the deploy agent may do |
-| `context/AGENT-CONTEXT.md` | Runtime context for the demo agent |
+| `context/ctx-universe.md` | Runtime context for the demo agent |
 | `scripts/nightly-restore.sh` | 02:00 restore procedure (DB + volatile state) |
 | `deploy/univ-demo.env.example` | Env template (no secrets) |
 

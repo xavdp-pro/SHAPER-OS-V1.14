@@ -137,7 +137,7 @@ L'orbe central est le composant maître de l'interface. Il remplit un double rô
                  ▼                          ▼
      ┌────────────────────────┐ ┌────────────────────────┐
      │  MINI-GED EXPLORER     │ │   QUEUE ASYNCHRONE     │
-     │      (/ged)            │ │   (@shaper/queue)      │
+     │      (/ged)            │ │   (@shaper/pkg-queue)      │
      ├────────────────────────┤ ├────────────────────────┤
      │ • Consultation directe │ │ • Tâches de fond       │
      │ • Accès aux rapports   │ │ • Délégation au Maker  │
@@ -146,7 +146,7 @@ L'orbe central est le composant maître de l'interface. Il remplit un double rô
 ```
 
 1. **Accès Direct à la Mini-GED** : Bouton d'accès direct dans le header vers `/ged` pour consulter instantanément les pièces jointes, factures et documents du système.
-2. **Délégation de Tâches Asynchrones** : Lorsque l'utilisateur formule un ordre nécessitant un travail de fond (ex: "Génère le bilan financier complet du mois"), Zephir confirme oralement la prise en charge et délègue l'exécution à `@shaper/queue` sans bloquer la voix.
+2. **Délégation de Tâches Asynchrones** : Lorsque l'utilisateur formule un ordre nécessitant un travail de fond (ex: "Génère le bilan financier complet du mois"), Zephir confirme oralement la prise en charge et délègue l'exécution à `@shaper/pkg-queue` sans bloquer la voix.
 3. **Évolution Future (RAG & Reborn Partagé)** : Connexion au cluster vectoriel Qdrant (`univ9-qdrant`) pour injecter en temps réel le contexte documentaire pertinent dans le prompt de Zephir.
 
 ---

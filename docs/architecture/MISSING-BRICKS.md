@@ -25,8 +25,8 @@
     │ 🟢 LIVE IN CORE / REPO                                                                          │
     │   • brick-vault (:8610)        • brick-logger (:8620)           • brick-queue (:8640)           │
     │   • brick-maestro (:8630)      • brick-bridge-* (:4440)         • brick-helm (:8650)            │
-    │   • brick-ged (:8760)          • brick-qdrant (:6333)           • @shaper/rag (in-process)      │
-    │   • @shaper/supervisor (R23)   • brick-mariadb (:3306)          • @shaper/auth (in-process)     │
+    │   • brick-ged (:8760)          • brick-qdrant (:6333)           • @shaper/pkg-rag (in-process)      │
+    │   • @shaper/pkg-supervisor (R23)   • brick-mariadb (:3306)          • @shaper/pkg-auth (in-process)     │
     └─────────────────────────────────────────────────────────────────────────────────────────────────┘
                                                        │
                                                        ▼
@@ -166,7 +166,7 @@
 * **Port:** `:8655`.
 * **Role:** Standalone container maintaining continuous `IMAP IDLE` connections to business mailboxes (e.g. `invoices@company.com`, `support@company.com`). Extracts MIME parts, saves attachments to CAS storage in `brick-ged`, and injects tasks into `brick-queue`.
 * **Cognition:** `D1` (MIME parsing & header normalization).
-* **Status:** `PARTIAL` (`@shaper/mail-agent` exists in-process; needs standalone daemon packaging).
+* **Status:** `PARTIAL` (`@shaper/pkg-mail-agent` exists in-process; needs standalone daemon packaging).
 
 ---
 
@@ -270,7 +270,7 @@
 ## 🛠️ Implementation Contract for AI Agents
 
 When an AI agent is instructed to build one of these target bricks:
-1. **Never fork core libraries:** Consume `@shaper/vault`, `@shaper/logger`, and `@shaper/queue` as standard dependencies.
+1. **Never fork core libraries:** Consume `@shaper/pkg-vault`, `@shaper/pkg-logger`, and `@shaper/pkg-queue` as standard dependencies.
 2. **One Container, One Intent:** Package the brick as an autonomous OCI container under `software/bricks/<brick-name>/`.
 3. **Declare Cognition:** Write required reasoning depth, throughput, and degradation policy in the brick's `INTENT.md` (see [`COGNITION.md`](./COGNITION.md)).
 4. **Ship Non-Regression Tests:** Every brick must ship with 100% passing unit and contract tests before being referenced in any manifest.

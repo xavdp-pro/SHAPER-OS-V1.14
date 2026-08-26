@@ -74,11 +74,11 @@ Pour exécuter les ordres de création de conteneurs, le serveur Hôte possède 
 
 | Brique SHAPER | Rôle dans l'Hôte Spawner |
 | :--- | :--- |
-| **`@shaper/queue`** | Ordonnance les créations et destructions de boutiques dans une file priorisée avec gestion de charge. |
-| **`@shaper/logger`** | Enregistre chaque événement d'infrastructure dans un journal immuable JSONL (`log/events.jsonl`). |
-| **`@shaper/maestro`** | Chef d'orchestre local qui dépile la Queue, exécute les scripts Podman et vérifie la conformité. |
-| **`@shaper/vault`** | Chiffre et isole les clés API Cloudflare, les mots de passe MariaDB et les certificats de licence. |
-| **`@shaper/supervisor`** | Surveille l'utilisation RAM, CPU et disque de l'ensemble de la flotte de conteneurs. |
+| **`@shaper/pkg-queue`** | Ordonnance les créations et destructions de boutiques dans une file priorisée avec gestion de charge. |
+| **`@shaper/pkg-logger`** | Enregistre chaque événement d'infrastructure dans un journal immuable JSONL (`log/events.jsonl`). |
+| **`@shaper/pkg-maestro`** | Chef d'orchestre local qui dépile la Queue, exécute les scripts Podman et vérifie la conformité. |
+| **`@shaper/pkg-vault`** | Chiffre et isole les clés API Cloudflare, les mots de passe MariaDB et les certificats de licence. |
+| **`@shaper/pkg-supervisor`** | Surveille l'utilisation RAM, CPU et disque de l'ensemble de la flotte de conteneurs. |
 
 ---
 

@@ -8,9 +8,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { QdrantRagEngine } from '../../packages/rag/index.js';
-import { extractTextFromFile as extractNative } from '../../packages/rag/lib/extractor.js';
-import { getTransformerPipeline } from '../../packages/rag/lib/embedder.js';
+import { QdrantRagEngine } from '../../packages/pkg-rag/index.js';
+import { extractTextFromFile as extractNative } from '../../packages/pkg-rag/lib/extractor.js';
+import { getTransformerPipeline } from '../../packages/pkg-rag/lib/embedder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -230,8 +230,8 @@ async function main() {
   // Production-shaped upsert: chunk + embed + file_id payload (same shape as
   // QdrantRagEngine.indexDocument). Text comes from the pipeline, not the host
   // RAG extractor — that is the whole point of this protocol.
-  const { chunkText } = await import('../../packages/rag/lib/chunker.js');
-  const { generateEmbedding } = await import('../../packages/rag/lib/embedder.js');
+  const { chunkText } = await import('../../packages/pkg-rag/lib/chunker.js');
+  const { generateEmbedding } = await import('../../packages/pkg-rag/lib/embedder.js');
   const crypto = await import('node:crypto');
   for (const fx of manifest.fixtures) {
     if (!fx._pipelineText || !String(fx._pipelineText).trim()) {

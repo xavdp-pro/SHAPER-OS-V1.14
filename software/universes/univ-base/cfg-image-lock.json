@@ -1,0 +1,12 @@
+{
+  "status": "release-required",
+  "rule": "A TEST or PROD deployment replaces every null with an immutable img-* OCI digest. latest is forbidden.",
+  "images": {
+    "img-vault": null,
+    "img-logger": null,
+    "img-queue": null,
+    "img-maestro": null,
+    "img-agent-runtime": null,
+    "img-bridge-opencode": null
+  }
+}

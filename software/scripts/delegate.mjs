@@ -31,8 +31,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildTaskFrame, AGY_TOOL_RULES } from '../packages/queue/task-frame.js';
-import { interpretAgyVerdict } from '../packages/bridge-agy/agy-verdict.js';
+import { buildTaskFrame, AGY_TOOL_RULES } from '../packages/pkg-queue/task-frame.js';
+import { interpretAgyVerdict } from '../packages/pkg-bridge-agy/agy-verdict.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOFTWARE = path.resolve(HERE, '..');

@@ -9,8 +9,8 @@
 FROM docker.io/library/node:20-bookworm-slim
 
 WORKDIR /app
-COPY packages/logger/ /logger/
-COPY packages/bridge-cursor/ ./
+COPY packages/pkg-logger/ /logger/
+COPY packages/pkg-bridge-cursor/ ./
 
 EXPOSE 4310
 ENV NODE_ENV=production

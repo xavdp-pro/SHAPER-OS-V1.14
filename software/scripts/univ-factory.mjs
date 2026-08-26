@@ -121,7 +121,7 @@ function createUniverse(options) {
   };
   fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify(packageJson, null, 2) + '\n');
 
-  // 3. Write AGENT-CONTEXT.md
+  // 3. Write ctx-universe.md
   const agentContext = `# AGENT LIVING CONTEXT — ${univDirName.toUpperCase()}
 
 ## 1. Identity & Mission
@@ -136,7 +136,7 @@ function createUniverse(options) {
 3. Log all decisions into structured append-only JSONL via \`@shaper/event-logger\`.
 4. Keep token usage strictly bounded by deterministic idempotence checkpoints.
 `;
-  fs.writeFileSync(path.join(targetDir, 'AGENT-CONTEXT.md'), agentContext);
+  fs.writeFileSync(path.join(targetDir, 'ctx-universe.md'), agentContext);
 
   // 4. Write Plugins
   const iconMap = {

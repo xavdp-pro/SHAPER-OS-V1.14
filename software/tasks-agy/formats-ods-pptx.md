@@ -1,11 +1,11 @@
-perimeter: software/packages/rag
+perimeter: software/packages/pkg-rag
 goal: the .ods and .pptx extractor branches are proven by tests, or fixed if broken
 
 # Task — test the ODS and PPTX branches
 
 ## Situation
 
-`packages/rag/lib/extractor.js` received an office document branch supporting six formats:
+`packages/pkg-rag/lib/extractor.js` received an office document branch supporting six formats:
 `.odt`, `.ods`, `.odp`, `.docx`, `.xlsx`, `.pptx`.
 
 **Four are proven** with real files: ODT (40 documents), DOCX (1), XLSX (3).
@@ -32,5 +32,5 @@ Code that has never been run is code assumed to be broken.
 
 ## Done when
 
-`node --test packages/rag/test/*.test.js` passes green with at least two new tests
+`node --test packages/pkg-rag/test/*.test.js` passes green with at least two new tests
 covering ODS and PPTX, and no binary files added to the repository.

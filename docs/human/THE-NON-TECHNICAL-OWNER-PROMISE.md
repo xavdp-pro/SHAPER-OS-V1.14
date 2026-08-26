@@ -13,7 +13,7 @@ A business owner running a retail shop, a service agency, an association, or an 
 > *"Sur ma page stats, je veux voir le graphique interactif des ventes de nos canapés (Oslo, Helsinki, Stockholm) du dernier trimestre avec la marge brute."*
 >
 > **What the Autonomous Agent Does:**
-> 1. **Understands Universe Context:** Reads `AGENT-CONTEXT.md`, knows the catalog, data schema, and workspace layout (`/apps/stats/`).
+> 1. **Understands Universe Context:** Reads `ctx-universe.md`, knows the catalog, data schema, and workspace layout (`/apps/stats/`).
 > 2. **Vibe Codes & Assembles:** Generates the clean, responsive HTML/JS/CSS deliverable with interactive visualization (e.g., Chart.js / SVG).
 > 3. **Tests Before Delivery:** Automatically validates the deliverable (checks syntax, loads data, verifies rendering).
 > 4. **Delivers with a Smile:** Responds with the exact clickable URL (e.g., `http://127.0.0.1:8650/apps/stats/canapes-q1.html`).
@@ -47,11 +47,11 @@ To guarantee that this promise never breaks, the codebase enforces an automated 
 
 ### Tier 1 — Atomic Brick Verification (100% Deterministic)
 Every foundational building block must pass isolated unit tests with zero mock leaks:
-- **Vault Engine (`@shaper/vault-engine`)**: AES-256-GCM encryption/decryption, tamper resistance, disk persistence, Bearer token authentication.
-- **Audit Logger (`@shaper/logger`)**: JSONL event formatting, obligatory field validation, non-blocking ingestion.
-- **Job Queue (`@shaper/queue`)**: Task registration, worker dispatch, auto-recovery on crash, state transitions (`pending` → `running` → `completed` / `failed`).
-- **Maestro Scheduler (`@shaper/maestro`)**: Cron cadence, heartbeat beats, task registry by slug/id.
-- **GED Engine (`@shaper/ged-engine`)**: Multi-format document categorization, metadata provenance, chunking (overlap window), 384-dimensional vector embedding.
+- **Vault Engine (`@shaper/pkg-vault-engine`)**: AES-256-GCM encryption/decryption, tamper resistance, disk persistence, Bearer token authentication.
+- **Audit Logger (`@shaper/pkg-logger`)**: JSONL event formatting, obligatory field validation, non-blocking ingestion.
+- **Job Queue (`@shaper/pkg-queue`)**: Task registration, worker dispatch, auto-recovery on crash, state transitions (`pending` → `running` → `completed` / `failed`).
+- **Maestro Scheduler (`@shaper/pkg-maestro`)**: Cron cadence, heartbeat beats, task registry by slug/id.
+- **GED Engine (`@shaper/pkg-ged-engine`)**: Multi-format document categorization, metadata provenance, chunking (overlap window), 384-dimensional vector embedding.
 
 ### Tier 2 — Inter-Brick Synergy & Pipeline Validation
 Validates that services collaborate flawlessly over HTTP/SSE:

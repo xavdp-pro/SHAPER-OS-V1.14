@@ -1,8 +1,8 @@
 FROM docker.io/library/node:20-alpine
 
 WORKDIR /app
-COPY packages/logger/ /logger/
-COPY packages/bridge-deepseek/ ./
+COPY packages/pkg-logger/ /logger/
+COPY packages/pkg-bridge-deepseek/ ./
 
 EXPOSE 4350
 ENV NODE_ENV=production

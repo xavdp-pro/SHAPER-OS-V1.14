@@ -36,7 +36,7 @@ These four concepts are distinct facets of the same universal truth:
 * **Mechanism**: High-signal input yields high-accuracy output. Less noise equals zero hallucinations, prompt-caching efficiency, and zero token waste at rest.
 
 ### Pillar 4: Living Fractal Intent (La Spécification Vivante Fractale)
-* **Definition**: Documentation that lives as active, composable context (`AGENT-CONTEXT.md`, `RULES.md`, LEGO `@shaper/*` engines) rather than dead manuals.
+* **Definition**: Documentation that lives as active, composable context (`ctx-universe.md`, `RULES.md`, LEGO `@shaper/*` engines) rather than dead manuals.
 * **Mechanism**: Small, atomic bricks assembled like fractals to build enterprise ERPs, CRMs, voice AI engines, or legal universes in minutes.
 
 ---

@@ -12,7 +12,7 @@
 | **INTENT.md** | What / why + 4–6 rules that must not be broken. |
 | **manifest.json** | Which bricks this universe uses and in what boot order. |
 | **AGENT-DEPLOY.md** | What the **install** agent may do. |
-| **AGENT-CONTEXT.md** | Rules for the **runtime** agent. Not used at install time. |
+| **ctx-universe.md** | Rules for the **runtime** agent. Not used at install time. |
 | **Vault / logger / queue / Maestro / bridge** | Secrets, audit, jobs, scheduler, AI CLI HTTP front. |
 | **Helm / `/console`** | Optional operator web UI. |
 | **DEV / TEST / PROD** | Explore / rebuild-from-zero-then-destroy / tagged live system. |

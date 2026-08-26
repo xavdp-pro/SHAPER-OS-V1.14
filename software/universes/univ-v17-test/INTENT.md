@@ -23,7 +23,7 @@ Prove that an autonomous deploy agent can materialize the V1.7 Tier-A universe f
 | `INTENT.md` | Specific law for this TEST universe |
 | `manifest.json` | Machine-readable brick graph and specialization |
 | `AGENT-DEPLOY.md` | Autonomous deploy-agent contract |
-| `context/AGENT-CONTEXT.md` | Runtime-agent context at beat time |
+| `context/ctx-universe.md` | Runtime-agent context at beat time |
 | `deploy/env.example` | Non-secret environment contract |
 
 The deploy agent reads files in this order: **INTENT → PERIMETERS → manifest → AGENT-DEPLOY → topology → brick INTENT files**.

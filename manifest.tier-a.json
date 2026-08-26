@@ -12,7 +12,7 @@
     "vault": {
       "ref": "./software/bricks/brick-vault",
       "intent": "./software/bricks/brick-vault/INTENT.md",
-      "package": "@shaper/vault",
+      "package": "@shaper/pkg-vault",
       "role": "Sovereign secret store",
       "specialize": {
         "how": "Agent generates master key → npm run vault:bootstrap",
@@ -30,7 +30,7 @@
     "logger": {
       "ref": "./software/bricks/brick-logger",
       "intent": "./software/bricks/brick-logger/INTENT.md",
-      "package": "@shaper/logger",
+      "package": "@shaper/pkg-logger",
       "role": "JSONL audit",
       "specialize": {
         "how": "Volume ./log"
@@ -46,7 +46,7 @@
     "bridge-opencode": {
       "ref": "./software/bricks/brick-bridge-opencode",
       "intent": "./software/bricks/brick-bridge-opencode/INTENT.md",
-      "package": "@shaper/bridge-opencode",
+      "package": "@shaper/pkg-bridge-opencode",
       "role": "Free OpenCode AI bridge",
       "specialize": {
         "how": "Default model opencode/*-free"
@@ -63,7 +63,7 @@
     "queue": {
       "ref": "./software/bricks/brick-queue",
       "intent": "./software/bricks/brick-queue/INTENT.md",
-      "package": "@shaper/queue",
+      "package": "@shaper/pkg-queue",
       "role": "Async jobs → bridge",
       "specialize": {
         "how": "Auto-dispatch to bridge-opencode"
@@ -79,11 +79,11 @@
     "maestro": {
       "ref": "./software/bricks/brick-maestro",
       "intent": "./software/bricks/brick-maestro/INTENT.md",
-      "package": "@shaper/maestro",
+      "package": "@shaper/pkg-maestro",
       "role": "Beat scheduler",
       "specialize": {
-        "how": "MAESTRO_TASKS_FILE → ./tasks/maestro-tasks.json",
-        "file": "./tasks/maestro-tasks.json"
+        "how": "MAESTRO_TASKS_FILE → ./tasks/task-schedule.json",
+        "file": "./tasks/task-schedule.json"
       },
       "cognition": {
         "role": "neutral",

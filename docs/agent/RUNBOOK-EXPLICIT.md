@@ -88,7 +88,7 @@ and its four to six invariants, and only then run the commands below.
 # 4.0 — the intention, first
 mkdir -p <univ_slug>-dev/context
 cp software/universes/_template/INTENT.md          <univ_slug>-dev/INTENT.md
-cp software/universes/_template/context/AGENT-CONTEXT.md <univ_slug>-dev/context/AGENT-CONTEXT.md
+cp software/universes/_template/context/ctx-universe.md <univ_slug>-dev/context/ctx-universe.md
 # then edit both: a template left with its placeholders is an unfinished universe
 
 # 4.1 — from the repository root
@@ -108,7 +108,7 @@ cd ..
 mkdir -p <univ_slug>-dev/deploy <univ_slug>-dev/tasks
 cp manifest.tier-a.json          <univ_slug>-dev/manifest.json
 cp examples/deploy/podman-up.sh  <univ_slug>-dev/deploy/podman-up.sh
-cp examples/tasks/maestro-tasks.json <univ_slug>-dev/tasks/maestro-tasks.json
+cp examples/tasks/task-schedule.json <univ_slug>-dev/tasks/task-schedule.json
 
 # 4.4 — start it, then prove the stack is up
 bash <univ_slug>-dev/deploy/podman-up.sh     # health must exit 0
@@ -165,7 +165,7 @@ node scripts/test-e2e-business-flow.mjs    # MUST be 100% green
 A green `/api/health` proves the stack is up. It does **not** prove a job ran.
 
 **Submitting the job.** The queue accepts one job type for agent work, and its
-shape is declared in [`../../software/packages/queue/INTENT.md`](../../software/packages/queue/INTENT.md).
+shape is declared in [`../../software/packages/pkg-queue/INTENT.md`](../../software/packages/pkg-queue/INTENT.md).
 It is written here too, because a tester looked for it in the live tests, did not
 find it, and had to read `worker.js` to work it out:
 

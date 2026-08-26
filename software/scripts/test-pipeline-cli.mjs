@@ -14,11 +14,11 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const { analyzeFile } = await import(path.join(HERE, '../packages/ged-engine/lib/analyze.js'));
+const { analyzeFile } = await import(path.join(HERE, '../packages/pkg-ged-engine/lib/analyze.js'));
 // analyzeFile only returns a preview truncated to 1200 characters: comparing
 // identifiers against that generates false missing-token warnings.
 // Comparison is performed on the FULL text via the extractor.
-const { extractTextFromFile } = await import(path.join(HERE, '../packages/rag/lib/extractor.js'));
+const { extractTextFromFile } = await import(path.join(HERE, '../packages/pkg-rag/lib/extractor.js'));
 
 const args = process.argv.slice(2);
 const target = args.find(a => !a.startsWith('--'));

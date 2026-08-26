@@ -1,7 +1,7 @@
 # Brick: Maestro
 
 > **Intent Classification**: GENERIC INTENT (Universal / Parameterized Blueprint)  
-> **Package**: `@shaper/maestro`
+> **Package**: `@shaper/pkg-maestro`
 
 ## 1. Declarative Objective
 

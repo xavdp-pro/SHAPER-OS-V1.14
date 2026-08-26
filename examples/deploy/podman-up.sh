@@ -166,7 +166,7 @@ podman run -d --name "${SLUG}-queue" --network "$NET" --replace \
   -v "$UNIV/sav/queue:/sav/queue:Z" \
   localhost/shaper-queue:latest
 
-TASKS_FILE="/data/univ/tasks/maestro-tasks.json"
+TASKS_FILE="/data/univ/tasks/task-schedule.json"
 if [[ -f "$UNIV/tasks/maestro-tasks.podman.json" ]]; then
   TASKS_FILE="/data/univ/tasks/maestro-tasks.podman.json"
 fi

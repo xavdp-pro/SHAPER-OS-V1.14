@@ -1,7 +1,7 @@
 # Brick: Bridge AGY
 
 > **Intent Classification**: GENERIC INTENT (Universal / Parameterized Blueprint)  
-> **Package**: `@shaper/bridge-agy`
+> **Package**: `@shaper/pkg-bridge-agy`
 
 ## 1. Declarative Objective
 

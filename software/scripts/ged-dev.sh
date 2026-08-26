@@ -28,8 +28,8 @@ exec podman run --rm --name "$NAME" --network host \
   -e GED_PORT="$PORT" \
   -e GED_DATA_DIR=/data/ged \
   -e NODE_ENV=development \
-  -v "$SOFTWARE/packages/ged-engine:/app/packages/ged-engine:ro,Z" \
-  -v "$SOFTWARE/packages/rag:/app/packages/rag:ro,Z" \
+  -v "$SOFTWARE/packages/pkg-ged-engine:/app/packages/pkg-ged-engine:ro,Z" \
+  -v "$SOFTWARE/packages/pkg-rag:/app/packages/pkg-rag:ro,Z" \
   -v "$DATA_DIR:/data/ged:Z" \
   localhost/shaper-ged:latest \
   node server.js

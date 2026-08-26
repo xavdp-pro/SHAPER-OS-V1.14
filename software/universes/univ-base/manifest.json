@@ -1,0 +1,21 @@
+{
+  "$schema": "../../schemas/universe-manifest.schema.json",
+  "universe": "univ-base",
+  "environment": "dev",
+  "profile": "agent",
+  "description": "Canonical V1.10 generic base reference; no catalogue or client capability.",
+  "intent": "./INTENT.md",
+  "bricks": {
+    "vault": { "brick": "brick-vault", "package": "@shaper/pkg-vault", "image": "img-vault", "role": "Secrets" },
+    "logger": { "brick": "brick-logger", "package": "@shaper/pkg-logger", "image": "img-logger", "role": "Audit evidence" },
+    "queue": { "brick": "brick-queue", "package": "@shaper/pkg-queue", "image": "img-queue", "role": "Persistent work ledger" },
+    "maestro": { "brick": "brick-maestro", "package": "@shaper/pkg-maestro", "image": "img-maestro", "role": "Task cadence" },
+    "agent-runtime": { "brick": "brick-agent-runtime", "package": "@shaper/pkg-agent-runtime", "image": "img-agent-runtime", "role": "Generic task dispatch" },
+    "bridge-opencode": { "brick": "brick-bridge-opencode", "package": "@shaper/pkg-bridge-opencode", "image": "img-bridge-opencode", "role": "Selected AI execution bridge" }
+  },
+  "bootOrder": [["vault", "logger"], ["queue"], ["maestro", "agent-runtime"], ["bridge-opencode"]],
+  "configuration": "./cfg-univ-base.env.example",
+  "context": "./ctx-base.md",
+  "tasks": "./task-schedule.json",
+  "imageLock": "./cfg-image-lock.json"
+}

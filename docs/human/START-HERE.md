@@ -31,7 +31,7 @@ This first install is a **DEV** universe: on demand, allowed to break. It is not
 Everything is in **this repository**. Clone once ([`REPOS.md`](./REPOS.md)).
 
 ```
-SHAPER-OS-V1.9/          ← repo root — every command below runs from here
+SHAPER-OS-V1.10/          ← repo root — every command below runs from here
 ├── README.md            ← the human door
 ├── AGENTS.md            ← the agent door
 ├── LAW.md               ← what is never skipped
@@ -93,7 +93,7 @@ Tunnel token → `<univ_slug>-dev/sav/tunnel/token` (not git).
 ## Install order
 
 **Stop if a step fails.** Do not reorder. Do not skip a green check.  
-[`LAW.md`](../../LAW.md) · agent detail: [`AGENTS.md`](../../AGENTS.md) and [`docs/agent/BOOT-CONTRACT.md`](../agent/BOOT-CONTRACT.md).
+[`LAW.md`](../../LAW.md) · agent detail: [`AGENTS.md`](../../AGENTS.md) and [`docs/agent/BOOT-CONTRACT.md`](../pkg-agent-runtime/BOOT-CONTRACT.md).
 
 1. Clone this repo ([`REPOS.md`](./REPOS.md)). Node **≥ 20** (`software/package.json` `engines`).
 2. Copy `.env.example` → `software/.env`. Agent writes `VAULT_MASTER_KEY` and `VAULT_TOKEN`. Human pastes Deepgram/Groq only if `WITH_HELM=1`. **No default keys in scripts.**
@@ -115,7 +115,7 @@ Tunnel token → `<univ_slug>-dev/sav/tunnel/token` (not git).
    - Copy [`manifest.tier-a.json`](../../manifest.tier-a.json) → `<univ_slug>-dev/manifest.json`
    - Copy [`examples/universe-AGENT-DEPLOY.md`](../../examples/universe-AGENT-DEPLOY.md) → `AGENT-DEPLOY.md`; lifecycle = **dev**
    - Copy [`examples/deploy/podman-up.sh`](../../examples/deploy/podman-up.sh) → `<univ_slug>-dev/deploy/podman-up.sh`
-   - Tier-b later: the `agent +web +public` manifest, in the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.9) catalogue and `WITH_HELM=1`
+   - Tier-b later: the `agent +web +public` manifest, in the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.10) catalogue and `WITH_HELM=1`
 7. Start (from repo root):
 
    ```bash

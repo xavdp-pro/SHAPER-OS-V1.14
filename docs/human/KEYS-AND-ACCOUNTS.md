@@ -99,7 +99,7 @@ Copy-paste intent for your agent: [`examples/agent-KEY-COLLECTION-INTENT.md`](..
 
 ## Stripe, mail, CRM keys (later — perimeter 3)
 
-Business integrations (Stripe, IMAP, Supabase, etc.) belong in **your universe** vault entries and `AGENT-CONTEXT.md`, not in the foundation install. Your agent adds them when you shape ERP, shop, or CRM — see [`CONCEPTS.md`](./CONCEPTS.md) §2 (perimeter 3).
+Business integrations (Stripe, IMAP, Supabase, etc.) belong in **your universe** vault entries and `ctx-universe.md`, not in the foundation install. Your agent adds them when you shape ERP, shop, or CRM — see [`CONCEPTS.md`](./CONCEPTS.md) §2 (perimeter 3).
 
 ---
 
@@ -133,4 +133,4 @@ What the agent needs from you, and where it goes:
 An agent that cannot find these **halts and asks you**. It does not invent a
 name, and it does not reuse one it found in the repository — there are none to
 find, and a guard test fails the build if one ever appears
-(`software/packages/wp-dns-convention/test/domain-agnostic.test.js`).
+(`software/packages/pkg-wp-dns-convention/test/domain-agnostic.test.js`).

@@ -84,7 +84,7 @@ and *find*. It never grants permission.
 ## 3. Where you are
 
 ```
-SHAPER-OS-V1.9/
+SHAPER-OS-V1.10/
 ├── README.md                ← human door (5 levels)
 ├── AGENTS.md                ← you are here: agent door
 ├── LAW.md                   ← what is never skipped, one page
@@ -109,6 +109,12 @@ Before adding a package or brick, read
 [`docs/architecture/ARTIFACT-BOUNDARY.md`](./docs/architecture/ARTIFACT-BOUNDARY.md).
 It decides whether the behaviour belongs in SHAPER OS or in the catalogue, and
 how a declared dependency becomes physical only inside an OCI image.
+
+Before creating or changing an `univ-*`, read
+[`docs/agent/UNIVERSE-DESIGN-QUESTIONS.md`](./docs/agent/UNIVERSE-DESIGN-QUESTIONS.md)
+and [`docs/architecture/NAMING.md`](./docs/architecture/NAMING.md). Answer every
+question from repository evidence. If an answer is absent or contradictory,
+stop and report it; do not invent architecture.
 
 ---
 

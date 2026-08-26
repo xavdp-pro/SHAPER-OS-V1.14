@@ -1,7 +1,7 @@
 # Brick: Auth
 
 > **Intent Classification**: GENERIC INTENT (Universal / Parameterized Blueprint)  
-> **Package**: `@shaper/auth`
+> **Package**: `@shaper/pkg-auth`
 
 ## 1. Declarative Objective
 

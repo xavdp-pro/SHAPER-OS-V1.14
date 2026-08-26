@@ -13,7 +13,7 @@ Materialize and prove this universe using **generic bricks** in `software/`. Do 
 3. Build brick images: `bash software/scripts/build-all-bricks.sh`
 4. Run `npm test` then `npm run test:live` after stack is up (tier-b: + `test:live:helm`)
 5. Copy `examples/deploy/podman-up.sh` from repo root — specialize env only
-6. Ensure `tasks/maestro-tasks.json` exists (`MAIL_AGENT_STUB=1` in DEV)
+6. Ensure `tasks/task-schedule.json` exists (`MAIL_AGENT_STUB=1` in DEV)
 
 ## Forbidden
 

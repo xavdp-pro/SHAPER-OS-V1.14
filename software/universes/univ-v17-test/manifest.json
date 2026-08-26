@@ -23,7 +23,7 @@
     "vault": {
       "ref": "../../bricks/brick-vault",
       "intent": "../../bricks/brick-vault/INTENT.md",
-      "package": "@shaper/vault",
+      "package": "@shaper/pkg-vault",
       "role": "Encrypted test-only secret store",
       "specialize": {
         "how": "Generate a TEST master key locally and bootstrap inside the immutable Vault image",
@@ -33,14 +33,14 @@
     "logger": {
       "ref": "../../bricks/brick-logger",
       "intent": "../../bricks/brick-logger/INTENT.md",
-      "package": "@shaper/logger",
+      "package": "@shaper/pkg-logger",
       "role": "Persistent JSONL proof and audit trail",
       "specialize": { "how": "Bind universe-owned ./log" }
     },
     "bridge-opencode": {
       "ref": "../../bricks/brick-bridge-opencode",
       "intent": "../../bricks/brick-bridge-opencode/INTENT.md",
-      "package": "@shaper/bridge-opencode",
+      "package": "@shaper/pkg-bridge-opencode",
       "role": "Real free-model agent runtime",
       "specialize": {
         "how": "Discover available OpenCode free models at deploy time, ping the selected model, persist OPENCODE_MODEL, and keep BRIDGE_OPENCODE_STUB=0"
@@ -49,18 +49,18 @@
     "queue": {
       "ref": "../../bricks/brick-queue",
       "intent": "../../bricks/brick-queue/INTENT.md",
-      "package": "@shaper/queue",
+      "package": "@shaper/pkg-queue",
       "role": "Persistent asynchronous unit-of-work ledger",
       "specialize": { "how": "Auto-dispatch to bridge-opencode with one TEST lane" }
     },
     "maestro": {
       "ref": "../../bricks/brick-maestro",
       "intent": "../../bricks/brick-maestro/INTENT.md",
-      "package": "@shaper/maestro",
+      "package": "@shaper/pkg-maestro",
       "role": "TEST heartbeat scheduler",
       "specialize": {
         "how": "Use TEST-only local task configuration and route beats through the queue",
-        "file": "./tasks/maestro-tasks.json"
+        "file": "./tasks/task-schedule.json"
       }
     }
   },
@@ -78,8 +78,8 @@
     },
     "imageTag": "v1.7.1-<git-short-sha>",
     "vaultBootstrap": "../../resources/vault-resources.local.json",
-    "maestroTasks": "./tasks/maestro-tasks.json",
-    "agentContext": "./context/AGENT-CONTEXT.md",
+    "maestroTasks": "./tasks/task-schedule.json",
+    "agentContext": "./context/ctx-universe.md",
     "evidence": "./proof/"
   },
   "bootOrder": [

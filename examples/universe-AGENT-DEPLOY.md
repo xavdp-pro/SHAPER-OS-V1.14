@@ -14,7 +14,7 @@ Materialize this universe from generic `software/` bricks in the V1.6 monorepo. 
 3. Build images listed in the manifest (`prod`: tagged images only)
 4. Copy `examples/deploy/podman-up.sh` — do not invent a parallel architecture
 5. Use `manifest.tier-a.json` from repo root as `manifest.json`
-6. Copy `examples/tasks/maestro-tasks.json` and `software/resources/vault-resources.dev.example.json` for DEV
+6. Copy `examples/tasks/task-schedule.json` and `software/resources/vault-resources.dev.example.json` for DEV
 7. Optional: `examples/universe.env.example` → `<univ_slug>-dev/deploy/env`
 8. Start the stack and curl health endpoints
 9. If `test`: after green tests, **destroy** this universe

@@ -20,6 +20,6 @@
 | `INTENT.md` | This file — law for the universe |
 | `manifest.json` | Machine-readable brick graph + specialize paths |
 | `AGENT-DEPLOY.md` | What the deploy agent may do autonomously |
-| `context/AGENT-CONTEXT.md` | Business context for runtime AI at beat time |
+| `context/ctx-universe.md` | Business context for runtime AI at beat time |
 
 Deploy agent: read files in order **INTENT → manifest → AGENT-DEPLOY**.

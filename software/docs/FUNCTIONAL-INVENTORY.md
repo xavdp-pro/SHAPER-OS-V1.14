@@ -47,7 +47,7 @@
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| Secrets souverains | AES-256-GCM · `@shaper/vault` · `brick-vault` | vivant |
+| Secrets souverains | AES-256-GCM · `@shaper/pkg-vault` · `brick-vault` | vivant |
 | CRUD HTTP | `/api/secrets`, health | vivant |
 | Bootstrap | `npm run vault:bootstrap` | vivant |
 
@@ -55,27 +55,27 @@
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| Audit append-only | JSONL · `@shaper/logger` · `brick-logger` | vivant |
+| Audit append-only | JSONL · `@shaper/pkg-logger` · `brick-logger` | vivant |
 | Ingest / events | `/api/ingest`, `/api/events`, `/api/events/last` | vivant |
 
 ### 1.3 Auth
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| Bearer stateless | `@shaper/auth` · `brick-auth` | vivant |
+| Bearer stateless | `@shaper/pkg-auth` · `brick-auth` | vivant |
 
 ### 1.4 Queue
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| Jobs async opaques | `@shaper/queue` · `brick-queue` · SSE | vivant |
+| Jobs async opaques | `@shaper/pkg-queue` · `brick-queue` · SSE | vivant |
 | Worker agent.inject | `QUEUE_AUTO_DISPATCH` → bridge | vivant |
 
 ### 1.5 DB (Turbinobash)
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| `user = database = slug` | `@shaper/db` · `provision-app-db.sh` | vivant |
+| `user = database = slug` | `@shaper/pkg-db` · `provision-app-db.sh` | vivant |
 | Brick MariaDB | `brick-mariadb` | vivant |
 
 ### 1.6 P1 planifié
@@ -94,14 +94,14 @@
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| Cadence déterministe | `@shaper/maestro` · `brick-maestro` | vivant |
+| Cadence déterministe | `@shaper/pkg-maestro` · `brick-maestro` | vivant |
 | Registre + tick | `/api/pods`, `/api/pods/:slug/tick` | vivant |
 
 ### 2.2 Agent
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| 1 image, N instances | `@shaper/agent` · `brick-agent` · `instance.json` | vivant |
+| 1 image, N instances | `@shaper/pkg-agent-runtime` · `brick-agent-runtime` · `instance.json` | vivant |
 | Beat handler | `createAgentBeatHandler`, probe bridge health | vivant |
 | Bridge-agnostique | agy, opencode, cursor, claude (URL param) | vivant |
 
@@ -109,30 +109,30 @@
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| IMAP vault-only | `@shaper/mail-agent` · checkpoint | vivant |
+| IMAP vault-only | `@shaper/pkg-mail-agent` · checkpoint | vivant |
 
 ### 2.4 Bridges (Rule 8)
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| Antigravity | `@shaper/bridge-agy` · `brick-bridge-agy` | vivant |
-| OpenCode free | `@shaper/bridge-opencode` · `opencode-bridge` | vivant |
+| Antigravity | `@shaper/pkg-bridge-agy` · `brick-bridge-agy` | vivant |
+| OpenCode free | `@shaper/pkg-bridge-opencode` · `opencode-bridge` | vivant |
 | Claude au socle | `@shaper/bridge-claude` | absent (Helm routes seulement) |
 
 ### 2.5 GED organisme
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| Hub docs opérateur | `@shaper/ged-engine` · `brick-ged` · `:8660` | vivant |
+| Hub docs opérateur | `@shaper/pkg-ged-engine` · `brick-ged` · `:8660` | vivant |
 | Stack UNIV8/9 | conteneur ged dans manifest | partiel |
 
 ### 2.6 RAG / Qdrant
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| Index + search | `@shaper/rag` · API Helm `/api/rag/*` | vivant |
+| Index + search | `@shaper/pkg-rag` · API Helm `/api/rag/*` | vivant |
 | Vecteurs | `brick-qdrant` | partiel (pas déployé UNIV8/9) |
-| topology.json | `@shaper/rag` absent de `minimalSocle` | partiel |
+| topology.json | `@shaper/pkg-rag` absent de `minimalSocle` | partiel |
 
 ### 2.7 Codex (planifié P2)
 

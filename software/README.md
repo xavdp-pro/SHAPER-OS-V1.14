@@ -1,4 +1,4 @@
-# SHAPER OS V1.9
+# SHAPER OS V1.10
 
 > **Sovereign, Fractal, and Autonomous Infrastructure for AI Agents**
 
@@ -261,8 +261,8 @@ Shaper OS is installed **with** an IDE agent (Cursor, Claude Code, etc.) — not
 1. **Clone** and open the folder in your IDE:
 
    ```bash
-   git clone https://github.com/xavdp-pro/SHAPER-OS-V1.9.git
-   cd SHAPER-OS-V1.9
+   git clone https://github.com/xavdp-pro/SHAPER-OS-V1.10.git
+   cd SHAPER-OS-V1.10
    ```
 
 2. **Paste this intent** to your agent (full version: [`examples/agent-KEY-COLLECTION-INTENT.md`](../examples/agent-KEY-COLLECTION-INTENT.md)):
@@ -314,7 +314,7 @@ Shaper OS is the **technical floor** you do not rebuild for every project:
 - Encrypted **vault** (API keys, mail, integrations)
 - **Audit log** (who did what, when)
 - **Job queue** + **scheduler** (background work, beats, follow-ups)
-- **AI bridge** wired to **your** business rules (`AGENT-CONTEXT.md`)
+- **AI bridge** wired to **your** business rules (`ctx-universe.md`)
 - Optional **operator console** + voice (`/console`) — for you, not for your end customers
 
 On that floor you — or an IDE agent — **shape the tool you lack today**:
@@ -353,7 +353,7 @@ Client-facing shops and portals stay **your apps** (perimeter 3). The operator c
 ## What’s in this repository
 
 ```
-SHAPER-OS-V1.9/
+SHAPER-OS-V1.10/
 ├── doctrine/                    ← 6 master doctrine documents
 ├── START-HERE.md, LAW.md, …     ← install kit
 ├── software/                    ← packages, bricks, npm test, build scripts
@@ -401,8 +401,8 @@ Same idea: **foundation first, then build on top** — ERP, CRM, shop, associati
 ## Quick start
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.9.git
-cd SHAPER-OS-V1.9
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.10.git
+cd SHAPER-OS-V1.10
 cp .env.example software/.env
 # IDE agent: generate VAULT_MASTER_KEY + VAULT_TOKEN — see START-HERE.md
 cd software && npm run vault:bootstrap && npm test
@@ -432,10 +432,10 @@ That is the core of the [manifest model](./MANIFESTO.md).
 | **`INTENT.md`** | Deploy agent | Objective + 4–6 invariants (security, logging, lifecycle) |
 | **`manifest.json`** | Scripts + deploy agent | Which bricks to wire, boot order, where to specialize (vault file, task JSON, volumes) |
 | **`AGENT-DEPLOY.md`** | Deploy agent | What it may do autonomously on this machine |
-| **`context/AGENT-CONTEXT.md`** | Runtime assistant | Your business rules, tone, workflows — **not** install instructions |
+| **`context/ctx-universe.md`** | Runtime assistant | Your business rules, tone, workflows — **not** install instructions |
 
 **Deploy order:** `INTENT.md` → `manifest.json` → `AGENT-DEPLOY.md`  
-**Runtime order:** beats / jobs read `AGENT-CONTEXT.md` only
+**Runtime order:** beats / jobs read `ctx-universe.md` only
 
 ### What `manifest.json` contains (summary)
 

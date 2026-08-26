@@ -45,11 +45,11 @@ Every component, package, brick, or app MUST be classified into exactly one peri
 
 | Package / brick | Role | Status in repo |
 | :--- | :--- | :--- |
-| `@shaper/vault` / `brick-vault` | AES-256-GCM secrets | ✅ |
-| `@shaper/logger` / `brick-logger` | JSONL append-only audit | ✅ |
-| `@shaper/auth` / `brick-auth` | Stateless Bearer | ✅ |
-| `@shaper/db` / `brick-mariadb` | Turbinobash DB config resolver | ✅ |
-| `@shaper/queue` / `brick-queue` | In-memory async jobs (opaque payload) | ✅ |
+| `@shaper/pkg-vault` / `brick-vault` | AES-256-GCM secrets | ✅ |
+| `@shaper/pkg-logger` / `brick-logger` | JSONL append-only audit | ✅ |
+| `@shaper/pkg-auth` / `brick-auth` | Stateless Bearer | ✅ |
+| `@shaper/pkg-db` / `brick-mariadb` | Turbinobash DB config resolver | ✅ |
+| `@shaper/pkg-queue` / `brick-queue` | In-memory async jobs (opaque payload) | ✅ |
 | `@shaper/waf` | Edge WAF (deterministic) | ❌ planned |
 | `log-sentinel` | System telemetry | ❌ planned |
 
@@ -67,15 +67,15 @@ Every component, package, brick, or app MUST be classified into exactly one peri
 
 | Package / brick | Role | Status in repo |
 | :--- | :--- | :--- |
-| `@shaper/maestro` / `brick-maestro` | Cadence scheduler | ✅ |
-| `@shaper/agent` / `brick-agent` | Task registry (1 image, N instances) | ✅ |
-| `@shaper/mail-agent` | IMAP check (vault creds only) | ✅ |
-| `@shaper/bridge-agy` / `brick-bridge-agy` | Antigravity CLI bridge (Rule 8) | ✅ |
-| `@shaper/bridge-opencode` / `brick-bridge-opencode` | OpenCode CLI bridge (free tier) | ✅ |
+| `@shaper/pkg-maestro` / `brick-maestro` | Cadence scheduler | ✅ |
+| `@shaper/pkg-agent-runtime` / `brick-agent-runtime` | Task registry (1 image, N instances) | ✅ |
+| `@shaper/pkg-mail-agent` | IMAP check (vault creds only) | ✅ |
+| `@shaper/pkg-bridge-agy` / `brick-bridge-agy` | Antigravity CLI bridge (Rule 8) | ✅ |
+| `@shaper/pkg-bridge-opencode` / `brick-bridge-opencode` | OpenCode CLI bridge (free tier) | ✅ |
 | `opencode-bridge` | Vendored OpenCode HTTP/SSE server | ✅ |
 | `brick-helm` (KovZu) | Operator cockpit: `/console`, admin socle/maestro | ✅ |
-| `@shaper/ged-engine` / `brick-ged` | Operator document hub (`/data/ged`) | ✅ (organism) |
-| `@shaper/rag` + `brick-qdrant` | Semantic memory for the organism | ✅ partial |
+| `@shaper/pkg-ged-engine` / `brick-ged` | Operator document hub (`/data/ged`) | ✅ (organism) |
+| `@shaper/pkg-rag` + `brick-qdrant` | Semantic memory for the organism | ✅ partial |
 | `codex-v1` (planned) | Versioned agent context registry | ❌ plan only |
 | Claude bridge at socle | `@shaper/bridge-claude` | ❌ Helm routes only |
 
@@ -134,13 +134,13 @@ Autonomous **business intelligence** tool: competitive scraping, price benchmark
 
 | Old README name | Current name | Perimeter |
 | :--- | :--- | :--- |
-| `vault-engine` | `@shaper/vault` | P1 |
-| `event-logger` | `@shaper/logger` | P1 |
-| `job-queue` | `@shaper/queue` | P1 (generic) |
+| `vault-engine` | `@shaper/pkg-vault` | P1 |
+| `event-logger` | `@shaper/pkg-logger` | P1 |
+| `job-queue` | `@shaper/pkg-queue` | P1 (generic) |
 | `waf-engine` | `@shaper/waf` | P1 (planned) |
-| `maestro-engine` | `@shaper/maestro` | P2 |
-| `univ-mail-agent` | `@shaper/mail-agent` | P2 |
-| `univ-bridge-agy` | `@shaper/bridge-agy` | P2 |
+| `maestro-engine` | `@shaper/pkg-maestro` | P2 |
+| `univ-mail-agent` | `@shaper/pkg-mail-agent` | P2 |
+| `univ-bridge-agy` | `@shaper/pkg-bridge-agy` | P2 |
 | `bridge-engine` | absorbed by bridge packages + Helm plugins | P2 |
 | `app-shell` | replaced by `brick-helm` for operator UI | P2 |
 | `enterprise-chat` | not implemented | **P3** |

@@ -27,7 +27,7 @@ providing the exact expected text:
 | `03-de-travers/` | 3° to 7° skews |
 | `04-degrade/` | Low resolution, low contrast, noise, photocopy, blur, fax |
 
-The extractor is `software/packages/rag/lib/extractor.js`. Import it, do not modify it.
+The extractor is `software/packages/pkg-rag/lib/extractor.js`. Import it, do not modify it.
 
 ## The measurement
 

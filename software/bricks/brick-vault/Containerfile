@@ -8,8 +8,8 @@ LABEL org.shaper.brick="vault"
 LABEL org.shaper.build-packages="logger vault"
 
 WORKDIR /app
-COPY --from=shaper_base /shaper/packages/logger/ /logger/
-COPY --from=shaper_base /shaper/packages/vault/ ./
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /logger/
+COPY --from=shaper_base /shaper/packages/pkg-vault/ ./
 
 EXPOSE 8510
 ENV NODE_ENV=production

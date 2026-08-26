@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if [[ ! -f "$ROOT/packages/opencode-bridge/server.mjs" ]]; then
-  echo "[build-brick-bridge-opencode] Missing packages/opencode-bridge (vendor from xavdp-pro/opencode-bridge)"
+if [[ ! -f "$ROOT/packages/pkg-opencode-bridge/server.mjs" ]]; then
+  echo "[build-brick-bridge-opencode] Missing packages/pkg-opencode-bridge (vendor from xavdp-pro/opencode-bridge)"
   exit 1
 fi
 

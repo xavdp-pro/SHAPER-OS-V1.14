@@ -19,18 +19,18 @@
 
   "minimalSocle": {
     "packages": [
-      "@shaper/vault",
-      "@shaper/logger",
-      "@shaper/queue",
-      "@shaper/maestro",
-      "@shaper/agent",
-      "@shaper/auth",
-      "@shaper/bridge-agy",
-      "@shaper/bridge-cursor",
-      "@shaper/bridge-deepseek",
-      "@shaper/bridge-opencode",
+      "@shaper/pkg-vault",
+      "@shaper/pkg-logger",
+      "@shaper/pkg-queue",
+      "@shaper/pkg-maestro",
+      "@shaper/pkg-agent-runtime",
+      "@shaper/pkg-auth",
+      "@shaper/pkg-bridge-agy",
+      "@shaper/pkg-bridge-cursor",
+      "@shaper/pkg-bridge-deepseek",
+      "@shaper/pkg-bridge-opencode",
       "opencode-bridge",
-      "@shaper/supervisor"
+      "@shaper/pkg-supervisor"
     ]
   },
 
@@ -90,12 +90,12 @@
   },
 
   "packageImports": {
-    "@shaper/maestro": ["@shaper/logger", "@shaper/agent", "@shaper/vault"],
-    "@shaper/agent": ["@shaper/auth"],
-    "@shaper/vault": [],
-    "@shaper/queue": [],
-    "@shaper/logger": [],
-    "@shaper/auth": [],
-    "@shaper/db": []
+    "@shaper/pkg-maestro": ["@shaper/pkg-logger", "@shaper/pkg-agent-runtime", "@shaper/pkg-vault"],
+    "@shaper/pkg-agent-runtime": ["@shaper/pkg-auth"],
+    "@shaper/pkg-vault": [],
+    "@shaper/pkg-queue": [],
+    "@shaper/pkg-logger": [],
+    "@shaper/pkg-auth": [],
+    "@shaper/pkg-db": []
   }
 }

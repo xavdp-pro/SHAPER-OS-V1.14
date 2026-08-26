@@ -1,13 +1,13 @@
 FROM docker.io/library/node:20-alpine
 
 WORKDIR /app
-COPY packages/logger/ ./packages/logger/
-COPY packages/auth/ ./packages/auth/
-COPY packages/agent/ ./packages/agent/
-COPY packages/vault/ ./packages/vault/
-COPY packages/maestro/ ./packages/maestro/
+COPY packages/pkg-logger/ ./packages/pkg-logger/
+COPY packages/pkg-auth/ ./packages/pkg-auth/
+COPY packages/pkg-agent-runtime/ ./packages/pkg-agent-runtime/
+COPY packages/pkg-vault/ ./packages/pkg-vault/
+COPY packages/pkg-maestro/ ./packages/pkg-maestro/
 
-WORKDIR /app/packages/maestro
+WORKDIR /app/packages/pkg-maestro
 
 EXPOSE 8530
 ENV NODE_ENV=production

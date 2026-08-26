@@ -77,7 +77,7 @@ Imagine a client (agency or merchant) managing **50 WordPress stores**:
 * **Role**: This is a full-fledged Shaper OS universe, which **does not store the 50 stores in a giant monolith**, but pilots them as a fleet of 50 independent child universes.
 * **How it operates**:
   1. **Cross-supervision**: The parent agent analyzes consolidated logs from the 50 child WordPress instances without saturating their respective memory.
-  2. **Top-down configuration**: The parent Maestro configures and updates the rules and contexts (`AGENT-CONTEXT.md`) of the 50 child Maestros.
+  2. **Top-down configuration**: The parent Maestro configures and updates the rules and contexts (`ctx-universe.md`) of the 50 child Maestros.
   3. **Bottom-up aggregation**: The client's dashboard displays the global overview (*« 3 stockouts on Store A, 12 new orders on Store B »*).
 
 ---

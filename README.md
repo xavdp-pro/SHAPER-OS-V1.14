@@ -1,4 +1,4 @@
-# SHAPER OS V1.9
+# SHAPER OS V1.10
 
 > **The Sovereign Operating System of Standardized Bricks & Intentions — Where Humans Formulate Vision and AI Agents Build & Operate**
 
@@ -209,22 +209,22 @@ Every SHAPER OS universe is constructed from an **invariant set of elementary br
                               └────────────────────────────────────────────────────────┘
 
                                                 ┌───────────────────────┐
-                                                │      @shaper/auth     │
+                                                │      @shaper/pkg-auth     │
                                                 │  (Identity & Sessions)│
                                                 └───────────┬───────────┘
                                                             │
                      ┌───────────────────────┐              │              ┌───────────────────────┐
-                     │     @shaper/vault     │──────────────┼──────────────│    @shaper/logger     │
+                     │     @shaper/pkg-vault     │──────────────┼──────────────│    @shaper/pkg-logger     │
                      │  (Encrypted Secrets)  │              │              │   (Immutable Memory)  │
                      └───────────────────────┘              │              └───────────────────────┘
                                                             │
                                                 ┌───────────┴───────────┐
-                                                │     @shaper/queue     │
+                                                │     @shaper/pkg-queue     │
                                                 │ (Lanes & Prioritization)
                                                 └───────────┬───────────┘
                                                             │
                      ┌───────────────────────┐              │              ┌───────────────────────┐
-                     │    @shaper/maestro    │──────────────┼──────────────│   @shaper/supervisor  │
+                     │    @shaper/pkg-maestro    │──────────────┼──────────────│   @shaper/pkg-supervisor  │
                      │  (Orchestrator/Beats) │              │              │  (Vitals & Health R23)│
                      └───────────────────────┘              │              └───────────────────────┘
                                                             ▼
@@ -234,27 +234,27 @@ Every SHAPER OS universe is constructed from an **invariant set of elementary br
                                                 └───────────────────────┘
 ```
 
-### 1. 🔐 `@shaper/vault` — The Cryptographic Safe
+### 1. 🔐 `@shaper/pkg-vault` — The Cryptographic Safe
 * **Role:** Secure storage and isolation of secrets, API keys, database credentials, and license tokens.
 * **Why the Agent loves it:** The agent never hallucinates raw passwords in chat prompts. Secrets are referenced by secure pointers (`secret_ref`) and decrypted only at execution time in memory.
 
-### 2. 🛡️ `@shaper/auth` — Sovereign Identity & Access
+### 2. 🛡️ `@shaper/pkg-auth` — Sovereign Identity & Access
 * **Role:** Local authentication, role-based access control (`admin`, `operator`, `agent`), and cryptographic session verification.
 * **Why the Agent loves it:** Zero dependency on external identity providers (Auth0/Firebase). Identity is self-contained and sovereign.
 
-### 3. 📜 `@shaper/logger` — Immutable Memory & Audit Trail
+### 3. 📜 `@shaper/pkg-logger` — Immutable Memory & Audit Trail
 * **Role:** High-speed, structured JSONL event logging (`log/events.jsonl`).
 * **Why the Agent loves it:** Complete deterministic memory. The agent can replay previous events, audit exactly who did what at any timestamp, and learn from execution history.
 
-### 4. 📬 `@shaper/queue` — Multi-Lane Task Circulation
+### 4. 📬 `@shaper/pkg-queue` — Multi-Lane Task Circulation
 * **Role:** Asynchronous job queuing with lane prioritization, concurrency control, persistent storage, and quality gates.
 * **Why the Agent loves it:** Prevents system choking. Heavy tasks (data imports, video processing, bulk provisioning) are cleanly scheduled and drained in order without crashing the machine.
 
-### 5. 🎼 `@shaper/maestro` — The Autonomous Clock & Conductor
+### 5. 🎼 `@shaper/pkg-maestro` — The Autonomous Clock & Conductor
 * **Role:** Executes recurring beats (clock ticks), dispatches scheduled jobs, and coordinates multi-step agent actions.
 * **Why the Agent loves it:** Gives the agent a reliable heartbeat to periodically check incoming emails, inspect stock levels, or trigger automated maintenance.
 
-### 6. 📡 `@shaper/supervisor` — Health Sentinel (Rule 23 & 27)
+### 6. 📡 `@shaper/pkg-supervisor` — Health Sentinel (Rule 23 & 27)
 * **Role:** Ingests raw telemetry signals (Vitals) from child bricks and computes hierarchical health grades (`nominal`, `degraded`, `failing`).
 * **Why the Agent loves it:** Strict separation of powers: child bricks emit raw measurements without grading themselves; the supervisor makes objective diagnostic evaluations.
 
@@ -269,7 +269,7 @@ In SHAPER OS, you **never reinvent the foundation**. You take the base cell and 
 | **Host Spawner Engine** | Vault + Logger + Queue + Maestro | Podman OCI Controller + Cloudflare DNS Manager + Host Resource Allocator |
 | **Boutique Fleet Manager (Parent)** | Vault + Logger + Queue + Supervisor | Manager Gateway UI (`:9470`) + Child Fleet Registry (`children.json`) + WP Config API |
 | **Store Instance (Child)** | Vault + Logger + Vitals Probes | WordPress 6.7 + MariaDB 11 + WooCommerce Engine + Store Manager Agent |
-| **Sovereign GED / Document AI** | Vault + Logger + Queue + Maestro | `@shaper/ged-engine` + `@shaper/rag` + Qdrant Vector Store + PDF Extractor |
+| **Sovereign GED / Document AI** | Vault + Logger + Queue + Maestro | `@shaper/pkg-ged-engine` + `@shaper/pkg-rag` + Qdrant Vector Store + PDF Extractor |
 
 ---
 
@@ -355,7 +355,7 @@ In legacy programming, code is written in Python, Rust, or JavaScript, while Mar
 | **`docs/agent/RUNBOOK-EXPLICIT.md`** | Fast / Light Models | Literal ordered steps with explicit stop conditions. |
 | **`docs/architecture/COGNITION.md`** | Dispatching Agent | The reasoning depth and throughput each piece of work requires. |
 | **`AGENT-DEPLOY.md`** | Provisioning Agent | Exact operational permissions on this host (commands allowed autonomously vs human approval required). |
-| **`context/AGENT-CONTEXT.md`** | Runtime Agent | Business rules, tone of voice, domain vocabulary, and decision workflows. |
+| **`context/ctx-universe.md`** | Runtime Agent | Business rules, tone of voice, domain vocabulary, and decision workflows. |
 | **`CONTEXT.md`** | Session Prime Agent | Local universe state, user preferences, and workspace conventions. |
 
 > *"When a human writes code, they write syntax. When a human programs a SHAPER OS universe, they write intentions in Markdown. The AI agent parses the Markdown as its flight plan and materializes the infrastructure deterministically."*
@@ -420,8 +420,8 @@ Full scales and declaration format: [`docs/architecture/COGNITION.md`](./docs/ar
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.9.git
-cd SHAPER-OS-V1.9
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.10.git
+cd SHAPER-OS-V1.10
 ```
 
 ### 2. Bootstrap the Local Foundation (Tier-a)

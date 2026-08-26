@@ -18,7 +18,7 @@ echo -e "\n[2/3] Testing Mini-GED CLI Endpoints..."
 mkdir -p "$ROOT_DIR/data/ged"
 
 # Start ged server locally in background for test
-PORT=8765 GED_DATA_DIR="$ROOT_DIR/data/ged" node "$ROOT_DIR/packages/ged-engine/server.js" &
+PORT=8765 GED_DATA_DIR="$ROOT_DIR/data/ged" node "$ROOT_DIR/packages/pkg-ged-engine/server.js" &
 GED_PID=$!
 sleep 1.5
 

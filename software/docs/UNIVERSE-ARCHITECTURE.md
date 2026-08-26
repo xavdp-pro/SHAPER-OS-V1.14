@@ -19,7 +19,7 @@ universes/<slug>/                   SPECIFIC (one project / test env)
 ├── INTENT.md                       Law for this universe (human + agent)
 ├── manifest.json                   Machine wiring (bricks + specialize paths)
 ├── AGENT-DEPLOY.md                 Deploy agent capabilities & pipeline
-└── context/AGENT-CONTEXT.md        Runtime AI agent (business context at beat)
+└── context/ctx-universe.md        Runtime AI agent (business context at beat)
 ```
 
 ---
@@ -31,7 +31,7 @@ universes/<slug>/                   SPECIFIC (one project / test env)
 | **INTENT.md** | Human + any agent | English | *What* is this universe? *Why*? 4–6 invariants (the law) |
 | **manifest.json** | Scripts, CI, deploy agent | JSON | *Which* bricks? *Where* are params? *Boot order*? |
 | **AGENT-DEPLOY.md** | Deploy agent only | English | *What can you do alone?* Materialize, test, bootstrap — step by step |
-| **AGENT-CONTEXT.md** | Runtime AI (agy/cursor) | English | *What business rules apply* when `/api/inject` fires? |
+| **ctx-universe.md** | Runtime AI (agy/cursor) | English | *What business rules apply* when `/api/inject` fires? |
 
 ---
 
@@ -46,7 +46,7 @@ universes/<slug>/                   SPECIFIC (one project / test env)
 6. bricks/*/INTENT.md                ← per-brick law before materializing
 ```
 
-**Never read** `AGENT-CONTEXT.md` for deploy — that file is for runtime AI beats only.
+**Never read** `ctx-universe.md` for deploy — that file is for runtime AI beats only.
 
 ---
 
@@ -55,8 +55,8 @@ universes/<slug>/                   SPECIFIC (one project / test env)
 | Action | Allowed | Forbidden |
 | :--- | :--- | :--- |
 | Add `instance.json` | ✅ | — |
-| Add `tasks/maestro-tasks.json` | ✅ | — |
-| Edit `context/AGENT-CONTEXT.md` | ✅ | — |
+| Add `tasks/task-schedule.json` | ✅ | — |
+| Edit `context/ctx-universe.md` | ✅ | — |
 | Copy `Containerfile` into universe | — | ❌ |
 | Copy `packages/*` into universe | — | ❌ |
 | Hardcode mailbox password in universe | — | ❌ (use vault bootstrap) |
@@ -85,7 +85,7 @@ universes/<slug>/                   SPECIFIC (one project / test env)
                                                         │ beat / inject
 ┌─────────────────────┐     runtime          ┌──────────▼───────────┐
 │  Runtime AI Agent   │ ◄──────────────────  │  bridge-agy /api/inject│
-│  (agy, cursor…)     │   AGENT-CONTEXT.md   │  every 300s cadence  │
+│  (agy, cursor…)     │   ctx-universe.md   │  every 300s cadence  │
 └─────────────────────┘                      └──────────────────────┘
 ```
 
@@ -97,6 +97,6 @@ universes/<slug>/                   SPECIFIC (one project / test env)
 2. Write `INTENT.md` (objective + 4 invariants)
 3. Fill `manifest.json` (bricks + specialize)
 4. Fill `AGENT-DEPLOY.md` (what deploy agent may do for this env)
-5. Fill `context/AGENT-CONTEXT.md` (business rules for runtime AI)
+5. Fill `context/ctx-universe.md` (business rules for runtime AI)
 6. Add `bricks/<instance>/instance.json` per mailbox or ops task
 7. `npm run vault:bootstrap` → `npm test` → deploy

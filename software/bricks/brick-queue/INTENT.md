@@ -1,7 +1,7 @@
 # Brick: Queue
 
 > **Intent Classification**: GENERIC INTENT (Universal / Parameterized Blueprint)  
-> **Package**: `@shaper/queue`
+> **Package**: `@shaper/pkg-queue`
 
 ## 1. Declarative Objective
 

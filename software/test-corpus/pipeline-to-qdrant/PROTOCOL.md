@@ -78,4 +78,4 @@ Agents do not upsert across collections. Operator inspect (`curl :6333/collectio
 
 ## 4. Embedding backend
 
-`@shaper/rag` prefers Xenova MiniLM 384-d, then falls back to the local hashed n-gram unit vector. Dummy / random / zero vectors are forbidden. The report records which backend actually ran. A hash backend is a **state**, not a crash: queries still have to hit the needles.
+`@shaper/pkg-rag` prefers Xenova MiniLM 384-d, then falls back to the local hashed n-gram unit vector. Dummy / random / zero vectors are forbidden. The report records which backend actually ran. A hash backend is a **state**, not a crash: queries still have to hit the needles.

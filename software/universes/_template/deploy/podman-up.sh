@@ -76,7 +76,7 @@ export WITH_HELM="${WITH_HELM:-0}"
 # The queue is the universe's unit of work. Lanes are how it is sized to the
 # host: one on a modest VPS, several on a real server — same image (Rule 32).
 export QUEUE_CONCURRENCY="${QUEUE_CONCURRENCY:-1}"
-# How fast a waiting job's patience converts into rank. See packages/queue.
+# How fast a waiting job's patience converts into rank. See packages/pkg-queue.
 export QUEUE_AGING_SECONDS="${QUEUE_AGING_SECONDS:-60}"
 # Set this to route every maestro beat through the queue instead of straight to
 # a bridge — one entry point, one ledger, one place that must be right.
@@ -235,7 +235,7 @@ if [[ "$WITH_BRIDGE_AGY" == "1" ]]; then
     localhost/shaper-bridge-agy:latest
 fi
 
-TASKS_FILE="/data/univ/tasks/maestro-tasks.json"
+TASKS_FILE="/data/univ/tasks/task-schedule.json"
 if [[ -f "$UNIV/tasks/maestro-tasks.podman.json" ]]; then
   TASKS_FILE="/data/univ/tasks/maestro-tasks.podman.json"
 fi

@@ -1,0 +1,12 @@
+{
+  "tasks": [
+    {
+      "slug": "task-base-proof",
+      "kind": "generic",
+      "bridgeType": "opencode",
+      "instruction": "Run the declared base proof task and report evidence.",
+      "contextPath": "./ctx-base.md",
+      "cadenceSeconds": 300
+    }
+  ]
+}

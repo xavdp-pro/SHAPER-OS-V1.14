@@ -1,7 +1,7 @@
 FROM docker.io/library/node:20-alpine
 
 WORKDIR /app
-COPY packages/logger/ ./
+COPY packages/pkg-logger/ ./
 
 EXPOSE 8520
 ENV NODE_ENV=production

@@ -2,10 +2,10 @@ FROM docker.io/library/node:20-alpine
 
 WORKDIR /app
 # The queue package is flattened into WORKDIR, so a sibling import such as
-# `../logger/vitals.js` resolves one level above it. Placing logger there keeps
+# `../pkg-logger/vitals.js` resolves one level above it. Placing logger there keeps
 # that import valid without reshaping the whole image layout.
-COPY packages/logger/ /logger/
-COPY packages/queue/ ./
+COPY packages/pkg-logger/ /logger/
+COPY packages/pkg-queue/ ./
 
 EXPOSE 8540
 ENV NODE_ENV=production

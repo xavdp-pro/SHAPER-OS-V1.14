@@ -12,7 +12,7 @@ Pour éviter toute confusion lors de l'évolution du système, chaque action, br
 
 | Niveau | Désignation | Périmètre | Périmètre & Responsabilité | Exemples |
 | :---: | :--- | :---: | :--- | :--- |
-| **0** | **Brique & Package** | P1/P2 | Composant atomique, testé unitairement (`node:test`). | `@shaper/vault` (P1), `@shaper/maestro` (P2), `brick-helm` (P2) |
+| **0** | **Brique & Package** | P1/P2 | Composant atomique, testé unitairement (`node:test`). | `@shaper/pkg-vault` (P1), `@shaper/pkg-maestro` (P2), `brick-helm` (P2) |
 | **1** | **Univers / Cellule** | P1+P2 | Stack Podman autonome (socle + agentique). **Pas** un vertical P3. | `UNIV8`, `UNIV9` |
 | **2** | **Nœud Hôte** | infra | LXC / bare-metal portant les univers. | `<host>-<univ_slug>` |
 | **3** | **Flotte / Réseau** | infra | Mesh, tunnels, domaines publics. | `ia.example.com` |
@@ -36,7 +36,7 @@ Pour assurer la traçabilité dans Git, Podman, les fichiers de logs et les base
 | **Univers** | `UNIV<N>` (Majuscules) | `UNIV8`, `UNIV9` |
 | **Dossier Univers** | `SHAPER-OS/universes/<univ_slug>/` | `universes/_template/` |
 | **Brique Modèle** | `brick-<nom>` | `brick-helm`, `brick-mariadb`, `brick-vault` |
-| **Package NPM Socle** | `@shaper/<nom>` | `@shaper/queue`, `@shaper/maestro`, `@shaper/db` |
+| **Package NPM Socle** | `@shaper/<nom>` | `@shaper/pkg-queue`, `@shaper/pkg-maestro`, `@shaper/pkg-db` |
 | **Image Podman** | `localhost/shaper-<nom>:latest` | `localhost/shaper-helm:latest` |
 | **Conteneur Podman Actif** | `<univ_slug>-<brique>` | `<univ_slug>-helm`, `<univ_slug>-mariadb`, `<univ_slug>-vault` |
 | **Ports Standardisés** | `:8610` Vault<br>`:8620` Logger<br>`:8630` Maestro<br>`:8640` Queue<br>`:8650` Helm<br>`:4440` Bridge OpenCode<br>`:3306` MariaDB | Port fixe par univers ou bind localhost |

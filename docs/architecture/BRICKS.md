@@ -4,7 +4,7 @@
 > whose behaviour SHAPER's own law defines: vault, logger, queue, maestro, auth,
 > agent, supervisor and the engine bridges. Packaged products — a cockpit, a
 > document hub, a vector store, a database, a firewall — follow an upstream
-> rather than a law, and live in [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.9).
+> rather than a law, and live in [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.10).
 >
 > The criterion is not size and not usefulness: **who wrote the behaviour.** A
 > brick that implements the doctrine is maintained with the doctrine. A brick that
@@ -81,10 +81,10 @@ measurement from the target host, never by a published ranking alone.
 | :--- | :--- | :--- |
 | `brick-helm` | Operator cockpit `/console` + voice (8650) | Live — perimeter 2 only, never a client-facing UI (Rule 0F) |
 | `brick-auth` | Sovereign identity, roles, session verification | Live — consumed by Helm and by universes that expose an interface |
-| `@shaper/supervisor` | Ingests vitals, grades child health (`nominal`/`degraded`/`failing`) | Live — required for a parent universe, not for a leaf |
+| `@shaper/pkg-supervisor` | Ingests vitals, grades child health (`nominal`/`degraded`/`failing`) | Live — required for a parent universe, not for a leaf |
 | `brick-ged` | Sovereign document hub, content-addressable storage | Live |
 | `brick-qdrant` | Vector store for semantic memory | Live |
-| `@shaper/rag` | Semantic ingestion, multi-tenant vector isolation | Live |
+| `@shaper/pkg-rag` | Semantic ingestion, multi-tenant vector isolation | Live |
 | `brick-pipeline` | Multi-witness document understanding + mechanical arbiter | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
 | `brick-waf` | Sovereign routing firewall: agent-generated allow-list, routing, precomputed cache | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
 | `brick-billing` | Stripe webhooks, subscriptions & auto-invoicing (:8690) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
@@ -93,7 +93,7 @@ measurement from the target host, never by a published ranking alone.
 | `brick-caldav` | 2-way CalDAV/ICS calendar sync & online slot booking (:8675) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
 | `brick-pdf` | Multi-page PDF splitting, barcode tagging & eIDAS signature (:8685) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
 | `brick-mail-intake` | Dedicated continuous IMAP IDLE mail listener daemon (:8655) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
-| `@shaper/mail-agent` | Inbound mail triage into jobs | Live — production mailboxes forbidden in DEV/TEST (Rule 9) |
+| `@shaper/pkg-mail-agent` | Inbound mail triage into jobs | Live — production mailboxes forbidden in DEV/TEST (Rule 9) |
 
 Full technical specifications, ports, and implementation contracts for all target bricks: [`MISSING-BRICKS.md`](./MISSING-BRICKS.md).
 
@@ -120,7 +120,7 @@ the reason is worth stating: **most infrastructure bricks need no model at all.*
 | | Meaning | Bricks |
 | :--- | :--- | :--- |
 | **Provides** | The brick *is* the access to intelligence. Its declaration describes what it can supply. | All adapters (`brick-bridge-*`) |
-| **Requires** | The brick consumes intelligence to do its own work. | `brick-ged` (analysis), `brick-pipeline` (vision witness), `brick-agent` (task execution) |
+| **Requires** | The brick consumes intelligence to do its own work. | `brick-ged` (analysis), `brick-pipeline` (vision witness), `brick-agent-runtime` (task execution) |
 | **Neutral (D0)** | Deterministic. No model, ever. | `vault`, `logger`, `queue`, `maestro`, `mariadb`, `qdrant`, `supervisor` |
 
 The queue is the clearest case: the queue itself is `D0` — dispatching is

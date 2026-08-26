@@ -19,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function loadHostExtractor() {
-  const { extractTextFromFile } = await import('../packages/rag/lib/extractor.js');
+  const { extractTextFromFile } = await import('../packages/pkg-rag/lib/extractor.js');
   return extractTextFromFile;
 }
 
@@ -218,7 +218,7 @@ function buildAnalysis(categoryReports, allResults) {
  * Generates the full Markdown report.
  */
 export function generateMarkdownReport(categoryReports, allResults, {
-  extractorLabel = '`software/packages/rag/lib/extractor.js` on the host (no OCR)',
+  extractorLabel = '`software/packages/pkg-rag/lib/extractor.js` on the host (no OCR)',
 } = {}) {
   const totalCases = allResults.length;
   const totalCrashes = allResults.filter((r) => r.crashed).length;
@@ -355,7 +355,7 @@ export function runBenchmarkInPipelineContainer(options = {}) {
 export async function runBenchmark({
   corpusRoot = __dirname,
   extractFn,
-  extractorLabel = '`software/packages/rag/lib/extractor.js` on the host (no OCR)',
+  extractorLabel = '`software/packages/pkg-rag/lib/extractor.js` on the host (no OCR)',
 } = {}) {
   const extract = extractFn || await loadHostExtractor();
   const categoryReports = [];

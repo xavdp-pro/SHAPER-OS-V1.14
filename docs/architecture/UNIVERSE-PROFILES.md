@@ -129,7 +129,7 @@ source:
 | Option | Human alias | Adds | What it buys |
 | :--- | :--- | :--- | :--- |
 | **`+clock`** | `+cadence` | `brick-maestro` | For a `passive` universe — `agent` already has it |
-| **`+parent`** | `+flotte` | `@shaper/supervisor`, children registry, SSH authority | It operates **other** universes |
+| **`+parent`** | `+flotte` | `@shaper/pkg-supervisor`, children registry, SSH authority | It operates **other** universes |
 | **`+public`** | `+internet` | `cloudflared` (upstream image) | Reachable from outside, with no inbound port open |
 
 ### From the brick catalogue
@@ -140,10 +140,10 @@ copied here:
 
 | Option | Adds | What it buys |
 | :--- | :--- | :--- |
-| **`+documents`** | `brick-ged`, `brick-qdrant`, `@shaper/rag` | It knows things beyond the current task |
+| **`+documents`** | `brick-ged`, `brick-qdrant`, `@shaper/pkg-rag` | It knows things beyond the current task |
 | **`+data`** | `brick-mariadb` | Relational state that outlives the run |
 | **`+web`** | `brick-helm` | A human who is not at a terminal can drive it |
-| **`+intake`** | `@shaper/mail-agent` | Work arrives on its own |
+| **`+intake`** | `@shaper/pkg-mail-agent` | Work arrives on its own |
 
 ### On the roadmap
 
@@ -168,12 +168,12 @@ for one is a deliberate act rather than a surprise at deploy time.
 | **`+sftp`** | `+edi` | `brick-sftp` *(TARGET)* | Isolated chroot SFTP server for B2B supplier file drops |
 | **`+social`** | `+avis` | `brick-social-feed` *(TARGET)* | Customer reviews ingestion (Google/Trustpilot) & sentiment analysis |
 | **`+pdf-toolkit`** | `+pdf` | `brick-pdf` *(TARGET)* | Multi-page PDF splitting, barcode tagging, and digital signature |
-| **`+documents`** | `+dms` | `ged`, `qdrant`, `@shaper/rag` | Full document ingestion, OCR, and 384d semantic vector search |
+| **`+documents`** | `+dms` | `ged`, `qdrant`, `@shaper/pkg-rag` | Full document ingestion, OCR, and 384d semantic vector search |
 | **`+data`** | `+db` | `mariadb` | Relational database state that outlives the execution run |
 | **`+web`** | `+cockpit` | `helm`, `auth` | Operator `/console` cockpit and authenticated browser interface |
 | **`+public`** | `+online` | `tunnel` (Cloudflare Zero Trust) | Public HTTPS routing with **zero open inbound ports** |
-| **`+intake`** | `+mail` | `@shaper/mail-agent` | Automatic inbound IMAP mail listening & background job intake |
-| **`+parent`** | `+supervisor` | `@shaper/supervisor`, SSH authority | Supervisor role: grades child vitals (R23) and performs repairs |
+| **`+intake`** | `+mail` | `@shaper/pkg-mail-agent` | Automatic inbound IMAP mail listening & background job intake |
+| **`+parent`** | `+supervisor` | `@shaper/pkg-supervisor`, SSH authority | Supervisor role: grades child vitals (R23) and performs repairs |
 | **`+clock`** | `+cron` | `maestro` | Heartbeat scheduler (for `passive` floor only; `agent` already has it) |
 
 ---
@@ -253,7 +253,7 @@ The profile is declared in the universe manifest:
 }
 ```
 
-The test suite (`software/packages/queue/test/universe-profile.test.js`) automatically resolves human archetypes and verifies that all required base bricks are present before any deployment is permitted.
+The test suite (`software/packages/pkg-queue/test/universe-profile.test.js`) automatically resolves human archetypes and verifies that all required base bricks are present before any deployment is permitted.
 
 ---
 
