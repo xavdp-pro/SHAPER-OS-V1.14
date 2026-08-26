@@ -34,21 +34,21 @@ You can prompt a universe in whichever way feels natural to you:
 
 ## 🏛️ 1. Human Archetypes (Business Presets)
 
-Direct business names you can use in your prompts. The agent resolves the
+Direct business names you can use in your prompts. The AI agent resolves the
 archetype into its canonical base formula and required bricks:
 
-| Human Archetype (EN / FR) | Manifest Alias | Canonical Formula | Bricks Deployed | What It Does for the Business |
+| Human Archetype | Manifest Alias | Canonical Formula | Bricks Deployed | What It Does for the Business |
 | :--- | :--- | :--- | :--- | :--- |
-| **E-Commerce Store**<br>*(Boutique E-Commerce)* | `store` | `passive +data +public` | `logger`, `wordpress`, `mariadb`, `vitals`, `tunnel` | Online transactional store with database, health probes & payments |
-| **Document & AI Hub**<br>*(GED & IA Documentaire)* | `document-hub` | `agent +documents +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `qdrant`, `rag`, `tunnel` | Sovereign document management, OCR, 384d vector search & multimodal AI |
-| **Fleet Manager (Parent)**<br>*(Gestionnaire de Flotte Père)* | `fleet-manager` | `agent +parent +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `supervisor`, `manager-gateway`, `tunnel` | Supervisor cockpit repairing ($K+1$) and provisioning child universes |
-| **Field Service & Quotes**<br>*(Devis & Rapports de Chantier)* | `field-service` | `agent +documents +voice` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `voice` | Turns voice notes & job site photos into structured quotes & PDF reports |
-| **Accounting & Reconciliation**<br>*(Rapprochement & Compta)* | `accounting-vault` | `agent +documents +data` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `mariadb` | Ingests supplier invoices & bank statements, reconciles lines & exports journals |
-| **Omnichannel Helpdesk**<br>*(Support Client Omnicanal)* | `helpdesk` | `agent +intake +documents` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `mail-agent`, `ged`, `rag` | Automatic email/chat triage, vector knowledge lookup & ticket escalation |
-| **Booking Engine**<br>*(Prise de Rendez-Vous)* | `booking-engine` | `passive +data +public` | `logger`, `mariadb`, `calendar-sync`, `tunnel` | Online appointment booking with CalDAV/ICS sync and SMS/email alerts |
-| **Online Academy / LMS**<br>*(Plateforme Formations)* | `academy` | `passive +data +public` | `logger`, `mariadb`, `auth`, `tunnel` | Member portal for video courses and PDF deliverables (0% platform fee) |
-| **Watchdog & Scraping**<br>*(Agent de Veille & Tâches)* | `watchdog` | `agent +clock` | `vault`, `logger`, `bridge`, `queue`, `maestro` | Autonomous cron tasks, supplier API sync, competitor scraping & alerts |
-| **Public Brochure**<br>*(Site Vitrine Souverain)* | `brochure` | `passive +public` | `logger`, `nginx/static`, `tunnel` | Ultra-fast, lightweight public presence with zero attack surface |
+| **E-Commerce Store** | `store` | `passive +data +public` | `logger`, `wordpress`, `mariadb`, `vitals`, `tunnel` | Online transactional store with database, health probes, and payment readiness |
+| **Document & AI Hub** | `document-hub` | `agent +documents +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `qdrant`, `rag`, `tunnel` | Sovereign document management, OCR, 384d vector search & multimodal AI |
+| **Fleet Manager (Parent)** | `fleet-manager` | `agent +parent +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `supervisor`, `manager-gateway`, `tunnel` | Supervisor cockpit repairing ($K+1$) and provisioning child universes |
+| **Field Service & Quotes** | `field-service` | `agent +documents +voice` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `voice` | Turns voice notes & job site photos into structured quotes & PDF reports |
+| **Accounting & Reconciliation** | `accounting-vault` | `agent +documents +data` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `mariadb` | Ingests supplier invoices & bank statements, reconciles lines & exports journals |
+| **Omnichannel Helpdesk** | `helpdesk` | `agent +intake +documents` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `mail-agent`, `ged`, `rag` | Automatic email/chat triage, vector knowledge lookup & ticket escalation |
+| **Booking Engine** | `booking-engine` | `passive +data +public` | `logger`, `mariadb`, `calendar-sync`, `tunnel` | Online appointment booking with CalDAV/ICS sync and SMS/email alerts |
+| **Online Academy / LMS** | `academy` | `passive +data +public` | `logger`, `mariadb`, `auth`, `tunnel` | Member portal for video courses and PDF deliverables (0% platform fee) |
+| **Watchdog & Scraping** | `watchdog` | `agent +clock` | `vault`, `logger`, `bridge`, `queue`, `maestro` | Autonomous cron tasks, supplier API sync, competitor scraping & alerts |
+| **Public Brochure** | `brochure` | `passive +public` | `logger`, `nginx/static`, `tunnel` | Ultra-fast, lightweight public presence with zero attack surface |
 
 ---
 
@@ -79,6 +79,7 @@ maestro  :8630      autonomous heartbeat / scheduled beats
 Boot order: `vault ∥ logger → bridge → queue → maestro`.
 
 **This is the default.** When nobody names a profile, this is what gets built.
+It is what `manifest.tier-a.json` has always declared; `tier-a` stays as an alias.
 
 ---
 
@@ -89,17 +90,17 @@ Options attach to either floor or any archetype:
 | Option (Lego) | Human Alias | Adds | What It Buys |
 | :--- | :--- | :--- | :--- |
 | **`+waf`** | `+security` | `@shaper/waf-engine` *(TARGET)* | **Adaptive Sovereign Firewall & positive cache (shaped live)** |
-| **`+billing`** | `+paiement` | `brick-billing` *(TARGET)* | Stripe webhooks, subscriptions, customer billing & auto-invoicing |
-| **`+voice`** | `+voix` | `brick-voice` *(TARGET)* | Whisper voice transcription (STT) & vocal response synthesis (TTS) |
+| **`+billing`** | `+payment` | `brick-billing` *(TARGET)* | Stripe webhooks, subscriptions, customer billing & auto-invoicing |
+| **`+voice`** | `+audio` | `brick-voice` *(TARGET)* | Whisper voice transcription (STT) & vocal response synthesis (TTS) |
 | **`+messaging`** | `+whatsapp` | `brick-messaging` *(TARGET)* | WhatsApp Pro / Telegram / Signal client photo & chat intake |
 | **`+calendar`** | `+agenda` | `brick-caldav` *(TARGET)* | CalDAV / ICS booking availability & 2-way agenda sync |
 | **`+pdf-toolkit`** | `+pdf` | `brick-pdf` *(TARGET)* | Multi-page PDF splitting, barcode tagging, and digital signature |
-| **`+documents`** | `+ged` | `ged`, `qdrant`, `@shaper/rag` | Full document ingestion, OCR, and 384d semantic vector search |
-| **`+data`** | `+bdd` | `mariadb` | Relational database state that outlives the execution run |
+| **`+documents`** | `+dms` | `ged`, `qdrant`, `@shaper/rag` | Full document ingestion, OCR, and 384d semantic vector search |
+| **`+data`** | `+db` | `mariadb` | Relational database state that outlives the execution run |
 | **`+web`** | `+cockpit` | `helm`, `auth` | Operator `/console` cockpit and authenticated browser interface |
 | **`+public`** | `+online` | `tunnel` (Cloudflare Zero Trust) | Public HTTPS routing with **zero open inbound ports** |
 | **`+intake`** | `+mail` | `@shaper/mail-agent` | Automatic inbound IMAP mail listening & background job intake |
-| **`+parent`** | `+superviseur` | `@shaper/supervisor`, SSH authority | Supervisor role: grades child vitals (R23) and performs repairs |
+| **`+parent`** | `+supervisor` | `@shaper/supervisor`, SSH authority | Supervisor role: grades child vitals (R23) and performs repairs |
 | **`+clock`** | `+cron` | `maestro` | Heartbeat scheduler (for `passive` floor only; `agent` already has it) |
 
 ---
@@ -130,29 +131,27 @@ Adding **`+waf`** to any universe activates this adaptive guardian.
 
 ---
 
-## 💬 4. Real-World Prompt Examples (English & French)
+## 💬 4. Real-World Prompt Examples Across Lifecycles
 
-Here is how you can formulate your requests in natural language:
+Here is how humans and AI agents formulate instructions in plain English across the 3 lifecycle stages (`DEV`, `TEST`, `PROD`):
 
-### Example 1 — E-Commerce Store with Adaptive WAF
-* **EN:** *"Build me a **`store +waf`** universe called `univ-shoes-dev`, DEV lifecycle. It runs a WooCommerce shop with an adaptive firewall and precomputed product cache."*
-* **FR:** *« Crée-moi un univers **`store +waf`** nommé `univ-chaussures-dev`, cycle DEV. Il héberge une boutique avec firewall adaptatif et cache produit précalculé. »*
+### Example 1 — E-Commerce Store with Adaptive WAF (DEV)
+> *"Build me a **`store +waf`** universe called `univ-shoes-dev`, DEV lifecycle. It runs a WooCommerce shop with an adaptive firewall and precomputed product cache for catalog pages."*
 
-### Example 2 — Job Site Quotes with Voice & WhatsApp
-* **EN:** *"Build me a **`field-service +messaging +billing`** universe called `univ-renov-dev`, DEV lifecycle. Artisans send photos and audio notes via WhatsApp; the agent produces signed quotes and collects Stripe deposit payments."*
-* **FR:** *« Crée-moi un univers **`field-service +messaging +billing`** nommé `univ-renov-dev`, cycle DEV. Les artisans envoient des photos et mémos vocaux par WhatsApp ; l'agent produit les devis signés et encaisse les acomptes Stripe. »*
+### Example 2 — Field Service Quotes with Voice & WhatsApp (DEV)
+> *"Build me a **`field-service +messaging +billing`** universe called `univ-renov-dev`, DEV lifecycle. Artisans send photos and audio notes via WhatsApp; the agent produces signed quotes and collects Stripe deposit payments."*
 
-### Example 3 — Accounting Hub with Auto-Mail Ingestion
-* **EN:** *"Build me an **`accounting-vault +intake +waf`** universe called `univ-accounting-dev`, DEV lifecycle. Invoices arriving at `invoices@company.com` are automatically parsed, OCR-verified, reconciled against bank records, and filed into the GED."*
-* **FR:** *« Crée-moi un univers **`accounting-vault +intake +waf`** nommé `univ-compta-dev`, cycle DEV. Les factures reçues par mail sont extraites par OCR, rapprochées des lignes bancaires et classées dans la GED. »*
+### Example 3 — Accounting Hub with Auto-Mail Ingestion (DEV → TEST)
+> *"Build me an **`accounting-vault +intake +waf`** universe called `univ-accounting-test`, TEST lifecycle. Invoices arriving at `invoices@company.com` are automatically parsed, OCR-verified, reconciled against bank records, and filed into the GED. Rebuild from scratch, validate the full test suite, then destroy."*
 
-### Example 4 — Booking Engine for Healthcare / Consultants
-* **EN:** *"Build me a **`booking-engine +messaging`** universe called `univ-clinic-dev`, DEV lifecycle. Patients book slots online, syncing with Apple/Google Calendar and receiving appointment reminders on WhatsApp."*
-* **FR:** *« Crée-moi un univers **`booking-engine +messaging`** nommé `univ-cabinet-dev`, cycle DEV. Prise de RDV en ligne synchronisée avec Google/Apple Calendar et rappels WhatsApp. »*
+### Example 4 — Booking Engine for Healthcare / Consultants (DEV)
+> *"Build me a **`booking-engine +messaging`** universe called `univ-clinic-dev`, DEV lifecycle. Patients book slots online, syncing with Apple/Google Calendar and receiving appointment reminders on WhatsApp."*
 
-### Example 5 — Private Video Academy
-* **EN:** *"Build me an **`academy +billing +waf`** universe called `univ-courses-dev`, DEV lifecycle. Private member portal selling video masterclasses with Stripe subscriptions and zero third-party platform fees."*
-* **FR:** *« Crée-moi un univers **`academy +billing +waf`** nommé `univ-formation-dev`, cycle DEV. Espace membres vendant des cours vidéo par abonnement Stripe sans commission de plateforme tierce. »*
+### Example 5 — Private Video Academy (PROD)
+> *"Deploy the validated tag `v1.2.0` on the **`academy +billing +waf`** universe called `univ-courses-prod`, PROD lifecycle, under domain `academy.company.com`. Private member portal selling video masterclasses with Stripe subscriptions and zero third-party platform fees."*
+
+### Example 6 — Multi-Tenant Fleet Manager (PROD)
+> *"Deploy a **`fleet-manager +waf`** universe called `univ-manager-prod`, PROD lifecycle, on port `9470`. It will supervise and repair 50 child store universes across our bare-metal fleet via asymmetric SSH authority."*
 
 ---
 
@@ -168,8 +167,7 @@ The profile is declared in the universe manifest:
 }
 ```
 
-The test suite automatically resolves human archetypes and verifies that all
-required base bricks are present before any deployment is permitted.
+The test suite (`software/packages/queue/test/universe-profile.test.js`) automatically resolves human archetypes and verifies that all required base bricks are present before any deployment is permitted.
 
 ---
 

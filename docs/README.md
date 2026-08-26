@@ -43,7 +43,9 @@ read the same text.
 
 | File | Purpose |
 | :--- | :--- |
+| [`UNIVERSE-PROFILES.md`](./architecture/UNIVERSE-PROFILES.md) | Human business archetypes, modular Lego profiles, adaptive WAF, and combination prompt patterns. |
 | [`BRICKS.md`](./architecture/BRICKS.md) | Four brick classes, and what breaks without each one. |
+| [`MISSING-BRICKS.md`](./architecture/MISSING-BRICKS.md) | Roadmap and detailed technical specifications for all extended and target bricks. |
 | [`COGNITION.md`](./architecture/COGNITION.md) | How a brick declares the reasoning depth and throughput its work needs. |
 | [`FRACTAL-ARCHITECTURE-AND-SECURITY.md`](./architecture/FRACTAL-ARCHITECTURE-AND-SECURITY.md) | Fractal recursivity, PULL workers, sovereign security model. |
 | [`DEFERRED-DECISIONS.md`](./architecture/DEFERRED-DECISIONS.md) | Questions deliberately left open, with the trigger that reopens each one. |

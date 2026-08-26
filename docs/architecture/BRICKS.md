@@ -63,9 +63,17 @@ measurement from the target host, never by a published ranking alone.
 | `brick-ged` | Sovereign document hub, content-addressable storage | Live |
 | `brick-qdrant` | Vector store for semantic memory | Live |
 | `@shaper/rag` | Semantic ingestion, multi-tenant vector isolation | Live |
-| `brick-pipeline` | Multi-witness document understanding + mechanical arbiter | **TARGET — not implemented.** Treat its INTENT as a specification, not as a description of running code |
-| `brick-waf` | Sovereign routing firewall: agent-generated allow-list, routing, precomputed cache | **TARGET — not implemented.** Specification only. Positive security is generated from the application; generic signatures stay delegated to a maintained engine (Rule 28) |
+| `brick-pipeline` | Multi-witness document understanding + mechanical arbiter | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
+| `brick-waf` | Sovereign routing firewall: agent-generated allow-list, routing, precomputed cache | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
+| `brick-billing` | Stripe webhooks, subscriptions & auto-invoicing (:8690) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
+| `brick-voice` | Local Whisper STT & low-latency voice synthesis (:8670) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
+| `brick-messaging`| WhatsApp Pro, Telegram & Signal chat/photo ingress (:8665) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
+| `brick-caldav` | 2-way CalDAV/ICS calendar sync & online slot booking (:8675) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
+| `brick-pdf` | Multi-page PDF splitting, barcode tagging & eIDAS signature (:8685) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
+| `brick-mail-intake` | Dedicated continuous IMAP IDLE mail listener daemon (:8655) | **TARGET** — see [`MISSING-BRICKS.md`](./MISSING-BRICKS.md) |
 | `@shaper/mail-agent` | Inbound mail triage into jobs | Live — production mailboxes forbidden in DEV/TEST (Rule 9) |
+
+Full technical specifications, ports, and implementation contracts for all target bricks: [`MISSING-BRICKS.md`](./MISSING-BRICKS.md).
 
 An extension is never started "because it exists". If it is not in the manifest,
 it is not part of this universe.
