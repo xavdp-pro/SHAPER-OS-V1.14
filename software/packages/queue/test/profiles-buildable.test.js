@@ -42,7 +42,7 @@ function todaySections(text) {
   const lines = text.split('\n');
   let capturing = false;
   for (const line of lines) {
-    if (/^###\s/.test(line)) capturing = /Buildable today|Available today/i.test(line);
+    if (/^###\s/.test(line)) capturing = /With this repository alone|In this repository/i.test(line);
     else if (/^##\s/.test(line)) capturing = false;
     else if (capturing) out.push(line);
   }
@@ -52,7 +52,7 @@ function todaySections(text) {
 test('bricks named as buildable today actually exist', () => {
   const text = fs.readFileSync(PAGE, 'utf8');
   const section = todaySections(text);
-  assert.ok(section.length > 0, 'expected a "buildable today" section on the profiles page');
+  assert.ok(section.length > 0, 'expected a "with this repository alone" section on the profiles page');
 
   const named = new Set();
   for (const m of section.matchAll(/`(?:@shaper\/)?(brick-[a-z0-9-]+|[a-z][a-z0-9-]*)`/g)) {
@@ -67,6 +67,6 @@ test('bricks named as buildable today actually exist', () => {
     missing.sort(),
     [],
     'The profiles page presents these as buildable today, and they do not exist. '
-    + 'Move them to the roadmap section or build them:\n  ' + missing.join('\n  ') + '\n',
+    + 'Move them under the catalogue or roadmap heading, or build them here:\n  ' + missing.join('\n  ') + '\n',
   );
 });

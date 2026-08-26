@@ -4,7 +4,6 @@ WORKDIR /app
 COPY packages/logger/ ./packages/logger/
 COPY packages/auth/ ./packages/auth/
 COPY packages/agent/ ./packages/agent/
-COPY packages/mail-agent/ ./packages/mail-agent/
 COPY packages/vault/ ./packages/vault/
 COPY packages/maestro/ ./packages/maestro/
 

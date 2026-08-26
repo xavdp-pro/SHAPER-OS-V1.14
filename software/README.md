@@ -1,4 +1,4 @@
-# SHAPER OS V1.8
+# SHAPER OS V1.9
 
 > **Sovereign, Fractal, and Autonomous Infrastructure for AI Agents**
 
@@ -261,8 +261,8 @@ Shaper OS is installed **with** an IDE agent (Cursor, Claude Code, etc.) — not
 1. **Clone** and open the folder in your IDE:
 
    ```bash
-   git clone https://github.com/xavdp-pro/SHAPER-OS-V1.8.git
-   cd SHAPER-OS-V1.8
+   git clone https://github.com/xavdp-pro/SHAPER-OS-V1.9.git
+   cd SHAPER-OS-V1.9
    ```
 
 2. **Paste this intent** to your agent (full version: [`examples/agent-KEY-COLLECTION-INTENT.md`](../examples/agent-KEY-COLLECTION-INTENT.md)):
@@ -353,7 +353,7 @@ Client-facing shops and portals stay **your apps** (perimeter 3). The operator c
 ## What’s in this repository
 
 ```
-SHAPER-OS-V1.8/
+SHAPER-OS-V1.9/
 ├── doctrine/                    ← 6 master doctrine documents
 ├── START-HERE.md, LAW.md, …     ← install kit
 ├── software/                    ← packages, bricks, npm test, build scripts
@@ -401,8 +401,8 @@ Same idea: **foundation first, then build on top** — ERP, CRM, shop, associati
 ## Quick start
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.8.git
-cd SHAPER-OS-V1.8
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.9.git
+cd SHAPER-OS-V1.9
 cp .env.example software/.env
 # IDE agent: generate VAULT_MASTER_KEY + VAULT_TOKEN — see START-HERE.md
 cd software && npm run vault:bootstrap && npm test

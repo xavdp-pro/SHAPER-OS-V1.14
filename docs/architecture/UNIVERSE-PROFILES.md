@@ -46,15 +46,26 @@ archetype into its canonical formula and its bricks.
 > A test refuses any archetype in the first table that names a brick which does
 > not exist, so this boundary cannot rot quietly.
 
-### Buildable today
+### With this repository alone
+
+| Human Archetype (EN / FR) | Manifest Alias | Canonical Formula | Bricks Deployed | What It Does for the Business |
+| :--- | :--- | :--- | :--- | :--- |
+| **Fleet Manager (Parent)**<br>*(Gestionnaire de Flotte)* | `fleet-manager` | `agent +parent +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `supervisor`, `manager-gateway`, `tunnel` | Supervisor cockpit repairing ($K+1$) and provisioning child universes |
+| **Watchdog & Scraping**<br>*(Agent de Veille & Tâches)* | `watchdog` | `agent +clock` | `vault`, `logger`, `bridge`, `queue`, `maestro` | Autonomous cron tasks, supplier API sync, competitor scraping & alerts |
+| **Public Brochure**<br>*(Site Vitrine Souverain)* | `brochure` | `passive +public` | `logger`, `nginx/static`, `tunnel` | Ultra-fast, lightweight public presence with zero attack surface |
+
+---
+
+### With the brick catalogue
+
+Buildable today too, but they need bricks from **`SHAPER-OS-BRICKS`** — packaged
+products referenced by image and tag. Clone or pull that catalogue first; nothing
+here is copied from it.
 
 | Human Archetype (EN / FR) | Manifest Alias | Canonical Formula | Bricks Deployed | What It Does for the Business |
 | :--- | :--- | :--- | :--- | :--- |
 | **E-Commerce Store**<br>*(Boutique E-Commerce)* | `store` | `passive +data +public` | `logger`, `wordpress`, `mariadb`, `vitals`, `tunnel` | Online transactional store with database, health probes & payments |
 | **Document & AI Hub**<br>*(GED & IA Documentaire)* | `document-hub` | `agent +documents +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `qdrant`, `rag`, `tunnel` | Sovereign document management, OCR, 384d vector search & multimodal AI |
-| **Fleet Manager (Parent)**<br>*(Gestionnaire de Flotte)* | `fleet-manager` | `agent +parent +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `supervisor`, `manager-gateway`, `tunnel` | Supervisor cockpit repairing ($K+1$) and provisioning child universes |
-| **Watchdog & Scraping**<br>*(Agent de Veille & Tâches)* | `watchdog` | `agent +clock` | `vault`, `logger`, `bridge`, `queue`, `maestro` | Autonomous cron tasks, supplier API sync, competitor scraping & alerts |
-| **Public Brochure**<br>*(Site Vitrine Souverain)* | `brochure` | `passive +public` | `logger`, `nginx/static`, `tunnel` | Ultra-fast, lightweight public presence with zero attack surface |
 
 ---
 
@@ -110,17 +121,29 @@ It is what `manifest.tier-a.json` has always declared; `tier-a` stays as an alia
 
 Options attach to either floor or any archetype.
 
-### Available today
+### In this repository
+
+This repository ships **the base and nothing else**. These options need no other
+source:
 
 | Option | Human alias | Adds | What it buys |
 | :--- | :--- | :--- | :--- |
-| **`+documents`** | `+ged` | `brick-ged`, `brick-qdrant`, `@shaper/rag` | It knows things beyond the current task |
-| **`+data`** | `+base` | `brick-mariadb` | Relational state that outlives the run |
-| **`+web`** | `+cockpit` | `brick-helm`, `brick-auth` | A human who is not at a terminal can drive it |
-| **`+public`** | `+internet` | `cloudflared` tunnel | Reachable from outside, with no inbound port open |
 | **`+clock`** | `+cadence` | `brick-maestro` | For a `passive` universe — `agent` already has it |
 | **`+parent`** | `+flotte` | `@shaper/supervisor`, children registry, SSH authority | It operates **other** universes |
-| **`+intake`** | `+courrier` | `@shaper/mail-agent` | Work arrives on its own |
+| **`+public`** | `+internet` | `cloudflared` (upstream image) | Reachable from outside, with no inbound port open |
+
+### From the brick catalogue
+
+Available today, but they live in **`SHAPER-OS-BRICKS`** — packaged products with
+their own upstreams and their own release pace. Referenced by image and tag, never
+copied here:
+
+| Option | Adds | What it buys |
+| :--- | :--- | :--- |
+| **`+documents`** | `brick-ged`, `brick-qdrant`, `@shaper/rag` | It knows things beyond the current task |
+| **`+data`** | `brick-mariadb` | Relational state that outlives the run |
+| **`+web`** | `brick-helm` | A human who is not at a terminal can drive it |
+| **`+intake`** | `@shaper/mail-agent` | Work arrives on its own |
 
 ### On the roadmap
 

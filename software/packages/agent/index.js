@@ -6,7 +6,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bearerAuthHeaders } from '../auth/index.js';
 import { ingestLog } from '../logger/ingest-client.js';
-import { checkMailbox } from '../mail-agent/index.js';
+/**
+ * Mail intake is not part of the base.
+ *
+ * This runner used to import the IMAP client directly, which made the smallest
+ * agent universe depend on a mail product it may never use. The capability is
+ * injected instead: a deployment that wants it passes `mailHandler`, and one
+ * that does not gets a clear refusal rather than a missing module.
+ */
 
 /** @typedef {'agy'|'cursor'|'claude'|'opencode'|'generic'} AgentBridgeType */
 
@@ -66,6 +73,7 @@ export function createAgentBeatHandler({
   loggerUrl = null,
   checkpointPath = null,
   mailStubMode = process.env.MAIL_AGENT_STUB === '1',
+  mailHandler = null,
   fetchImpl = fetch,
 } = {}) {
   if (!bridgeBaseUrl) throw new Error('bridgeBaseUrl is required');
@@ -99,7 +107,24 @@ export function createAgentBeatHandler({
     let newMessages = 0;
     if (entry.kind === 'mail' && entry.vaultKey && vaultClient) {
       const cp = entry.checkpointPath || checkpointPath;
-      const mailResult = await checkMailbox({
+      if (typeof mailHandler !== 'function') {
+        await ingestLog({
+          loggerUrl,
+          pod: slug,
+          event: 'BEAT_SKIPPED',
+          level: 'WARN',
+          correlationId: slug,
+          data: { reason: 'mail_capability_absent', kind: entry.kind },
+          fetchImpl,
+        });
+        return {
+          ok: false,
+          skipped: true,
+          reason: 'mail_capability_absent',
+          newMessages: 0,
+        };
+      }
+      const mailResult = await mailHandler({
         vaultClient,
         vaultKey: entry.vaultKey,
         slug,

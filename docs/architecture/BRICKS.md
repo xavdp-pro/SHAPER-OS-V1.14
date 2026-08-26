@@ -1,5 +1,20 @@
 # The Bricks — Four Classes, One Taxonomy
 
+> **Two repositories, one line between them.** This repository ships the bricks
+> whose behaviour SHAPER's own law defines: vault, logger, queue, maestro, auth,
+> agent, supervisor and the engine bridges. Packaged products — a cockpit, a
+> document hub, a vector store, a database, a firewall — follow an upstream
+> rather than a law, and live in [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.9).
+>
+> The criterion is not size and not usefulness: **who wrote the behaviour.** A
+> brick that implements the doctrine is maintained with the doctrine. A brick that
+> wraps something the world already made has its own versions, its own
+> vulnerabilities, and its own release pace — an independent life deserves an
+> independent repository.
+>
+> Third-party servers used as-is — MariaDB, Qdrant, cloudflared — are not bricks
+> at all: a universe references them by image, and no repository carries them.
+
 > **Why this file exists.** Until v1.8 the repository gave **three** different
 > answers to "what is the base of SHAPER OS", in three places, with no statement
 > that they answered different questions. Each was true. Together they were an

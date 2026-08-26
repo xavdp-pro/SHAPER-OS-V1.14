@@ -50,10 +50,10 @@ are the originals.
 
 | Document | Role |
 | :--- | :--- |
-| [`../bricks/brick-helm/app/VISION.md`](../bricks/brick-helm/app/VISION.md) | Product phases (canonical) |
-| [`../bricks/brick-helm/app/mds/VISION.md`](../bricks/brick-helm/app/mds/VISION.md) | Mirror for agent index |
+| Helm product docs | Moved with `brick-helm` to the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.9) catalogue |
+
 | [`HELM-WEB-CHAT.md`](./HELM-WEB-CHAT.md) | Helm v2 web chat integration |
-| [`../bricks/brick-helm/app/mds/INDEX-AGENTS.md`](../bricks/brick-helm/app/mds/INDEX-AGENTS.md) | Agent working docs index |
+
 
 ### Historical / archived (do not treat as active law)
 

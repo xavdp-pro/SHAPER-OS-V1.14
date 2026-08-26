@@ -31,7 +31,7 @@ This first install is a **DEV** universe: on demand, allowed to break. It is not
 Everything is in **this repository**. Clone once ([`REPOS.md`](./REPOS.md)).
 
 ```
-SHAPER-OS-V1.8/          ← repo root — every command below runs from here
+SHAPER-OS-V1.9/          ← repo root — every command below runs from here
 ├── README.md            ← the human door
 ├── AGENTS.md            ← the agent door
 ├── LAW.md               ← what is never skipped
@@ -115,7 +115,7 @@ Tunnel token → `<univ_slug>-dev/sav/tunnel/token` (not git).
    - Copy [`manifest.tier-a.json`](../../manifest.tier-a.json) → `<univ_slug>-dev/manifest.json`
    - Copy [`examples/universe-AGENT-DEPLOY.md`](../../examples/universe-AGENT-DEPLOY.md) → `AGENT-DEPLOY.md`; lifecycle = **dev**
    - Copy [`examples/deploy/podman-up.sh`](../../examples/deploy/podman-up.sh) → `<univ_slug>-dev/deploy/podman-up.sh`
-   - Tier-b later: [`manifest.tier-b.json`](../../manifest.tier-b.json) and `WITH_HELM=1`
+   - Tier-b later: the `agent +web +public` manifest, in the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.9) catalogue and `WITH_HELM=1`
 7. Start (from repo root):
 
    ```bash

@@ -83,7 +83,6 @@ export HELM_PORT="${HELM_PORT:-8650}"
 export OPENCODE_MODEL
 export DEEPGRAM_API_KEY="${DEEPGRAM_API_KEY:-}"
 export GROQ_API_KEY="${GROQ_API_KEY:-}"
-export WITH_HELM="${WITH_HELM:-0}"
 
 mkdir -p "$SHAPER/data/vault" \
   "$UNIV/log" "$UNIV/sav" "$UNIV/state" \
@@ -186,36 +185,10 @@ podman run -d --name "${SLUG}-maestro" --network "$NET" --replace \
   -v "$UNIV:/data/univ:Z" \
   localhost/shaper-maestro:latest
 
-if [[ "$WITH_HELM" == "1" ]]; then
-  JWT_SECRET="${JWT_SECRET:-$(openssl rand -hex 24)}"
-  echo "[podman-up] helm :$HELM_PORT"
-  podman run -d --name "${SLUG}-helm" --network "$NET" --replace \
-    -e PORT="$HELM_PORT" \
-    -e HOST="0.0.0.0" \
-    -e CLI_BRIDGE_NAME=opencode \
-    -e CLI_BRIDGE_URL="http://127.0.0.1:$OPENCODE_BRIDGE_PORT" \
-    -e CLI_BRIDGE_TOKEN="$BRIDGE_AUTH_TOKEN" \
-    -e DEFAULT_AGENT_PLUGIN=opencode \
-    -e AGENT_PLUGINS="opencode|http://127.0.0.1:$OPENCODE_BRIDGE_PORT|$BRIDGE_AUTH_TOKEN" \
-    -e DEEPGRAM_API_KEY="$DEEPGRAM_API_KEY" \
-    -e GROQ_API_KEY="$GROQ_API_KEY" \
-    -e GROQ_ACK_LLM=1 \
-    -e GROQ_ACK_MODEL="${GROQ_ACK_MODEL:-groq/compound-mini}" \
-    -e APP_MODE="${APP_MODE:-demo}" \
-    -e SHAPER_RUNTIME_MODE="$SHAPER_RUNTIME_MODE" \
-    -e APP_PASSWORD="${APP_PASSWORD:-}" \
-    -e JWT_SECRET="$JWT_SECRET" \
-    localhost/shaper-helm:latest
+# The cockpit and the public tunnel are not deployed from here. brick-helm lives
+# in the SHAPER-OS-BRICKS catalogue, with its own deploy fragment: this repository
+# ships the base and only the base. See docs/architecture/UNIVERSE-PROFILES.md.
 
-  TUNNEL_TOKEN_FILE="$UNIV/sav/tunnel/token"
-  if [[ -f "$TUNNEL_TOKEN_FILE" ]]; then
-    TUNNEL_TOKEN="$(tr -d '\n' < "$TUNNEL_TOKEN_FILE")"
-    echo "[podman-up] tunnel"
-    podman run -d --name "${SLUG}-tunnel" --network "$NET" --replace \
-      docker.io/cloudflare/cloudflared:latest \
-      tunnel --no-autoupdate run --token "$TUNNEL_TOKEN"
-  fi
-fi
 
 sleep 3
 fail=0

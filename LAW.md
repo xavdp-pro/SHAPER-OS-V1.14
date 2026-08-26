@@ -1,4 +1,4 @@
-# The law does not bend — SHAPER OS V1.8
+# The law does not bend — SHAPER OS V1.9
 
 This kit exists to **execute** Shaper OS, not to dilute it.
 
