@@ -1,11 +1,18 @@
+ARG SHAPER_BASE_IMAGE
+FROM ${SHAPER_BASE_IMAGE} AS shaper_base
 FROM docker.io/library/node:20-alpine
 
+ARG SHAPER_SOURCE_REVISION
+LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.brick="maestro"
+LABEL org.shaper.build-packages="logger auth agent-runtime vault maestro"
+
 WORKDIR /app
-COPY packages/pkg-logger/ ./packages/pkg-logger/
-COPY packages/pkg-auth/ ./packages/pkg-auth/
-COPY packages/pkg-agent-runtime/ ./packages/pkg-agent-runtime/
-COPY packages/pkg-vault/ ./packages/pkg-vault/
-COPY packages/pkg-maestro/ ./packages/pkg-maestro/
+COPY --from=shaper_base /shaper/packages/pkg-logger/ ./packages/pkg-logger/
+COPY --from=shaper_base /shaper/packages/pkg-auth/ ./packages/pkg-auth/
+COPY --from=shaper_base /shaper/packages/pkg-agent-runtime/ ./packages/pkg-agent-runtime/
+COPY --from=shaper_base /shaper/packages/pkg-vault/ ./packages/pkg-vault/
+COPY --from=shaper_base /shaper/packages/pkg-maestro/ ./packages/pkg-maestro/
 
 WORKDIR /app/packages/pkg-maestro
 

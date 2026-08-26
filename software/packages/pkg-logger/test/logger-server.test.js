@@ -31,13 +31,13 @@ test('logger-server - health and ingest over HTTP', async () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       pod: 'mail-v1-test',
-      event: 'MAIL_RECEIVED',
+      event: 'TASK_REGISTERED',
       data: { sender: 'ops@example.com' },
     }),
   });
   const ingested = await ingestRes.json();
   assert.equal(ingestRes.status, 200);
-  assert.equal(ingested.record.event, 'MAIL_RECEIVED');
+  assert.equal(ingested.record.event, 'TASK_REGISTERED');
 
   const lastRes = await fetch(`http://127.0.0.1:${PORT}/api/events/last?pod=mail-v1-test&limit=10`);
   const last = await lastRes.json();

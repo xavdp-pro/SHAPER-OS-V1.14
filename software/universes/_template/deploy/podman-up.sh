@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Golden snippet — first DEV universe (local). Parameterized. No secrets in this file.
-# Monorepo layout: clone SHAPER-OS-V1.7, universe sits beside software/:
+# Monorepo layout: clone SHAPER-OS-V1.11, universe sits beside software/:
 #   <repo>/software/  +  <repo>/<univ_slug>-dev/
 set -euo pipefail
 
@@ -8,7 +8,7 @@ UNIV="$(cd "$(dirname "$0")/.." && pwd)"
 SLUG="${UNIV_SLUG:-$(basename "$UNIV")}"
 
 # The universe declares its posture in its manifest; the image must not decide it.
-# brick-helm bakes NODE_ENV=production for build optimisation, which is right, but
+# An image bakes NODE_ENV=production for build optimisation, which is right, but
 # it says nothing about whether this deployment is a laptop or a business. Without
 # this, a DEV universe inherited "production" from the image and halted on a
 # missing secret it had no reason to need.
@@ -28,10 +28,10 @@ REPO_ROOT="$(cd "$UNIV/.." && pwd)"
 SHAPER="${SHAPER_ROOT:-$REPO_ROOT/software}"
 
 if [[ ! -d "$SHAPER/packages" ]]; then
-  if [[ -d "$REPO_ROOT/SHAPER-OS-V1.7/software/packages" ]]; then
-    SHAPER="$REPO_ROOT/SHAPER-OS-V1.7/software"
-  elif [[ -d "/root/SHAPER-OS-V1.7/software/packages" ]]; then
-    SHAPER="/root/SHAPER-OS-V1.7/software"
+  if [[ -d "$REPO_ROOT/SHAPER-OS-V1.11/software/packages" ]]; then
+    SHAPER="$REPO_ROOT/SHAPER-OS-V1.11/software"
+  elif [[ -d "/root/SHAPER-OS-V1.11/software/packages" ]]; then
+    SHAPER="/root/SHAPER-OS-V1.11/software"
   elif [[ -d "$UNIV/software/packages" ]]; then
     SHAPER="$UNIV/software"
   else
@@ -61,18 +61,15 @@ fi
 export VAULT_MASTER_KEY="${VAULT_MASTER_KEY:?Set VAULT_MASTER_KEY in $ENV_FILE}"
 export VAULT_TOKEN="${VAULT_TOKEN:-}"
 export BRIDGE_OPENCODE_STUB="${BRIDGE_OPENCODE_STUB:-0}"
-export MAIL_AGENT_STUB="${MAIL_AGENT_STUB:-1}"
 export VAULT_PORT="${VAULT_PORT:-8610}"
 export LOGGER_PORT="${LOGGER_PORT:-8620}"
 export OPENCODE_BRIDGE_PORT="${OPENCODE_BRIDGE_PORT:-4440}"
 export OPENCODE_SERVE_PORT="${OPENCODE_SERVE_PORT:-4441}"
 export QUEUE_PORT="${QUEUE_PORT:-8640}"
 export MAESTRO_PORT="${MAESTRO_PORT:-8630}"
-export HELM_PORT="${HELM_PORT:-8650}"
 export OPENCODE_MODEL="${OPENCODE_MODEL:-opencode/nemotron-3.5-lightning-free}"
 export DEEPGRAM_API_KEY="${DEEPGRAM_API_KEY:-}"
 export GROQ_API_KEY="${GROQ_API_KEY:-}"
-export WITH_HELM="${WITH_HELM:-0}"
 # The queue is the universe's unit of work. Lanes are how it is sized to the
 # host: one on a modest VPS, several on a real server — same image (Rule 32).
 export QUEUE_CONCURRENCY="${QUEUE_CONCURRENCY:-1}"
@@ -99,7 +96,7 @@ export AGY_BRIDGE_PORT="${AGY_BRIDGE_PORT:-4330}"
 # precisely why we deploy one from scratch.
 mkdir -p "$SHAPER/data/vault" \
   "$UNIV/log" "$UNIV/sav" "$UNIV/state" \
-  "$UNIV/sav/opencode-ws" "$UNIV/sav/opencode-bridge" "$UNIV/sav/tunnel" \
+  "$UNIV/sav/opencode-ws" "$UNIV/sav/opencode-bridge" \
   "$UNIV/sav/queue" "$WORK_ROOT"
 
 if [[ ! -f "$SHAPER/data/vault/vault.enc" ]]; then
@@ -150,8 +147,6 @@ stop_rm "${SLUG}-bridge-cursor"
 stop_rm "${SLUG}-bridge-agy"
 stop_rm "${SLUG}-queue"
 stop_rm "${SLUG}-maestro"
-stop_rm "${SLUG}-helm"
-stop_rm "${SLUG}-tunnel"
 
 NET="${PODMAN_NETWORK:-host}"
 
@@ -244,7 +239,6 @@ echo "[podman-up] maestro :$MAESTRO_PORT"
 podman run -d --name "${SLUG}-maestro" --network "$NET" --replace \
   -e MAESTRO_PORT="$MAESTRO_PORT" \
   -e MAESTRO_AUTO_START=1 \
-  -e MAIL_AGENT_STUB \
   -e VAULT_URL="http://127.0.0.1:$VAULT_PORT" \
   -e VAULT_TOKEN \
   -e LOGGER_URL="http://127.0.0.1:$LOGGER_PORT" \
@@ -255,36 +249,11 @@ podman run -d --name "${SLUG}-maestro" --network "$NET" --replace \
   -v "$UNIV:/data/univ:Z" \
   localhost/shaper-maestro:latest
 
-if [[ "$WITH_HELM" == "1" ]]; then
-  JWT_SECRET="${JWT_SECRET:-$(openssl rand -hex 24)}"
-  echo "[podman-up] helm :$HELM_PORT"
-  podman run -d --name "${SLUG}-helm" --network "$NET" --replace \
-    -e PORT="$HELM_PORT" \
-    -e HOST="0.0.0.0" \
-    -e CLI_BRIDGE_NAME=opencode \
-    -e CLI_BRIDGE_URL="http://127.0.0.1:$OPENCODE_BRIDGE_PORT" \
-    -e CLI_BRIDGE_TOKEN="$BRIDGE_AUTH_TOKEN" \
-    -e DEFAULT_AGENT_PLUGIN=opencode \
-    -e AGENT_PLUGINS="opencode|http://127.0.0.1:$OPENCODE_BRIDGE_PORT|$BRIDGE_AUTH_TOKEN" \
-    -e DEEPGRAM_API_KEY="$DEEPGRAM_API_KEY" \
-    -e GROQ_API_KEY="$GROQ_API_KEY" \
-    -e GROQ_ACK_LLM=1 \
-    -e GROQ_ACK_MODEL="${GROQ_ACK_MODEL:-groq/compound-mini}" \
-    -e APP_MODE="${APP_MODE:-demo}" \
-    -e SHAPER_RUNTIME_MODE="$SHAPER_RUNTIME_MODE" \
-    -e APP_PASSWORD="${APP_PASSWORD:-}" \
-    -e JWT_SECRET="$JWT_SECRET" \
-    localhost/shaper-helm:latest
-
-  TUNNEL_TOKEN_FILE="$UNIV/sav/tunnel/token"
-  if [[ -f "$TUNNEL_TOKEN_FILE" ]]; then
-    TUNNEL_TOKEN="$(tr -d '\n' < "$TUNNEL_TOKEN_FILE")"
-    echo "[podman-up] tunnel"
-    podman run -d --name "${SLUG}-tunnel" --network "$NET" --replace \
-      docker.io/cloudflare/cloudflared:latest \
-      tunnel --no-autoupdate run --token "$TUNNEL_TOKEN"
-  fi
-fi
+# brick-helm and the tunnel used to be started here. Both are catalogue bricks,
+# and this is the base template: a blueprint that starts a brick the base does
+# not ship teaches every copy of it to depend on a repository it never declared.
+# A universe that wants the cockpit declares it in its own manifest with
+# `"source": "catalogue"`, and belongs in the catalogue — see univ-demo there.
 
 sleep 3
 fail=0
@@ -302,7 +271,4 @@ check "http://127.0.0.1:$LOGGER_PORT/api/health" logger
 check "http://127.0.0.1:$OPENCODE_BRIDGE_PORT/api/health" bridge
 check "http://127.0.0.1:$QUEUE_PORT/api/health" queue
 check "http://127.0.0.1:$MAESTRO_PORT/api/health" maestro
-if [[ "$WITH_HELM" == "1" ]]; then
-  check "http://127.0.0.1:$HELM_PORT/api/health" helm
-fi
 exit "$fail"

@@ -2,7 +2,7 @@
 
 # Agent intent — digest repo, collect keys, install DEV
 
-Paste this to your IDE agent **after** cloning [SHAPER-OS-V1.6](https://github.com/xavdp-pro/SHAPER-OS-V1.6) and opening the folder.
+Paste this to your IDE agent **after** cloning [SHAPER-OS-V1.11](https://github.com/xavdp-pro/SHAPER-OS-V1.11) and opening the folder.
 
 ---
 

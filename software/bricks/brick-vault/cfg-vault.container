@@ -2,14 +2,24 @@
 Description=SHAPER OS Vault (Podman Quadlet)
 After=network-online.target
 
+# The image is written by the universe that installs this unit, from the digest
+# recorded in its cfg-image-lock.json. A tag can be moved under a running system;
+# a digest cannot, and `latest` is forbidden outright — which is exactly what
+# this line used to say before V1.11.
+#
+#   sed -e "s|@IMG@|$(digest from cfg-image-lock.json)|" -e "s|%i|<universe>|g"
+#
+# ContainerName and Volume follow docs/architecture/NAMING.md: ctr- is a running
+# container role, vol- a persistent universe-owned volume, and both are prefixed
+# by the universe so two universes on one host never collide.
 [Container]
-Image=localhost/shaper-vault:latest
-ContainerName=shaper-vault
+Image=@IMG@
+ContainerName=%i-ctr-vault
 PublishPort=127.0.0.1:8510:8510
 Environment=VAULT_PORT=8510
 Environment=VAULT_STORAGE_FILE=/data/vault/vault.enc
-Volume=shaper-vault-data:/data/vault:Z
+Volume=vol-%i-vault:/data/vault:Z
 Restart=always
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

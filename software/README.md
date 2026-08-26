@@ -1,4 +1,4 @@
-# SHAPER OS V1.10
+# SHAPER OS V1.11
 
 > **Sovereign, Fractal, and Autonomous Infrastructure for AI Agents**
 
@@ -75,17 +75,17 @@ SHAPER OS thus shifts infrastructure from a model where humans manually program 
 
 ---
 
-## 🛍️ SHAPER OS — Example of a Fractal SaaS for Managing Online Stores
+## 🛍️ SHAPER OS — Example of a Fractal SaaS for Managing Client Applications
 
 ### Level 1 — The Idea in One Sentence
-Imagine a SaaS capable of **automatically managing online stores**, whether running on WordPress/WooCommerce, PrestaShop, Shopify, or entirely custom-built solutions.
+Imagine a SaaS capable of **automatically managing client applications**, whatever technology each of them happens to run on.
 
-Each store has its own environment and dedicated AI agent, capable of observing it, performing tasks, reporting issues, and resolving problems autonomously whenever possible.
+Each application has its own environment and dedicated AI agent, capable of observing it, performing tasks, reporting issues, and resolving problems autonomously whenever possible.
 
 ---
 
 ### Level 2 — The Client
-A business owner runs a WordPress/WooCommerce store.
+A business owner runs one line of business on one application.
 
 They want to be able to request:
 > *"Update my product catalog."*  
@@ -94,7 +94,7 @@ They want to be able to request:
 > *"Find out why order processing is lagging."*  
 > *"Prepare and stage the next version of the website."*
 
-The store's agent understands its local environment, conventions, tools, and operational history.
+That universe's agent understands its local environment, conventions, tools, and operational history.
 
 It performs actions that fall within its granted authority.
 
@@ -141,36 +141,31 @@ The SaaS platform operates a higher-level universe capable of managing its clien
 SHAPER SaaS Platform (Grandparent)
 │
 ├── Client A Universe
-│   ├── WordPress Store
-│   ├── PrestaShop Store
-│   └── Shopify Store
+│   ├── Child universe #1
+│   ├── Child universe #2
+│   └── Child universe #3
 │
 ├── Client B Universe
-│   ├── Custom-Built E-Commerce Store
-│   └── Shopify Store
+│   ├── Child universe #1
+│   └── Child universe #2
 │
 └── Client C Universe
-    ├── WordPress Store #1
-    ├── WordPress Store #2
-    └── Custom Headless Store
+    ├── Child universe #1
+    ├── Child universe #2
+    └── Child universe #3
 ```
 
 This is where the **fractal nature** emerges:
-* The mechanism used to manage a single store is the same mechanism used to manage a cluster of stores.
+* The mechanism used to manage a single universe is the same mechanism used to manage a cluster of them.
 * The mechanism used to manage a client is the same mechanism used to manage the entire SaaS platform.
 * The structure repeats identically across every level.
 
 ---
 
 ### Level 5 — The SHAPER Abstraction
-Critically, SHAPER does not depend on the underlying technology powering each store.
+Critically, SHAPER does not depend on the underlying technology powering each child universe — which is exactly why the base repository names none of them.
 
-A store can run on:
-* **WordPress + WooCommerce**
-* **PrestaShop**
-* **Shopify**
-* **A custom-built, in-house e-commerce application**
-* Or any technology that does not even exist yet.
+A child universe can run a packaged product, a bespoke in-house application, or a technology that does not exist yet. The base does not know, and must not: the brick that knows lives in the catalogue, and the universe that assembles it declares it in its own manifest.
 
 What changes is the **universe specialization**.
 
@@ -189,10 +184,13 @@ Universe
 └── responsibility perimeter
 ```
 
-* A WordPress universe carries WordPress-specific CLI tools (WP-CLI, PHP runtime).
-* A PrestaShop universe carries PrestaShop-specific tooling.
-* A Shopify universe integrates via Shopify REST/GraphQL APIs.
-* A custom-built store carries its dedicated bridges and microservices.
+* A universe built on a packaged product carries that product's CLI and runtime.
+* A universe built on a hosted service carries the bridge that talks to its API.
+* A universe built on bespoke code carries its own dedicated bridges and microservices.
+
+Each of those specialisations is a **catalogue** brick. None of them is named in
+the base, because the base would then have to be right about a product it does
+not ship.
 
 **SHAPER provides the common foundation; the universe provides the specialization.**
 
@@ -200,11 +198,11 @@ Universe
 
 ### The Fundamental Consequence
 
-We do not build 4 completely separate, fragmented systems:
-* Not a WordPress system,
-* Plus a PrestaShop system,
-* Plus a Shopify system,
-* Plus a custom app system.
+We do not build one fragmented system per technology:
+* Not a system for a packaged product,
+* Plus a system for a hosted service,
+* Plus a system for bespoke code,
+* Plus a system for whatever comes next.
 
 We build **a single universal universe model capable of hosting and orchestrating all of them.**
 
@@ -217,13 +215,13 @@ SaaS Platform
 │   │
 │   ├── Regional Brand Group
 │   │   │
-│   │   ├── Individual Store Universe
-│   │   │   ├── WordPress / WooCommerce
+│   │   ├── Individual Child Universe
+│   │   │   ├── Business brick (from the catalogue)
 │   │   │   ├── AI Agent
 │   │   │   ├── Queue
 │   │   │   └── Microservices
 │   │   │
-│   │   └── Individual Store Universe
+│   │   └── Individual Child Universe
 │   │
 │   └── ...
 │
@@ -261,8 +259,8 @@ Shaper OS is installed **with** an IDE agent (Cursor, Claude Code, etc.) — not
 1. **Clone** and open the folder in your IDE:
 
    ```bash
-   git clone https://github.com/xavdp-pro/SHAPER-OS-V1.10.git
-   cd SHAPER-OS-V1.10
+   git clone https://github.com/xavdp-pro/SHAPER-OS-V1.11.git
+   cd SHAPER-OS-V1.11
    ```
 
 2. **Paste this intent** to your agent (full version: [`examples/agent-KEY-COLLECTION-INTENT.md`](../examples/agent-KEY-COLLECTION-INTENT.md)):
@@ -353,7 +351,7 @@ Client-facing shops and portals stay **your apps** (perimeter 3). The operator c
 ## What’s in this repository
 
 ```
-SHAPER-OS-V1.10/
+SHAPER-OS-V1.11/
 ├── doctrine/                    ← 6 master doctrine documents
 ├── START-HERE.md, LAW.md, …     ← install kit
 ├── software/                    ← packages, bricks, npm test, build scripts
@@ -401,8 +399,8 @@ Same idea: **foundation first, then build on top** — ERP, CRM, shop, associati
 ## Quick start
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.10.git
-cd SHAPER-OS-V1.10
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.11.git
+cd SHAPER-OS-V1.11
 cp .env.example software/.env
 # IDE agent: generate VAULT_MASTER_KEY + VAULT_TOKEN — see START-HERE.md
 cd software && npm run vault:bootstrap && npm test

@@ -47,7 +47,7 @@ Every component, package, brick, or app MUST be classified into exactly one peri
 | :--- | :--- | :--- |
 | `@shaper/pkg-vault` / `brick-vault` | AES-256-GCM secrets | ✅ |
 | `@shaper/pkg-logger` / `brick-logger` | JSONL append-only audit | ✅ |
-| `@shaper/pkg-auth` / `brick-auth` | Stateless Bearer | ✅ |
+| `@shaper/pkg-auth` | Stateless Bearer, in-process | ✅ |
 | `@shaper/pkg-db` / `brick-mariadb` | Turbinobash DB config resolver | ✅ |
 | `@shaper/pkg-queue` / `brick-queue` | In-memory async jobs (opaque payload) | ✅ |
 | `@shaper/waf` | Edge WAF (deterministic) | ❌ planned |
@@ -68,7 +68,7 @@ Every component, package, brick, or app MUST be classified into exactly one peri
 | Package / brick | Role | Status in repo |
 | :--- | :--- | :--- |
 | `@shaper/pkg-maestro` / `brick-maestro` | Cadence scheduler | ✅ |
-| `@shaper/pkg-agent-runtime` / `brick-agent-runtime` | Task registry (1 image, N instances) | ✅ |
+| `@shaper/pkg-agent-runtime` | Task dispatch inside `brick-maestro` (1 image, N tasks) | ✅ |
 | `@shaper/pkg-mail-agent` | IMAP check (vault creds only) | ✅ |
 | `@shaper/pkg-bridge-agy` / `brick-bridge-agy` | Antigravity CLI bridge (Rule 8) | ✅ |
 | `@shaper/pkg-bridge-opencode` / `brick-bridge-opencode` | OpenCode CLI bridge (free tier) | ✅ |

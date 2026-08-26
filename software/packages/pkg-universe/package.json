@@ -1,0 +1,9 @@
+{
+  "name": "@shaper/pkg-universe",
+  "version": "1.11.0",
+  "description": "Reads and validates a universe manifest. The declaration contract, executable.",
+  "type": "module",
+  "main": "index.js",
+  "private": true,
+  "license": "SEE LICENSE IN ../../../LICENSE"
+}

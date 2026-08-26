@@ -64,7 +64,7 @@ here is copied from it.
 
 | Human Archetype (EN / FR) | Manifest Alias | Canonical Formula | Bricks Deployed | What It Does for the Business |
 | :--- | :--- | :--- | :--- | :--- |
-| **E-Commerce Store**<br>*(Boutique E-Commerce)* | `store` | `passive +data +public` | `logger`, `wordpress`, `mariadb`, `vitals`, `tunnel` | Online transactional store with database, health probes & payments |
+| **E-Commerce Store**<br>*(Boutique E-Commerce)* | `store` | `passive +data +public` | `brick-logger`, plus the storefront and database bricks of the catalogue | Online transactional store with database, health probes & payments |
 | **Document & AI Hub**<br>*(GED & IA Documentaire)* | `document-hub` | `agent +documents +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `qdrant`, `rag`, `tunnel` | Sovereign document management, OCR, 384d vector search & multimodal AI |
 
 ---
@@ -193,7 +193,7 @@ for one is a deliberate act rather than a surprise at deploy time.
 │ • IP sliding-window rate limiting & brute-force shield.                                │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ PHASE 2 : LIVE APPLICATION SHAPING (Post-boot / Positive Security)                     │
-│ • Once the application runs (WordPress, GED, CRM...), the Parent Agent inspects the   │
+│ • Once the application runs, whatever it is, the Parent Agent inspects the            │
 │   active routes and compiles an **exact positive whitelist** (`GET /api/search`...).  │
 │ • Precomputed SSR cache for read-only pages (served in 0.3 ms without waking Node.js). │
 │ • Any request outside the positive application shape is dropped at layer 3 in 0.1 ms. │
@@ -225,7 +225,7 @@ Here is how humans and AI agents formulate instructions in plain English across 
 > *"Build me a **`telephony-hub +waf`** universe called `univ-office-dev`, DEV lifecycle. Connects to our OVH SIP trunk with an interactive voice menu (IVR), softphone WebRTC on desktop/mobile, and webmail with AI draft replies."*
 
 ### Example 2 — E-Commerce Store with Adaptive WAF (DEV)
-> *"Build me a **`store +waf`** universe called `univ-shoes-dev`, DEV lifecycle. It runs a WooCommerce shop with an adaptive firewall and precomputed product cache for catalog pages."*
+> *"Build me a **`store +waf`** universe called `univ-shoes-dev`, DEV lifecycle. It runs a storefront with an adaptive firewall and a precomputed cache for catalogue pages."*
 
 ### Example 3 — Field Service Quotes with Voice & WhatsApp (DEV)
 > *"Build me a **`field-service +messaging +billing`** universe called `univ-renov-dev`, DEV lifecycle. Artisans send photos and audio notes via WhatsApp; the agent produces signed quotes and collects Stripe deposit payments."*

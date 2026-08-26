@@ -110,19 +110,19 @@ export function diagnoseServiceVitals(serviceName, vitalsData, thresholds = {}) 
 
   // 2. Service-specific factual evaluations
   if (serviceName.includes('maestro')) {
-    const pods = signals.pods || {};
-    for (const [podSlug, podInfo] of Object.entries(pods)) {
-      const cadence = Number(podInfo.cadenceSeconds || 30);
-      const age = podInfo.lastBeatAgeSeconds;
+    const tasks = signals.tasks || {};
+    for (const [taskSlug, taskInfo] of Object.entries(tasks)) {
+      const cadence = Number(taskInfo.cadenceSeconds || 30);
+      const age = taskInfo.lastBeatAgeSeconds;
       if (age !== null && age !== undefined && age > cadence * maxBeatAgeMultiplier) {
         issues.push({
           code: 'STALLED_CADENCE',
           severity: 'HIGH',
-          pod: podSlug,
+          task: taskSlug,
           cadenceSeconds: cadence,
           lastBeatAgeSeconds: age,
           driftRatio: Math.round((age / cadence) * 10) / 10,
-          message: `Pod ${podSlug} beat is overdue (${age}s vs cadence ${cadence}s)`,
+          message: `Task ${taskSlug} beat is overdue (${age}s vs cadence ${cadence}s)`,
         });
       }
     }

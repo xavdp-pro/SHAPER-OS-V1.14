@@ -18,7 +18,6 @@ import test from 'node:test';
  */
 
 const SCRIPTS = [
-  '../../../../examples/deploy/podman-up.sh',
   '../../../universes/_template/deploy/podman-up.sh',
 ];
 

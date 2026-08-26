@@ -201,7 +201,7 @@ matrix**, produced at each deployment and never committed:
 
 The distinction is enforced, not merely stated: the repository suite fails if a
 prescriptive text names a model version
-(`software/packages/pkg-wp-dns-convention/test/canon-names-no-model.test.js`). A
+(`software/packages/pkg-logger/test/canon-names-no-model.test.js`). A
 document opts out by declaring itself a dated snapshot **in the first lines a
 reader sees**, never by an exception hidden in the test.
 

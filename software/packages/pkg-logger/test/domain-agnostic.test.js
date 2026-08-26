@@ -29,7 +29,6 @@ const SKIPPED_DIRS = new Set([
   '.extract-cache', '.cache', 'tmp',
   // Ground truth for OCR: these files must stay byte-identical to the images they
   // describe, so their (deliberately fictional) content is data, not configuration.
-  'test-corpus',
 ]);
 const SKIPPED_FILES = new Set(['package-lock.json']);
 

@@ -5,7 +5,7 @@
 # DRP: 3 clocks (cached images = fast; rebuild from scratch = longer; + data delta).
 # Do not display "< 120s" as SLA. See RULES.md Rule 10.
 # ==============================================================================
-: "${UNIV_SLUG:?not set — choose the universe slug; this repository ships no universe (see univs/README.md)}"
+: "${UNIV_SLUG:?not set — choose the universe slug; this repository ships no universe (see software/universes/README.md)}"
 set -e
 
 echo "============================================================="

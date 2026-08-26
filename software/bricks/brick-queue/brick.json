@@ -1,0 +1,15 @@
+{
+  "brick": "queue",
+  "contractVersion": 1,
+  "distribution": "base",
+  "buildPackages": [
+    "pkg-logger",
+    "pkg-queue"
+  ],
+  "runtimeServices": [],
+  "proof": [
+    "queue health",
+    "job persistence across restart",
+    "dispatch to a bridge"
+  ]
+}

@@ -1,6 +1,6 @@
 {
-  "name": "@shaper/os-v110",
-  "version": "1.7.0",
+  "name": "@shaper/os",
+  "version": "1.11.0",
   "type": "module",
   "private": true
 }

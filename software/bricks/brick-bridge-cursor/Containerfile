@@ -6,11 +6,18 @@
 # The whole version directory must be mounted, never the symlink in
 # ~/.local/bin (it would arrive dangling) nor the launcher alone (it would find
 # none of its siblings).
+ARG SHAPER_BASE_IMAGE
+FROM ${SHAPER_BASE_IMAGE} AS shaper_base
 FROM docker.io/library/node:20-bookworm-slim
 
+ARG SHAPER_SOURCE_REVISION
+LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.brick="bridge-cursor"
+LABEL org.shaper.build-packages="logger bridge-cursor"
+
 WORKDIR /app
-COPY packages/pkg-logger/ /logger/
-COPY packages/pkg-bridge-cursor/ ./
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /logger/
+COPY --from=shaper_base /shaper/packages/pkg-bridge-cursor/ ./
 
 EXPOSE 4310
 ENV NODE_ENV=production

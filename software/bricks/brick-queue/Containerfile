@@ -1,11 +1,18 @@
+ARG SHAPER_BASE_IMAGE
+FROM ${SHAPER_BASE_IMAGE} AS shaper_base
 FROM docker.io/library/node:20-alpine
+
+ARG SHAPER_SOURCE_REVISION
+LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.brick="queue"
+LABEL org.shaper.build-packages="logger queue"
 
 WORKDIR /app
 # The queue package is flattened into WORKDIR, so a sibling import such as
-# `../pkg-logger/vitals.js` resolves one level above it. Placing logger there keeps
-# that import valid without reshaping the whole image layout.
-COPY packages/pkg-logger/ /logger/
-COPY packages/pkg-queue/ ./
+# `../pkg-logger/vitals.js` resolves one level above it. Placing logger there
+# keeps that import valid without reshaping the whole image layout.
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /logger/
+COPY --from=shaper_base /shaper/packages/pkg-queue/ ./
 
 EXPOSE 8540
 ENV NODE_ENV=production

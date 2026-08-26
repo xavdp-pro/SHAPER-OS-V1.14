@@ -16,7 +16,7 @@ const SHAPER_ROOT = path.resolve(__dirname, '../..');
 
 const PORT = parseInt(process.env.PORT || process.env.MAESTRO_PORT || '8530', 10);
 const HOST = process.env.HOST || process.env.MAESTRO_HOST || '0.0.0.0';
-const LOG_DIR = process.env.LOG_DIR || '/data/maestro-v1/log';
+const LOG_DIR = process.env.LOG_DIR || '/data/brick-maestro/log';
 const TASKS_FILE = process.env.MAESTRO_TASKS_FILE || '';
 const BRIDGE_URL = process.env.MAESTRO_BRIDGE_URL || '';
 const QUEUE_URL = process.env.MAESTRO_QUEUE_URL || '';
@@ -24,7 +24,7 @@ const LOGGER_URL = process.env.LOGGER_URL || '';
 const BRIDGE_AUTH_TOKEN = process.env.BRIDGE_AUTH_TOKEN || '';
 const AUTO_START = process.env.MAESTRO_AUTO_START === '1';
 
-console.log(`[maestro-v1] Starting on ${HOST}:${PORT}...`);
+console.log(`[brick-maestro] Starting on ${HOST}:${PORT}...`);
 
 // Two ways to spend a beat, and they are not equivalent.
 //
@@ -34,7 +34,7 @@ console.log(`[maestro-v1] Starting on ${HOST}:${PORT}...`);
 //
 // Straight to the bridge (legacy): the maestro dispatches and reports a success
 // it never observed, and work then flows through two paths with no common
-// ledger. Kept because live pods still run this way; the queue supersedes it as
+// ledger. Kept because live universes still run this way; the queue supersedes it as
 // soon as MAESTRO_QUEUE_URL is set.
 const beatHandler = QUEUE_URL
   ? createQueueBeatHandler({
@@ -51,10 +51,10 @@ const beatHandler = QUEUE_URL
     : null;
 
 console.log(QUEUE_URL
-  ? `[maestro-v1] Beats go through the queue at ${QUEUE_URL}`
-  : '[maestro-v1] Beats go straight to the bridge — set MAESTRO_QUEUE_URL to route them through the queue');
+  ? `[brick-maestro] Beats go through the queue at ${QUEUE_URL}`
+  : '[brick-maestro] Beats go straight to the bridge — set MAESTRO_QUEUE_URL to route them through the queue');
 
-const scheduler = new MaestroScheduler({ pod: 'maestro-v1', logDir: LOG_DIR, beatHandler });
+const scheduler = new MaestroScheduler({ service: 'brick-maestro', logDir: LOG_DIR, beatHandler });
 
 if (TASKS_FILE && fs.existsSync(TASKS_FILE)) {
   const tasksPath = path.isAbsolute(TASKS_FILE) ? TASKS_FILE : path.resolve(SHAPER_ROOT, TASKS_FILE);
@@ -69,9 +69,9 @@ if (TASKS_FILE && fs.existsSync(TASKS_FILE)) {
     if (task.checkpointPath && !path.isAbsolute(task.checkpointPath)) {
       task.checkpointPath = path.resolve(tasksBaseDir, task.checkpointPath);
     }
-    scheduler.registerAgentTask(task);
+    scheduler.registerTask(task);
   }
-  console.log(`[maestro-v1] Loaded ${tasks.length} task(s)`);
+  console.log(`[brick-maestro] Loaded ${tasks.length} task(s)`);
 }
 
 const server = createMaestroServer({ port: PORT, host: HOST, scheduler });
@@ -79,12 +79,12 @@ const server = createMaestroServer({ port: PORT, host: HOST, scheduler });
 if (AUTO_START) scheduler.startScheduler();
 
 server.on('listening', async () => {
-  console.log(`[maestro-v1] Ready — ${scheduler.listRegisteredPods().length} task(s)`);
+  console.log(`[brick-maestro] Ready — ${scheduler.listRegisteredTasks().length} task(s)`);
   await ingestLog({
     loggerUrl: LOGGER_URL,
-    pod: 'maestro',
+    pod: 'brick-maestro',
     event: 'MAESTRO_STARTED',
-    data: { tasks: scheduler.listRegisteredPods().length, autoStart: AUTO_START },
+    data: { tasks: scheduler.listRegisteredTasks().length, autoStart: AUTO_START },
   });
 });
 

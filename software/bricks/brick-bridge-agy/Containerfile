@@ -1,11 +1,18 @@
+ARG SHAPER_BASE_IMAGE
+FROM ${SHAPER_BASE_IMAGE} AS shaper_base
 FROM docker.io/library/node:20-bookworm-slim
+
+ARG SHAPER_SOURCE_REVISION
+LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.brick="bridge-agy"
+LABEL org.shaper.build-packages="logger bridge-agy"
 
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY packages/pkg-logger/ /logger/
-COPY packages/pkg-bridge-agy/ ./
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /logger/
+COPY --from=shaper_base /shaper/packages/pkg-bridge-agy/ ./
 
 EXPOSE 4330
 ENV NODE_ENV=production

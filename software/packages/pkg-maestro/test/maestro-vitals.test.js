@@ -9,7 +9,7 @@ describe('maestro vitals endpoint', () => {
   it('publishes evidence and no verdict on GET /api/vitals', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maestro-vitals-'));
     const sched = new MaestroScheduler({ logDir: tmpDir });
-    sched.registerTask({ slug: 'test-pod', label: 'test@local', port: 8080, cadenceSeconds: 60 });
+    sched.registerTask({ slug: 'task-vitals-probe', cadenceSeconds: 60 });
     const server = createMaestroServer({ port: 0, scheduler: sched });
 
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -19,12 +19,12 @@ describe('maestro vitals endpoint', () => {
     assert.equal(res.status, 200);
     const vitals = await res.json();
 
-    assert.equal(vitals.service, 'maestro-v1');
+    assert.equal(vitals.service, 'brick-maestro');
     assert.equal(typeof vitals.uptimeSeconds, 'number');
-    assert.equal(vitals.signals.podsRegistered, 1);
-    assert.equal(vitals.signals.activePods, 1);
+    assert.equal(vitals.signals.tasksRegistered, 1);
+    assert.equal(vitals.signals.activeTasks, 1);
     assert.equal(vitals.signals.beatsSkippedTotal, 0);
-    assert.equal(typeof vitals.signals.pods['test-pod'], 'object');
+    assert.equal(typeof vitals.signals.tasks['task-vitals-probe'], 'object');
 
     for (const forbidden of ['status', 'ok', 'healthy', 'verdict']) {
       assert.equal(forbidden in vitals, false, `the envelope must not expose "${forbidden}"`);

@@ -47,7 +47,7 @@ function canonFiles() {
       return /\.env\.example$/.test(rel)
         || /(^|\/)Containerfile$/.test(rel)
         || /^examples\/deploy\/.*\.sh$/.test(rel)
-        || /^software\/packages\/(bridge-opencode|opencode-bridge)\/[^/]+\.(js|mjs)$/.test(rel);
+        || /^software\/packages\/(pkg-bridge-opencode|pkg-opencode-server)\/[^/]+\.(js|mjs)$/.test(rel);
     }),
   ).filter((rel) => {
     return true;

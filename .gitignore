@@ -26,15 +26,7 @@ software/bricks/brick-bridge-opencode/bin/
 e2e-artifacts/
 
 # Corpus de cas difficiles : les images sont reproductibles par
-# software/test-corpus/generate_corpus.py. On garde la recette, la vérité
 # terrain et la mesure — pas les 12 Mo de dérivés.
-software/test-corpus/00-sources/*.pdf
-software/test-corpus/01-rasterise/*
-software/test-corpus/02-pivote/*
-software/test-corpus/03-de-travers/*
-software/test-corpus/04-degrade/*
-!software/test-corpus/**/*.verite.txt
 
 # Sorties brutes des délégations : traces de run, pas du code.
-software/tasks-agy/.runs/
 *.pid

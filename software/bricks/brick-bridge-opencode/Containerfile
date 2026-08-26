@@ -1,4 +1,11 @@
+ARG SHAPER_BASE_IMAGE
+FROM ${SHAPER_BASE_IMAGE} AS shaper_base
 FROM docker.io/library/node:20-bookworm-slim
+
+ARG SHAPER_SOURCE_REVISION
+LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.brick="bridge-opencode"
+LABEL org.shaper.build-packages="opencode-server"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates procps curl iproute2 openssh-client git python3 python3-pip python3-venv jq ripgrep file zip unzip wget rsync \
@@ -23,7 +30,7 @@ RUN curl -fsSL https://opencode.ai/install | VERSION="${OPENCODE_VERSION}" bash 
  && opencode --version
 
 WORKDIR /app
-COPY packages/pkg-opencode-bridge/ ./
+COPY --from=shaper_base /shaper/packages/pkg-opencode-server/ ./
 
 EXPOSE 4440
 ENV NODE_ENV=production

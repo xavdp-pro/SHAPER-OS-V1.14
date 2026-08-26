@@ -1,21 +1,24 @@
 {
   "$schema": "./software/schemas/universe-manifest.schema.json",
-  "universe": "univX",
-  "profile": "agent",
+  "universe": "univ-example",
   "parent": null,
-  "environment": "prod",
-  "description": "Local install: vault, logger, OpenCode bridge, queue, maestro — no public URL",
+  "environment": "dev",
+  "profile": "agent",
+  "description": "Tier-a install manifest: copy to <univ_slug>-dev/manifest.json and replace every value. The five bricks a universe needs to exist, and no copy of their source.",
   "intent": "./INTENT.md",
   "agentDeploy": "./AGENT-DEPLOY.md",
-  "shaperOs": "./software",
+  "context": "./context/ctx-universe.md",
+  "tasks": "./tasks/task-schedule.json",
   "bricks": {
-    "vault": {
-      "ref": "./software/bricks/brick-vault",
-      "intent": "./software/bricks/brick-vault/INTENT.md",
+    "brick-vault": {
+      "source": "base",
       "package": "@shaper/pkg-vault",
+      "image": "img-vault",
+      "intent": "./software/bricks/brick-vault/INTENT.md",
       "role": "Sovereign secret store",
+      "port": 8510,
       "specialize": {
-        "how": "Agent generates master key → npm run vault:bootstrap",
+        "how": "Generate a master key locally, then bootstrap from resources",
         "file": "./software/resources/vault-resources.local.json",
         "bootstrap": "cd software && npm run vault:bootstrap"
       },
@@ -27,14 +30,13 @@
         "rationale": "Deterministic secret storage and decryption. No model, ever."
       }
     },
-    "logger": {
-      "ref": "./software/bricks/brick-logger",
-      "intent": "./software/bricks/brick-logger/INTENT.md",
+    "brick-logger": {
+      "source": "base",
       "package": "@shaper/pkg-logger",
-      "role": "JSONL audit",
-      "specialize": {
-        "how": "Volume ./log"
-      },
+      "image": "img-logger",
+      "intent": "./software/bricks/brick-logger/INTENT.md",
+      "role": "JSONL audit evidence",
+      "port": 8520,
       "cognition": {
         "role": "neutral",
         "depth": "D0",
@@ -43,31 +45,13 @@
         "rationale": "Append-only structured audit. No model, ever."
       }
     },
-    "bridge-opencode": {
-      "ref": "./software/bricks/brick-bridge-opencode",
-      "intent": "./software/bricks/brick-bridge-opencode/INTENT.md",
-      "package": "@shaper/pkg-bridge-opencode",
-      "role": "Free OpenCode AI bridge",
-      "specialize": {
-        "how": "Default model opencode/*-free"
-      },
-      "cognition": {
-        "role": "provides",
-        "capacityClass": "infra-ops",
-        "depth": "D2",
-        "throughput": "T2",
-        "degraded": "allowed-with-note",
-        "rationale": "Provides cognition to the universe. Declares the floor it can supply with free models; measure from the target host before selecting one."
-      }
-    },
-    "queue": {
-      "ref": "./software/bricks/brick-queue",
-      "intent": "./software/bricks/brick-queue/INTENT.md",
+    "brick-queue": {
+      "source": "base",
       "package": "@shaper/pkg-queue",
+      "image": "img-queue",
+      "intent": "./software/bricks/brick-queue/INTENT.md",
       "role": "Async jobs → bridge",
-      "specialize": {
-        "how": "Auto-dispatch to bridge-opencode"
-      },
+      "port": 8540,
       "cognition": {
         "role": "neutral",
         "depth": "D0",
@@ -76,11 +60,13 @@
         "rationale": "Dispatch is mechanical. Each job carries its own cognitive requirement, not the queue."
       }
     },
-    "maestro": {
-      "ref": "./software/bricks/brick-maestro",
-      "intent": "./software/bricks/brick-maestro/INTENT.md",
+    "brick-maestro": {
+      "source": "base",
       "package": "@shaper/pkg-maestro",
-      "role": "Beat scheduler",
+      "image": "img-maestro",
+      "intent": "./software/bricks/brick-maestro/INTENT.md",
+      "role": "Cadence engine for declared task-* entries",
+      "port": 8530,
       "specialize": {
         "how": "MAESTRO_TASKS_FILE → ./tasks/task-schedule.json",
         "file": "./tasks/task-schedule.json"
@@ -90,23 +76,43 @@
         "depth": "D0",
         "throughput": "T3",
         "degraded": "refuse",
-        "rationale": "Scheduler and auditor. Rule 21: never executes heavy transformation itself."
+        "rationale": "Scheduler and auditor. Rule 21: never executes heavy transformation itself. It vendors @shaper/pkg-agent-runtime, which dispatches a task to the selected bridge."
+      }
+    },
+    "brick-bridge-opencode": {
+      "source": "base",
+      "package": "@shaper/pkg-bridge-opencode",
+      "image": "img-bridge-opencode",
+      "intent": "./software/bricks/brick-bridge-opencode/INTENT.md",
+      "role": "Free OpenCode AI bridge",
+      "port": 4440,
+      "specialize": {
+        "how": "No model is baked in: it is measured from the target host at deployment (Rule 7)"
+      },
+      "cognition": {
+        "role": "provides",
+        "capacityClass": "infra-ops",
+        "depth": "D2",
+        "throughput": "T2",
+        "degraded": "allowed-with-note",
+        "rationale": "Provides cognition to the universe. Declares the floor it can supply with free models; measure from the target host before selecting one."
       }
     }
   },
   "bootOrder": [
     [
-      "vault",
-      "logger"
+      "brick-vault",
+      "brick-logger"
     ],
     [
-      "bridge-opencode"
+      "brick-queue"
     ],
     [
-      "queue"
+      "brick-bridge-opencode"
     ],
     [
-      "maestro"
+      "brick-maestro"
     ]
-  ]
+  ],
+  "shaperOs": "./software"
 }

@@ -38,7 +38,7 @@ flowchart LR
 * **Why our WAF is unique**:
   - It is **trained and configured by the Parent AI Agent** that designed the application: it intimately knows the exact whitelist of legitimate routes and verbs (`GET /`, `POST /api/beat`).
   - **Intelligent Routing Role**: It identifies traffic type and routes to the correct Podman container (Child Universe, Manager Dashboard, or Helm).
-  - **Precomputed Dynamic Cache**: For WooCommerce product sheets, showcase pages, or summaries that do not change every second, the WAF immediately returns precomputed HTML without executing the Node.js runtime.
+  - **Precomputed Dynamic Cache**: For product sheets, showcase pages, or summaries that do not change every second, the WAF immediately returns precomputed HTML without executing the Node.js runtime.
   - **Deterministic Protections (< 0.2 ms)**: Anti-SQLi, Anti-XSS, Anti-Path Traversal (`../`), and forbidden method blocking (wild `POST` on a `GET` route).
 
 ### Layer 4: Node.js Server (Pure Computation Engine)

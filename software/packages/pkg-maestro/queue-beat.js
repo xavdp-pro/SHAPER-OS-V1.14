@@ -96,7 +96,7 @@ export function createQueueBeatHandler({
         data: { reason: 'previous_run_still_open', jobId: open.id, since: open.createdAt },
         fetchImpl,
       });
-      return { ok: false, skipped: true, reason: 'previous_run_still_open', jobId: open.id, newMessages: 0 };
+      return { ok: false, skipped: true, reason: 'previous_run_still_open', jobId: open.id, processed: 0 };
     }
 
     let res;
@@ -128,7 +128,7 @@ export function createQueueBeatHandler({
         data: { reason: 'queue_unreachable', queue: target, error: err.message },
         fetchImpl,
       });
-      return { ok: false, skipped: true, reason: 'queue_unreachable', newMessages: 0 };
+      return { ok: false, skipped: true, reason: 'queue_unreachable', processed: 0 };
     }
 
     const body = await res.json().catch(() => ({}));
@@ -142,10 +142,10 @@ export function createQueueBeatHandler({
         data: { reason: 'enqueue_rejected', status: res.status, queue: target },
         fetchImpl,
       });
-      return { ok: false, skipped: true, reason: 'enqueue_rejected', newMessages: 0 };
+      return { ok: false, skipped: true, reason: 'enqueue_rejected', processed: 0 };
     }
 
     // Queued, and that is all this handler is entitled to claim.
-    return { ok: true, enqueued: true, jobId: body.job.id, queue: target, newMessages: 0 };
+    return { ok: true, enqueued: true, jobId: body.job.id, queue: target, processed: 0 };
   };
 }

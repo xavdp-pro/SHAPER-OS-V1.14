@@ -1,22 +1,31 @@
 /**
  * @file index.js
- * @package @shaper/pkg-maestro-engine
- * @description Orchestration and cadence engine (Beat Scheduler) for AI agent Podman containers.
- * Supervises and paces each registered task in the universe.
+ * @package @shaper/pkg-maestro
+ * @description Cadence engine for a universe. Maestro holds the declared
+ * `task-*` registry, paces each task, and hands the work to the queue or to a
+ * bridge. It knows what a task is; it knows nothing about what a task is for.
+ *
+ * A task carries a slug and a cadence. Everything else — a bridge, a context,
+ * a port, a label — is optional, because a universe declares only what its own
+ * work needs. Requiring a field that only mail traffic ever had is how the
+ * base stopped being generic in the first place.
  */
 
 import http from 'node:http';
 import { EventLogger } from '../pkg-logger/index.js';
 import { vitals, ageSeconds, dependency, writable } from '../pkg-logger/vitals.js';
 
+/** Task kinds the base understands. A universe may not invent a fourth here. */
+export const TASK_KINDS = new Set(['generic', 'bridge', 'queue']);
+
 export class MaestroScheduler {
   constructor({
-    pod = 'maestro-v1',
+    service = 'brick-maestro',
     logDir = '/tmp/maestro-logs',
     beatHandler = null,
   } = {}) {
-    this.pod = pod;
-    this.logger = new EventLogger({ pod, logDir });
+    this.service = service;
+    this.logger = new EventLogger({ pod: service, logDir });
     this.registry = new Map();
     this.timers = new Map();
     this.isRunning = false;
@@ -26,9 +35,9 @@ export class MaestroScheduler {
   }
 
   vitals(now = Date.now()) {
-    const podsSummary = {};
+    const tasksSummary = {};
     for (const [slug, entry] of this.registry.entries()) {
-      podsSummary[slug] = {
+      tasksSummary[slug] = {
         lastBeatAgeSeconds: ageSeconds(entry.lastBeatAt, now),
         beatsCount: entry.beatsCount || 0,
         cadenceSeconds: entry.cadenceSeconds,
@@ -37,14 +46,14 @@ export class MaestroScheduler {
     }
 
     return vitals({
-      service: 'maestro-v1',
+      service: this.service,
       startedAt: this.startedAt,
       signals: {
-        podsRegistered: this.registry.size,
-        activePods: Array.from(this.registry.values()).filter((p) => p.status === 'active').length,
+        tasksRegistered: this.registry.size,
+        activeTasks: Array.from(this.registry.values()).filter((t) => t.status === 'active').length,
         isRunning: this.isRunning,
         beatsSkippedTotal: this.beatsSkippedTotal,
-        pods: podsSummary,
+        tasks: tasksSummary,
       },
     }, now);
   }
@@ -58,90 +67,78 @@ export class MaestroScheduler {
   }
 
   /**
-   * Registers a Podman Mail container in Maestro's official registry.
+   * Registers a declared `task-*` in this universe's cadence registry.
+   *
+   * One `brick-maestro` image serves N registry entries; a new task is a new
+   * entry, never a new image.
    *
    * @param {Object} taskConfig
-   * @param {string} taskConfig.slug - Unique identifier (e.g. mail-v1-contact-zoutik-shop)
-   * @param {string} taskConfig.label - Monitored email address (e.g. contact@zoutik.example.com)
-   * @param {number} taskConfig.port - Internal or network port
-   * @param {string} [taskConfig.vaultKey] - Key in vault-v1
-   * @param {number} [taskConfig.cadenceSeconds=60] - Cadence interval in seconds
-   * @param {string} [taskConfig.contextPath] - Path to ctx-universe.md file
-   * @returns {Object} - Registered entry
+   * @param {string} taskConfig.slug - Unique task identifier (e.g. `task-base-proof`)
+   * @param {string} [taskConfig.kind='generic'] - generic | bridge | queue
+   * @param {number} [taskConfig.cadenceSeconds=300] - Seconds between beats
+   * @param {string} [taskConfig.instruction] - What the task asks of the engine
+   * @param {string} [taskConfig.bridgeType] - Which `brick-bridge-*` executes it
+   * @param {string} [taskConfig.bridgeUrl] - Base URL of that bridge
+   * @param {string} [taskConfig.contextPath] - Path to the universe `ctx-*` file
+   * @param {string} [taskConfig.contextText] - Inline context, when no file exists
+   * @param {string} [taskConfig.beatMessage] - Message sent on each beat
+   * @param {string} [taskConfig.vaultKey] - Secret this task may read
+   * @param {string} [taskConfig.label] - Free-form subject the task acts on
+   * @param {number} [taskConfig.port] - Port hint, when the task targets one
+   * @returns {Object} The registered entry
    */
-  registerTask(taskConfig) {
-    if (!taskConfig.slug || !taskConfig.label || !taskConfig.port) {
-      throw new Error('slug, label and port are required to register a task');
+  registerTask(taskConfig = {}) {
+    const slug = taskConfig.slug;
+    if (!slug) {
+      throw new Error('slug is required to register a task');
     }
 
+    const kind = taskConfig.kind || 'generic';
+    if (!TASK_KINDS.has(kind)) {
+      throw new Error(`unknown task kind: ${kind} (expected ${Array.from(TASK_KINDS).join(', ')})`);
+    }
+
+    const port = taskConfig.port ?? null;
     const entry = {
-      slug: taskConfig.slug,
-      label: taskConfig.label,
-      port: taskConfig.port,
-      vaultKey: taskConfig.vaultKey || `label-${taskConfig.slug}`,
-      cadenceSeconds: taskConfig.cadenceSeconds || 60,
-      contextPath: taskConfig.contextPath || `/apps/${taskConfig.slug}/context/ctx-universe.md`,
+      slug,
+      kind,
+      cadenceSeconds: taskConfig.cadenceSeconds || 300,
+      instruction: taskConfig.instruction ?? null,
+      bridgeType: taskConfig.bridgeType ?? null,
+      bridgeUrl: taskConfig.bridgeUrl || (port ? `http://127.0.0.1:${port}` : null),
+      contextPath: taskConfig.contextPath ?? null,
+      contextText: taskConfig.contextText ?? null,
+      beatMessage: taskConfig.beatMessage ?? null,
+      checkpointPath: taskConfig.checkpointPath ?? null,
+      vaultKey: taskConfig.vaultKey || `vault-${slug}`,
+      label: taskConfig.label ?? null,
+      port,
       status: 'active',
       lastBeatAt: null,
-      lastProcessedCount: 0,
+      processedTotal: 0,
       registeredAt: new Date().toISOString(),
     };
 
-    this.registry.set(taskConfig.slug, entry);
+    this.registry.set(slug, entry);
 
     this.logger.log({
       event: 'TASK_REGISTERED',
-      data: { slug: entry.slug, label: entry.label, port: entry.port, cadence: entry.cadenceSeconds },
+      data: { slug: entry.slug, kind: entry.kind, cadence: entry.cadenceSeconds },
     });
 
     if (this.isRunning) {
-      this._schedulePodBeat(entry);
+      this._scheduleTaskBeat(entry);
     }
 
     return entry;
   }
 
   /**
-   * Register a parameterized agent task (mail, bridge, or generic).
-   * One brick-agent-runtime image — N registry entries, not N Podman images.
-   *
-   * @param {Object} taskConfig
-   * @param {string} taskConfig.slug
-   * @param {string} [taskConfig.kind='bridge'] - mail | bridge | generic
-   * @param {string} [taskConfig.bridgeType] - agy | cursor | claude | opencode
-   * @param {string} [taskConfig.bridgeUrl] - base URL e.g. http://127.0.0.1:4330
-   * @param {string} [taskConfig.label]
-   * @param {number} taskConfig.port - legacy field / bridge port hint
-   * @param {string} [taskConfig.vaultKey]
-   * @param {number} [taskConfig.cadenceSeconds=300]
-   * @param {string} [taskConfig.contextPath]
-   * @param {string} [taskConfig.contextText]
-   * @param {string} [taskConfig.beatMessage]
-   */
-  registerAgentTask(taskConfig) {
-    const slug = taskConfig.slug || taskConfig.id || taskConfig.name || 'agent-task';
-    const entry = this.registerTask({
-      ...taskConfig,
-      slug,
-      label: taskConfig.label || `${slug}@local`,
-      port: taskConfig.port || 80,
-    });
-    entry.kind = taskConfig.kind || 'bridge';
-    entry.bridgeType = taskConfig.bridgeType || 'agy';
-    entry.bridgeUrl = taskConfig.bridgeUrl || (taskConfig.port ? `http://127.0.0.1:${taskConfig.port}` : null);
-    entry.contextText = taskConfig.contextText || null;
-    entry.beatMessage = taskConfig.beatMessage || null;
-    entry.checkpointPath = taskConfig.checkpointPath || null;
-    this.registry.set(entry.slug, entry);
-    return entry;
-  }
-
-  /**
-   * Triggers a "Beat" (sync pulse) to a registered task.
+   * Triggers a beat — one cadence pulse — for a registered task.
    *
    * @param {string} slug - Task identifier
-   * @param {Function} [beatHandler] - Mock handler or HTTP executor
-   * @returns {Promise<Object>} - Beat report
+   * @param {Function} [beatHandler] - Executor, defaulting to the scheduler's own
+   * @returns {Promise<Object>} Beat report
    */
   async triggerBeat(slug, beatHandler = null) {
     const entry = this.registry.get(slug);
@@ -150,48 +147,45 @@ export class MaestroScheduler {
     }
 
     const start = Date.now();
-    let result = { ok: true, newMessages: 0 };
+    let result = { ok: true, processed: 0 };
 
     const handler = beatHandler || this.beatHandler;
     if (typeof handler === 'function') {
       result = await handler(entry);
     }
 
+    const processed = result?.processed || 0;
     const duration = Date.now() - start;
     entry.lastBeatAt = new Date().toISOString();
-    entry.lastProcessedCount += (result.newMessages || 0);
+    entry.processedTotal += processed;
 
     const logEntry = this.logger.log({
       event: 'BEAT_EXECUTED',
-      data: {
-        slug: entry.slug,
-        label: entry.label,
-        new_messages: result.newMessages || 0,
-      },
+      data: { slug: entry.slug, kind: entry.kind, processed },
       durationMs: duration,
     });
 
     return {
       slug: entry.slug,
-      label: entry.label,
+      kind: entry.kind,
       status: 'ok',
-      new_messages: result.newMessages || 0,
+      processed,
       duration_ms: duration,
       log_entry: logEntry,
     };
   }
 
-  _schedulePodBeat(entry) {
+  _scheduleTaskBeat(entry) {
     if (this.timers.has(entry.slug)) {
       clearInterval(this.timers.get(entry.slug));
     }
-    const intervalMs = (entry.cadenceSeconds || 60) * 1000;
+    const intervalMs = (entry.cadenceSeconds || 300) * 1000;
     const timer = setInterval(() => {
-      this.triggerBeat(entry.slug, this.beatHandler).catch(err => {
+      this.triggerBeat(entry.slug, this.beatHandler).catch((err) => {
         this.logger.log({
           level: 'ERROR',
           event: 'BEAT_ERROR',
-          data: { slug: entry.slug, error: err.message }
+          data: { slug: entry.slug, error: err.message },
         });
       });
     }, intervalMs);
@@ -201,9 +195,9 @@ export class MaestroScheduler {
   startScheduler() {
     this.isRunning = true;
     for (const entry of this.registry.values()) {
-      this._schedulePodBeat(entry);
+      this._scheduleTaskBeat(entry);
     }
-    this.logger.log({ event: 'SCHEDULER_STARTED', data: { podsCount: this.registry.size } });
+    this.logger.log({ event: 'SCHEDULER_STARTED', data: { tasksCount: this.registry.size } });
   }
 
   stopScheduler() {
@@ -216,16 +210,16 @@ export class MaestroScheduler {
   }
 
   /**
-   * Returns the list of all registered tasks and their cadence state.
+   * Returns every registered task with its cadence state.
    * @returns {Array<Object>}
    */
-  listRegisteredPods() {
+  listRegisteredTasks() {
     return Array.from(this.registry.values());
   }
 }
 
 /**
- * Creates an HTTP REST server for Maestro.
+ * Creates the HTTP surface of `brick-maestro`.
  * @param {object} options
  * @param {number} [options.port=8530]
  * @param {string} [options.host='0.0.0.0']
@@ -247,37 +241,32 @@ export function createMaestroServer({ port = 8530, host = '0.0.0.0', scheduler =
     if (req.method === 'GET' && (pathname === '/api/health' || pathname === '/health')) {
       return sendJson(200, {
         status: 'ok',
-        service: 'maestro-v1',
+        service: sched.service,
         isRunning: sched.isRunning,
-        podsCount: sched.registry.size,
-        timestamp: new Date().toISOString()
+        tasksCount: sched.registry.size,
+        timestamp: new Date().toISOString(),
       });
     }
 
     if (req.method === 'GET' && (pathname === '/api/vitals' || pathname === '/vitals')) {
       try {
-        const v = sched.vitals();
-        return sendJson(200, v);
+        return sendJson(200, sched.vitals());
       } catch (err) {
         return sendJson(500, { error: err.message });
       }
     }
 
-    if (req.method === 'GET' && pathname === '/api/pods') {
-      return sendJson(200, {
-        status: 'ok',
-        pods: sched.listRegisteredPods()
-      });
+    if (req.method === 'GET' && pathname === '/api/tasks') {
+      return sendJson(200, { status: 'ok', tasks: sched.listRegisteredTasks() });
     }
 
-    if (req.method === 'POST' && pathname === '/api/pods/register') {
+    if (req.method === 'POST' && pathname === '/api/tasks/register') {
       let body = '';
-      req.on('data', chunk => body += chunk);
+      req.on('data', (chunk) => { body += chunk; });
       req.on('end', () => {
         try {
-          const config = JSON.parse(body || '{}');
-          const entry = sched.registerTask(config);
-          return sendJson(200, { status: 'ok', pod: entry });
+          const entry = sched.registerTask(JSON.parse(body || '{}'));
+          return sendJson(200, { status: 'ok', task: entry });
         } catch (err) {
           return sendJson(400, { error: err.message });
         }
@@ -285,12 +274,11 @@ export function createMaestroServer({ port = 8530, host = '0.0.0.0', scheduler =
       return;
     }
 
-    if (req.method === 'POST' && pathname.startsWith('/api/pods/') && pathname.endsWith('/tick')) {
-      const parts = pathname.split('/');
-      const slug = parts[3];
+    if (req.method === 'POST' && pathname.startsWith('/api/tasks/') && pathname.endsWith('/tick')) {
+      const slug = pathname.split('/')[3];
       sched.triggerBeat(slug)
-        .then(result => sendJson(200, { status: 'ok', result }))
-        .catch(err => sendJson(500, { error: err.message }));
+        .then((result) => sendJson(200, { status: 'ok', result }))
+        .catch((err) => sendJson(500, { error: err.message }));
       return;
     }
 

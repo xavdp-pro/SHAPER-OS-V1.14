@@ -85,27 +85,27 @@ Pour exécuter les ordres de création de conteneurs, le serveur Hôte possède 
 ## 4. Le Principe du Moindre Privilège & Podman Rootless
 
 1. **Podman Rootless (Zéro Root) :**
-   * Tous les conteneurs (WordPress, MariaDB, sondes) s'exécutent sous un utilisateur non privilégié (`zaza` ou `shaper`).
-   * Même en cas de faille zero-day critique dans un plugin WordPress, l'attaquant reste confiné dans le conteneur sans aucun droit sur le système hôte.
+   * Tous les conteneurs, quels qu'ils soient, s'exécutent sous un utilisateur non privilégié dédié.
+   * Même en cas de faille zero-day critique dans l'application hébergée, l'attaquant reste confiné dans le conteneur sans aucun droit sur le système hôte.
 2. **Isolation Réseau Multi-Tenancy :**
    * Chaque univers fils possède son propre sous-réseau conteneurisé.
-   * La boutique `wp01` ne peut ni lire, ni écrire dans la base de données de la boutique `wp02`.
+   * L'univers fils `01` ne peut ni lire, ni écrire dans la base de données de l'univers fils `02`.
 
 ---
 
 ## 5. Le Cycle de Vie Automatisé (Zero-Touch Provisioning)
 
-Lorsqu'un ordre `SPAWN_STORE` est validé par la Queue de l'Hôte :
+Lorsqu'un ordre `SPAWN_CHILD` est validé par la Queue de l'Hôte :
 
 ```
-  [1. Allocation]  ──>  [2. MariaDB]  ──>  [3. WordPress]  ──>  [4. WP-CLI Auto]  ──>  [5. Cloudflare]  ──>  [6. Ready]
-  Ports libres          Conteneur DB       Conteneur Web        Langue, Titre,          DNS CNAME &           En ligne en
-  & Dossiers /sav/      dédié (:9536)      dédié (:9580)        WooCommerce Actif       Tunnel Ingress        15 secondes
+  [1. Allocation]  ──>  [2. Données]  ──>  [3. Application]  ──>  [4. Amorçage]  ──>  [5. Ingress]  ──>  [6. Prêt]
+  Ports libres          Conteneur de       Conteneur de          Configuration       DNS & tunnel      Univers fils
+  & volumes vol-*       persistance        restitution           sans humain         Zero Trust        en ligne
 ```
 
-1. **Amorçage Automatique :** WordPress est installé et configuré en français sans intervention humaine.
-2. **Activation E-Commerce :** WooCommerce est activé, devise paramétrée en EUR, pages obligatoires créées.
-3. **Câblage Edge Cloudflare :** L'API Cloudflare associe immédiatement le domaine `https://wp02.example.com` au tunnel Zero Trust sans redémarrage de service.
+1. **Amorçage automatique :** l'application du fils est installée et configurée sans intervention humaine.
+2. **Spécialisation :** la brique métier du catalogue est activée et paramétrée depuis le manifeste du fils.
+3. **Câblage edge :** l'API du fournisseur DNS associe le nom public au tunnel Zero Trust sans redémarrage de service.
 
 ---
 

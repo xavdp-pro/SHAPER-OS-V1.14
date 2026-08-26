@@ -19,9 +19,31 @@ A component may exist at several layers. For example, `pkg-bridge-opencode`
 is code; `brick-bridge-opencode` is the OCI service built from it; and
 `img-bridge-opencode` is its immutable registry artefact. They are not synonyms.
 
+**A layer must be earned, not claimed.** A `brick-` directory ships a
+`Containerfile` — if no `podman build` can turn it into an image, it is a package
+and it is named `pkg-`. Until V1.11 two directories carried the `brick-` prefix
+with nothing to build; a test now refuses that. `@shaper/pkg-agent-runtime` and
+`@shaper/pkg-auth` are the two, and they run inside the images that vendor them.
+
 ## Generic boundary
 
-`pkg-agent-runtime` and `brick-agent-runtime` are generic. They dispatch a
-universe-declared `task-*` to one selected `brick-bridge-*`; they know no IMAP,
-SMTP, client, customer or business workflow. Mail intake belongs to catalogue
-`pkg-mail-agent` and to the universe that declares the related `task-*`.
+`pkg-agent-runtime` is generic. It dispatches a universe-declared `task-*` to one
+selected `brick-bridge-*`; it knows no IMAP, SMTP, client, customer or business
+workflow, and neither does `pkg-maestro`, which vendors it. A task carries a
+`slug` and a cadence — nothing else is required of it, because requiring a
+`label` and a `port` is how a monitored mailbox and its container port survived a
+rename and stayed in the base. Mail intake belongs to catalogue `pkg-mail-agent`
+and to the universe that declares the related `task-*`.
+
+## Where a universe states origin
+
+A universe manifest declares, for every brick, whether it comes from the base or
+from the catalogue:
+
+```json
+"brick-vault": { "source": "base", "package": "@shaper/pkg-vault", "image": "img-vault", ... }
+```
+
+Nothing is inferred from a path. `@shaper/pkg-universe` validates it, and a base
+universe that needs `source: catalogue` fails the base's own test suite — it
+belongs in the catalogue, beside the brick it needs.

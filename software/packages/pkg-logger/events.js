@@ -6,7 +6,7 @@
  * {
  *   "at": "2026-08-23T18:00:00.000Z",           // ISO timestamp (event occurrence)
  *   "timestamp": "2026-08-23T18:00:00.000Z",    // Backward compatibility mirror of "at"
- *   "pod": "maestro",                            // Emitting component / pod / brick
+ *   "pod": "brick-maestro",                      // Emitting brick / container
  *   "event": "BEAT_ENQUEUED",                    // SCREAMING_SNAKE_CASE event name
  *   "level": "INFO",                             // Severity: INFO | WARN | ERROR | DEBUG
  *   "correlationId": "job-1787507845305-1",      // Cross-brick trace / activity identifier
@@ -22,107 +22,133 @@ import crypto from 'node:crypto';
 export const VALID_LEVELS = new Set(['INFO', 'WARN', 'ERROR', 'DEBUG']);
 
 /**
- * Registry of known, documented events emitted across Shaper OS bricks.
+ * Events the base emits. The base declares its own vocabulary and no one
+ * else's: a catalogue package that emits its own events registers them with
+ * `registerEvents()` at import time, so the registry grows outward without the
+ * base ever naming a brick it does not ship.
  */
-export const KNOWN_EVENTS = {
-  // ── Maestro Lifecycle ───────────────────────────────────────────────────
+export const BASE_EVENTS = {
+  // ── Maestro cadence ─────────────────────────────────────────────────────
   MAESTRO_STARTED: {
-    brick: 'maestro',
-    description: 'Maestro beat scheduler initialized and listening',
+    brick: 'brick-maestro',
+    description: 'Cadence engine initialised and listening',
     fields: ['tasks', 'autoStart'],
   },
+  TASK_REGISTERED: {
+    brick: 'brick-maestro',
+    description: 'A declared task entered the cadence registry',
+    fields: ['slug', 'kind', 'cadence'],
+  },
+  SCHEDULER_STARTED: {
+    brick: 'brick-maestro',
+    description: 'Cadence pacing started for every registered task',
+    fields: ['tasksCount'],
+  },
+  SCHEDULER_STOPPED: {
+    brick: 'brick-maestro',
+    description: 'Cadence pacing stopped',
+    fields: [],
+  },
   BEAT_STARTED: {
-    brick: 'maestro',
-    description: 'Scheduled cadence beat initiated for a pod',
-    fields: ['slug', 'kind', 'mailbox'],
+    brick: 'brick-maestro',
+    description: 'Cadence beat initiated for a task',
+    fields: ['slug', 'kind'],
   },
   BEAT_ENQUEUED: {
-    brick: 'maestro',
-    description: 'Cadence beat dispatched as an asynchronous job into the Queue',
+    brick: 'brick-maestro',
+    description: 'Cadence beat dispatched as an asynchronous job into the queue',
     fields: ['slug', 'kind', 'queue'],
   },
   BEAT_SKIPPED: {
-    brick: 'maestro',
+    brick: 'brick-maestro',
     description: 'Cadence beat omitted due to backpressure, unreachable queue, or missing prerequisites',
     fields: ['reason', 'jobId', 'since', 'queue', 'error', 'bridge', 'path'],
   },
+  BEAT_EXECUTED: {
+    brick: 'brick-maestro',
+    description: 'Cadence beat executed and its outcome counted',
+    fields: ['slug', 'kind', 'processed'],
+  },
+  BEAT_COMPLETED: {
+    brick: 'brick-maestro',
+    description: 'Cadence beat completed successfully',
+    fields: ['slug', 'processed'],
+  },
   BEAT_FAILED: {
-    brick: 'maestro',
+    brick: 'brick-maestro',
     description: 'Cadence beat execution failed',
     fields: ['reason', 'bridge'],
   },
+  BEAT_ERROR: {
+    brick: 'brick-maestro',
+    description: 'Scheduled beat threw before it could report an outcome',
+    fields: ['slug', 'error'],
+  },
   AGENT_BEAT_INJECT: {
-    brick: 'maestro',
-    description: 'Agent work dispatched directly to an execution bridge',
-    fields: ['slug', 'mailbox', 'new_messages', 'bridge_type', 'run_id'],
-  },
-  BEAT_COMPLETED: {
-    brick: 'maestro',
-    description: 'Cadence beat completed successfully',
-    fields: ['slug', 'new_messages'],
+    brick: 'brick-maestro',
+    description: 'Task work dispatched directly to an execution bridge',
+    fields: ['slug', 'kind', 'processed', 'bridge_type', 'run_id'],
   },
 
-  // ── Mail Agent Lifecycle ─────────────────────────────────────────────────
-  MAIL_CHECK_STARTED: {
-    brick: 'mail-agent',
-    description: 'Mailbox check cycle started',
-    fields: ['vault_key', 'stub'],
-  },
-  MAIL_CHECK_FAILED: {
-    brick: 'mail-agent',
-    description: 'Mailbox check cycle failed (vault error, connection error)',
-    fields: ['reason', 'error'],
-  },
-  MAIL_INBOX_CHECK: {
-    brick: 'mail-agent',
-    description: 'Mailbox check completed with message counts',
-    fields: ['unseen', 'new_messages', 'stub'],
-  },
-
-  // ── Queue & Job Lifecycle ────────────────────────────────────────────────
+  // ── Queue & job lifecycle ───────────────────────────────────────────────
   JOB_ENQUEUED: {
-    brick: 'queue',
-    description: 'New asynchronous job submitted to the Queue',
+    brick: 'brick-queue',
+    description: 'New asynchronous job submitted to the queue',
     fields: ['jobId', 'type', 'contractType'],
   },
   JOB_STARTED: {
-    brick: 'queue',
-    description: 'Queue worker dispatched job to bridge worker',
+    brick: 'brick-queue',
+    description: 'Queue worker dispatched job to a bridge worker',
     fields: ['jobId', 'type', 'bridgeUrl', 'model'],
   },
   JOB_PROGRESS: {
-    brick: 'queue',
+    brick: 'brick-queue',
     description: 'Queue worker updated job step execution progress',
     fields: ['jobId', 'step', 'totalSteps'],
   },
   JOB_COMPLETED: {
-    brick: 'queue',
+    brick: 'brick-queue',
     description: 'Job execution completed and quality gate verified',
     fields: ['jobId', 'durationMs', 'exitCode', 'result'],
   },
   JOB_FAILED: {
-    brick: 'queue',
+    brick: 'brick-queue',
     description: 'Job execution or quality gate verification failed',
     fields: ['jobId', 'durationMs', 'exitCode', 'error'],
   },
-
-  // ── Pipeline Lifecycle ───────────────────────────────────────────────────
-  DOCUMENT_INGESTED: {
-    brick: 'pipeline',
-    description: 'Document received for OCR / vector extraction',
-    fields: ['docId', 'fileName', 'mimeType', 'sizeBytes'],
-  },
-  DOCUMENT_EXTRACTED: {
-    brick: 'pipeline',
-    description: 'Document extraction completed with text and geometric witnesses',
-    fields: ['docId', 'charCount', 'pageCount', 'witnesses'],
-  },
-  EXTRACTION_FAILED: {
-    brick: 'pipeline',
-    description: 'Document extraction error',
-    fields: ['docId', 'error'],
-  },
 };
+
+/**
+ * Every event known to this process: the base vocabulary, plus whatever
+ * catalogue packages have registered.
+ */
+export const KNOWN_EVENTS = { ...BASE_EVENTS };
+
+/**
+ * Declares events emitted by a package outside the base.
+ *
+ * This is how `pkg-mail-agent` or `pkg-ged-engine` make their events readable
+ * without the base having to know they exist. A catalogue package calls this at
+ * import time; the base ships no entry for a brick it does not contain.
+ *
+ * @param {Object<string, {brick: string, description: string, fields: string[]}>} events
+ * @returns {Object} The merged registry
+ */
+export function registerEvents(events = {}) {
+  for (const [name, spec] of Object.entries(events)) {
+    if (!/^[A-Z0-9_]+$/.test(name)) {
+      throw new Error(`registerEvents: ${name} must be SCREAMING_SNAKE_CASE`);
+    }
+    if (!spec || !spec.brick || !spec.description) {
+      throw new Error(`registerEvents: ${name} must declare a brick and a description`);
+    }
+    if (BASE_EVENTS[name]) {
+      throw new Error(`registerEvents: ${name} is a base event and cannot be redefined`);
+    }
+    KNOWN_EVENTS[name] = { fields: [], ...spec };
+  }
+  return KNOWN_EVENTS;
+}
 
 /**
  * Creates a unique execution run ID.
@@ -136,7 +162,7 @@ export function generateExecutionId() {
  * Normalizes and formats an event record into the canonical shape.
  *
  * @param {object} entry
- * @param {string} entry.pod - Pod / brick identifier (e.g. "maestro", "mail-agent")
+ * @param {string} entry.pod - Emitting brick identifier (e.g. "brick-maestro")
  * @param {string} entry.event - Event name in SCREAMING_SNAKE_CASE
  * @param {string} [entry.level='INFO'] - Severity level
  * @param {object} [entry.data={}] - Event metadata

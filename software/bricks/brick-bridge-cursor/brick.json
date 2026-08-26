@@ -1,0 +1,14 @@
+{
+  "brick": "bridge-cursor",
+  "contractVersion": 1,
+  "distribution": "base",
+  "buildPackages": [
+    "pkg-logger",
+    "pkg-bridge-cursor"
+  ],
+  "runtimeServices": [],
+  "proof": [
+    "bridge health",
+    "authenticated vitals"
+  ]
+}

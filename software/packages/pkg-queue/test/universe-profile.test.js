@@ -109,10 +109,14 @@ function manifests() {
     .filter(([, abs]) => fs.existsSync(abs));
 }
 
+// V1.11: manifest keys carry the brick- prefix, while the profile tables name
+// components (`vault`, `bridge-*`). Strip the layer to compare like with like —
+// the prefix states the layer, it does not change which component this is.
 function has(bricks, key) {
+  const components = bricks.map((b) => b.replace(/^brick-/, ''));
   return key.endsWith('*')
-    ? bricks.some((b) => b.startsWith(key.slice(0, -1)))
-    : bricks.includes(key);
+    ? components.some((b) => b.startsWith(key.slice(0, -1)))
+    : components.includes(key);
 }
 
 function resolveProfile(raw) {

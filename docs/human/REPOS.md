@@ -4,17 +4,17 @@
 
 | Clone into | Remote |
 | :--- | :--- |
-| `SHAPER-OS-V1.6/` (any folder name) | `https://github.com/xavdp-pro/SHAPER-OS-V1.6.git` |
+| `SHAPER-OS-V1.11/` (any folder name) | `https://github.com/xavdp-pro/SHAPER-OS-V1.11.git` |
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.6.git
-cd SHAPER-OS-V1.6
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.11.git
+cd SHAPER-OS-V1.11
 ```
 
 Layout after clone:
 
 ```
-SHAPER-OS-V1.6/
+SHAPER-OS-V1.11/
 ├── START-HERE.md       kit (this repo root)
 ├── software/           packages, bricks, scripts
 └── <univ_slug>-dev/    create during install

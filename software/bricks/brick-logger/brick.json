@@ -1,0 +1,14 @@
+{
+  "brick": "logger",
+  "contractVersion": 1,
+  "distribution": "base",
+  "buildPackages": [
+    "pkg-logger"
+  ],
+  "runtimeServices": [],
+  "proof": [
+    "logger health",
+    "JSONL append-only evidence",
+    "per-brick log directories"
+  ]
+}

@@ -1,4 +1,4 @@
-# SHAPER OS V1.10
+# SHAPER OS V1.11
 
 > **The Sovereign Operating System of Standardized Bricks & Intentions — Where Humans Formulate Vision and AI Agents Build & Operate**
 
@@ -66,7 +66,6 @@ purpose explains.
 ├── INTENT.md          ← what this kit is for, and its invariants
 ├── NOTICE.md          ← authorship, AI-assisted writing, licence
 │
-├── univs/             ← the demonstration universes shipped with the repo
 ├── docs/human/        ← install, prove, operate, vocabulary
 ├── docs/agent/        ← the four documents an AI agent reads
 ├── docs/architecture/ ← bricks, cognition requirements, fractal security
@@ -267,8 +266,8 @@ In SHAPER OS, you **never reinvent the foundation**. You take the base cell and 
 | Universe Type | Universal Base Cell | Specialized Bricks & Tools Added |
 | :--- | :--- | :--- |
 | **Host Spawner Engine** | Vault + Logger + Queue + Maestro | Podman OCI Controller + Cloudflare DNS Manager + Host Resource Allocator |
-| **Boutique Fleet Manager (Parent)** | Vault + Logger + Queue + Supervisor | Manager Gateway UI (`:9470`) + Child Fleet Registry (`children.json`) + WP Config API |
-| **Store Instance (Child)** | Vault + Logger + Vitals Probes | WordPress 6.7 + MariaDB 11 + WooCommerce Engine + Store Manager Agent |
+| **Fleet Manager (Parent)** | Vault + Logger + Queue + Supervisor | Manager Gateway UI + Child Fleet Registry (`children.json`) + Child Config API |
+| **Child Instance** | Vault + Logger + Vitals Probes | The bricks that one line of business needs, from the catalogue |
 | **Sovereign GED / Document AI** | Vault + Logger + Queue + Maestro | `@shaper/pkg-ged-engine` + `@shaper/pkg-rag` + Qdrant Vector Store + PDF Extractor |
 
 ---
@@ -369,8 +368,8 @@ While AI agents execute the low-level orchestration, **humans define the busines
 | Your Business Need | What You Shape on Top | What the SHAPER OS Base Handles |
 | :--- | :--- | :--- |
 | **Light ERP / Inventory** | Orders, stock thresholds, supplier CSV sync, invoicing | Secrets, background queue, audit trail, scheduled sync beats |
-| **CRM & Client Follow-up** | Client records, pipeline stages, automatic IMAP mail triage | Inbound mail triggers, AI bridge, job queue, operator alerts |
-| **Autonomous E-Commerce** | WordPress/WooCommerce or Headless catalog, Stripe payments | Multi-tier container fleet, zero-touch provisioning, health probes |
+| **CRM & Client Follow-up** | Client records, pipeline stages, automatic inbound triage | Declared task cadence, AI bridge, job queue, operator alerts |
+| **Autonomous E-Commerce** | Storefront and catalogue of your choice, payment provider | Multi-tier container fleet, zero-touch provisioning, health probes |
 | **Association / NGO Hub** | Member directories, automated dues reminders, events | Persistent database, scheduled email beats, privacy compliance |
 | **Field Service & Trades** | Quotes, site photos, intervention reports, voice notes | Voice STT/TTS console, mobile-friendly interface, local storage |
 | **Custom Vertical Tool** | Any unique business logic that no generic SaaS supports | Immutable cellular architecture — your rules remain first-class |
@@ -420,8 +419,8 @@ Full scales and declaration format: [`docs/architecture/COGNITION.md`](./docs/ar
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.10.git
-cd SHAPER-OS-V1.10
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.11.git
+cd SHAPER-OS-V1.11
 ```
 
 ### 2. Bootstrap the Local Foundation (Tier-a)
@@ -433,18 +432,23 @@ npm test
 bash scripts/build-all-bricks.sh
 ```
 
-### 3. Deploy the WordPress Fractal Pair
+### 3. Deploy the Base Cell
 ```bash
-# Start the Parent Supervisor & Manager Gateway (Tier 2)
-bash univs/univ-wordpress-father/deploy/podman-up.sh
-
-# Start the Child WordPress & MariaDB Store (Tier 3)
-bash univs/univ-wordpress-child/deploy/podman-up.sh
+bash software/universes/univ-base/deploy/podman-up.sh
 ```
 
-### 4. Access Live Dashboards
-* 🎛️ **Fleet Manager UI:** `https://wpmanager01.example.com` (or `http://127.0.0.1:9470`)
-* 🛍️ **Child Store Instance:** `https://wp01.example.com` (or `http://127.0.0.1:9580`)
+`univ-base` is the canonical universe of this repository: vault, logger, queue,
+maestro, agent-runtime and one bridge — the six bricks every other universe
+starts from. It runs on `127.0.0.1` and needs no domain, no account and no
+catalogue brick.
+
+### 4. Prove It Is Alive
+```bash
+bash software/universes/univ-base/deploy/proof.sh
+```
+
+Every brick answers `/api/vitals`, the maestro holds the declared task, and the
+logger holds the evidence that it did. That output is the proof — not this page.
 
 > This first install is **DEV** — whatever you call it. TEST rebuilds from
 > nothing and is destroyed; PROD is created once and updated by git tag.

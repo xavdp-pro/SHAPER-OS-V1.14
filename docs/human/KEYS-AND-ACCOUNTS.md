@@ -115,7 +115,7 @@ That means a public name is **asked for, at the moment it is needed**:
 | :--- | :--- | :--- |
 | Local DEV (tier-a) | Nothing. Everything answers on `127.0.0.1`. | — |
 | Public console, voice, a public URL (tier-b) | A hostname inside a zone **you already manage in Cloudflare** | You, at deploy time |
-| A WordPress fleet | `WP_ZONE`, plus the manager and site slugs | You, at deploy time |
+| A fleet of child universes | The zone, plus the manager and child slugs | You, at deploy time |
 
 **Cloudflare is the prerequisite** for anything with a public name: the zone must
 exist in your Cloudflare account before the tunnel can be created, because the
@@ -126,11 +126,11 @@ What the agent needs from you, and where it goes:
 | Value | Environment variable | Never in |
 | :--- | :--- | :--- |
 | Public hostname | `PUBLIC_HOSTNAME`, `SHAPER_ALLOWED_HOSTS` | a tracked file |
-| DNS zone | `WP_ZONE` | a manifest committed to git |
+| DNS zone | `DNS_ZONE` | a manifest committed to git |
 | Cloudflare API token | `CLOUDFLARE_API_TOKEN` | a script, ever |
 | Cloudflare account / zone id | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID` | a script, ever |
 
 An agent that cannot find these **halts and asks you**. It does not invent a
 name, and it does not reuse one it found in the repository — there are none to
 find, and a guard test fails the build if one ever appears
-(`software/packages/pkg-wp-dns-convention/test/domain-agnostic.test.js`).
+(`software/packages/pkg-logger/test/domain-agnostic.test.js`).

@@ -22,8 +22,8 @@ const PAGE = path.join(REPO, 'docs/architecture/UNIVERSE-PROFILES.md');
 
 /** Names that are not SHAPER bricks: third-party images and in-process packages. */
 const NOT_A_BRICK = new Set([
-  'wordpress', 'nginx/static', 'tunnel', 'cloudflared', 'vitals', 'manager-gateway',
-  'rag', 'supervisor', 'mail-agent', 'bridge', 'auth',
+  'nginx/static', 'tunnel', 'cloudflared', 'vitals', 'manager-gateway',
+  'supervisor', 'bridge', 'auth',
   // the profile vocabulary itself: floors and archetype aliases are not bricks
   'passive', 'agent', 'store', 'document-hub', 'fleet-manager', 'watchdog',
   'brochure', 'telephony-hub', 'field-service', 'accounting-vault', 'helpdesk',

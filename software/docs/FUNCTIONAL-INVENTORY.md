@@ -62,7 +62,7 @@
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| Bearer stateless | `@shaper/pkg-auth` · `brick-auth` | vivant |
+| Bearer stateless | `@shaper/pkg-auth` (paquet, exécuté dans le service protégé) | vivant |
 
 ### 1.4 Queue
 
@@ -101,7 +101,7 @@
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| 1 image, N instances | `@shaper/pkg-agent-runtime` · `brick-agent-runtime` · `instance.json` | vivant |
+| 1 image, N tâches | `@shaper/pkg-agent-runtime` (embarqué dans `brick-maestro`) · `task-schedule.json` | vivant |
 | Beat handler | `createAgentBeatHandler`, probe bridge health | vivant |
 | Bridge-agnostique | agy, opencode, cursor, claude (URL param) | vivant |
 

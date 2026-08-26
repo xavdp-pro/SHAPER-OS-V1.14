@@ -50,7 +50,7 @@ are the originals.
 
 | Document | Role |
 | :--- | :--- |
-| Helm product docs | Moved with `brick-helm` to the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.10) catalogue |
+| Helm product docs | Moved with `brick-helm` to the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.11) catalogue |
 
 | [`HELM-WEB-CHAT.md`](./HELM-WEB-CHAT.md) | Helm v2 web chat integration |
 

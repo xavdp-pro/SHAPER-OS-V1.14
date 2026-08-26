@@ -1,0 +1,18 @@
+{
+  "brick": "maestro",
+  "contractVersion": 1,
+  "distribution": "base",
+  "buildPackages": [
+    "pkg-logger",
+    "pkg-auth",
+    "pkg-agent-runtime",
+    "pkg-vault",
+    "pkg-maestro"
+  ],
+  "runtimeServices": [],
+  "proof": [
+    "maestro health",
+    "declared task registered",
+    "beat evidence in the logger"
+  ]
+}

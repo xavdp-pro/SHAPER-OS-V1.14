@@ -55,7 +55,7 @@ export function createAgentRuntimeHandler({ bridgeBaseUrl, authToken = '', logge
         loggerUrl, pod: slug, event: 'BEAT_SKIPPED', level: 'WARN', correlationId: slug,
         data: { reason: 'bridge_unhealthy', bridge: bridgeUrl }, fetchImpl,
       });
-      return { ok: false, skipped: true, reason: 'bridge_unhealthy', workUnits: 0 };
+      return { ok: false, skipped: true, reason: 'bridge_unhealthy', processed: 0 };
     }
 
     const resolvedContext = resolveContextPath(entry.contextPath);
@@ -64,7 +64,7 @@ export function createAgentRuntimeHandler({ bridgeBaseUrl, authToken = '', logge
         loggerUrl, pod: slug, event: 'BEAT_SKIPPED', level: 'WARN', correlationId: slug,
         data: { reason: 'context_file_missing', path: entry.contextPath }, fetchImpl,
       });
-      return { ok: false, skipped: true, reason: 'context_file_missing', workUnits: 0 };
+      return { ok: false, skipped: true, reason: 'context_file_missing', processed: 0 };
     }
 
     const injectRes = await fetchImpl(`${bridgeUrl}/api/inject`, {
@@ -78,18 +78,18 @@ export function createAgentRuntimeHandler({ bridgeBaseUrl, authToken = '', logge
         loggerUrl, pod: slug, event: 'BEAT_FAILED', level: 'ERROR', correlationId: slug,
         data: { reason: 'inject_failed', bridge: bridgeUrl }, fetchImpl,
       });
-      return { ok: false, skipped: true, reason: 'inject_failed', workUnits: 0 };
+      return { ok: false, skipped: true, reason: 'inject_failed', processed: 0 };
     }
 
     const runId = injectData.run_id || injectData.runId || null;
     await ingestLog({
       loggerUrl, pod: slug, event: 'AGENT_BEAT_INJECT', correlationId: slug,
-      data: { slug, bridge_type: entry.bridgeType || null, run_id: runId }, fetchImpl,
+      data: { slug, kind: entry.kind || 'generic', bridge_type: entry.bridgeType || null, run_id: runId }, fetchImpl,
     });
     await ingestLog({
-      loggerUrl, pod: 'maestro', event: 'BEAT_COMPLETED', correlationId: slug,
-      data: { slug, work_units: 1 }, fetchImpl,
+      loggerUrl, pod: 'brick-maestro', event: 'BEAT_COMPLETED', correlationId: slug,
+      data: { slug, processed: 1 }, fetchImpl,
     });
-    return { ok: true, workUnits: 1, run_id: runId };
+    return { ok: true, processed: 1, run_id: runId };
   };
 }

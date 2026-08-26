@@ -73,7 +73,7 @@ When asking an agent to repair itself on its vital components (its bridge server
 Thanks to this strict hierarchy, the system becomes **intrinsically self-healing**. Here are 3 real scenarios — they constitute the implementation specification for Rule 23:
 
 ### Example 1: Automatic Repair of a Token / 401 Error / Bridge Freeze
-* **Incident**: WordPress Universe #14 experiences a freeze of its OpenCode bridge or an expiration of its API token.
+* **Incident**: child universe #14 experiences a freeze of its OpenCode bridge or an expiration of its API token.
 * **Self-Healing**:
   1. The parent Manager's reconciliation diff detects the gap between desired and observed (`HTTP 502/401` or 60s timeout on heartbeat).
   2. The Manager accesses the child's Vault from the outside, regenerates a healthy token, and synchronizes it into `univ14/sav/opencode-bridge/token`.
@@ -82,7 +82,7 @@ Thanks to this strict hierarchy, the system becomes **intrinsically self-healing
   5. **Guard R27**: if the 401 persists after 5 attempts with backoff (e.g., key revoked on the provider side), `univ14` transitions to `DEGRADED` and the human is alerted — the parent stops hammering.
 
 ### Example 2: Fixing a Format Break or Parser Failure (Production Bug)
-* **Incident**: A WooCommerce update modifies the JSON structure of orders, causing a parsing error in the child's worker.
+* **Incident**: an upstream update modifies the JSON structure the child consumes, causing a parsing error in its worker.
 * **Self-Healing**:
   1. The parent Manager intercepts the error in the child's Queue (`status = "FAILED"`).
   2. The Manager instantiates a temporary sandbox universe (`univ14-patch-dev`).

@@ -107,7 +107,7 @@ cd ..
 # 4.3 — create the universe from the templates (never by copying packages)
 mkdir -p <univ_slug>-dev/deploy <univ_slug>-dev/tasks
 cp manifest.tier-a.json          <univ_slug>-dev/manifest.json
-cp examples/deploy/podman-up.sh  <univ_slug>-dev/deploy/podman-up.sh
+cp software/universes/_template/deploy/podman-up.sh  <univ_slug>-dev/deploy/podman-up.sh
 cp examples/tasks/task-schedule.json <univ_slug>-dev/tasks/task-schedule.json
 
 # 4.4 — start it, then prove the stack is up

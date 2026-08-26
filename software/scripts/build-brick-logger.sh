@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
+: "${SHAPER_BASE_IMAGE:?SHAPER_BASE_IMAGE is required}"
+: "${SHAPER_REGISTRY:?SHAPER_REGISTRY is required}"
+: "${SHAPER_IMAGE_TAG:?SHAPER_IMAGE_TAG is required; never publish latest}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-podman build -f bricks/brick-logger/Containerfile -t shaper-logger:latest .
-echo "[build-brick-logger] OK — localhost/shaper-logger:latest"
+REVISION="${SHAPER_SOURCE_REVISION:-$(git -C "$ROOT/.." rev-parse HEAD)}"
+IMAGE="${SHAPER_REGISTRY}/shaper/brick-logger:${SHAPER_IMAGE_TAG}"
+podman build \
+  --build-arg "SHAPER_BASE_IMAGE=${SHAPER_BASE_IMAGE}" \
+  --build-arg "SHAPER_SOURCE_REVISION=${REVISION}" \
+  -f bricks/brick-logger/Containerfile \
+  -t "$IMAGE" \
+  bricks/brick-logger
+podman push --tls-verify="${SHAPER_TLS_VERIFY:-true}" "$IMAGE"
+echo "[build-brick-logger] published $IMAGE"

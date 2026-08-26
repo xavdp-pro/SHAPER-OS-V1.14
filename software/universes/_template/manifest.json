@@ -1,64 +1,75 @@
 {
   "$schema": "../../schemas/universe-manifest.schema.json",
-  "universe": "univX",
-  "description": "Template — copy to universes/<slug>/manifest.json",
+  "universe": "univ-example",
+  "parent": null,
+  "environment": "dev",
+  "profile": "agent",
+  "description": "Template — copy to universes/<slug>/manifest.json and replace every value. Validated on every test run, so a copy that drifts fails immediately.",
   "intent": "./INTENT.md",
   "agentDeploy": "./AGENT-DEPLOY.md",
-
+  "context": "./context/ctx-universe.md",
+  "tasks": "./tasks/task-schedule.json",
   "bricks": {
-    "vault": {
-      "ref": "../../bricks/brick-vault",
-      "intent": "../../bricks/brick-vault/INTENT.md",
+    "brick-vault": {
+      "source": "base",
       "package": "@shaper/pkg-vault",
-      "role": "<WHY this brick in this universe>",
+      "image": "img-vault",
+      "intent": "../../bricks/brick-vault/INTENT.md",
+      "role": "<WHY this brick in THIS universe>",
+      "port": 8510,
       "specialize": {
         "how": "Bootstrap from resources/vault-resources.local.json",
         "file": "../../resources/vault-resources.local.json",
         "bootstrap": "npm run vault:bootstrap"
       }
     },
-    "logger": {
-      "ref": "../../bricks/brick-logger",
-      "intent": "../../bricks/brick-logger/INTENT.md",
+    "brick-logger": {
+      "source": "base",
       "package": "@shaper/pkg-logger",
-      "role": "Audit JSONL",
-      "specialize": { "how": "Use generic brick as-is" }
+      "image": "img-logger",
+      "intent": "../../bricks/brick-logger/INTENT.md",
+      "role": "<WHY this brick in THIS universe>",
+      "port": 8520
     },
-    "bridge-opencode": {
-      "ref": "../../bricks/brick-bridge-opencode",
-      "intent": "../../bricks/brick-bridge-opencode/INTENT.md",
-      "package": "@shaper/pkg-bridge-opencode",
-      "role": "Free OpenCode AI bridge",
-      "specialize": { "how": "Default model opencode/nemotron-3.5-lightning-free" }
-    },
-    "queue": {
-      "ref": "../../bricks/brick-queue",
-      "intent": "../../bricks/brick-queue/INTENT.md",
+    "brick-queue": {
+      "source": "base",
       "package": "@shaper/pkg-queue",
-      "role": "Async jobs → bridge"
+      "image": "img-queue",
+      "intent": "../../bricks/brick-queue/INTENT.md",
+      "role": "<WHY this brick in THIS universe>",
+      "port": 8540
     },
-    "maestro": {
-      "ref": "../../bricks/brick-maestro",
-      "intent": "../../bricks/brick-maestro/INTENT.md",
+    "brick-maestro": {
+      "source": "base",
       "package": "@shaper/pkg-maestro",
-      "role": "Beat scheduler",
+      "image": "img-maestro",
+      "intent": "../../bricks/brick-maestro/INTENT.md",
+      "role": "<WHY this brick in THIS universe>",
+      "port": 8530,
       "specialize": {
         "how": "MAESTRO_TASKS_FILE → ./tasks/task-schedule.json",
         "file": "./tasks/task-schedule.json"
       }
+    },
+    "brick-bridge-opencode": {
+      "source": "base",
+      "package": "@shaper/pkg-bridge-opencode",
+      "image": "img-bridge-opencode",
+      "intent": "../../bricks/brick-bridge-opencode/INTENT.md",
+      "role": "<WHY this brick in THIS universe>",
+      "port": 4440,
+      "specialize": { "how": "Measure the model from the target host at deployment (Rule 7)" }
     }
   },
-
   "resources": {
     "vaultBootstrap": "../../resources/vault-resources.local.json",
     "maestroTasks": "./tasks/task-schedule.json",
     "agentContext": "./context/ctx-universe.md"
   },
-
   "bootOrder": [
-    ["vault", "logger"],
-    ["bridge-opencode"],
-    ["queue"],
-    ["maestro"]
+    ["brick-vault", "brick-logger"],
+    ["brick-queue"],
+    ["brick-bridge-opencode"],
+    ["brick-maestro"]
   ]
 }

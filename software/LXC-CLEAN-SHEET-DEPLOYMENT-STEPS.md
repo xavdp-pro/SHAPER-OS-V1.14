@@ -5,7 +5,7 @@
 
 > **Le slug appartient à l'opérateur.** Cette procédure est générique : partout où
 > vous lisez `<univ_slug>`, substituez le nom de votre univers. Aucun univers
-> concret n'est livré avec ce dépôt — voir [`../univs/README.md`](../univs/README.md).
+> concret n'est livré avec ce dépôt — voir [`universes/README.md`](./universes/README.md).
 
 Ce document détaille la séquence exacte et chronologique permettant de monter un univers Shaper OS / KovZu complet sur un conteneur **LXC vierge** (Debian 13, conformément à la règle 11 ; Debian 12 et Ubuntu 24.04 restent utilisables), jusqu'à la **prise de relais autonome par l'agent IA**.
 
@@ -256,8 +256,8 @@ The message says nothing about nesting, which is why it belongs here.
 
 ```bash
 apt-get install -y podman git curl jq nodejs npm openssh-server rsync
-git clone --depth 1 https://github.com/xavdp-pro/SHAPER-OS-V1.10.git
-cd SHAPER-OS-V1.10/software
+git clone --depth 1 https://github.com/xavdp-pro/SHAPER-OS-V1.11.git
+cd SHAPER-OS-V1.11/software
 TAG="v1.7.1-$(git -C .. rev-parse --short HEAD)"
 for b in vault logger queue maestro bridge-opencode; do
   podman build -q -f bricks/brick-$b/Containerfile -t "localhost/shaper-$b:$TAG" .

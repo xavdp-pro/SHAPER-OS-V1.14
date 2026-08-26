@@ -29,14 +29,14 @@ describe('Supervisor Diagnostics (Rule 23)', () => {
     assert.equal(diag.issues[0].path, '/data/vault');
   });
 
-  it('detects stalled cadence on maestro pod drift', () => {
+  it('detects stalled cadence on maestro task drift', () => {
     const vitalsData = {
-      service: 'maestro-v1',
+      service: 'brick-maestro',
       uptimeSeconds: 1200,
       signals: {
-        podsRegistered: 1,
-        pods: {
-          'mail-agent': { cadenceSeconds: 30, lastBeatAgeSeconds: 150 },
+        tasksRegistered: 1,
+        tasks: {
+          'task-base-proof': { cadenceSeconds: 30, lastBeatAgeSeconds: 150 },
         },
         beatsSkippedTotal: 2,
       },
@@ -45,7 +45,7 @@ describe('Supervisor Diagnostics (Rule 23)', () => {
     const diag = diagnoseServiceVitals('maestro', vitalsData);
     assert.equal(diag.status, HEALTH_STATUS.STALLED);
     assert.equal(diag.issues[0].code, 'STALLED_CADENCE');
-    assert.equal(diag.issues[0].pod, 'mail-agent');
+    assert.equal(diag.issues[0].task, 'task-base-proof');
     assert.equal(diag.issues[0].driftRatio, 5.0);
   });
 
@@ -63,14 +63,14 @@ describe('Supervisor Diagnostics (Rule 23)', () => {
 
   it('detects DISK_LOW from freeBytes vs threshold (raw bytes, no verdict in the child)', () => {
     const vitalsData = {
-      service: 'wordpress-vitals',
+      service: 'brick-child-vitals',
       uptimeSeconds: 10,
       signals: { httpStatus: 200, httpLastOkAgeSeconds: 1 },
       checks: {
         uploads: { path: '/var/www/html/wp-content/uploads', writable: true, freeBytes: 1024 },
       },
     };
-    const diag = diagnoseServiceVitals('wordpress', vitalsData, { minFreeBytes: 10_000_000 });
+    const diag = diagnoseServiceVitals('child', vitalsData, { minFreeBytes: 10_000_000 });
     assert.equal(diag.status, HEALTH_STATUS.STALLED);
     assert.equal(diag.issues[0].code, 'DISK_LOW');
     assert.equal(diag.issues[0].freeBytes, 1024);
@@ -78,7 +78,7 @@ describe('Supervisor Diagnostics (Rule 23)', () => {
 
   it('detects DB_UNREACHABLE from database check lastError', () => {
     const vitalsData = {
-      service: 'wordpress-vitals',
+      service: 'brick-child-vitals',
       uptimeSeconds: 10,
       signals: {},
       checks: {

@@ -103,7 +103,7 @@
 * **Role:** Neutralizes malicious or parasitic traffic in $< 0.2$ ms without ever waking application runtimes (Node.js/PHP).
 * **The 2-Phase Adaptive Lifecycle:**
   1. **Phase 1 (Generic Pre-boot Base):** Hardened filters (anti-SQLi, anti-XSS, anti-path traversal `../`, IP sliding-window rate limiter, Cloudflare zero-trust ingress).
-  2. **Phase 2 (Live Application Profiling):** Once the target application runs (WordPress, GED, CRM), the Parent Agent compiles an **exact positive allow-list of routes and HTTP verbs** (`GET /api/search`, `POST /api/upload`). Any request outside this shape is dropped at Layer 3 with a `403 Forbidden` in $0.1$ ms.
+  2. **Phase 2 (Live Application Profiling):** Once the target application runs, whatever it is, the Parent Agent compiles an **exact positive allow-list of routes and HTTP verbs** (`GET /api/search`, `POST /api/upload`). Any request outside this shape is dropped at Layer 3 with a `403 Forbidden` in $0.1$ ms.
   3. **SSR Positive Cache:** Serves immutable product sheets, brochures, and public catalog pages in $0.3$ ms.
 * **Cognition:** `D0` (deterministic packet filtering) + `D2` (post-boot route compilation).
 * **Status:** `TARGET` (Specified in `doctrine/SOVEREIGN-WEB-CHAIN-WAF-AND-CACHE.md` and Rule 28).

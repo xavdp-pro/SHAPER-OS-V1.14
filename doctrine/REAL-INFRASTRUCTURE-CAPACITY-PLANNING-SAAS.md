@@ -10,7 +10,7 @@
 In pure theory, one imagines an endless pyramid of agents and containers — and the fractal pattern supports it on paper.  
 In the physical reality of servers (VPS, dedicated servers, LXC, RAM, CPU, disk I/O):
 * A server has finite capacity (e.g., 8 cores, 32 GB RAM, NVMe SSD).
-* An e-commerce store (WooCommerce) has asynchronous and variable usage: it does not consume 100% CPU continuously.
+* A child universe has asynchronous and variable usage: it does not consume 100% CPU continuously.
 * **Client contract vs actual usage**: Contractually, we guarantee to the client that they can manage up to 50 stores. Statistically, 80% of clients manage 2 to 5 day-to-day.
 
 ---
@@ -41,9 +41,9 @@ flowchart TD
 ```
 
 ### Balancing Rules:
-1. **No Central Super-Monolith**: The central coordinator does not run all the WordPress instances. It is solely the arbiter and registry.
-2. **Bridgeheads (Worker VPS)**: Each VPS runs a balanced set of Manager containers and WordPress Worker containers.
-3. **Dynamic Distribution**: If a client has a very high-traffic store (e.g., TV marketing campaign or Black Friday), its WordPress Universe is isolated or migrated to a dedicated VPS without impacting neighbors.
+1. **No Central Super-Monolith**: The central coordinator does not run all the child universes. It is solely the arbiter and registry.
+2. **Bridgeheads (Worker VPS)**: Each VPS runs a balanced set of manager containers and child worker containers.
+3. **Dynamic Distribution**: If one child universe carries a traffic spike, it is isolated or migrated to a dedicated VPS without impacting its neighbours.
 
 ---
 
@@ -58,7 +58,7 @@ What spikes in real life?
 ┌───────────────────────────────────────────────────────────────────────────────────┐
 │                     THE ZERO BLAST RADIUS RULE                                    │
 ├───────────────────────────────────────────────────────────────────────────────────┤
-│ Even if WordPress store #12 undergoes a request storm (1000 req/s):               │
+│ Even if child universe #12 undergoes a request storm (1000 req/s):               │
 │ 1. The univ12 container absorbs or saturates within its cgroups/RAM CPU perimeter.│
 │ 2. The 49 other stores and other clients on the same VPS continue operating       │
 │    at 100% of their nominal speed without any disruption.                         │
@@ -101,7 +101,7 @@ Statistical multiplexing is a sound principle, but **a capacity plan without a m
 
 ### 5.2 The table to fill (values to measure, never estimate)
 
-| Metric | Child WordPress Universe | Manager Universe | Super-Univ SaaS |
+| Metric | Child universe | Manager universe | Platform universe |
 | :--- | :---: | :---: | :---: |
 | Idle RAM | to measure | to measure | to measure |
 | Peak p95 RAM | to measure | to measure | to measure |

@@ -10,13 +10,13 @@ test('event-logger - structured JSONL log creation', () => {
   const logger = new EventLogger({ pod: 'mail-v1-test', logDir: tmpDir });
 
   const record = logger.log({
-    event: 'MAIL_RECEIVED',
+    event: 'TASK_REGISTERED',
     data: { sender: 'test@example.com', subject: 'Demande devis' },
     durationMs: 45.67,
   });
 
   assert.equal(record.pod, 'mail-v1-test');
-  assert.equal(record.event, 'MAIL_RECEIVED');
+  assert.equal(record.event, 'TASK_REGISTERED');
   assert.equal(record.level, 'INFO');
   assert.equal(record.duration_ms, 45.7);
   assert.ok(record.execution_id.startsWith('run-'));

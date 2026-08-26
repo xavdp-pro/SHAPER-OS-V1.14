@@ -1,7 +1,14 @@
+ARG SHAPER_BASE_IMAGE
+FROM ${SHAPER_BASE_IMAGE} AS shaper_base
 FROM docker.io/library/node:20-alpine
 
+ARG SHAPER_SOURCE_REVISION
+LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.brick="logger"
+LABEL org.shaper.build-packages="logger"
+
 WORKDIR /app
-COPY packages/pkg-logger/ ./
+COPY --from=shaper_base /shaper/packages/pkg-logger/ ./
 
 EXPOSE 8520
 ENV NODE_ENV=production

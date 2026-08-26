@@ -91,28 +91,83 @@ PRA_DEST_HOST="${process.env.PRA_DEST_HOST || ''}"   # set by the operator: dest
   fs.writeFileSync(path.join(deployDir, `${slug}.env`), envContent);
 
   // 2. Client Manifest
+  //
+  // It is written in the one grammar `@shaper/pkg-universe` validates. A
+  // generator that emits its own shape produces universes nothing can read —
+  // which is what `services: { vault: { port } }` used to do here, while the
+  // contract expected `bricks`. It also named `helm` and `ged`, two catalogue
+  // bricks the base does not ship.
   const manifest = {
+    $schema: '../../schemas/universe-manifest.schema.json',
     universe: `univ-${slug}`,
-    clientName: client,
-    domain: domain || `ia.${slug}.fr`,
-    createdAt: new Date().toISOString(),
-    version: '1.0.0',
-    gitRemote: gitRemote || 'local-repo',
-    services: {
-      vault: { port: 8610 },
-      logger: { port: 8620 },
-      queue: { port: 8640 },
-      maestro: { port: 8630 },
-      helm: { port: 8650 },
-      ged: { port: 8660 },
+    parent: null,
+    environment: 'prod',
+    profile: 'agent',
+    description: `Client universe for ${client}`,
+    intent: './INTENT.md',
+    agentDeploy: './AGENT-DEPLOY.md',
+    context: './context/ctx-universe.md',
+    tasks: './tasks/task-schedule.json',
+    bricks: {
+      'brick-vault': {
+        source: 'base',
+        package: '@shaper/pkg-vault',
+        image: 'img-vault',
+        intent: '../../bricks/brick-vault/INTENT.md',
+        role: `Secrets for ${client}, readable by this universe alone`,
+        port: 8510,
+      },
+      'brick-logger': {
+        source: 'base',
+        package: '@shaper/pkg-logger',
+        image: 'img-logger',
+        intent: '../../bricks/brick-logger/INTENT.md',
+        role: 'Audit evidence for this client',
+        port: 8520,
+      },
+      'brick-queue': {
+        source: 'base',
+        package: '@shaper/pkg-queue',
+        image: 'img-queue',
+        intent: '../../bricks/brick-queue/INTENT.md',
+        role: 'Persistent work ledger',
+        port: 8540,
+      },
+      'brick-maestro': {
+        source: 'base',
+        package: '@shaper/pkg-maestro',
+        image: 'img-maestro',
+        intent: '../../bricks/brick-maestro/INTENT.md',
+        role: 'Paces this client\u2019s declared tasks',
+        port: 8530,
+      },
+      'brick-bridge-opencode': {
+        source: 'base',
+        package: '@shaper/pkg-bridge-opencode',
+        image: 'img-bridge-opencode',
+        intent: '../../bricks/brick-bridge-opencode/INTENT.md',
+        role: 'The AI engine this client universe may spend work on',
+        port: 4440,
+      },
     },
-    backup: {
-      schedule: '0 2 * * *',
-      retentionDays: 7,
-      praSync: true,
-    }
+    bootOrder: [
+      ['brick-vault', 'brick-logger'],
+      ['brick-queue'],
+      ['brick-bridge-opencode'],
+      ['brick-maestro'],
+    ],
   };
   fs.writeFileSync(path.join(univDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+
+  // Delivery metadata belongs beside the universe, not inside its contract: the
+  // manifest says what the universe is made of, never who bought it.
+  fs.writeFileSync(path.join(univDir, 'delivery.json'), JSON.stringify({
+    clientName: client,
+    domain: requiredDomain(domain, slug),
+    createdAt: new Date().toISOString(),
+    gitRemote: gitRemote || 'local-repo',
+    backup: { schedule: '0 2 * * *', retentionDays: 7, praSync: true },
+  }, null, 2) + '\n');
 
   // 3. Client Context
   fs.writeFileSync(path.join(contextDir, 'briefing.md'), `# Company Briefing — ${client}

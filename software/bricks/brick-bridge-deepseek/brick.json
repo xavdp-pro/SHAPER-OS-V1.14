@@ -1,0 +1,14 @@
+{
+  "brick": "bridge-deepseek",
+  "contractVersion": 1,
+  "distribution": "base",
+  "buildPackages": [
+    "pkg-logger",
+    "pkg-bridge-deepseek"
+  ],
+  "runtimeServices": [],
+  "proof": [
+    "bridge health",
+    "authenticated vitals"
+  ]
+}

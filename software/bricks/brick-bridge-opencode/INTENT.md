@@ -5,7 +5,7 @@
 ## Invariants
 
 1. Binary `/usr/local/bin/opencode` is baked into the image (not host bind-mount).
-2. Runtime uses vendored `packages/pkg-opencode-bridge` (`opencode serve` + HTTP/SSE contract).
+2. Runtime uses vendored `packages/pkg-opencode-server` (`opencode serve` + HTTP/SSE contract).
 3. Port 4340 (bridge) / 4341 (internal serve).
 4. Default free model: the most responsive free model **measured from the target host** at deployment (Rule 7). None is named here — a named default is wrong the day its vendor ships a successor.
 5. Auth: Bearer token at `TOKEN_FILE` (shared with maestro/queue).
@@ -46,7 +46,7 @@
   `payload`; a directory-scoped `/event` would make other runs unobservable.
 
 * **The runtime that ships is the runtime that publishes evidence.** The image
-  uses `packages/pkg-opencode-bridge`, so its authenticated `/api/vitals` must expose
+  uses `packages/pkg-opencode-server`, so its authenticated `/api/vitals` must expose
   readiness, model, stub state, active runs, conversations, and event clients;
   tests on a similarly named package do not prove the container.
 

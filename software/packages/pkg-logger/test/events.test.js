@@ -61,20 +61,20 @@ describe('Shared Event Vocabulary (Task 2)', () => {
     const logger = new EventLogger({ pod: 'test-pod', logDir: tmpDir });
 
     const entry = logger.log({
-      event: 'MAIL_INBOX_CHECK',
+      event: 'BEAT_EXECUTED',
       correlationId: 'trace-42',
-      data: { unseen: 3, new_messages: 1 },
+      data: { slug: 'task-base-proof', kind: 'generic', processed: 1 },
       durationMs: 42.12,
     });
 
     assert.equal(entry.pod, 'test-pod');
-    assert.equal(entry.event, 'MAIL_INBOX_CHECK');
+    assert.equal(entry.event, 'BEAT_EXECUTED');
     assert.equal(entry.correlationId, 'trace-42');
     assert.equal(entry.duration_ms, 42.1);
 
     const events = logger.readLastEvents(10);
     assert.equal(events.length, 1);
-    assert.equal(events[0].event, 'MAIL_INBOX_CHECK');
+    assert.equal(events[0].event, 'BEAT_EXECUTED');
     assert.equal(events[0].correlation_id, 'trace-42');
     assert.equal(events[0].at, events[0].timestamp);
 
@@ -92,20 +92,20 @@ describe('Shared Event Vocabulary (Task 2)', () => {
 
     const record = await ingestLog({
       loggerUrl,
-      pod: 'maestro',
+      pod: 'brick-maestro',
       event: 'BEAT_STARTED',
       correlationId: 'beat-cycle-7',
       level: 'INFO',
-      data: { slug: 'pod-contact', kind: 'mail' },
+      data: { slug: 'task-base-proof', kind: 'generic' },
       durationMs: 5.2,
     });
 
     assert.ok(record);
-    assert.equal(record.pod, 'maestro');
+    assert.equal(record.pod, 'brick-maestro');
     assert.equal(record.event, 'BEAT_STARTED');
     assert.equal(record.correlationId, 'beat-cycle-7');
     assert.equal(record.correlation_id, 'beat-cycle-7');
-    assert.equal(record.data.slug, 'pod-contact');
+    assert.equal(record.data.slug, 'task-base-proof');
 
     server.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -116,9 +116,20 @@ describe('Shared Event Vocabulary (Task 2)', () => {
     assert.ok(events.includes('MAESTRO_STARTED'));
     assert.ok(events.includes('BEAT_ENQUEUED'));
     assert.ok(events.includes('BEAT_SKIPPED'));
-    assert.ok(events.includes('MAIL_INBOX_CHECK'));
+    assert.ok(events.includes('TASK_REGISTERED'));
+    assert.ok(events.includes('BEAT_EXECUTED'));
     assert.ok(events.includes('JOB_ENQUEUED'));
     assert.ok(events.includes('JOB_COMPLETED'));
+
+    // The base declares its own vocabulary and no one else's. A catalogue
+    // brick — mail intake, document pipeline — registers its events itself.
+    for (const [name, meta] of Object.entries(KNOWN_EVENTS)) {
+      assert.match(
+        meta.brick,
+        /^brick-(maestro|queue|logger|vault|agent-runtime|bridge-[a-z0-9-]+)$/,
+        `Event ${name} is declared by ${meta.brick}, which the base does not ship`,
+      );
+    }
 
     for (const [name, meta] of Object.entries(KNOWN_EVENTS)) {
       assert.ok(meta.brick, `Event ${name} must declare an emitting brick`);

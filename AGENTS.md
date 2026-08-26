@@ -84,7 +84,7 @@ and *find*. It never grants permission.
 ## 3. Where you are
 
 ```
-SHAPER-OS-V1.10/
+SHAPER-OS-V1.11/
 ├── README.md                ← human door (5 levels)
 ├── AGENTS.md                ← you are here: agent door
 ├── LAW.md                   ← what is never skipped, one page

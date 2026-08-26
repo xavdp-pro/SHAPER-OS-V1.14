@@ -1,0 +1,14 @@
+{
+  "brick": "bridge-agy",
+  "contractVersion": 1,
+  "distribution": "base",
+  "buildPackages": [
+    "pkg-logger",
+    "pkg-bridge-agy"
+  ],
+  "runtimeServices": [],
+  "proof": [
+    "bridge health",
+    "authenticated vitals"
+  ]
+}
