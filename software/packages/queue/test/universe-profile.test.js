@@ -28,6 +28,38 @@ const FLOORS = {
   agent: ['vault', 'logger', 'bridge-*', 'queue', 'maestro'],
 };
 
+/** Human Archetype Presets & Aliases mapping to canonical formulas */
+const PRESETS = {
+  'tier-a': 'agent',
+  store: 'passive +data +public',
+  'document-hub': 'agent +documents +public',
+  'fleet-manager': 'agent +parent +public',
+  'field-service': 'agent +documents',
+  'accounting-vault': 'agent +documents +data',
+  helpdesk: 'agent +intake +documents',
+  'booking-engine': 'passive +data +public',
+  academy: 'passive +data +public',
+  watchdog: 'agent +clock',
+  brochure: 'passive +public',
+  'mail-triage': 'agent +intake +data',
+};
+
+const OPTION_ALIASES = {
+  security: 'waf',
+  paiement: 'billing',
+  voix: 'voice',
+  whatsapp: 'messaging',
+  agenda: 'calendar',
+  pdf: 'pdf-toolkit',
+  ged: 'documents',
+  bdd: 'data',
+  cockpit: 'web',
+  online: 'public',
+  mail: 'intake',
+  superviseur: 'parent',
+  cron: 'clock',
+};
+
 const OPTIONS = {
   documents: ['ged'],          // qdrant and rag travel with it, not always as containers
   data: ['mariadb'],
@@ -36,6 +68,12 @@ const OPTIONS = {
   clock: ['maestro'],
   parent: [],                  // supervisor is in-process, nothing to assert here
   intake: [],                  // mail-agent is in-process
+  waf: [],                     // target / adaptive firewall
+  billing: [],                 // target
+  voice: [],                   // target
+  messaging: [],               // target
+  calendar: [],                // target
+  'pdf-toolkit': [],           // target
 };
 
 function manifests() {
@@ -52,6 +90,18 @@ function has(bricks, key) {
     : bricks.includes(key);
 }
 
+function resolveProfile(raw) {
+  const rawParts = String(raw).split('+').map((s) => s.trim()).filter(Boolean);
+  const head = rawParts[0];
+  const tail = rawParts.slice(1);
+
+  if (PRESETS[head]) {
+    const [presetFloor, ...presetOpts] = PRESETS[head].split('+').map((s) => s.trim()).filter(Boolean);
+    return [presetFloor, ...presetOpts, ...tail];
+  }
+  return [head, ...tail];
+}
+
 test('every declared profile is backed by the bricks it names', () => {
   const problems = [];
   let checked = 0;
@@ -64,10 +114,13 @@ test('every declared profile is backed by the bricks it names', () => {
     checked += 1;
 
     const bricks = Object.keys(manifest.bricks || {});
-    const [floor, ...options] = String(profile).split('+').map((s) => s.trim()).filter(Boolean);
+    const resolved = resolveProfile(profile);
+    const floor = resolved[0];
+    const rawOptions = resolved.slice(1);
+    const options = rawOptions.map((opt) => OPTION_ALIASES[opt] || opt);
 
     if (!FLOORS[floor]) {
-      problems.push(`${rel}: unknown floor "${floor}" — expected passive or agent`);
+      problems.push(`${rel}: unknown floor "${floor}" (from profile "${profile}") — expected passive or agent`);
       continue;
     }
 
@@ -78,7 +131,7 @@ test('every declared profile is backed by the bricks it names', () => {
     }
     for (const option of options) {
       if (!(option in OPTIONS)) {
-        problems.push(`${rel}: unknown option "+${option}"`);
+        problems.push(`${rel}: unknown option "+${option}" in profile "${profile}"`);
         continue;
       }
       for (const required of OPTIONS[option]) {
@@ -95,4 +148,17 @@ test('every declared profile is backed by the bricks it names', () => {
     [],
     `A manifest declares a profile it does not carry:\n  ${problems.join('\n  ')}\n`,
   );
+});
+
+test('preset aliases resolve to valid canonical floors and known options', () => {
+  for (const [preset, formula] of Object.entries(PRESETS)) {
+    const resolved = resolveProfile(preset);
+    const floor = resolved[0];
+    const options = resolved.slice(1).map((opt) => OPTION_ALIASES[opt] || opt);
+
+    assert.ok(FLOORS[floor], `preset "${preset}" resolves to invalid floor "${floor}"`);
+    for (const opt of options) {
+      assert.ok(opt in OPTIONS, `preset "${preset}" contains unknown option "+${opt}"`);
+    }
+  }
 });

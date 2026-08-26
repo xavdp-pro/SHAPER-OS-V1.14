@@ -1,17 +1,58 @@
-# Universe Profiles — Naming What to Build
+# Universe Profiles & Human Archetypes — Naming What to Build
 
 > **Why this page exists.** Two agents were asked, in the same words, to build
 > "the base universe". One built five containers, the other six. Neither was
-> wrong: the phrase had no definition. This page gives the starting points names,
-> so that a single word in a prompt settles what gets built — and everything
-> after that word is yours to shape.
+> wrong: the phrase had no definition. This page gives the starting points names —
+> whether you speak in **business archetypes** (human mode) or in **modular Lego
+> formulas** (agent mode) — so that a single phrase in a prompt settles what gets
+> built, and everything after that phrase is yours to shape.
 
 A profile is a **floor, not a cage.** It says where to start. What you add on top
 is the work.
 
 ---
 
-## The two floors
+## 🧭 The 3 Ways to Prompt a Universe
+
+You can prompt a universe in whichever way feels natural to you:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ 1. BY HUMAN ARCHETYPE (1 Word / Business Preset)                                       │
+│    "Build me a store universe..."  OR  "Build me a document-hub universe..."           │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 2. BY MODULAR LEGO FORMULA (Floor + Options)                                           │
+│    "Build me an agent +documents +public universe..."                                  │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 3. BY HYBRID COMBINATION (Archetype + Modular Extensions)                              │
+│    "Build me a store +voice +waf universe..."                                          │
+│    "Build me a document-hub +intake +waf universe..."                                  │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🏛️ 1. Human Archetypes (Business Presets)
+
+Direct business names you can use in your prompts. The agent resolves the
+archetype into its canonical base formula and required bricks:
+
+| Human Archetype | Manifest Alias | Canonical Formula | Bricks Deployed | What It Does for the Business |
+| :--- | :--- | :--- | :--- | :--- |
+| **Boutique E-Commerce** | `store` | `passive +data +public` | `logger`, `wordpress`, `mariadb`, `vitals`, `tunnel` | Online store with database, health probes, and payment readiness |
+| **GED & IA Documentaire** | `document-hub` | `agent +documents +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `qdrant`, `rag`, `tunnel` | Sovereign document management, OCR, vector search & multimodal AI |
+| **Gestionnaire de Flotte (Père)** | `fleet-manager` | `agent +parent +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `supervisor`, `manager-gateway`, `tunnel` | Supervisor cockpit repairing and provisioning child universes |
+| **Devis & Rapports de Chantier** | `field-service` | `agent +documents +voice` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `voice` | Turns voice notes & job site photos into structured quotes & PDF reports |
+| **Rapprochement & Compta** | `accounting-vault` | `agent +documents +data` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `mariadb` | Ingests supplier invoices & bank statements, reconciles lines & exports journals |
+| **Support Client Omnicanal** | `helpdesk` | `agent +intake +documents` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `mail-agent`, `ged`, `rag` | Automatic email/chat triage, vector knowledge lookup & ticket escalation |
+| **Prise de Rendez-Vous** | `booking-engine` | `passive +data +public` | `logger`, `mariadb`, `calendar-sync`, `tunnel` | Online appointment booking with CalDAV/ICS sync and SMS/email alerts |
+| **Plateforme Formations / LMS** | `academy` | `passive +data +public` | `logger`, `mariadb`, `auth`, `tunnel` | Member portal for video courses and PDF deliverables (0% platform fee) |
+| **Agent de Veille & Tâches** | `watchdog` | `agent +clock` | `vault`, `logger`, `bridge`, `queue`, `maestro` | Autonomous cron tasks, supplier API sync, competitor scraping & alerts |
+| **Site Vitrine Souverain** | `brochure` | `passive +public` | `logger`, `nginx/static`, `tunnel` | Ultra-fast, lightweight public presence with zero attack surface |
+
+---
+
+## 🧱 2. The Two Canonical Floors
 
 ### `passive` — it runs, and it can be proven
 
@@ -19,117 +60,117 @@ is the work.
 logger                                    :8620
 ```
 
-Plus whatever it watches: a website, a shop, a database, a document store. The
-logger is the one brick that never leaves, because the currency of this system is
-proof — a universe that cannot show what happened is outside the doctrine, however
-well it works.
+Plus whatever service it watches (a website, a store, a database). The `logger`
+is the one brick that never leaves, because the currency of SHAPER OS is proof —
+a universe that cannot show what happened is outside the doctrine.
 
 **Nothing reasons here.** No agent, no queue, no clock.
-
-**Real examples:**
-
-| What it is | Profile | Alongside |
-| :--- | :--- | :--- |
-| Site with sign-in | `passive +data` | the site container, `auth` |
-| WordPress shop | `passive +data` | wordpress, mariadb, vitals probes |
-| Public brochure site | `passive +public` | nginx or the static site |
-| Document drop | `passive +documents` | — |
-| Scheduled backups | `passive +clock` | `maestro` alone: a cron with an audit trail |
 
 ### `agent` — it reasons, works in the background, and starts on its own
 
 ```
 vault    :8610      the secrets
 logger   :8620      the memory and the proof
-bridge   :4440      the agent
+bridge   :4440      the AI agent
 queue    :8640      asynchronous work, and the answer persisted
-maestro  :8630      it starts by itself
+maestro  :8630      autonomous heartbeat / scheduled beats
 ```
 
 Boot order: `vault ∥ logger → bridge → queue → maestro`.
 
 **This is the default.** When nobody names a profile, this is what gets built.
-It is what `manifest.tier-a.json` has always declared; `tier-a` stays as an alias
-while existing manifests migrate.
-
-Five bricks is the **floor for anything that thinks**, and each one earns its
-place:
-
-- Remove `maestro` and it only acts when asked.
-- Remove `queue` and it acts but cannot prove: the answer lives on a connection
-  that closes, which the v1.7 verdict names as a failed proof.
-- Remove `vault` and it works only while it holds no secret — the queue writes
-  job payloads to disk, so a secret travelling as a value becomes a secret in a
-  file. With the vault it travels as a reference and is decrypted in memory.
-- Remove `bridge` and nothing reasons: you are back to `passive`.
-- Remove `logger` and nothing is provable.
 
 ---
 
-## The options
+## 🧩 3. Modular Options & Extensions
 
-They attach to either floor, in any combination.
+Options attach to either floor or any archetype:
 
-| Option | Adds | What it buys |
-| :--- | :--- | :--- |
-| **`+documents`** | `ged`, `qdrant`, `@shaper/rag` | It knows things beyond the current task |
-| **`+data`** | `mariadb` | Relational state that outlives the run |
-| **`+web`** | `helm`, `auth` | A human who is not at a terminal can drive it |
-| **`+public`** | `tunnel`, `waf` *(TARGET)* | Reachable from outside, with no inbound port open |
-| **`+clock`** | `maestro` | For a `passive` universe only — `agent` already has it |
-| **`+parent`** | `@shaper/supervisor`, children registry, SSH authority | It operates **other** universes |
-| **`+intake`** | `@shaper/mail-agent`, `pipeline` *(TARGET)* | Work arrives on its own, from mail or documents |
-
-`+web` and `+public` are separate on purpose: a cockpit reachable only on the
-private address is a legitimate and much safer posture.
-
----
-
-## Writing it in a prompt
-
-Name the floor, add the options, then describe the work:
-
-> *"Build me an **`agent +documents`** universe called `univ-devis-dev`, DEV
-> lifecycle. It reads incoming quotes and produces a written summary each
-> morning."*
-
-The agent reads this page for the first half and builds exactly that. The second
-half is where you shape — and where it stops guessing.
-
-**Three things a profile does not say**, and that you must still give:
-
-1. **The slug** — a container name is not a slug, and an agent that derives one
-   from the other is guessing (Rule 1).
-2. **The lifecycle** — DEV is kept, TEST is destroyed after it proves itself
-   (Rule 10). "A test VPS" describes a machine, not a lifecycle.
-3. **The intent** — what this universe is *for*. Principle 1: intent precedes
-   form, and the profile is form.
+| Option (Lego) | Human Alias | Adds | What It Buys |
+| :--- | :--- | :--- | :--- |
+| **`+waf`** | `+security` | `@shaper/waf-engine` *(TARGET)* | **Adaptive Sovereign Firewall & positive cache (shaped live)** |
+| **`+billing`** | `+paiement` | `brick-billing` *(TARGET)* | Stripe webhooks, subscriptions, customer billing & auto-invoicing |
+| **`+voice`** | `+voix` | `brick-voice` *(TARGET)* | Whisper voice transcription (STT) & vocal response synthesis (TTS) |
+| **`+messaging`** | `+whatsapp` | `brick-messaging` *(TARGET)* | WhatsApp Pro / Telegram / Signal client photo & chat intake |
+| **`+calendar`** | `+agenda` | `brick-caldav` *(TARGET)* | CalDAV / ICS booking availability & 2-way agenda sync |
+| **`+pdf-toolkit`** | `+pdf` | `brick-pdf` *(TARGET)* | Multi-page PDF splitting, barcode tagging, and digital signature |
+| **`+documents`** | `+ged` | `ged`, `qdrant`, `@shaper/rag` | Full document ingestion, OCR, and 384d semantic vector search |
+| **`+data`** | `+bdd` | `mariadb` | Relational database state that outlives the execution run |
+| **`+web`** | `+cockpit` | `helm`, `auth` | Operator `/console` cockpit and authenticated browser interface |
+| **`+public`** | `+online` | `tunnel` (Cloudflare Zero Trust) | Public HTTPS routing with **zero open inbound ports** |
+| **`+intake`** | `+mail` | `@shaper/mail-agent` | Automatic inbound IMAP mail listening & background job intake |
+| **`+parent`** | `+superviseur` | `@shaper/supervisor`, SSH authority | Supervisor role: grades child vitals (R23) and performs repairs |
+| **`+clock`** | `+cron` | `maestro` | Heartbeat scheduler (for `passive` floor only; `agent` already has it) |
 
 ---
 
-## Declared, and checked
+## 🛡️ Special Focus: The Adaptive Sovereign WAF (`+waf`)
 
-A name nobody verifies is decoration. The profile is declared in the manifest:
+> **Doctrine Reminder (Rule 28 & Sovereign Web Chain)**:  
+> *A WAF cannot be an arbitrary static black-box. It must be structurally prepared with a generic base, and then **shaped in live execution according to the specific application it protects**.*
 
-```json
-{ "universe": "univ-devis-dev", "environment": "dev", "profile": "agent +documents" }
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                     THE 2-PHASE ADAPTIVE SOVEREIGN WAF ARCHITECTURE                    │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ PHASE 1 : GENERIC STRUCTURAL BASE (Pre-boot)                                           │
+│ • Zero Trust Cloudflare Ingress (0 open inbound ports on the host).                    │
+│ • Deterministic low-level filters (< 0.2 ms): Anti-SQLi, Anti-XSS, Path-Traversal.    │
+│ • IP sliding-window rate limiting & brute-force shield.                                │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ PHASE 2 : LIVE APPLICATION SHAPING (Post-boot / Positive Security)                     │
+│ • Once the application runs (WordPress, GED, CRM...), the Parent Agent inspects the   │
+│   active routes and compiles an **exact positive whitelist** (`GET /api/search`...).  │
+│ • Precomputed SSR cache for read-only pages (served in 0.3 ms without waking Node.js). │
+│ • Any request outside the positive application shape is dropped at layer 3 in 0.1 ms. │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The repository suite fails if the declared profile and the actual bricks disagree
-— a manifest that says `passive` while running maestro and a bridge is lying
-about what it is, and the next agent will believe it.
-
-Adding bricks beyond the profile is allowed and expected: that is the brodery.
-The check verifies the **floor is present**, never that nothing was added.
+Adding **`+waf`** to any universe activates this adaptive guardian.
 
 ---
 
-## What no profile contains
+## 💬 4. Real-World Prompt Examples
 
-Its own repair authority. A universe emits its vitals; a level above grades them
-and repairs it (Rule 23), and where there is no level above, a human does
-(Rule 24). `+parent` makes a universe the one who repairs — never the one who
-repairs itself.
+Here is how you can formulate your requests in natural language:
 
-That absence is not a gap in the vocabulary. It is what stops an agent sawing the
-branch it is sitting on.
+### Example 1 — E-Commerce Store with Adaptive WAF
+> *"Build me a **`store +waf`** universe called `univ-chaussures-dev`, DEV lifecycle. It runs a WooCommerce shop with an adaptive firewall and precomputed product cache."*
+
+### Example 2 — Job Site Quotes with Voice & WhatsApp
+> *"Build me a **`field-service +messaging +billing`** universe called `univ-renov-dev`, DEV lifecycle. Artisans send photos and audio notes via WhatsApp; the agent produces signed quotes and collects Stripe deposit payments."*
+
+### Example 3 — Accounting Hub with Auto-Mail Ingestion
+> *"Build me a **`accounting-vault +intake +waf`** universe called `univ-compta-dev`, DEV lifecycle. Invoices arriving at `factures@entreprise.fr` are automatically parsed, OCR-verified, reconciled against bank records, and filed into the GED."*
+
+### Example 4 — Booking Engine for Healthcare / Consultants
+> *"Build me a **`booking-engine +messaging`** universe called `univ-cabinet-dev`, DEV lifecycle. Patients book slots online, syncing with Apple/Google Calendar and receiving appointment reminders on WhatsApp."*
+
+### Example 5 — Private Video Academy
+> *"Build me a **`academy +billing +waf`** universe called `univ-formation-dev`, DEV lifecycle. Private member portal selling video masterclasses with Stripe subscriptions and zero third-party platform fees."*
+
+---
+
+## 📋 5. Declared and Machine-Checked
+
+The profile is declared in the universe manifest:
+
+```json
+{
+  "universe": "univ-chaussures-dev",
+  "environment": "dev",
+  "profile": "store +waf"
+}
+```
+
+The test suite automatically resolves human archetypes and verifies that all
+required base bricks are present before any deployment is permitted.
+
+---
+
+## 🚫 What No Profile Contains
+
+Its own repair authority. A universe emits its raw vitals; a level above ($K+1$)
+grades them and repairs it (Rule 23), or a human operator does (Rule 24).
+`+parent` makes a universe the supervisor of **others** — never the one who
+modifies itself in flight.
