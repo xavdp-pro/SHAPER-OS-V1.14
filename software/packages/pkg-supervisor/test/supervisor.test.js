@@ -18,7 +18,7 @@ describe('Supervisor Diagnostics (Rule 23)', () => {
 
   it('detects storage permission / disk faults from vitals checks', () => {
     const vitalsData = {
-      service: 'vault-v1',
+      service: 'brick-vault',
       uptimeSeconds: 120,
       signals: { secretsHeld: 5 },
       checks: { storage: { path: '/data/vault', writable: false, reason: 'EACCES: permission denied' } },
@@ -51,7 +51,7 @@ describe('Supervisor Diagnostics (Rule 23)', () => {
 
   it('evaluates healthy service with all signals normal', () => {
     const vitalsData = {
-      service: 'logger-v1',
+      service: 'brick-logger',
       uptimeSeconds: 500,
       signals: { podsCount: 2, eventsLast60s: 10, lastWriteAgeSeconds: 2, bytesOnDisk: 1024 },
       checks: { disk: { path: '/data/log', writable: true } },

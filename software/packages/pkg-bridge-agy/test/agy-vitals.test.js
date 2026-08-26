@@ -18,7 +18,7 @@ describe('bridge-agy vitals', () => {
     assert.equal(res.status, 200);
     const vitals = await res.json();
 
-    assert.equal(vitals.service, 'univ-bridge-agy');
+    assert.equal(vitals.service, 'brick-bridge-agy');
     assert.equal(typeof vitals.uptimeSeconds, 'number');
     assert.equal(vitals.signals.injects, 0);
     assert.equal(vitals.signals.model, 'gemini-3.6-flash-low');

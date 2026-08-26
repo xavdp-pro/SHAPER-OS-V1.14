@@ -72,3 +72,28 @@ test('the generic base carries no mail-product behaviour', () => {
     assert.doesNotMatch(source, new RegExp(forbidden, 'i'), `the base still speaks of ${forbidden}`);
   }
 });
+
+// A service announces itself on /api/health and /api/vitals, and the supervisor
+// reads that name to decide what it is looking at. Until V1.11 four bricks
+// announced `vault-v1`, `logger-v1`, `queue-v1` and `maestro-v1` — a version
+// suffix frozen at v1 through eleven releases, and a layer the reader had to
+// infer. Maestro was renamed and the other three were not, which is worse than
+// leaving all four alone: the fleet then spoke two vocabularies at once.
+test('every base service announces itself by its brick identity', () => {
+  const offences = [];
+
+  for (const packageName of dirs('packages')) {
+    const dir = path.join(SOFTWARE, 'packages', packageName);
+    for (const file of fs.readdirSync(dir).filter((f) => /\.[cm]?js$/.test(f))) {
+      const text = fs.readFileSync(path.join(dir, file), 'utf8');
+      for (const match of text.matchAll(/service:\s*'([^']+)'/g)) {
+        const announced = match[1];
+        if (announced.startsWith('brick-')) continue;
+        if (/^\$\{|^this\./.test(announced)) continue;
+        offences.push(`${packageName}/${file}: announces "${announced}", not a brick- identity`);
+      }
+    }
+  }
+
+  assert.deepEqual(offences, [], `services announcing a name outside the contract:\n  ${offences.join('\n  ')}`);
+});

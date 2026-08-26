@@ -24,7 +24,7 @@ test('logger-server - health and ingest over HTTP', async () => {
   const healthRes = await fetch(`http://127.0.0.1:${PORT}/api/health`);
   const health = await healthRes.json();
   assert.equal(healthRes.status, 200);
-  assert.equal(health.service, 'logger-v1');
+  assert.equal(health.service, 'brick-logger');
 
   const ingestRes = await fetch(`http://127.0.0.1:${PORT}/api/ingest`, {
     method: 'POST',

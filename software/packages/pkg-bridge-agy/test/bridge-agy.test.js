@@ -18,7 +18,7 @@ test('bridge-agy - health and metrics contract', async (t) => {
 
   const health = await (await fetch(`http://127.0.0.1:${port}/api/health`)).json();
   assert.equal(health.ok, true);
-  assert.equal(health.service, 'univ-bridge-agy');
+  assert.equal(health.service, 'brick-bridge-agy');
 
   const metrics = await (await fetch(`http://127.0.0.1:${port}/api/metrics`)).json();
   assert.equal(metrics.ok, true);

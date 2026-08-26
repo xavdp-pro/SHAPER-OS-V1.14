@@ -18,7 +18,7 @@ describe('bridge-cursor vitals', () => {
     assert.equal(res.status, 200);
     const vitals = await res.json();
 
-    assert.equal(vitals.service, 'univ-bridge-cursor');
+    assert.equal(vitals.service, 'brick-bridge-cursor');
     assert.equal(typeof vitals.uptimeSeconds, 'number');
     assert.equal(vitals.signals.injects, 0);
     assert.equal(vitals.signals.model, 'composer-2.5');

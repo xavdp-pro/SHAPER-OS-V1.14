@@ -18,7 +18,7 @@ describe('bridge-opencode vitals', () => {
     assert.equal(res.status, 200);
     const vitals = await res.json();
 
-    assert.equal(vitals.service, 'univ-bridge-opencode');
+    assert.equal(vitals.service, 'brick-bridge-opencode');
     assert.equal(typeof vitals.uptimeSeconds, 'number');
     assert.equal(vitals.signals.injects, 0);
     assert.equal(vitals.checks.workspace.writable, true);

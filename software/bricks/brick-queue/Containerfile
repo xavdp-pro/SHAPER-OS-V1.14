@@ -9,9 +9,13 @@ LABEL org.shaper.build-packages="logger queue"
 
 WORKDIR /app
 # The queue package is flattened into WORKDIR, so a sibling import such as
-# `../pkg-logger/vitals.js` resolves one level above it. Placing logger there
-# keeps that import valid without reshaping the whole image layout.
-COPY --from=shaper_base /shaper/packages/pkg-logger/ /logger/
+# `../pkg-logger/vitals.js` resolves to `/pkg-logger/`. The destination must be
+# that exact name: V1.10 renamed the packages to `pkg-*` and left this COPY
+# writing to `/logger/`, so every image that copied the logger this way threw
+# `Cannot find module '/pkg-logger/vitals.js'` on its first import — and the
+# test that was supposed to guard it only checked the Containerfile *mentioned*
+# the package, never where it put it.
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /pkg-logger/
 COPY --from=shaper_base /shaper/packages/pkg-queue/ ./
 
 EXPOSE 8540

@@ -70,7 +70,7 @@ export class OpencodeBridgeServer {
     const wsCheck = await writable(fs, this.workspaceBase);
     const cliInfo = cliCheck(execFileSync, this.opencodeBin, ['--version']);
     return vitals({
-      service: 'univ-bridge-opencode',
+      service: 'brick-bridge-opencode',
       startedAt: this.startedAt,
       signals: {
         injects: this.metrics.injects,
@@ -188,7 +188,7 @@ export class OpencodeBridgeServer {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
-          service: 'univ-bridge-opencode',
+          service: 'brick-bridge-opencode',
           port: this.port,
           model: this.defaultModel,
           stubMode: this.stubMode,
@@ -208,7 +208,7 @@ export class OpencodeBridgeServer {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
-          service: 'univ-bridge-opencode',
+          service: 'brick-bridge-opencode',
           metrics: this.metrics,
           running: this.runningProcesses.size,
         }));

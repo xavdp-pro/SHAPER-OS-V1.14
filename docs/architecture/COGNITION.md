@@ -127,7 +127,7 @@ In the brick's `INTENT.md`:
 ```
 
 In `manifest.json`, per brick (optional, overrides the brick default for this
-universe only — Rule 6 of the [principles](../pkg-agent-runtime/PRINCIPLES.md): specialise,
+universe only — Rule 6 of the [principles](../agent/PRINCIPLES.md): specialise,
 never fork):
 
 ```json

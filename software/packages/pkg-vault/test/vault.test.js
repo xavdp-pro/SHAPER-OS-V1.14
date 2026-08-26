@@ -163,7 +163,7 @@ describe('@shaper/pkg-vault-engine Unit & Integration Tests', () => {
     it('should return health status', async () => {
       const health = await client.health();
       assert.equal(health.status, 'ok');
-      assert.equal(health.service, 'vault-v1');
+      assert.equal(health.service, 'brick-vault');
     });
 
     it('should reject requests with invalid token', async () => {

@@ -16,7 +16,7 @@ LABEL org.shaper.brick="bridge-cursor"
 LABEL org.shaper.build-packages="logger bridge-cursor"
 
 WORKDIR /app
-COPY --from=shaper_base /shaper/packages/pkg-logger/ /logger/
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /pkg-logger/
 COPY --from=shaper_base /shaper/packages/pkg-bridge-cursor/ ./
 
 EXPOSE 4310

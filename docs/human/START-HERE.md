@@ -93,7 +93,7 @@ Tunnel token → `<univ_slug>-dev/sav/tunnel/token` (not git).
 ## Install order
 
 **Stop if a step fails.** Do not reorder. Do not skip a green check.  
-[`LAW.md`](../../LAW.md) · agent detail: [`AGENTS.md`](../../AGENTS.md) and [`docs/agent/BOOT-CONTRACT.md`](../pkg-agent-runtime/BOOT-CONTRACT.md).
+[`LAW.md`](../../LAW.md) · agent detail: [`AGENTS.md`](../../AGENTS.md) and [`docs/agent/BOOT-CONTRACT.md`](../agent/BOOT-CONTRACT.md).
 
 1. Clone this repo ([`REPOS.md`](./REPOS.md)). Node **≥ 20** (`software/package.json` `engines`).
 2. Copy `.env.example` → `software/.env`. Agent writes `VAULT_MASTER_KEY` and `VAULT_TOKEN`. Human pastes Deepgram/Groq only if `WITH_HELM=1`. **No default keys in scripts.**

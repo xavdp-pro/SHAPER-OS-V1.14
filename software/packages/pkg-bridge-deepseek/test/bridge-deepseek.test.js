@@ -18,7 +18,7 @@ test('bridge-deepseek - health endpoint reports gpt-oss:120b model', async () =>
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.equal(data.ok, true);
-  assert.equal(data.service, 'univ-bridge-deepseek');
+  assert.equal(data.service, 'brick-bridge-deepseek');
   assert.equal(data.model, 'gpt-oss:120b');
   assert.equal(data.hasApiKey, true);
 

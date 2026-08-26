@@ -26,8 +26,8 @@ describe('ageSeconds', () => {
 
 describe('vitals envelope', () => {
   it('carries the brick name, the instant, and its uptime', () => {
-    const v = vitals({ service: 'queue-v1', startedAt: ago(90), signals: { pending: 3 } }, NOW);
-    assert.equal(v.service, 'queue-v1');
+    const v = vitals({ service: 'brick-queue', startedAt: ago(90), signals: { pending: 3 } }, NOW);
+    assert.equal(v.service, 'brick-queue');
     assert.equal(v.at, new Date(NOW).toISOString());
     assert.equal(v.uptimeSeconds, 90);
     assert.equal(v.signals.pending, 3);

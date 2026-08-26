@@ -16,7 +16,7 @@ describe('vault vitals', () => {
     assert.deepEqual(val, { foo: 'bar' });
 
     const vitals = await store.vitals();
-    assert.equal(vitals.service, 'vault-v1');
+    assert.equal(vitals.service, 'brick-vault');
     assert.equal(typeof vitals.uptimeSeconds, 'number');
     assert.equal(vitals.signals.secretsHeld, 1);
     assert.equal(typeof vitals.signals.lastSuccessfulDecryptAgeSeconds, 'number');
@@ -44,7 +44,7 @@ describe('vault vitals', () => {
     const client = new VaultClient({ vaultUrl: `http://127.0.0.1:${port}` });
 
     const vitals = await client.vitals();
-    assert.equal(vitals.service, 'vault-v1');
+    assert.equal(vitals.service, 'brick-vault');
     assert.equal(vitals.signals.secretsHeld, 0);
     assert.equal(vitals.checks.storage.writable, true);
 

@@ -122,3 +122,46 @@ test('no Quadlet unit pins a mutable image tag', () => {
     assert.doesNotMatch(image, /:latest\s*$/, `${where} pins :latest, which cfg-image-lock.json forbids`);
   }
 });
+
+// The guard that was missing, and its cost: V1.10 renamed the packages to
+// `pkg-*`, which changed every sibling import to `../pkg-logger/…`, while the
+// COPY that placed the logger kept writing it to `/logger/`. Every image built
+// that way threw `Cannot find module '/pkg-logger/vitals.js'` the first time it
+// imported anything — and the test above passed throughout, because it only
+// checked that the Containerfile *mentioned* the package, never where it put it.
+test('a package is copied to the path its importers actually resolve', () => {
+  const problems = [];
+
+  for (const brick of directories('bricks', 'brick-')) {
+    const dir = path.join(SOFTWARE, 'bricks', brick);
+    const containerfile = fs.readFileSync(path.join(dir, 'Containerfile'), 'utf8');
+    const declared = JSON.parse(fs.readFileSync(path.join(dir, 'brick.json'), 'utf8'));
+
+    // Which package is flattened into WORKDIR — its siblings resolve from there.
+    const flattened = declared.buildPackages.find((name) => new RegExp(`/shaper/packages/${name}/ \\./?$`, 'm').test(containerfile));
+    if (!flattened) continue;
+
+    const siblings = new Set();
+    const packageDir = path.join(SOFTWARE, 'packages', flattened);
+    const scan = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'test' || entry.name === 'node_modules') continue;
+        const absolute = path.join(dir, entry.name);
+        if (entry.isDirectory()) { scan(absolute); continue; }
+        if (!/\.[cm]?js$/.test(entry.name)) continue;
+        for (const m of fs.readFileSync(absolute, 'utf8').matchAll(/from\s+['"]\.\.\/([^/'"]+)\//g)) siblings.add(m[1]);
+      }
+    };
+    scan(packageDir);
+
+    for (const sibling of siblings) {
+      // A flattened package at /app resolves `../<name>/` to `/<name>/`.
+      const expected = new RegExp(`COPY --from=shaper_base /shaper/packages/${sibling}/ /${sibling}/`);
+      if (!expected.test(containerfile)) {
+        problems.push(`${brick}: ${flattened} imports ../${sibling}/, which must be copied to /${sibling}/`);
+      }
+    }
+  }
+
+  assert.deepEqual(problems, [], `images whose imports will not resolve at runtime:\n  ${problems.join('\n  ')}`);
+});

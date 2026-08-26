@@ -53,7 +53,7 @@ export class AgyBridgeServer {
     const wsCheck = await writable(fs, this.workspaceBase);
     const cliInfo = cliCheck(execFileSync, this.agyBin, ['--version']);
     return vitals({
-      service: 'univ-bridge-agy',
+      service: 'brick-bridge-agy',
       startedAt: this.startedAt,
       signals: {
         injects: this.metrics.injects,
@@ -235,7 +235,7 @@ export class AgyBridgeServer {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
-          service: 'univ-bridge-agy',
+          service: 'brick-bridge-agy',
           port: this.port,
           model: this.defaultModel,
           stubMode: this.stubMode,
@@ -253,7 +253,7 @@ export class AgyBridgeServer {
 
       if (p === '/api/metrics') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, service: 'univ-bridge-agy', metrics: this.metrics, running: this.runningProcesses.size }));
+        res.end(JSON.stringify({ ok: true, service: 'brick-bridge-agy', metrics: this.metrics, running: this.runningProcesses.size }));
         return;
       }
 

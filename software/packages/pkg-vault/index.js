@@ -194,7 +194,7 @@ export class VaultStore {
   async vitals(now = Date.now()) {
     const storageCheck = await writable(fs, this.storageFile ? path.dirname(this.storageFile) : null);
     return vitals({
-      service: 'vault-v1',
+      service: 'brick-vault',
       startedAt: this.startedAt,
       signals: {
         secretsHeld: this.entries.size,
@@ -394,7 +394,7 @@ export function createVaultServer({
     if (req.method === 'GET' && (pathname === '/api/health' || pathname === '/health')) {
       return sendJson(200, {
         status: 'ok',
-        service: 'vault-v1',
+        service: 'brick-vault',
         secretsCount: store.listKeys().length,
         timestamp: new Date().toISOString()
       });

@@ -8,7 +8,7 @@ LABEL org.shaper.brick="bridge-deepseek"
 LABEL org.shaper.build-packages="logger bridge-deepseek"
 
 WORKDIR /app
-COPY --from=shaper_base /shaper/packages/pkg-logger/ /logger/
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /pkg-logger/
 COPY --from=shaper_base /shaper/packages/pkg-bridge-deepseek/ ./
 
 EXPOSE 4350

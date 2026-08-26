@@ -277,7 +277,7 @@ export function createQueueServer({
     if (req.method === 'GET' && (pathname === '/api/health' || pathname === '/health')) {
       return sendJson(200, {
         status: 'ok',
-        service: 'queue-v1',
+        service: 'brick-queue',
         jobsCount: jobQueue.jobs.size,
         sseClients: sseClients.size,
         persisted: Boolean(jobQueue.storageFile || jobQueue.storageAdapter),
@@ -298,7 +298,7 @@ export function createQueueServer({
 
       return writable(fs, jobQueue.storageFile ? path.dirname(jobQueue.storageFile) : null)
         .then((storage) => sendJson(200, vitals({
-          service: 'queue-v1',
+          service: 'brick-queue',
           startedAt: STARTED_AT,
           signals: {
             lanesConfigured: Math.max(1, Number(process.env.QUEUE_CONCURRENCY || 1)),

@@ -10,13 +10,13 @@ const PORT = parseInt(process.env.PORT || process.env.QUEUE_PORT || '8540', 10);
 const HOST = process.env.HOST || process.env.QUEUE_HOST || '0.0.0.0';
 const AUTO = process.env.QUEUE_AUTO_DISPATCH === '1';
 
-console.log(`[queue-v1] Starting Job Queue Gateway on ${HOST}:${PORT}...`);
+console.log(`[brick-queue] Starting Job Queue Gateway on ${HOST}:${PORT}...`);
 
 const server = createQueueServer({ port: PORT, host: HOST });
 let worker = null;
 
 server.on('listening', () => {
-  console.log(`[queue-v1] Ready and listening on http://${HOST}:${PORT}`);
+  console.log(`[brick-queue] Ready and listening on http://${HOST}:${PORT}`);
   if (AUTO) {
     worker = startQueueAgentWorker({
       queue: server.jobQueue,
@@ -25,7 +25,7 @@ server.on('listening', () => {
       pollMs: Number(process.env.QUEUE_POLL_MS || 2000),
     });
   } else {
-    console.log('[queue-v1] QUEUE_AUTO_DISPATCH off — jobs stay PENDING until a worker patches them');
+    console.log('[brick-queue] QUEUE_AUTO_DISPATCH off — jobs stay PENDING until a worker patches them');
   }
 });
 

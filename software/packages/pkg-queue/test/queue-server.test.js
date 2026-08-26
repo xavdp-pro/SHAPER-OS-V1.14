@@ -19,7 +19,7 @@ test('queue-server - health and job CRUD over HTTP', async () => {
   const healthRes = await fetch(`http://127.0.0.1:${PORT}/api/health`);
   const health = await healthRes.json();
   assert.equal(healthRes.status, 200);
-  assert.equal(health.service, 'queue-v1');
+  assert.equal(health.service, 'brick-queue');
 
   const createRes = await fetch(`http://127.0.0.1:${PORT}/api/jobs`, {
     method: 'POST',

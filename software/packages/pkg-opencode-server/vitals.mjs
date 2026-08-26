@@ -10,7 +10,7 @@ export function opencodeBridgeVitals({
   now = Date.now(),
 } = {}) {
   return {
-    service: 'opencode-bridge',
+    service: 'brick-bridge-opencode',
     at: new Date(now).toISOString(),
     uptimeSeconds: Math.max(0, (now - startedAt) / 1000),
     signals: {

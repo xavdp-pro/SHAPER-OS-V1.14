@@ -20,7 +20,7 @@ describe('logger vitals endpoint', () => {
     assert.equal(res.status, 200);
     const vitals = await res.json();
 
-    assert.equal(vitals.service, 'logger-v1');
+    assert.equal(vitals.service, 'brick-logger');
     assert.equal(typeof vitals.uptimeSeconds, 'number');
     assert.equal(vitals.signals.podsCount, 1);
     assert.equal(vitals.signals.eventsLast60s, 1);

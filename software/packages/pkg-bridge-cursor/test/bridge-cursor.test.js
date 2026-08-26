@@ -18,7 +18,7 @@ test('bridge-cursor - health endpoint reports composer-2.5 normal mode by defaul
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.equal(data.ok, true);
-  assert.equal(data.service, 'univ-bridge-cursor');
+  assert.equal(data.service, 'brick-bridge-cursor');
   assert.equal(data.model, 'composer-2.5');
   assert.equal(data.defaultMode, 'normal');
   assert.equal(data.fastEnabled, false);

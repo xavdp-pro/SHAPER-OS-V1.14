@@ -12,7 +12,7 @@ const HOST = process.env.HOST || process.env.VAULT_HOST || '0.0.0.0';
 const MASTER_KEY = process.env.VAULT_MASTER_KEY || process.env.VAULT_ENCRYPTION_KEY;
 if (!MASTER_KEY || !MASTER_KEY.trim()) {
   console.error(
-    '[vault-v1] VAULT_MASTER_KEY is not set. This repository ships no default key: '
+    '[brick-vault] VAULT_MASTER_KEY is not set. This repository ships no default key: '
     + 'a vault encrypted with a published key is not encrypted. '
     + 'Generate one with `openssl rand -hex 32` and pass it in the environment.',
   );
@@ -21,9 +21,9 @@ if (!MASTER_KEY || !MASTER_KEY.trim()) {
 const VAULT_TOKEN = process.env.VAULT_TOKEN || null;
 const STORAGE_FILE = process.env.VAULT_STORAGE_FILE || '/storage/vault-data.json';
 
-console.log(`[vault-v1] Starting Vault Engine on ${HOST}:${PORT}...`);
-console.log(`[vault-v1] Storage: ${STORAGE_FILE}`);
-console.log(`[vault-v1] Token Auth: ${VAULT_TOKEN ? 'ENABLED' : 'DISABLED (open localhost)'}`);
+console.log(`[brick-vault] Starting Vault Engine on ${HOST}:${PORT}...`);
+console.log(`[brick-vault] Storage: ${STORAGE_FILE}`);
+console.log(`[brick-vault] Token Auth: ${VAULT_TOKEN ? 'ENABLED' : 'DISABLED (open localhost)'}`);
 
 const server = createVaultServer({
   port: PORT,
@@ -34,15 +34,15 @@ const server = createVaultServer({
 });
 
 server.on('listening', () => {
-  console.log(`[vault-v1] Ready and listening on http://${HOST}:${PORT}`);
+  console.log(`[brick-vault] Ready and listening on http://${HOST}:${PORT}`);
 });
 
 process.on('SIGTERM', () => {
-  console.log('[vault-v1] Received SIGTERM, shutting down...');
+  console.log('[brick-vault] Received SIGTERM, shutting down...');
   server.close(() => process.exit(0));
 });
 
 process.on('SIGINT', () => {
-  console.log('[vault-v1] Received SIGINT, shutting down...');
+  console.log('[brick-vault] Received SIGINT, shutting down...');
   server.close(() => process.exit(0));
 });

@@ -537,14 +537,14 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const p = url.pathname;
 
-  if (p === '/api/health') return send(res, 200, { ok: true, service: 'opencode-bridge', port: PORT });
+  if (p === '/api/health') return send(res, 200, { ok: true, service: 'brick-bridge-opencode', port: PORT });
   if (!authed(req)) return send(res, 401, { ok: false, error: 'Unauthorized' });
 
   if (p === '/api/status') {
     return send(res, 200, {
       ok: true,
       ready: serveReady,
-      service: 'opencode-bridge',
+      service: 'brick-bridge-opencode',
       registry: SESSIONS_FILE,
       ws_base: WS_BASE,
       port: PORT,

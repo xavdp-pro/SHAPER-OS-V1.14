@@ -63,7 +63,7 @@ export class DeepseekBridgeServer {
   async vitals(now = Date.now()) {
     const wsCheck = await writable(fs, this.workspaceBase);
     return vitals({
-      service: 'univ-bridge-deepseek',
+      service: 'brick-bridge-deepseek',
       startedAt: this.startedAt,
       signals: {
         injects: this.metrics.injects,
@@ -230,7 +230,7 @@ export class DeepseekBridgeServer {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
-          service: 'univ-bridge-deepseek',
+          service: 'brick-bridge-deepseek',
           port: this.port,
           model: this.model,
           endpoint: this.endpoint,
@@ -251,7 +251,7 @@ export class DeepseekBridgeServer {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
-          service: 'univ-bridge-deepseek',
+          service: 'brick-bridge-deepseek',
           metrics: this.metrics,
           running: this.runningProcesses.size
         }));

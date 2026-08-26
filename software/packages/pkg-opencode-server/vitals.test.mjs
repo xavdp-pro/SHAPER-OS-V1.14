@@ -14,7 +14,7 @@ test('opencode bridge vitals publish evidence without a verdict', () => {
     eventClients: 3,
     servePid: 42,
   });
-  assert.equal(body.service, 'opencode-bridge');
+  assert.equal(body.service, 'brick-bridge-opencode');
   assert.equal(body.uptimeSeconds, 3);
   assert.equal(body.signals.model, 'opencode/example-free');
   assert.equal(body.signals.stub, false);

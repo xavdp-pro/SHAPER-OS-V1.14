@@ -60,7 +60,7 @@ export class CursorBridgeServer {
     const wsCheck = await writable(fs, this.workspaceBase);
     const cliInfo = cliCheck(execFileSync, this.cursorBin, ['--version']);
     return vitals({
-      service: 'univ-bridge-cursor',
+      service: 'brick-bridge-cursor',
       startedAt: this.startedAt,
       signals: {
         injects: this.metrics.injects,
@@ -262,7 +262,7 @@ export class CursorBridgeServer {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
-          service: 'univ-bridge-cursor',
+          service: 'brick-bridge-cursor',
           port: this.port,
           model: this.model,
           defaultMode: this.mode,
@@ -284,7 +284,7 @@ export class CursorBridgeServer {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
-          service: 'univ-bridge-cursor',
+          service: 'brick-bridge-cursor',
           metrics: this.metrics,
           running: this.runningProcesses.size
         }));

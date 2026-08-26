@@ -149,7 +149,7 @@ export class LogCollector {
     const diskCheck = await writable(fs, this.logDir);
 
     return vitals({
-      service: 'logger-v1',
+      service: 'brick-logger',
       startedAt: this.startedAt,
       signals: {
         podsCount: this.listPods().length,
@@ -270,7 +270,7 @@ export function createLoggerServer({
     if (req.method === 'GET' && (pathname === '/api/health' || pathname === '/health')) {
       return sendJson(200, {
         status: 'ok',
-        service: 'logger-v1',
+        service: 'brick-logger',
         podsCount: logCollector.listPods().length,
         logDir: logCollector.logDir,
         timestamp: new Date().toISOString(),
