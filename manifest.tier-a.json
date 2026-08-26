@@ -1,6 +1,7 @@
 {
   "$schema": "./software/schemas/universe-manifest.schema.json",
   "universe": "univX",
+  "profile": "agent",
   "parent": null,
   "environment": "prod",
   "description": "Local install: vault, logger, OpenCode bridge, queue, maestro — no public URL",

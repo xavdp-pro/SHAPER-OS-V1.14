@@ -121,6 +121,20 @@ Full contract, with the twelve statements and the forbidden list:
 
 ---
 
+## 4b. Which configuration are you building?
+
+Starting sets have names: `passive`, `agent`, and options that attach to either
+(`+documents`, `+data`, `+web`, `+public`, `+parent`). They are defined in
+[`docs/architecture/UNIVERSE-PROFILES.md`](./docs/architecture/UNIVERSE-PROFILES.md).
+
+If the human named one, build exactly that. **If they named none, the default is
+`agent`** — vault, logger, bridge, queue, maestro, and no cockpit. Two agents once
+received the same words, "the base universe", and built different things; naming
+it is what ended that.
+
+Write the name into the manifest's `profile` field: a test checks that what you
+declared is what you built.
+
 ## 5. Choosing your engine
 
 Each brick declares the reasoning depth and the throughput its work requires, and

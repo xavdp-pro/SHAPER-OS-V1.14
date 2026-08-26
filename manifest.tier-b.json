@@ -1,6 +1,7 @@
 {
   "$schema": "./software/schemas/universe-manifest.schema.json",
   "universe": "univX",
+  "profile": "agent +web +public",
   "parent": null,
   "environment": "prod",
   "description": "Public install: local stack + Helm /console + Cloudflare tunnel + voice",

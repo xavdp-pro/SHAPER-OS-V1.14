@@ -7,6 +7,7 @@
     "universe": { "type": "string" },
     "parent": { "type": "string", "description": "Slug of Parent Supervisor universe for fractal hierarchy (Rule 23 & Rule 36)" },
     "environment": { "type": "string", "enum": ["prod", "dev", "test"], "default": "prod", "description": "Environment tier: prod (permanent), dev (ephemeral sandbox), test (clean-sheet rebuild)" },
+    "profile": { "type": "string", "pattern": "^(passive|agent)( \\+[a-z]+)*$", "description": "Named starting configuration: a floor (passive|agent) plus options (+documents +data +web +public +clock +parent +intake). See docs/architecture/UNIVERSE-PROFILES.md. The floor must be present in bricks; adding more is expected." },
     "intent": { "type": "string", "description": "Path to SPECIFIC INTENT.md" },
     "agentDeploy": { "type": "string", "description": "Path to AGENT-DEPLOY.md for deploy agent" },
     "description": { "type": "string" },
