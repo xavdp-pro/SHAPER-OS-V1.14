@@ -229,7 +229,7 @@ Every SHAPER OS universe is constructed from an **invariant set of elementary br
                                                             ▼
                                                 ┌───────────────────────┐
                                                 │    SPECIALIZED TOOLS  │
-                                                │  (WP-CLI, MariaDB...) │
+                                                │  (catalogue bricks)   │
                                                 └───────────────────────┘
 ```
 
@@ -306,8 +306,8 @@ Each server operates **its own autonomous Host Spawner Engine** communicating vi
             ┌────────────────┴────────────────┐               ┌────────────────┴────────────────┐
             ▼                                 ▼               ▼                                 ▼
      ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐
-     │ 🛍️ TIER 3 : STORE 01 │ │ 🛍️ TIER 3 : STORE 02 │ │ 🛍️ TIER 3 : STORE 03 │ │ 🛍️ TIER 3 : STORE 04 │
-     │    (wp01.example.com) │ │    (wp02.example.com) │ │   (bob-shop.example.com)│ │  (bob-shoes.example.com)│
+     │ 🛍️ TIER 3 : CHILD 01 │ │ 🛍️ TIER 3 : CHILD 02 │ │ 🛍️ TIER 3 : CHILD 03 │ │ 🛍️ TIER 3 : CHILD 04 │
+     │   (name you supply)  │ │   (name you supply)  │ │   (name you supply)  │ │   (name you supply)  │
      └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘
 ```
 
@@ -334,7 +334,7 @@ SHAPER OS strictly rejects exposing SSH root or open administrative ports to the
 
 1. **Zero Open Inbound Ports:** The host VPS operates behind firewalls with no public administrative ports.
 2. **Container isolation, and an honest note about root:** each brick runs in its own container, so a zero-day in a web plugin stays inside that container rather than reaching the host. The **rootless** posture is the target and is what a workstation install does; the documented LXC path on a VPS is not there yet — Rule 11 mandates a privileged LXD profile for nested Podman, and the deployment guide runs Podman as root inside that container. A beta tester found the two statements side by side and could not tell which was true. Both are: the isolation is real, the `Zero Root` claim was not, and it is withdrawn here rather than softened.
-3. **Multi-Tenancy Isolation:** Store `wp01` has no physical or network access to Store `wp02`'s database or uploads.
+3. **Multi-Tenancy Isolation:** child universe `01` has no physical or network access to child universe `02`'s database or volumes.
 
 ---
 

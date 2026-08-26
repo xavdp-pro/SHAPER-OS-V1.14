@@ -13,7 +13,6 @@
 | 7 | [`GOVERNANCE-FRACTAL.md`](./GOVERNANCE-FRACTAL.md) | Deploy levels 0–3 + P1/P2/P3 mapping |
 | 8 | [`../MANIFESTO.md`](../MANIFESTO.md) | KovZu belly vs Shaper Way (P2 vs P3) |
 | 9 | [`TOPOLOGY-INTENT.md`](./TOPOLOGY-INTENT.md) | Topology manifest protocol |
-| 10 | [`EXPERIMENTS.md`](./EXPERIMENTS.md) | Experiment ledger (EXP-001, EXP-002) |
 
 ### Doctrine corpus (canonical, lives at the repository root)
 
@@ -28,7 +27,7 @@ are the originals.
 | [`../../doctrine/AGENT-CLIS.md`](../../doctrine/AGENT-CLIS.md) | Agent CLI matrix |
 | [`../../doctrine/DOCUMENT-PIPELINE.md`](../../doctrine/DOCUMENT-PIPELINE.md) | Multi-witness document pipeline |
 | [`../../doctrine/FRACTAL-TERRAFORM-AND-CORRECTION-LAW.md`](../../doctrine/FRACTAL-TERRAFORM-AND-CORRECTION-LAW.md) | Fractal terraform + correction law |
-| [`../../doctrine/FRACTAL-ARCHITECTURE-WORDPRESS-SAAS-EXAMPLE.md`](../../doctrine/FRACTAL-ARCHITECTURE-WORDPRESS-SAAS-EXAMPLE.md) | Worked fractal SaaS case |
+| [`../../doctrine/FRACTAL-ARCHITECTURE-BY-EXAMPLE.md`](../../doctrine/FRACTAL-ARCHITECTURE-BY-EXAMPLE.md) | Worked fractal SaaS case |
 | [`../../doctrine/SOVEREIGN-WEB-CHAIN-WAF-AND-CACHE.md`](../../doctrine/SOVEREIGN-WEB-CHAIN-WAF-AND-CACHE.md) | Sovereign web chain, WAF, cache |
 | [`../../doctrine/REAL-INFRASTRUCTURE-CAPACITY-PLANNING-SAAS.md`](../../doctrine/REAL-INFRASTRUCTURE-CAPACITY-PLANNING-SAAS.md) | Capacity planning |
 | [`../../doctrine/CONVERGENCE-STATE.md`](../../doctrine/CONVERGENCE-STATE.md) · [`../../doctrine/CONVERGENCE-PROPOSAL-STEADY-STATE.md`](../../doctrine/CONVERGENCE-PROPOSAL-STEADY-STATE.md) | Where the code actually stands vs the target |
@@ -52,14 +51,12 @@ are the originals.
 | :--- | :--- |
 | Helm product docs | Moved with `brick-helm` to the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.11) catalogue |
 
-| [`HELM-WEB-CHAT.md`](./HELM-WEB-CHAT.md) | Helm v2 web chat integration |
 
 
 ### Historical / archived (do not treat as active law)
 
 | Document | Status |
 | :--- | :--- |
-| [`SPEC_ZEPHIR_TALK.md`](./SPEC_ZEPHIR_TALK.md) | **OBSOLETE** — `/talk` removed; voice lives in `/console` |
 
 ### Planned tooling (referenced in docs, not yet in repo)
 
@@ -79,3 +76,11 @@ moment de travail, pas le système. Ils sont rangés dans `REMOTE3/Travaux/`
 
 Ce dépôt ne contient que ce qui décrit **SHAPER-OS lui-même** : la loi, la doctrine, les
 intents, l'architecture et le code.
+
+## What left this index in V1.11
+
+| Document | Where it went, and why |
+| :--- | :--- |
+| `HELM-WEB-CHAT.md` | To the catalogue, in `bricks/brick-helm/docs/`. The base documented a brick it does not ship, so it could not stay right about it. |
+| `EXPERIMENTS.md` | Out of the repository. An experiment is a moment of work, not a description of the system (`../universes/README.md`). |
+| `SPEC_ZEPHIR_TALK.md` | Deleted. It had been marked OBSOLETE since 2026-08-19 with "do not implement from it" at the top — and dead configuration is read by an agent as if it were true. |

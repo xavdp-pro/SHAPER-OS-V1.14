@@ -248,7 +248,7 @@
 | P2 agentique + KovZu | vivant (rag/qdrant partiel) |
 | P3 métier | vision |
 | Talk `/talk` | **retiré** |
-| Doc Talk (SPEC_ZEPHIR) | **obsolète** — voir DOC-INDEX |
+| Doc Talk (SPEC_ZEPHIR) | **supprimée en V1.11** — la voix vit dans `/console` |
 
 ---
 

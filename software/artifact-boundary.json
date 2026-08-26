@@ -15,7 +15,7 @@
   },
   "catalog": {
     "repository": "SHAPER-OS-BRICKS",
-    "packages": ["pkg-db", "pkg-ged-engine", "pkg-mail-agent", "pkg-rag", "pkg-wp-dns-convention"],
+    "packages": ["pkg-db", "pkg-ged-engine", "pkg-mail-agent", "pkg-rag", "pkg-fleet-dns"],
     "bricks": ["brick-ged", "brick-helm", "brick-mariadb", "brick-pipeline", "brick-qdrant", "brick-waf"]
   }
 }

@@ -34,14 +34,14 @@ Un univers à un niveau donné ne connaît que ses enfants directs et son parent
                              ▼                                                 ▼
      ┌───────────────────────────────────────────────┐ ┌───────────────────────────────────────────────┐
      │ 🎛️ NIVEAU 2A : BOUTIQUE MANAGER (CLIENT ALICE)│ │ 🎛️ NIVEAU 2B : BOUTIQUE MANAGER (CLIENT BOB)  │
-     │    • wpmanager01: 2/5 boutiques actives.      │ │    • wpmanager02: 4/10 boutiques actives.     │
+     │    • Manager A : 2/5 enfants actifs.          │ │    • Manager B : 4/10 enfants actifs.         │
      └───────────────────────┬───────────────────────┘ └───────────────────────┬───────────────────────┘
                              │                                                 │
             ┌────────────────┴────────────────┐               ┌────────────────┴────────────────┐
             ▼                                 ▼               ▼                                 ▼
      ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐
      │ 🛍️ NIVEAU 3 : WP 01  │ │ 🛍️ NIVEAU 3 : WP 02  │ │ 🛍️ NIVEAU 3 : WP 03  │ │ 🛍️ NIVEAU 3 : WP 04  │
-     │    (wp01.example.com) │ │    (wp02.example.com) │ │   (bob-shop.example.com)│ │  (bob-shoes.example.com)│
+     │   (nom que tu fournis)│ │   (nom que tu fournis)│ │   (nom que tu fournis) │ │   (nom que tu fournis) │
      └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘
 ```
 
