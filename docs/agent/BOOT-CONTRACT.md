@@ -144,6 +144,11 @@ A domain is never invented, and never inherited from whoever wrote the file.
 
 ## 11 — Be transparent about state
 
+**Every commit you produce names you.** The human is the author, and you are a
+`Co-Authored-By` trailer carrying your engine and version (Rule 2). A history
+that does not say which changes came from an agent cannot be audited later, and
+this is the one thing that cannot be reconstructed after the fact.
+
 At any moment the human must be able to know, without asking twice:
 
 - what changed, and whether it is **committed**;

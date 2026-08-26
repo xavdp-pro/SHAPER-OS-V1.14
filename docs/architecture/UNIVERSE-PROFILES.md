@@ -34,22 +34,44 @@ You can prompt a universe in whichever way feels natural to you:
 
 ## 🏛️ 1. Human Archetypes (Business Presets)
 
-Direct business names you can use in your prompts. The AI agent resolves the
-archetype into its canonical base formula and required bricks:
+Direct business names you can use in your prompts. The agent resolves the
+archetype into its canonical formula and its bricks.
+
+> **Two tables, and the line between them is not decoration.** The first lists
+> what can be built **today**, from bricks that exist. The second lists where the
+> product is going: every archetype there names at least one brick that is a
+> specification and not yet code. Ask for one of those and an agent will raise the
+> floor correctly, then stop at the first missing brick — having spent your time.
+>
+> A test refuses any archetype in the first table that names a brick which does
+> not exist, so this boundary cannot rot quietly.
+
+### Buildable today
 
 | Human Archetype (EN / FR) | Manifest Alias | Canonical Formula | Bricks Deployed | What It Does for the Business |
 | :--- | :--- | :--- | :--- | :--- |
 | **E-Commerce Store**<br>*(Boutique E-Commerce)* | `store` | `passive +data +public` | `logger`, `wordpress`, `mariadb`, `vitals`, `tunnel` | Online transactional store with database, health probes & payments |
 | **Document & AI Hub**<br>*(GED & IA Documentaire)* | `document-hub` | `agent +documents +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `qdrant`, `rag`, `tunnel` | Sovereign document management, OCR, 384d vector search & multimodal AI |
 | **Fleet Manager (Parent)**<br>*(Gestionnaire de Flotte)* | `fleet-manager` | `agent +parent +public` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `supervisor`, `manager-gateway`, `tunnel` | Supervisor cockpit repairing ($K+1$) and provisioning child universes |
-| **Corporate Switchboard & Office**<br>*(Standard & Téléphonie)* | `telephony-hub` | `agent +telephony +softphone +webmail` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `telephony-pbx`, `softphone`, `webmail` | Sovereign IPBX phone standard, responsive softphone & webmail |
-| **Field Service & Quotes**<br>*(Devis & Rapports de Chantier)* | `field-service` | `agent +documents +voice` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `voice` | Turns voice notes & job site photos into structured quotes & PDF reports |
-| **Accounting & Reconciliation**<br>*(Rapprochement & Compta)* | `accounting-vault` | `agent +documents +data +banking` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `mariadb`, `bank-bridge` | Ingests supplier invoices & bank statements, reconciles lines & exports journals |
-| **Omnichannel Helpdesk**<br>*(Support Client Omnicanal)* | `helpdesk` | `agent +intake +messaging +documents` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `mail-agent`, `messaging`, `ged`, `rag` | Automatic email/WhatsApp triage, vector knowledge lookup & ticket escalation |
-| **Booking Engine**<br>*(Prise de Rendez-Vous)* | `booking-engine` | `passive +data +calendar +public` | `logger`, `mariadb`, `calendar-sync`, `tunnel` | Online appointment booking with CalDAV/ICS sync and SMS/email alerts |
-| **Online Academy / LMS**<br>*(Plateforme Formations)* | `academy` | `passive +data +billing +public` | `logger`, `mariadb`, `billing`, `auth`, `tunnel` | Member portal for video courses and PDF deliverables (0% platform fee) |
 | **Watchdog & Scraping**<br>*(Agent de Veille & Tâches)* | `watchdog` | `agent +clock` | `vault`, `logger`, `bridge`, `queue`, `maestro` | Autonomous cron tasks, supplier API sync, competitor scraping & alerts |
 | **Public Brochure**<br>*(Site Vitrine Souverain)* | `brochure` | `passive +public` | `logger`, `nginx/static`, `tunnel` | Ultra-fast, lightweight public presence with zero attack surface |
+
+---
+
+### On the roadmap — not buildable yet
+
+Each of these raises a real floor, then stops: the option it needs is a
+specification. They are listed so the vocabulary is stable before the bricks
+exist, never so that one can be requested by mistake.
+
+| Human Archetype (EN / FR) | Manifest Alias | Canonical Formula | Bricks Deployed | What It Does for the Business | Still missing |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Corporate Switchboard & Office**<br>*(Standard & Téléphonie)* | `telephony-hub` | `agent +telephony +softphone +webmail` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `telephony-pbx`, `softphone`, `webmail` | Sovereign IPBX phone standard, responsive softphone & webmail | brick-telephony-pbx, brick-softphone, brick-webmail |
+| **Field Service & Quotes**<br>*(Devis & Rapports de Chantier)* | `field-service` | `agent +documents +voice` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `voice` | Turns voice notes & job site photos into structured quotes & PDF reports | brick-voice |
+| **Accounting & Reconciliation**<br>*(Rapprochement & Compta)* | `accounting-vault` | `agent +documents +data +banking` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `ged`, `rag`, `mariadb`, `bank-bridge` | Ingests supplier invoices & bank statements, reconciles lines & exports journals | brick-bank-bridge |
+| **Omnichannel Helpdesk**<br>*(Support Client Omnicanal)* | `helpdesk` | `agent +intake +messaging +documents` | `vault`, `logger`, `bridge`, `queue`, `maestro`, `mail-agent`, `messaging`, `ged`, `rag` | Automatic email/WhatsApp triage, vector knowledge lookup & ticket escalation | brick-messaging |
+| **Booking Engine**<br>*(Prise de Rendez-Vous)* | `booking-engine` | `passive +data +calendar +public` | `logger`, `mariadb`, `calendar-sync`, `tunnel` | Online appointment booking with CalDAV/ICS sync and SMS/email alerts | brick-caldav |
+| **Online Academy / LMS**<br>*(Plateforme Formations)* | `academy` | `passive +data +billing +public` | `logger`, `mariadb`, `billing`, `auth`, `tunnel` | Member portal for video courses and PDF deliverables (0% platform fee) | brick-billing |
 
 ---
 
@@ -84,9 +106,27 @@ It is what `manifest.tier-a.json` has always declared; `tier-a` stays as an alia
 
 ---
 
-## 🧩 3. Modular Options & Extensions (The Full Lego Catalog)
+## 🧩 3. Modular Options & Extensions
 
-Options attach to either floor or any archetype:
+Options attach to either floor or any archetype.
+
+### Available today
+
+| Option | Human alias | Adds | What it buys |
+| :--- | :--- | :--- | :--- |
+| **`+documents`** | `+ged` | `brick-ged`, `brick-qdrant`, `@shaper/rag` | It knows things beyond the current task |
+| **`+data`** | `+base` | `brick-mariadb` | Relational state that outlives the run |
+| **`+web`** | `+cockpit` | `brick-helm`, `brick-auth` | A human who is not at a terminal can drive it |
+| **`+public`** | `+internet` | `cloudflared` tunnel | Reachable from outside, with no inbound port open |
+| **`+clock`** | `+cadence` | `brick-maestro` | For a `passive` universe — `agent` already has it |
+| **`+parent`** | `+flotte` | `@shaper/supervisor`, children registry, SSH authority | It operates **other** universes |
+| **`+intake`** | `+courrier` | `@shaper/mail-agent` | Work arrives on its own |
+
+### On the roadmap
+
+Every option below names a brick that is a **specification, not code**. They are
+catalogued so the vocabulary settles before the bricks exist — and so that asking
+for one is a deliberate act rather than a surprise at deploy time.
 
 | Option (Lego) | Human Alias | Adds | What It Buys |
 | :--- | :--- | :--- | :--- |
@@ -143,9 +183,22 @@ Adding **`+waf`** to any universe activates this adaptive guardian.
 
 ## 💬 4. Real-World Prompt Examples Across Lifecycles
 
-Here is how humans and AI agents formulate instructions in plain English across the 3 lifecycle stages (`DEV`, `TEST`, `PROD`):
+Here is how humans and AI agents formulate instructions in plain English across the 3 lifecycle stages (`DEV`, `TEST`, `PROD`).
 
-### Example 1 — Corporate Telephony & Webmail Standard (DEV)
+> **Examples 1 to 3 can be built today. Examples 4 to 6 describe the roadmap** —
+> they name options that are still specifications, and an agent asked for one will
+> raise the floor and then stop at the missing brick.
+
+### Example 1 — Sovereign document hub (DEV) · *buildable*
+> *"Build me a **`document-hub`** universe called `univ-devis-dev`, DEV lifecycle. It ingests incoming quote requests, indexes them, and produces a written summary every morning."*
+
+### Example 2 — Watchdog on supplier prices (DEV) · *buildable*
+> *"Build me a **`watchdog`** universe called `univ-veille-dev`, DEV lifecycle. Every hour it checks three supplier APIs and writes an alert into the journal when a price moves by more than 5%."*
+
+### Example 3 — Fleet parent supervising two shops (TEST) · *buildable*
+> *"Build me a **`fleet-manager`** universe called `univ-flotte-test`, TEST lifecycle. It provisions two child shops, proves it can repair one of them, then destroys itself."*
+
+### Example 4 — Corporate Telephony & Webmail Standard (DEV) · *roadmap*
 > *"Build me a **`telephony-hub +waf`** universe called `univ-office-dev`, DEV lifecycle. Connects to our OVH SIP trunk with an interactive voice menu (IVR), softphone WebRTC on desktop/mobile, and webmail with AI draft replies."*
 
 ### Example 2 — E-Commerce Store with Adaptive WAF (DEV)

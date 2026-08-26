@@ -277,7 +277,26 @@ The `univ-` prefix provides a unified sovereign brand across Git, container name
 
 ---
 
-### Rule 2: Atomic Git Commits per Package & Feature
+### Rule 2: Atomic Git Commits per Package & Feature, With Declared Authorship
+* **Every commit produced with an agent names both parties.** The **human** is the
+  commit author — they decided it — and the **agent** is named in a
+  `Co-Authored-By` trailer with its engine and version. A repository whose entire
+  doctrine rests on provenance cannot keep a history that hides who wrote what.
+  * Shape: `Co-Authored-By: <engine and version> <noreply@vendor>`
+  * Several agents on one commit: several trailers.
+  * **No vendor is named here on purpose.** Listing two would read as the two
+    sanctioned ones, and this canon names no engine (Rule 7). Write whichever
+    engine actually wrote the change — that is the whole point of the trailer.
+  * `NOTICE.md` already declares AI-assisted authorship for the kit as a whole.
+    This is the same statement at the granularity where it is actually useful:
+    the change.
+* **Why it is a rule and not etiquette**: when a defect is found six months later,
+  the first useful question is what produced it — a human decision, an agent
+  derivation, or a misunderstanding between the two. An unsigned history answers
+  none of them, and the answer cannot be reconstructed afterwards.
+* **Enforced**: the repository suite fails on a commit that carries no agent
+  trailer. It was added the day the operator noticed that some commits declared
+  their agent and others did not — including, by accident, several of mine.
 * Every time a LEGO brick, component, or package is updated and certified, execute an atomic commit immediately:
   ```bash
   git add <path> && git commit -m "feat(<scope>): descriptive commit message"
