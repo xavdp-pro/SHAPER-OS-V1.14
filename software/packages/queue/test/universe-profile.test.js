@@ -34,30 +34,46 @@ const PRESETS = {
   store: 'passive +data +public',
   'document-hub': 'agent +documents +public',
   'fleet-manager': 'agent +parent +public',
-  'field-service': 'agent +documents',
-  'accounting-vault': 'agent +documents +data',
-  helpdesk: 'agent +intake +documents',
-  'booking-engine': 'passive +data +public',
-  academy: 'passive +data +public',
+  'telephony-hub': 'agent +telephony +softphone +webmail',
+  'field-service': 'agent +documents +voice',
+  'accounting-vault': 'agent +documents +data +banking',
+  helpdesk: 'agent +intake +messaging +documents',
+  'booking-engine': 'passive +data +calendar +public',
+  academy: 'passive +data +billing +public',
   watchdog: 'agent +clock',
   brochure: 'passive +public',
   'mail-triage': 'agent +intake +data',
 };
 
 const OPTION_ALIASES = {
+  standard: 'telephony',
+  phone: 'softphone',
+  courriel: 'webmail',
   security: 'waf',
+  payment: 'billing',
   paiement: 'billing',
+  audio: 'voice',
   voix: 'voice',
   whatsapp: 'messaging',
   agenda: 'calendar',
   pdf: 'pdf-toolkit',
+  dms: 'documents',
   ged: 'documents',
+  db: 'data',
   bdd: 'data',
   cockpit: 'web',
   online: 'public',
   mail: 'intake',
+  supervisor: 'parent',
   superviseur: 'parent',
   cron: 'clock',
+  formulaire: 'forms',
+  formulaires: 'forms',
+  texto: 'sms',
+  capteurs: 'iot',
+  banque: 'banking',
+  edi: 'sftp',
+  avis: 'social',
 };
 
 const OPTIONS = {
@@ -68,11 +84,20 @@ const OPTIONS = {
   clock: ['maestro'],
   parent: [],                  // supervisor is in-process, nothing to assert here
   intake: [],                  // mail-agent is in-process
+  telephony: [],               // target / ipbx
+  softphone: [],               // target / webrtc
+  webmail: [],                 // target / webmail UI
   waf: [],                     // target / adaptive firewall
   billing: [],                 // target
   voice: [],                   // target
   messaging: [],               // target
   calendar: [],                // target
+  forms: [],                   // target
+  sms: [],                     // target
+  iot: [],                     // target
+  banking: [],                 // target
+  sftp: [],                    // target
+  social: [],                  // target
   'pdf-toolkit': [],           // target
 };
 

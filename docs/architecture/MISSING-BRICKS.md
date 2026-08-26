@@ -4,7 +4,8 @@
 > **runnable core** (vault, logger, agent-bridge, queue, maestro) and specialized
 > live extensions (ged, qdrant, rag, supervisor, mariadb, helm). However, full
 > real-world business autonomy requires a defined roadmap of **extended specialized
-> bricks**.
+> bricks**, notably for **telephony, communications, webmail, and external ingress
+> channels**.
 > 
 > This document specifies the missing bricks: their role, ports, perimeters,
 > cognition requirements, and exact interfaces so that human architects understand
@@ -30,24 +31,75 @@
                                                        │
                                                        ▼
     ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-    │ 🟡 TARGET BRICKS (SPECIFIED & IN IMPLEMENTATION ROADMAP)                                         │
+    │ 🟡 TARGET BRICKS (COMMUNICATIONS, TELEPHONY, WEBMAIL & INGRESS CHANNELS)                        │
     │   1. brick-waf (:8680)           — Adaptive Sovereign Firewall & Positive SSR Cache             │
-    │   2. brick-billing (:8690)       — Stripe Webhooks, Quotas & Sovereign Auto-Invoicing           │
-    │   3. brick-voice (:8670)         — Local Whisper STT & Low-Latency Voice Synthesis              │
-    │   4. brick-messaging (:8665)     — WhatsApp Pro / Telegram / Signal Client Ingress              │
-    │   5. brick-caldav (:8675)        — 2-Way CalDAV/ICS Calendar Sync & Online Slot Booking         │
-    │   6. brick-pdf (:8685)           — Deterministic Multi-page PDF Splitting & eIDAS Signature     │
-    │   7. brick-mail-intake (:8655)   — Continuous IMAP IDLE Listener & Attachment Queue Ingress     │
-    │   8. brick-pipeline (:8695)      — 8-Stage Multi-Witness Document Understanding & Arbiter       │
+    │   2. brick-telephony-pbx (:5060) — Sovereign IPBX Standard, SIP Trunk & Interactive Voice (IVR)│
+    │   3. brick-softphone (:8660)     — WebRTC Responsive Softphone (Desktop & Mobile PWA)           │
+    │   4. brick-webmail (:8652)       — Sovereign Responsive Webmail with AI-Assisted Composition    │
+    │   5. brick-mail-intake (:8655)   — Continuous IMAP IDLE Listener & Attachment Queue Ingress     │
+    │   6. brick-messaging (:8665)     — WhatsApp Pro / Telegram / Signal Client Ingress              │
+    │   7. brick-voice (:8670)         — Local Whisper STT & Low-Latency Voice Synthesis              │
+    │   8. brick-billing (:8690)       — Stripe Webhooks, Quotas & Sovereign Auto-Invoicing           │
+    │   9. brick-caldav (:8675)        — 2-Way CalDAV/ICS Calendar Sync & Online Slot Booking         │
+    │  10. brick-pdf (:8685)           — Deterministic Multi-page PDF Splitting & eIDAS Signature     │
+    │  11. brick-pipeline (:8695)      — 8-Stage Multi-Witness Document Understanding & Arbiter       │
+    │  12. brick-forms (:8692)         — Sovereign Public Form Builder & Secure Attachment Ingress    │
+    │  13. brick-sms (:8662)           — SMS Gateway, OTP & 2FA Dispatch (4G Dongle / SIP API)        │
+    │  14. brick-iot-mqtt (:1883/8682) — IoT Telemetry Ingress & MQTT Event Dispatch                  │
+    │  15. brick-bank-bridge (:8694)   — EBICS & Open Banking Statement Ingress (CAMT.053 / CFONB)    │
+    │  16. brick-sftp (:2222)          — Isolated B2B SFTP Drop & EDI Exchange Ingress                │
+    │  17. brick-social-feed (:8668)   — Customer Reviews & Social Feedback Ingress                   │
     └─────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🧱 1. `brick-waf` — Adaptive Sovereign Firewall & Positive Cache
+## 📞 1. `brick-telephony-pbx` — Sovereign IPBX & SIP Switchboard
+
+* **Perimeter:** P2 (Operator Telephony) / P3 (Customer Reception & Call Center).
+* **Ports:** `:5060` (SIP UDP/TCP), `:8088` (WebRTC WSS Signaling), `:10000-20000` (RTP Media).
+* **Role:** Full enterprise telephony standard:
+  - Connects to sovereign SIP trunks (OVH Telecom, Free Telecom, Twilio, Sipgate).
+  - **Interactive Voice Response (IVR / SVI):** Automated vocal menu (*"Press 1 for Sales, 2 for Support"*).
+  - Call routing, queues, music on hold, call transfers, and voicemail recording.
+  - Automatically pushes call audio recordings to `brick-ged` and triggers speech-to-text transcription jobs in `brick-queue`.
+* **Cognition:** `D0` (SIP switching & call state machine) + `D1` (IVR routing logic).
+* **Status:** `TARGET`.
+
+---
+
+## 📱 2. `brick-softphone` — WebRTC Responsive Softphone (Desktop & Mobile)
+
+* **Perimeter:** P2 (Operator Cockpit / Agent UI).
+* **Port:** `:8660` (or embedded inside Helm cockpit).
+* **Role:** Lightweight, zero-install WebRTC softphone client running on Desktop and Mobile browsers (PWA):
+  - Inbound and outbound phone calls with crystal-clear Opus audio.
+  - Dialpad, call history, address book lookup, and DTMF tones.
+  - Live in-call transcription display and audio note tagging.
+  - Works anywhere behind Cloudflare Zero Trust without requiring VPNs or complex SIP client installations on employee devices.
+* **Cognition:** `D0` (WebRTC client UI) + `T0` (real-time audio stream).
+* **Status:** `TARGET`.
+
+---
+
+## 📬 3. `brick-webmail` — Sovereign Responsive Webmail UI
+
+* **Perimeter:** P2 (Operator Cockpit) / P3 (Corporate Mail Portal).
+* **Port:** `:8652`.
+* **Role:** Sovereign, ultra-responsive webmail interface:
+  - Multi-account IMAP / SMTP support with zero reliance on Google Workspace or Outlook 365.
+  - Deep integration with `brick-ged` for attaching files or saving inbound documents with one click.
+  - **AI-Assisted Composition & Reply:** Summarizes long email threads, drafts professional contextual replies, and auto-categorizes messages.
+  - Complete mobile responsiveness and offline draft caching.
+* **Cognition:** `D0` (email UI & IMAP renderer) + `D2` (AI drafting & summarization).
+* **Status:** `TARGET` (Pre-existing code base ready for containerization).
+
+---
+
+## 🛡️ 4. `brick-waf` — Adaptive Sovereign Firewall & Positive Cache
 
 * **Perimeter:** P1 / P2 Boundary (Ingress Security & Route Filtering).
-* **Port:** `:8680` (or direct reverse-proxy socket).
+* **Port:** `:8680` (or reverse-proxy socket).
 * **Role:** Neutralizes malicious or parasitic traffic in $< 0.2$ ms without ever waking application runtimes (Node.js/PHP).
 * **The 2-Phase Adaptive Lifecycle:**
   1. **Phase 1 (Generic Pre-boot Base):** Hardened filters (anti-SQLi, anti-XSS, anti-path traversal `../`, IP sliding-window rate limiter, Cloudflare zero-trust ingress).
@@ -58,90 +110,146 @@
 
 ---
 
-## 🧱 2. `brick-billing` — Sovereign Payment Gateway & Subscriptions
+## 💳 5. `brick-billing` — Sovereign Payment Gateway & Subscriptions
 
 * **Perimeter:** P2 (Platform Billing) / P3 (Client E-Commerce & Services).
 * **Port:** `:8690`.
 * **Role:** Receives payment provider webhooks (Stripe, PayPal, Mollie) with cryptographic HMAC signature verification, manages recurring subscription states, tracks usage quotas, and triggers automated invoice PDF generation stored into `brick-ged`.
-* **Why the Agent loves it:** Zero manual reconciliation. Webhooks land in `brick-queue` as immutable events; invoices are compiled and dispatched autonomously.
 * **Cognition:** `D0` (webhook verification & balance arithmetic).
 * **Status:** `TARGET`.
 
 ---
 
-## 🧱 3. `brick-voice` — Local Whisper STT & Low-Latency Voice Synthesis
+## 🎙️ 6. `brick-voice` — Local Whisper STT & Low-Latency Voice Synthesis
 
 * **Perimeter:** P2 (Operator Cockpit Voice) / P3 (Field Worker Audio Notes).
 * **Port:** `:8670`.
 * **Role:** Speech-to-Text (STT) transcription via Whisper / Faster-Whisper + Text-to-Speech (TTS) via Piper / XTTS. Provides low-latency streaming acknowledgment for voice-first interactions ($< 500$ ms).
-* **Why the Agent loves it:** Enables tradespeople, field service workers, and doctors to record verbal memos on job sites and have them transcribed into structured JSON records and formal PDF quotes.
 * **Cognition:** `D1` (audio transcription) + `T0` (voice streaming throughput $\ge 500$ tok/s).
 * **Status:** `TARGET`.
 
 ---
 
-## 🧱 4. `brick-messaging` — Instant Messaging Bridge (WhatsApp / Telegram / Signal)
+## 💬 7. `brick-messaging` — Instant Messaging Bridge (WhatsApp / Telegram / Signal)
 
 * **Perimeter:** P3 (Business Communication Ingress).
 * **Port:** `:8665`.
 * **Role:** Bidirectional connector for WhatsApp Business Cloud API, Telegram Bot API, and Signal-CLI. Receives client text messages, photos, audio notes, and PDF attachments, converting them into queued jobs in `brick-queue`. Dispatches outbound notifications, payment links, and quote approvals.
-* **Why the Agent loves it:** Clients do not need to log into a complicated web portal — they interact with the universe directly through their daily messaging app.
 * **Cognition:** `D1` (message normalization) + `T1` (conversational response).
 * **Status:** `TARGET`.
 
 ---
 
-## 🧱 5. `brick-caldav` — 2-Way Calendar Engine & Online Appointment Booking
+## 📅 8. `brick-caldav` — 2-Way Calendar Engine & Online Appointment Booking
 
 * **Perimeter:** P3 (Business Scheduling).
 * **Port:** `:8675`.
-* **Role:** Lightweight CalDAV / ICS server and synchronization bridge. Interacts with Apple iCloud, Google Calendar, and Nextcloud. Calculates real-time booking availability slots and handles instant slot reservation without third-party subscriptions (e.g. Calendly / Doctolib).
-* **Why the Agent loves it:** Eliminates scheduling conflicts deterministically using RFC 5545 calendar standards.
+* **Role:** Lightweight CalDAV / ICS server and synchronization bridge. Interacts with Apple iCloud, Google Calendar, and Nextcloud. Calculates real-time booking availability slots and handles instant slot reservation without third-party subscriptions.
 * **Cognition:** `D0` (slot availability arithmetic).
 * **Status:** `TARGET`.
 
 ---
 
-## 🧱 6. `brick-pdf` — Deterministic PDF Toolkit & Digital Signature
+## 📑 9. `brick-pdf` — Deterministic PDF Toolkit & Digital Signature
 
 * **Perimeter:** P1 / P3 (Document Operations).
-* **Port:** `:8685` (or fast CLI container).
-* **Role:** Binary PDF manipulation:
-  - **Batch Splitting:** Splits multi-page scans (e.g. 100-page monthly payroll batches) into individual employee PDFs based on barcode or QR code delimiters.
-  - **Merging & Stamping:** Injects official company headers, paid watermarks, and cryptographic QR verification codes.
-  - **eIDAS Digital Signature:** Generates and appends X.509 timestamped digital signatures for non-repudiation.
-* **Why the Agent loves it:** Completely deterministic; runs without LLM hallucinations to guarantee byte-for-byte document integrity.
+* **Port:** `:8685` (or CLI container).
+* **Role:** Binary PDF manipulation: multi-page splitting by barcode/employee ID (e.g. payroll batch), PDF merging, official company watermarking, and cryptographic X.509 eIDAS digital signatures.
 * **Cognition:** `D0` (deterministic binary manipulation).
 * **Status:** `TARGET`.
 
 ---
 
-## 🧱 7. `brick-mail-intake` — Dedicated IMAP IDLE Daemon
+## 📥 10. `brick-mail-intake` — Dedicated IMAP IDLE Daemon
 
 * **Perimeter:** P2 (Operator Inbox) / P3 (Invoice & Support Inbound).
 * **Port:** `:8655`.
 * **Role:** Standalone container maintaining continuous `IMAP IDLE` connections to business mailboxes (e.g. `invoices@company.com`, `support@company.com`). Extracts MIME parts, saves attachments to CAS storage in `brick-ged`, and injects tasks into `brick-queue`.
 * **Cognition:** `D1` (MIME parsing & header normalization).
-* **Status:** `PARTIAL` (`@shaper/mail-agent` exists in-process; needs standalone OCI container packaging).
+* **Status:** `PARTIAL` (`@shaper/mail-agent` exists in-process; needs standalone daemon packaging).
 
 ---
 
-## 🧱 8. `brick-pipeline` — 8-Stage Multi-Witness Document Pipeline
+## 🔬 11. `brick-pipeline` — 8-Stage Multi-Witness Document Pipeline
 
 * **Perimeter:** P3 (Deep Document Understanding).
 * **Port:** `:8695`.
-* **Role:** Complete implementation of the sovereign 8-stage document intelligence pipeline:
-  $$\text{Ingestion} \rightarrow \text{Triage} \rightarrow \text{Dual OCR + Vision} \rightarrow \text{Mechanical Arbitration} \rightarrow \text{Fact Extraction} \rightarrow \text{Normalization} \rightarrow \text{384d Vectorization} \rightarrow \text{CAS Storage}$$
-* **Why the Agent loves it:** Dual-witness validation eliminates OCR hallucinations; conflicting readings are sent to the mechanical arbiter rather than trusted blindly.
+* **Role:** 8-stage document intelligence pipeline: Ingestion $\rightarrow$ Triage $\rightarrow$ Dual OCR + Vision $\rightarrow$ Mechanical Arbitration $\rightarrow$ Fact Extraction $\rightarrow$ Normalization $\rightarrow$ 384d Vectorization $\rightarrow$ CAS Storage.
 * **Cognition:** `D1` (OCR) + `D2` (Fact extraction) + `D3` (Arbitration of conflicting witnesses).
-* **Status:** `TARGET` (Doctrine fully specified in `doctrine/DOCUMENT-PIPELINE.md`).
+* **Status:** `TARGET` (Specified in `doctrine/DOCUMENT-PIPELINE.md`).
 
 ---
 
-## 📊 Summary Matrix: Target Bricks
+## 📋 12. `brick-forms` — Public Form Builder & Secure File Ingress
+
+* **Perimeter:** P3 (Client Ingress & Surveys).
+* **Port:** `:8692`.
+* **Role:** Sovereign form builder replacing Typeform / Google Forms:
+  - Generates embedded public forms (quote requests, patient questionnaires, KYC data collection).
+  - Secure chunked multi-gigabyte file uploads with antivirus and MIME-type validation.
+  - Feeds submissions directly into `brick-queue` and `brick-ged`.
+* **Cognition:** `D0` (form rendering & schema validation).
+* **Status:** `TARGET`.
+
+---
+
+## 📟 13. `brick-sms` — Sovereign SMS & 2FA Gateway
+
+* **Perimeter:** P2 / P3 (Urgent Notifications & Verification).
+* **Port:** `:8662`.
+* **Role:** SMS dispatch and reception via local 4G/5G USB dongle modem or standard telecom SIP/SMPP APIs. Used for booking reminders, shipping alerts, security OTPs, and operator escalation alerts.
+* **Cognition:** `D0` (telecom frame dispatch).
+* **Status:** `TARGET`.
+
+---
+
+## 📡 14. `brick-iot-mqtt` — IoT & Telemetry Ingress Broker
+
+* **Perimeter:** P3 (Industrial & Physical Hardware Ingress).
+* **Ports:** `:1883` (MQTT TCP), `:8682` (MQTT WebSockets / Webhooks).
+* **Role:** Lightweight MQTT broker ingesting telemetry from physical hardware (cold room temperature sensors, fleet GPS trackers, electricity meters, connected scales). Triggers automated alerts and maintenance jobs in `brick-queue`.
+* **Cognition:** `D0` (stream ingestion & threshold triggers).
+* **Status:** `TARGET`.
+
+---
+
+## 🏦 15. `brick-bank-bridge` — EBICS & Open Banking Ingress
+
+* **Perimeter:** P3 (Financial Operations).
+* **Port:** `:8694`.
+* **Role:** Ingests daily bank transaction statements via EBICS TS / Open Banking DSP2 standards (formats CAMT.053, CFONB, MT940). Feeds raw ledger lines into `accounting-vault` for automatic reconciliation.
+* **Cognition:** `D0` (cryptographic bank transport & XML parsing).
+* **Status:** `TARGET`.
+
+---
+
+## 🗄️ 16. `brick-sftp` — Isolated B2B SFTP Drop Ingress
+
+* **Perimeter:** P1 / P3 (B2B EDI File Exchanges).
+* **Port:** `:2222`.
+* **Role:** Chrooted, unprivileged SFTP file drop server for supplier inventory catalogs, large CAD files, and EDI invoices. Watched directories automatically trigger ingestion jobs into `brick-ged` and `brick-queue`.
+* **Cognition:** `D0` (secure file transport).
+* **Status:** `TARGET`.
+
+---
+
+## 🌟 17. `brick-social-feed` — Reviews & Social Ingress
+
+* **Perimeter:** P3 (Reputation & Customer Feedback).
+* **Port:** `:8668`.
+* **Role:** Ingests customer ratings and reviews from Google My Business, Trustpilot, and social comments. Triggers sentiment analysis and drafts AI-assisted customer responses.
+* **Cognition:** `D1` (review ingestion) + `D2` (sentiment classification & response drafting).
+* **Status:** `TARGET`.
+
+---
+
+## 📊 Summary Matrix: All Extended & Target Bricks
 
 | Brick | Default Port | Perimeter | Primary Engine / Tech | Cognition Class |
 | :--- | :---: | :---: | :--- | :--- |
+| **`brick-telephony-pbx`** | `5060/8088` | P2/P3 | Asterisk / FreeSWITCH SIP | `D0` / `D1` (`infra-ops`) |
+| **`brick-softphone`** | `8660` | P2/P3 | WebRTC PWA + Opus Audio | `D0` / `T0` (`rapid-iteration-ui`) |
+| **`brick-webmail`** | `8652` | P2/P3 | Node.js + IMAP/SMTP Client | `D0` / `D2` (`rapid-iteration-ui`) |
 | **`brick-waf`** | `8680` | P1/P2 | Node.js + Nginx Socket | `D0` / `D2` (`infra-ops`) |
 | **`brick-billing`** | `8690` | P2/P3 | Node.js + Stripe SDK | `D0` (`infra-ops`) |
 | **`brick-voice`** | `8670` | P2/P3 | Faster-Whisper + Piper | `D1` / `T0` (`fast-eval`) |
@@ -150,6 +258,12 @@
 | **`brick-pdf`** | `8685` | P1/P3 | PDFtk / MuPDF / QPDF | `D0` (`heavy-engineering`) |
 | **`brick-mail-intake`**| `8655` | P2/P3 | Node.js IMAP-Flow | `D1` (`infra-ops`) |
 | **`brick-pipeline`** | `8695` | P3 | Dual-OCR + Vision + Arbiter | `D3` (`heavy-engineering`) |
+| **`brick-forms`** | `8692` | P3 | Node.js Form Engine | `D0` (`rapid-iteration-ui`) |
+| **`brick-sms`** | `8662` | P2/P3 | Gammu / 4G Dongle / SIP SMS | `D0` (`infra-ops`) |
+| **`brick-iot-mqtt`** | `1883/8682` | P3 | Mosquitto MQTT / Aedes | `D0` (`infra-ops`) |
+| **`brick-bank-bridge`**| `8694` | P3 | EBICS Client / CAMT Parser | `D0` (`heavy-engineering`) |
+| **`brick-sftp`** | `2222` | P1/P3 | OpenSSH Chroot Drop | `D0` (`infra-ops`) |
+| **`brick-social-feed`**| `8668` | P3 | REST Webhook Ingress | `D1` (`rapid-iteration-ui`) |
 
 ---
 
