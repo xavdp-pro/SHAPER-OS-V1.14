@@ -52,7 +52,8 @@ resolve_image() {
     echo "[podman-up] For a local dev run only: SHAPER_ALLOW_UNPINNED=1 $0" >&2
     exit 1
   fi
-  echo "localhost/shaper-${key#img-}:dev"
+  # Must match what scripts/build-brick-*.sh produces: shaper/brick-<component>.
+  echo "localhost/shaper-brick-${key#img-}:dev"
 }
 
 IMG_VAULT="$(resolve_image img-vault)"

@@ -30,3 +30,8 @@ e2e-artifacts/
 
 # Sorties brutes des délégations : traces de run, pas du code.
 *.pid
+
+# A universe's own configuration holds its secrets. The .example is tracked; the
+# real one never is, and neither is the volume tree a deployment creates.
+software/universes/*/cfg-*.env
+software/universes/*/.state/

@@ -45,11 +45,16 @@ fi
 
 echo
 echo "── the logger holds evidence, not just a heartbeat ─────────────────────"
-events="$(curl -sf --max-time 5 "http://127.0.0.1:$LOGGER_PORT/api/events?limit=5" 2>/dev/null || true)"
-if [[ -n "$events" && "$events" != '[]' ]]; then
-  say OK events "$(echo "$events" | head -c 160)"
+# /api/events is a live SSE stream: it answers ": connected" the moment you
+# open it, whether or not anything was ever logged. Probing it proved the
+# endpoint was reachable and called that evidence. /api/events/last returns
+# what the logger actually holds.
+events="$(curl -sf --max-time 5 "http://127.0.0.1:$LOGGER_PORT/api/events/last?limit=5" 2>/dev/null || true)"
+count="$(printf '%s' "$events" | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("events", [])))' 2>/dev/null || echo 0)"
+if [[ "$count" -gt 0 ]]; then
+  say OK events "$count recorded — $(printf '%s' "$events" | python3 -c 'import json,sys; e=json.load(sys.stdin)["events"]; print(", ".join(sorted({x["pod"]+":"+x["event"] for x in e})))' 2>/dev/null)"
 else
-  say WARN events "no event recorded yet — wait one cadence and run again"
+  say WARN events "the logger holds nothing yet — wait one cadence and run again"
 fi
 
 echo
