@@ -1,0 +1,19 @@
+{
+  "contractVersion": 1,
+  "base": {
+    "packages": [
+      "agent", "auth", "bridge-agy", "bridge-cursor", "bridge-deepseek",
+      "bridge-opencode", "logger", "maestro", "opencode-bridge", "queue",
+      "supervisor", "vault"
+    ],
+    "bricks": [
+      "agent", "auth", "bridge-agy", "bridge-cursor", "bridge-deepseek",
+      "bridge-opencode", "logger", "maestro", "queue", "vault"
+    ]
+  },
+  "catalog": {
+    "repository": "SHAPER-OS-BRICKS",
+    "packages": ["db", "ged-engine", "mail-agent", "rag", "wp-dns-convention"],
+    "bricks": ["ged", "helm", "mariadb", "pipeline", "qdrant", "waf"]
+  }
+}

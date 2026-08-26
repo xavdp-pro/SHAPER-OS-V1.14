@@ -15,6 +15,7 @@
     "registry",
     "deploy"
   ],
+  "artifactBoundary": "./artifact-boundary.json",
 
   "minimalSocle": {
     "packages": [
@@ -23,13 +24,13 @@
       "@shaper/queue",
       "@shaper/maestro",
       "@shaper/agent",
-      "@shaper/mail-agent",
       "@shaper/auth",
-      "@shaper/db",
       "@shaper/bridge-agy",
+      "@shaper/bridge-cursor",
+      "@shaper/bridge-deepseek",
       "@shaper/bridge-opencode",
-      "@shaper/ged-engine",
-      "opencode-bridge"
+      "opencode-bridge",
+      "@shaper/supervisor"
     ]
   },
 
@@ -89,8 +90,7 @@
   },
 
   "packageImports": {
-    "@shaper/maestro": ["@shaper/logger", "@shaper/agent", "@shaper/vault", "@shaper/mail-agent"],
-    "@shaper/mail-agent": ["@shaper/logger"],
+    "@shaper/maestro": ["@shaper/logger", "@shaper/agent", "@shaper/vault"],
     "@shaper/agent": ["@shaper/auth"],
     "@shaper/vault": [],
     "@shaper/queue": [],

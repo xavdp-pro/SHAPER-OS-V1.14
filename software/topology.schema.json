@@ -12,6 +12,7 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "artifactBoundary": { "type": "string" },
     "minimalSocle": { "type": "object" },
     "bootLayers": {
       "type": "array",

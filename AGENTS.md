@@ -105,6 +105,11 @@ ls software/packages   # empty or missing → STOP. You are not in the monorepo.
 
 Never copy `packages/` or a brick `Containerfile` into a universe folder.
 
+Before adding a package or brick, read
+[`docs/architecture/ARTIFACT-BOUNDARY.md`](./docs/architecture/ARTIFACT-BOUNDARY.md).
+It decides whether the behaviour belongs in SHAPER OS or in the catalogue, and
+how a declared dependency becomes physical only inside an OCI image.
+
 ---
 
 ## 4. Before anything runs

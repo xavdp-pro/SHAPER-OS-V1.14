@@ -34,6 +34,13 @@ Quote a set only with the question it answers.
 A brick is a container (Principle 2: one intent, one container). A package is
 code a brick or a universe consumes. Every runnable core brick is both.
 
+## Artifact boundary
+
+Runtime role answers what must run. Distribution answers who owns the
+behaviour. The base and the catalogue are therefore separate even when a
+universe composes both. The exact contract, registry flow and first isolated
+Vault build are in [`ARTIFACT-BOUNDARY.md`](./ARTIFACT-BOUNDARY.md).
+
 ---
 
 ## Class 1 — Runnable core (always, in this boot order)

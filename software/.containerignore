@@ -1,0 +1,9 @@
+.env
+.env.*
+.git
+node_modules
+data
+sav
+log
+coverage
+test-corpus
