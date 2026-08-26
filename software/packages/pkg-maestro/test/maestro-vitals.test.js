@@ -9,7 +9,7 @@ describe('maestro vitals endpoint', () => {
   it('publishes evidence and no verdict on GET /api/vitals', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maestro-vitals-'));
     const sched = new MaestroScheduler({ logDir: tmpDir });
-    sched.registerPodMail({ slug: 'test-pod', mailbox: 'test@local', port: 8080, cadenceSeconds: 60 });
+    sched.registerTask({ slug: 'test-pod', label: 'test@local', port: 8080, cadenceSeconds: 60 });
     const server = createMaestroServer({ port: 0, scheduler: sched });
 
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

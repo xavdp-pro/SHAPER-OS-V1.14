@@ -25,14 +25,14 @@ describe('maestro queue beat handler', () => {
     const posts = [];
     const beat = createQueueBeatHandler({ queueUrl: 'http://127.0.0.1:8540/', fetchImpl: fakeQueue({ posts }) });
 
-    const result = await beat({ slug: 'mail-contact', beatMessage: 'Read the mailbox', bridgeUrl: 'http://127.0.0.1:4330' });
+    const result = await beat({ slug: 'mail-contact', beatMessage: 'Read the label', bridgeUrl: 'http://127.0.0.1:4330' });
 
     assert.equal(result.ok, true);
     assert.equal(result.enqueued, true);
     assert.equal(result.jobId, 'job-1');
     assert.equal(posts[0].url, 'http://127.0.0.1:8540/api/jobs');
     assert.equal(posts[0].body.type, 'agent.inject');
-    assert.equal(posts[0].body.payload.message, 'Read the mailbox');
+    assert.equal(posts[0].body.payload.message, 'Read the label');
     assert.equal(posts[0].body.payload.conversation, 'mail-contact');
     assert.equal(posts[0].body.payload.bridgeUrl, 'http://127.0.0.1:4330');
   });

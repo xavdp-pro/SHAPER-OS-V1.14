@@ -14,7 +14,7 @@ Deterministic cadence beat scheduler — register worker pods, pulse on interval
 ## 2. Universal Invariants (Parameterized)
 
 1. **Beat Engine**: Periodic heartbeat every `<CADENCE_SECONDS>`. Handler decides if LLM is needed.
-2. **Registry**: Requires `<SLUG>`, `<MAILBOX>`, `<PORT>`. Vault key and context path are opaque references.
+2. **Registry**: Requires `<SLUG>`, `<LABEL>`, `<PORT>`. Vault key and context path are opaque references.
 3. **Audit**: Every beat logged via `@shaper/pkg-logger` as JSONL.
 4. **Isolation**: No universe business logic. Scheduling only.
 

@@ -77,7 +77,7 @@ export function createQueueBeatHandler({
     // A cadence says "act every N seconds", not "queue work every N seconds".
     // If the previous run is still going, enqueueing another does not make the
     // pod act on time — it builds a backlog that grows silently and drifts
-    // further behind with every beat. Twelve stacked mailbox reads are not
+    // further behind with every beat. Twelve stacked label reads are not
     // twelve times the freshness; they are one useful read and eleven wasted
     // agent calls.
     //

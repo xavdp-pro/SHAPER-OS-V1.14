@@ -32,7 +32,10 @@ test('V1.10 names every base artefact by its layer', () => {
 });
 
 test('the generic agent runtime contains no mail-product behaviour', () => {
-  const source = fs.readFileSync(path.join(SOFTWARE, 'packages/pkg-agent-runtime/index.js'), 'utf8');
+  const source = [
+    fs.readFileSync(path.join(SOFTWARE, 'packages/pkg-agent-runtime/index.js'), 'utf8'),
+    fs.readFileSync(path.join(SOFTWARE, 'packages/pkg-maestro/index.js'), 'utf8'),
+  ].join('\n');
   for (const forbidden of ['imap', 'smtp', 'mailbox', 'mailHandler']) {
     assert.doesNotMatch(source, new RegExp(forbidden, 'i'));
   }

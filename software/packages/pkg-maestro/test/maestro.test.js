@@ -5,20 +5,20 @@ import path from 'node:path';
 import os from 'node:os';
 import { MaestroScheduler, createMaestroServer } from '../index.js';
 
-test('maestro-engine - 1. Mandatory podmail registration in registry', () => {
+test('maestro-engine - 1. Mandatory task registration in registry', () => {
   const tmpLogDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maestro-test-1-'));
   const maestro = new MaestroScheduler({ logDir: tmpLogDir });
 
-  const entry = maestro.registerPodMail({
+  const entry = maestro.registerTask({
     slug: 'mail-v1-contact-zoutik-example-com',
-    mailbox: 'contact@zoutik.example.com',
+    label: 'contact@zoutik.example.com',
     port: 8432,
     cadenceSeconds: 30,
-    vaultKey: 'mailbox-contact-zoutik',
+    vaultKey: 'label-contact-zoutik',
   });
 
   assert.equal(entry.slug, 'mail-v1-contact-zoutik-example-com');
-  assert.equal(entry.mailbox, 'contact@zoutik.example.com');
+  assert.equal(entry.label, 'contact@zoutik.example.com');
   assert.equal(entry.port, 8432);
   assert.equal(entry.cadenceSeconds, 30);
   assert.equal(entry.status, 'active');
@@ -35,8 +35,8 @@ test('maestro-engine - 2. Strict validation of required registration parameters'
   const maestro = new MaestroScheduler({ logDir: tmpLogDir });
 
   assert.throws(() => {
-    maestro.registerPodMail({ slug: 'sans-mailbox', port: 8430 });
-  }, /slug, mailbox and port are required/);
+    maestro.registerTask({ slug: 'sans-label', port: 8430 });
+  }, /slug, label and port are required/);
 
   fs.rmSync(tmpLogDir, { recursive: true, force: true });
 });
@@ -45,9 +45,9 @@ test('maestro-engine - 3. Beat pacing and metrics incrementation', async () => {
   const tmpLogDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maestro-test-3-'));
   const maestro = new MaestroScheduler({ logDir: tmpLogDir });
 
-  maestro.registerPodMail({
+  maestro.registerTask({
     slug: 'mail-v1-contact-zoutik-example-com',
-    mailbox: 'contact@zoutik.example.com',
+    label: 'contact@zoutik.example.com',
     port: 8432,
   });
 
@@ -88,7 +88,7 @@ test('maestro-engine - 4. HTTP REST server & scheduler lifecycle', async () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: 'mail-v1-demo',
-      mailbox: 'demo@example.com',
+      label: 'demo@example.com',
       port: 8102,
       cadenceSeconds: 60
     })

@@ -2,7 +2,7 @@
  * @file index.js
  * @package @shaper/pkg-maestro-engine
  * @description Orchestration and cadence engine (Beat Scheduler) for AI agent Podman containers.
- * Supervises and paces each registered podmail in the universe.
+ * Supervises and paces each registered task in the universe.
  */
 
 import http from 'node:http';
@@ -60,38 +60,38 @@ export class MaestroScheduler {
   /**
    * Registers a Podman Mail container in Maestro's official registry.
    *
-   * @param {Object} podmailConfig
-   * @param {string} podmailConfig.slug - Unique identifier (e.g. mail-v1-contact-zoutik-shop)
-   * @param {string} podmailConfig.mailbox - Monitored email address (e.g. contact@zoutik.example.com)
-   * @param {number} podmailConfig.port - Internal or network port
-   * @param {string} [podmailConfig.vaultKey] - Key in vault-v1
-   * @param {number} [podmailConfig.cadenceSeconds=60] - Cadence interval in seconds
-   * @param {string} [podmailConfig.contextPath] - Path to ctx-universe.md file
+   * @param {Object} taskConfig
+   * @param {string} taskConfig.slug - Unique identifier (e.g. mail-v1-contact-zoutik-shop)
+   * @param {string} taskConfig.label - Monitored email address (e.g. contact@zoutik.example.com)
+   * @param {number} taskConfig.port - Internal or network port
+   * @param {string} [taskConfig.vaultKey] - Key in vault-v1
+   * @param {number} [taskConfig.cadenceSeconds=60] - Cadence interval in seconds
+   * @param {string} [taskConfig.contextPath] - Path to ctx-universe.md file
    * @returns {Object} - Registered entry
    */
-  registerPodMail(podmailConfig) {
-    if (!podmailConfig.slug || !podmailConfig.mailbox || !podmailConfig.port) {
-      throw new Error('slug, mailbox and port are required to register a podmail');
+  registerTask(taskConfig) {
+    if (!taskConfig.slug || !taskConfig.label || !taskConfig.port) {
+      throw new Error('slug, label and port are required to register a task');
     }
 
     const entry = {
-      slug: podmailConfig.slug,
-      mailbox: podmailConfig.mailbox,
-      port: podmailConfig.port,
-      vaultKey: podmailConfig.vaultKey || `mailbox-${podmailConfig.slug}`,
-      cadenceSeconds: podmailConfig.cadenceSeconds || 60,
-      contextPath: podmailConfig.contextPath || `/apps/${podmailConfig.slug}/context/ctx-universe.md`,
+      slug: taskConfig.slug,
+      label: taskConfig.label,
+      port: taskConfig.port,
+      vaultKey: taskConfig.vaultKey || `label-${taskConfig.slug}`,
+      cadenceSeconds: taskConfig.cadenceSeconds || 60,
+      contextPath: taskConfig.contextPath || `/apps/${taskConfig.slug}/context/ctx-universe.md`,
       status: 'active',
       lastBeatAt: null,
       lastProcessedCount: 0,
       registeredAt: new Date().toISOString(),
     };
 
-    this.registry.set(podmailConfig.slug, entry);
+    this.registry.set(taskConfig.slug, entry);
 
     this.logger.log({
-      event: 'PODMAIL_REGISTERED',
-      data: { slug: entry.slug, mailbox: entry.mailbox, port: entry.port, cadence: entry.cadenceSeconds },
+      event: 'TASK_REGISTERED',
+      data: { slug: entry.slug, label: entry.label, port: entry.port, cadence: entry.cadenceSeconds },
     });
 
     if (this.isRunning) {
@@ -110,7 +110,7 @@ export class MaestroScheduler {
    * @param {string} [taskConfig.kind='bridge'] - mail | bridge | generic
    * @param {string} [taskConfig.bridgeType] - agy | cursor | claude | opencode
    * @param {string} [taskConfig.bridgeUrl] - base URL e.g. http://127.0.0.1:4330
-   * @param {string} [taskConfig.mailbox]
+   * @param {string} [taskConfig.label]
    * @param {number} taskConfig.port - legacy field / bridge port hint
    * @param {string} [taskConfig.vaultKey]
    * @param {number} [taskConfig.cadenceSeconds=300]
@@ -120,10 +120,10 @@ export class MaestroScheduler {
    */
   registerAgentTask(taskConfig) {
     const slug = taskConfig.slug || taskConfig.id || taskConfig.name || 'agent-task';
-    const entry = this.registerPodMail({
+    const entry = this.registerTask({
       ...taskConfig,
       slug,
-      mailbox: taskConfig.mailbox || `${slug}@local`,
+      label: taskConfig.label || `${slug}@local`,
       port: taskConfig.port || 80,
     });
     entry.kind = taskConfig.kind || 'bridge';
@@ -137,16 +137,16 @@ export class MaestroScheduler {
   }
 
   /**
-   * Triggers a "Beat" (sync pulse) to a registered podmail.
+   * Triggers a "Beat" (sync pulse) to a registered task.
    *
-   * @param {string} slug - Podmail identifier
+   * @param {string} slug - Task identifier
    * @param {Function} [beatHandler] - Mock handler or HTTP executor
    * @returns {Promise<Object>} - Beat report
    */
   async triggerBeat(slug, beatHandler = null) {
     const entry = this.registry.get(slug);
     if (!entry) {
-      throw new Error(`Podmail not registered in Maestro: ${slug}`);
+      throw new Error(`Task not registered in Maestro: ${slug}`);
     }
 
     const start = Date.now();
@@ -165,7 +165,7 @@ export class MaestroScheduler {
       event: 'BEAT_EXECUTED',
       data: {
         slug: entry.slug,
-        mailbox: entry.mailbox,
+        label: entry.label,
         new_messages: result.newMessages || 0,
       },
       durationMs: duration,
@@ -173,7 +173,7 @@ export class MaestroScheduler {
 
     return {
       slug: entry.slug,
-      mailbox: entry.mailbox,
+      label: entry.label,
       status: 'ok',
       new_messages: result.newMessages || 0,
       duration_ms: duration,
@@ -216,7 +216,7 @@ export class MaestroScheduler {
   }
 
   /**
-   * Returns the list of all registered podmails and their cadence state.
+   * Returns the list of all registered tasks and their cadence state.
    * @returns {Array<Object>}
    */
   listRegisteredPods() {
@@ -276,7 +276,7 @@ export function createMaestroServer({ port = 8530, host = '0.0.0.0', scheduler =
       req.on('end', () => {
         try {
           const config = JSON.parse(body || '{}');
-          const entry = sched.registerPodMail(config);
+          const entry = sched.registerTask(config);
           return sendJson(200, { status: 'ok', pod: entry });
         } catch (err) {
           return sendJson(400, { error: err.message });

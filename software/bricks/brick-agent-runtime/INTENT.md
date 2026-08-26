@@ -5,23 +5,14 @@
 
 ## 1. Declarative Objective
 
-One generic agent brick — Maestro registers 1..N parameterized tasks (mail, ops, custom).
+One generic runtime brick — Maestro registers 1..N parameterized tasks.
 
 ## 2. Invariants
 
-1. **No brick-per-mailbox** — slug `mail-<local>-<domain>` is a registry entry, not a new image.
-2. **Context via `contextPath`** — not a separate brick per universe.
-3. Bridge CLI agnostic: agy, cursor, claude, opencode (HTTP Rule 8 contract).
-4. Beat only while `GET /api/health` succeeds on the bridge.
-
-### Illustrative Example (Non-Binding / Demonstration Only)
-
-| Mailbox | Slug | Vault key |
-| :--- | :--- | :--- |
-| `contact@zoutik.example.com` | `mail-contact-zoutik-shop` | `secret/mail/contact-zoutik-shop` |
-| `xavier@xavdp.pro` | `mail-xavier-xavdp-pro` | `secret/mail/xavier-xavdp-pro` |
-
-Credentials live in vault — never in the brick image.
+1. **One runtime, many tasks** — a `task-*` entry is not a new image.
+2. **Context via `ctx-*`** — not a separate brick per universe.
+3. Bridge CLI agnostic: agy, cursor, deepseek or opencode.
+4. A task runs only while `GET /api/health` succeeds on the selected bridge.
 
 ---
 
