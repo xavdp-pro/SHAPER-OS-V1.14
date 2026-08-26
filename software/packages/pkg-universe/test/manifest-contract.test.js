@@ -90,3 +90,30 @@ test('an error names the path that is wrong, because an agent has no other clue'
   assert.match(errors.join('\n'), /universe: "base" does not match/);
   assert.match(errors.join('\n'), /environment: "staging" is not one of/);
 });
+
+// A universe's image lock is the list of artefacts it will actually run. When a
+// brick leaves the manifest, its entry must leave the lock with it — otherwise
+// the lock can never be completed and the release status is stuck at
+// "release-required" forever. `img-agent-runtime` survived V1.11's removal of
+// brick-agent-runtime, and only a real release attempt on gbs-test found it.
+test('an image lock names exactly the images its manifest declares', () => {
+  const problems = [];
+
+  for (const absolute of everyManifest()) {
+    const { manifest } = loadManifest(absolute);
+    if (!manifest?.imageLock) continue;
+
+    const lockPath = path.resolve(path.dirname(absolute), manifest.imageLock);
+    assert.ok(fs.existsSync(lockPath), `${path.relative(REPO, absolute)} declares an imageLock that does not exist`);
+
+    const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+    const locked = Object.keys(lock.images || {}).sort();
+    const declared = Object.values(manifest.bricks).map((brick) => brick.image).sort();
+
+    if (JSON.stringify(locked) !== JSON.stringify(declared)) {
+      problems.push(`${path.relative(REPO, lockPath)}: locks [${locked}] but the manifest declares [${declared}]`);
+    }
+  }
+
+  assert.deepEqual(problems, [], `image locks out of step with their manifest:\n  ${problems.join('\n  ')}`);
+});
