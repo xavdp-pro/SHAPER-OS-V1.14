@@ -45,3 +45,17 @@ the universe that produced it is gone, as the rule requires.
    `source: catalogue` is a universe that belongs in the catalogue.
 4. **It must validate.** `@shaper/pkg-universe` validates every manifest in this
    tree on every test run. A manifest that does not validate is not a universe.
+
+<a id="materialise-before-mount"></a>
+## 5. A deployment creates what it mounts, before it mounts it
+
+Every directory a deploy script binds into a container is created by that same
+script, before the container starts. A universe does not assume a path exists
+because it existed on the machine where the script was written.
+
+*Why this is written here.* A clean-sheet deployment stopped because `sav/queue`
+was mounted without being created. The specific path was fixed in an afternoon;
+the class of defect is permanent, because a bind mount to a missing directory
+fails in a way that names the container rather than the mistake. The machine
+where a script is written always has the directories — that is precisely why the
+author cannot see them.

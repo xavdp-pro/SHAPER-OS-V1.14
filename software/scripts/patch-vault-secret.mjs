@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Intent: software/packages/pkg-vault/INTENT.md
 /** Patch one vault secret (operator use). */
 import fs from 'node:fs';
 import path from 'node:path';

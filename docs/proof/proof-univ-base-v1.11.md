@@ -61,15 +61,21 @@ running LXD 5.0.2, with no `pct`. The container was created with `lxc launch`
 against the existing `podman-univ` profile. The script is not wrong; it is
 written for one hypervisor and the doctrine never says so.
 
-**2. `LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md` Étape 0 has the same assumption** —
-it edits `/etc/pve/lxc/<ID>.conf` to set `features: nesting=1,keyctl=1`. The LXD
-equivalent already existed here as the `podman-univ` profile
-(`security.nesting`, `security.privileged`, `linux.kernel_modules`), but nothing
-in the repository mentions it, so an agent on this host has no path to follow.
+**2. Étape 0 and Rule 11 describe two different hypervisors, and neither says so.**
+`LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md` Étape 0 edits `/etc/pve/lxc/<ID>.conf` to
+set `features: nesting=1,keyctl=1` — Proxmox. Rule 11 mandates the LXD profile
+`podman-univ` with `security.nesting`, `security.privileged` and the kernel
+modules — Debian with native LXC/LXD. Both are correct for their own host
+family; nothing states that they are alternatives, or which applies where.
+
+*(An earlier draft of this verdict claimed the repository never mentions the
+`podman-univ` profile. That was wrong — Rule 11 names it and makes it mandatory.
+The real gap is narrower: the two host families are documented in two places
+that do not reference each other.)*
 
 **3. The `git clone` step could not be followed.** `AGENT-DEPLOY.md` and the
 runbook both start from
-`git clone https://github.com/xavdp-pro/SHAPER-OS-V1.11.git`. That repository is
+`git clone https://github.com/xavdp-pro/SHAPER-OS-V1.12.git`. That repository is
 not published. The working tree was transferred as a tarball with its `.git`, so
 the commit under test stays identifiable — which is what the step is for.
 

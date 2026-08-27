@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Intent: software/packages/pkg-vault/INTENT.md
 /** Read and print one vault secret (stdout JSON). */
 import fs from 'node:fs';
 import path from 'node:path';

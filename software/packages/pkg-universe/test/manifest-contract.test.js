@@ -4,6 +4,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+
+// Intent: software/packages/pkg-universe/INTENT.md
+// Intent: software/universes/univ-base/INTENT.md#image-lock
   catalogueBricks, checkManifestInvariants, loadManifest, loadSchema, validateManifest,
 } from '../index.js';
 

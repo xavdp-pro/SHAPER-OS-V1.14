@@ -4,6 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Intent: docs/architecture/ARTIFACT-BOUNDARY.md#build-context
+// Intent: docs/architecture/ARTIFACT-BOUNDARY.md#layer-earned
+// Intent: software/packages/pkg-logger/INTENT.md#sibling-paths
+
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const SOFTWARE = path.join(REPO, 'software');
 const boundary = JSON.parse(fs.readFileSync(path.join(SOFTWARE, 'artifact-boundary.json'), 'utf8'));

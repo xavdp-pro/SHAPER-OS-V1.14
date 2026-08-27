@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "SHAPER OS universe manifest (V1.11)",
+  "title": "SHAPER OS universe manifest (V1.12)",
   "description": "A universe declares what it is made of. It never copies a brick, and it never leaves the origin of a brick to be guessed: every entry states whether the brick comes from the base or from the catalogue.",
   "type": "object",
   "required": [

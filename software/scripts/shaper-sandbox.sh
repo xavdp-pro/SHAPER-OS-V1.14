@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: software/RULES.md#rule-36
 # ==============================================================================
 # shaper-sandbox.sh — Ephemeral Podman sandbox launcher (--rm)
 # Usage:

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Intent: docs/human/KEYS-AND-ACCOUNTS.md
 /**
  * Automate Cloudflare Tunnel creation and DNS mapping for PUBLIC_HOSTNAME.
  */

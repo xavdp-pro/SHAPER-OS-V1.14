@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+// Intent: software/universes/README.md#materialise-before-mount
+
 /**
  * Every directory a deploy script mounts must exist before the mount.
  *

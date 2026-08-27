@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: software/RULES.md#rule-11
 # ==============================================================================
 # SHAPER OS — Universal Parametric LXC & WireGuard Mesh Provisioning Engine
 # Rule 0B Compliant: 100% Infrastructure Agnostic & Parametric

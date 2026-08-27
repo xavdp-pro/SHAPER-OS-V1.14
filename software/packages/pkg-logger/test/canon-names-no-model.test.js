@@ -19,6 +19,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+// Intent: software/RULES.md#rule-7
+
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /** Prescriptive texts: they bind future behaviour, so they must not name a product. */

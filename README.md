@@ -1,4 +1,4 @@
-# SHAPER OS V1.11
+# SHAPER OS V1.12
 
 > **The Sovereign Operating System of Standardized Bricks & Intentions — Where Humans Formulate Vision and AI Agents Build & Operate**
 
@@ -419,8 +419,8 @@ Full scales and declaration format: [`docs/architecture/COGNITION.md`](./docs/ar
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.11.git
-cd SHAPER-OS-V1.11
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.12.git
+cd SHAPER-OS-V1.12
 ```
 
 ### 2. Bootstrap the Local Foundation (Tier-a)

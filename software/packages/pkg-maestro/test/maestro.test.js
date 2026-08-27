@@ -5,6 +5,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { MaestroScheduler, createMaestroServer } from '../index.js';
 
+// Intent: docs/architecture/NAMING.md#generic-boundary
+// Intent: software/universes/univ-base/INTENT.md#what-a-task-must-carry
+
 test('maestro - 1. a declared task enters the registry', () => {
   const tmpLogDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maestro-test-1-'));
   const maestro = new MaestroScheduler({ logDir: tmpLogDir });

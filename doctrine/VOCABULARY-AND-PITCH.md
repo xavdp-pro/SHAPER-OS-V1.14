@@ -103,7 +103,7 @@ Say: sovereignty, autonomy, custom-built. Three memorable words that justify the
 ## 6. TECHNICAL SECTION — For CTOs, CIOs, Developers
 
 ### Architecture
-SHAPER-OS-V1.11 is a three-perimeter architecture:
+SHAPER-OS-V1.12 is a three-perimeter architecture:
 - P1: Sovereign foundation — infrastructure deployable in cloud, hybrid, or on-premise depending on client compliance constraints.
 - P2: Agentic layer — multi-agent orchestration. Maestro as supervisor, KovZu as execution agent. Role separation for planning / execution / verification. Interoperable with multiple dev environments: Cursor, Claude Code, OpenCode, Antigravity/Gemini, depending on the task.
 - P3: Specific client tools, built on this foundation for a precise business use case.

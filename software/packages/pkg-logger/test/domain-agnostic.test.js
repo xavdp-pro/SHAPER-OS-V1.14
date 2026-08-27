@@ -16,6 +16,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+// Intent: INTENT.md
+
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 const SCANNED_EXTENSIONS = new Set([

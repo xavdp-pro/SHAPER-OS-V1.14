@@ -153,8 +153,8 @@ does not have to guess what you guessed.
 
 ```bash
 npm run test:live:helm
-node scripts/test-voice-player.mjs         # MUST be 100% green
-node scripts/test-e2e-business-flow.mjs    # MUST be 100% green
+# The closed-loop tests of whatever bricks this universe assembles.
+# For catalogue bricks they live in the catalogue, beside the brick.
 ```
 
 - **Any key empty or invalid → STOP and ask.** Never launch tier-b with empty

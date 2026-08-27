@@ -14,7 +14,7 @@ This directory gathers the **7 founding reference documents** and the convergenc
 | **4** | [`FRACTAL-TERRAFORM-AND-CORRECTION-LAW.md`](./FRACTAL-TERRAFORM-AND-CORRECTION-LAW.md) | **Declarative orchestration and survival (R23-R27, R29-R30)**: the continuous reconciliation engine and its convergence guard, the Law of External Correction, the Root Guardian, canary deployment, concrete self-healing examples, the patch protocol, data migrations under snapshot, and constructive integrity. |
 | **5** | [`REAL-INFRASTRUCTURE-CAPACITY-PLANNING-SAAS.md`](./REAL-INFRASTRUCTURE-CAPACITY-PLANNING-SAAS.md) | **Real, physical operations**: statistical overcommit (10 Gbit/s), multi-VPS spread, blast-radius isolation, one MariaDB per universe. |
 | **6** | [`SOVEREIGN-WEB-CHAIN-WAF-AND-CACHE.md`](./SOVEREIGN-WEB-CHAIN-WAF-AND-CACHE.md) | **The sovereign web chain (R28)**: Cloudflare Zero-Trust → static Nginx → routing WAF and precomputed cache → live Node.js, with a mandatory attack corpus. |
-| **7** | [`DOCUMENT-PIPELINE.md`](./DOCUMENT-PIPELINE.md) | **Document understanding**: the page as the unit, three witnesses (native text, OCR, vision), deskewing and legibility, type recognition then business handlers, multiplexing, state in the database, open sources. Brick intent: [`brick-pipeline`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.11). |
+| **7** | [`DOCUMENT-PIPELINE.md`](./DOCUMENT-PIPELINE.md) | **Document understanding**: the page as the unit, three witnesses (native text, OCR, vision), deskewing and legibility, type recognition then business handlers, multiplexing, state in the database, open sources. Brick intent: [`brick-pipeline`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.12). |
 
 ---
 

@@ -256,8 +256,8 @@ The message says nothing about nesting, which is why it belongs here.
 
 ```bash
 apt-get install -y podman git curl jq nodejs npm openssh-server rsync
-git clone --depth 1 https://github.com/xavdp-pro/SHAPER-OS-V1.11.git
-cd SHAPER-OS-V1.11/software
+git clone --depth 1 https://github.com/xavdp-pro/SHAPER-OS-V1.12.git
+cd SHAPER-OS-V1.12/software
 TAG="v1.7.1-$(git -C .. rev-parse --short HEAD)"
 for b in vault logger queue maestro bridge-opencode; do
   podman build -q -f bricks/brick-$b/Containerfile -t "localhost/shaper-$b:$TAG" .

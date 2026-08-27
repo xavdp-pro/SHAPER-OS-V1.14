@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: docs/architecture/ARTIFACT-BOUNDARY.md#build-context
 set -euo pipefail
 : "${SHAPER_BASE_IMAGE:?SHAPER_BASE_IMAGE is required}"
 : "${SHAPER_REGISTRY:?SHAPER_REGISTRY is required}"

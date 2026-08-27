@@ -4,7 +4,7 @@
 
 ## Objective
 
-The canonical V1.11 reference universe. It proves the generic SHAPER base, and
+The canonical V1.12 reference universe. It proves the generic SHAPER base, and
 it contains no catalogue product, no client workflow and no public name. If this
 universe does not come up, nothing built on top of it will — which is its whole
 job.
@@ -36,6 +36,24 @@ demanded a `label` and a `port` — a monitored mailbox and its container port,
 renamed but not removed — and this universe's own `task-schedule.json` was
 rejected by the scheduler shipped beside it.
 
+## The image lock names exactly what the manifest declares
+
+<a id="image-lock"></a>
+
+`cfg-image-lock.json` holds one immutable digest per brick this universe runs.
+Its keys are the `img-*` values the manifest declares — no more, and no fewer.
+When a brick leaves the manifest, its entry leaves the lock with it.
+
+*Why this is written here.* V1.11 recognised `agent-runtime` as a package and
+stopped producing `img-agent-runtime`, but the lock kept listing it. That entry
+could never be filled, so `status` could never reach `released`: the lock was
+permanently unsatisfiable, and every future release of this universe would have
+stalled on it. No test could see it, because nothing had ever attempted a real
+release — it surfaced the first time one was performed, on `gbs-test`. A
+declaration that cannot be satisfied is worse than a missing one, because it
+looks like work remaining rather than a mistake.
+
+<a id="proof"></a>
 ## Proof
 
 `bash deploy/proof.sh`. It shows that every declared brick answers, that the

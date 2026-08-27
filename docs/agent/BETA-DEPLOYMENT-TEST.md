@@ -92,8 +92,8 @@ there on purpose.
 Divergence is what makes reports impossible to compare, so:
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.11
-cd SHAPER-OS-V1.11
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.12
+cd SHAPER-OS-V1.12
 git log --oneline -1        # ← put this line in your report
 ```
 

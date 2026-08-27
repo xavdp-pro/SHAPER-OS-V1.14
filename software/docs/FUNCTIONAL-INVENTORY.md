@@ -75,7 +75,7 @@
 
 | Objectif | Fonctionnalité | Statut |
 | :--- | :--- | :--- |
-| `user = database = slug` | `@shaper/pkg-db` · `provision-app-db.sh` | vivant |
+| `user = database = slug` | `@shaper/pkg-db` (catalogue) | vivant — hors socle |
 | Brick MariaDB | `brick-mariadb` | vivant |
 
 ### 1.6 P1 planifié

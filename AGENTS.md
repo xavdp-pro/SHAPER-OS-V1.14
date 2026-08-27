@@ -84,7 +84,7 @@ and *find*. It never grants permission.
 ## 3. Where you are
 
 ```
-SHAPER-OS-V1.11/
+SHAPER-OS-V1.12/
 ├── README.md                ← human door (5 levels)
 ├── AGENTS.md                ← you are here: agent door
 ├── LAW.md                   ← what is never skipped, one page
@@ -172,3 +172,19 @@ rejected. Trust it over any summary, including this one.
 
 [`PROOF.md`](./docs/human/PROOF.md) satisfied, live tests green, evidence readable by
 someone who was not in the room. On failure: stop and show the error, unedited.
+
+---
+
+<a id="documentation-is-a-map"></a>
+## Documentation is your map, so it is held to a map's standard
+
+Every relative link between files in this repository resolves. A link that
+points at nothing sends you looking for a file that does not exist, and it will
+keep doing so forever, because a broken link fails silently — nobody follows a
+link to check that it works.
+
+*Why this is written here.* Two links in the documents you are told to read
+first pointed at `docs/pkg-agent-runtime/`, a directory that never existed: a
+global rename reached inside link targets and nothing noticed for a release. You
+are the reader who pays for that, and you have no way to tell a missing file
+from your own mistake.

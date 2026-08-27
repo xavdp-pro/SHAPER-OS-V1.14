@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+
+// Intent: software/packages/pkg-vault/INTENT.md
   encryptSecret,
   decryptSecret,
   normalizeMasterKey,

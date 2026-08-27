@@ -4,6 +4,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+// Intent: docs/architecture/NAMING.md#naming-contract
+// Intent: software/packages/pkg-logger/INTENT.md#identity
+
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const SOFTWARE = path.join(REPO, 'software');
 const NAMING = path.join(REPO, 'docs/architecture/NAMING.md');

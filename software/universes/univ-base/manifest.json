@@ -4,7 +4,7 @@
   "parent": null,
   "environment": "dev",
   "profile": "agent",
-  "description": "The canonical V1.11 base cell. Five bricks, no catalogue brick, no domain, no account. Every other universe starts from this shape.",
+  "description": "The canonical V1.12 base cell. Five bricks, no catalogue brick, no domain, no account. Every other universe starts from this shape.",
   "intent": "./INTENT.md",
   "agentDeploy": "./AGENT-DEPLOY.md",
   "context": "./ctx-base.md",

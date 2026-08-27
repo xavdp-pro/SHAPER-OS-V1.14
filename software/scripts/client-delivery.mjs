@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Intent: software/universes/README.md
 /**
  * @file client-delivery.mjs
  * @description Production client universe delivery generator for Shaper OS.

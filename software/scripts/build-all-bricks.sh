@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: docs/architecture/ARTIFACT-BOUNDARY.md#build-context
 # Builds every base brick from the pinned base image.
 #
 # The base image is built and pushed first: it is the only place a brick may

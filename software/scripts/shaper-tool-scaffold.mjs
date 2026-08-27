@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Intent: docs/architecture/ARTIFACT-BOUNDARY.md#layer-earned
 /**
  * @file shaper-tool-scaffold.mjs
  * @description Sovereign and persistent tool brick generator for SHAPER OS.

@@ -26,6 +26,19 @@ Give a Linux operator and an IDE agent enough intent to **install**, **prove**, 
 15. **Declared cognition**: work declares the reasoning depth and the throughput order of magnitude it requires, and what it does when neither is available (`refuse`, `queue`, `allowed-with-note`). No brick names a model. Published throughput is advisory; availability measured from the target host is mandatory, and the measurement is recorded with the choice.
 16. **The code is the variable**: model capability will keep moving. Everything that is not code — intent, law, proof, lifecycle, perimeters, cognitive requirements — is written explicitly so that a stronger model produces better code rather than a different architecture. Carte blanche on the implementation; none on the frame.
 
+    <a id="no-orphan-lesson"></a>
+    **No lesson lives only in code.** Rule 35 requires both a test and an intent, and says plainly that they are not substitutes: a test constrains this implementation, an intent constrains every future one. V1.12 makes that mechanical rather than a matter of discipline. Every guard test and every shipped script names the intent it serves:
+
+    ```js
+    // Intent: docs/architecture/ARTIFACT-BOUNDARY.md#build-context
+    ```
+
+    A test enforces it (`pkg-universe/test/intent-coverage.test.js`): a guard that names no intent fails the suite, and so does one naming an intent that does not exist or an anchor the document does not offer. It cannot check that the prose is *right* — that is a human's judgement — but it guarantees the prose exists, is reachable, and was written at the same moment as the guard.
+
+    This was not a theory. Four of V1.11's most expensive findings — every image broken at its first import, four bricks announcing the wrong layer, an image lock that could never be satisfied, a proof that observed a socket and reported evidence — were discovered by building and deploying, and were recorded only in test comments, one refactor from being lost.
+
+    **The corollary is what a repository may hold.** Code that cannot name the frame it serves is not implementation of anything: it is someone's afternoon, preserved. V1.12 removed thirty-four such scripts, and found a genuine guard living in `scripts/`, where `npm test` never looked at it.
+
 17. **Nothing operator-specific is committed**: this repository must be clonable by a different person, deployed under **their** domain, their accounts, their names and their zones, by changing environment values only — never by editing tracked files. Domains, credentials, account identifiers, zone identifiers and hostnames are supplied at deploy time and asked from the human when they are needed. A value that only works for its author is a defect, and it is enforced mechanically: see the domain-agnosticism guard in `software/packages/pkg-logger/test/domain-agnostic.test.js`.
 
 18. **Where a universe lives**: this repository is **generic**. A universe is config and data for one concrete deployment, so it does not belong here by default. Two places, one rule each: `software/universes/_template/` is the **blueprint** every universe is derived from, and `software/universes/univ-base/` is the **reference** the documentation walks through — the base cell itself. A demonstration that needs a catalogue brick belongs to the catalogue; a universe carrying real work, a client, or an experiment lives **outside this repository** — see [`software/universes/README.md`](./software/universes/README.md). A `-test` universe is destroyed after it passes (Rule 10); what survives is its proof, not its folder.

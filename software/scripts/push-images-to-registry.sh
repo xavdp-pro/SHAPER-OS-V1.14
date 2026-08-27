@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: docs/architecture/ARTIFACT-BOUNDARY.md#registry-contract
 set -euo pipefail
 
 REGISTRY="${REGISTRY_HOST:-10.87.78.3:5000}"

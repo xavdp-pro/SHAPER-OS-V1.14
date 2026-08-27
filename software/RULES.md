@@ -250,9 +250,15 @@ SHAPER OS uses **two complementary layers** — never one replacing the other:
   * **Clean Rebirth**: Triggering Reborn (via UI button or voice keyword « reborn ») MUST wipe previous conversation turns on the bridge, flush the local timeline, and immediately re-inject the official Presentation Briefing (*"Bonjour [Nom] ! Je suis Zephir..."*).
   * **UI Timeline Retention**: The UI MUST preserve the freshly returned Prime run without blanking out.
 * **Mandatory Closed-Loop Test Validation**:
-  * Any agent modifying the bridge, Helm, or voice pipeline MUST execute and confirm 100% success on:
-    1. `software/scripts/test-voice-player.mjs` (Acoustic dB verification + 401 strict rejection test).
-    2. `software/scripts/test-e2e-business-flow.mjs` (Full 6-step autonomous business flow).
+  * Any agent modifying a pipeline MUST execute that pipeline's own closed-loop
+    test and confirm 100% success — a unit suite proves the parts, and only a
+    closed loop proves that the parts still form a path.
+  * **The test belongs to the brick, not to this rule.** Until V1.12 this rule
+    named two scripts by path, `test-voice-player.mjs` and
+    `test-e2e-business-flow.mjs`, which exercised Helm and the voice pipeline —
+    a catalogue product the base does not ship. The base cannot keep a test for
+    a brick it has no copy of, and it cannot stay right about one. The closed
+    loop for `brick-helm` lives in the `SHAPER-OS-BRICKS` catalogue, beside it.
 
 ---
 
@@ -351,6 +357,7 @@ The `univ-` prefix provides a unified sovereign brand across Git, container name
 
 ---
 
+<a id="rule-7"></a>
 ### Rule 7: Engine Defaults Are Measured, Never Declared
 * **No default model is written in this canon.** The rule that used to live here
   named specific models and their flags; every one of them aged, and the canon
@@ -399,6 +406,7 @@ Every containerized AI agent must satisfy four core HTTP endpoints:
 
 ---
 
+<a id="rule-10"></a>
 ### Rule 10: The Universe Triumvirat & Cold-Boot PRA (three clocks)
 Every business universe `<slug>` operates across three strictly decoupled lifecycle stages:
 1. `univ-<slug>-dev`: Fast prototyping and vibe-coding on the `dev` branch.
@@ -426,11 +434,53 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
 
 ---
 
-### Rule 11: Standard LXC Deployment & Nested Podman
-* For deploying on Linux VPS hosts (e.g. Debian 13 with LXD/LXC):
-  * **LXD Profile `podman-univ` mandatory**: nesting enabled, privileged mode, kernel modules `overlay,nf_nat,ip_tables,fuse,tun`.
-  * **Host Kernel Modules**: loaded via `/etc/modules-load.d/lxc-podman.conf`.
-  * **First Boot Requirement**: `apt-get update && apt-get dist-upgrade -y && apt-get clean`, followed by injecting `SKEL/etc/{bash.bashrc,inputrc}`.
+<a id="rule-11"></a>
+### Rule 11: Two Levels of Containment, and Only Two
+
+* **LXC is the universe. Podman is the brick. There is no third level.**
+  A universe is a *system* container — its own init, its own filesystem, its own
+  package set — because that is what can be snapshotted, exported and restored as
+  one thing. A brick is an *application* container built from an immutable image.
+  Podman inside podman works, and has been verified to work three levels deep;
+  it is forbidden anyway, because it adds an image store and a namespace layer
+  without adding a boundary this architecture uses, and it moves the universe's
+  largest state — the image store — into the one layer podman cannot back up as
+  a whole. Depth comes from nesting **universes**, never from nesting runtimes.
+
+* **Two host families, one contract.** The host provides a nesting-capable
+  container; how it is created is the host's business, and a document that
+  covers only one family MUST say which in its first paragraph.
+  * **Proxmox node** — `pct create`, and `features: nesting=1,keyctl=1` in
+    `/etc/pve/lxc/<ID>.conf`. Verify the Debian 13 template is present
+    (`pveam list local`) before creating anything.
+  * **Debian/Ubuntu with native LXC/LXD** — `lxc launch`, profile `podman-univ`:
+    `security.nesting`, `security.privileged`,
+    `linux.kernel_modules: overlay,nf_nat,ip_tables,ip6_tables,fuse,tun`.
+  * **A bare host with neither** — the agent halts and asks. Installing a
+    hypervisor is an architecture decision (storage backend, pool size, bridge,
+    firewall), not a package install, and a host may be bare on purpose. The
+    agent states exactly which commands the human should run, and stops.
+
+* **Presence of a tool is not proof of a capability.** An agent declares a host
+  fit to carry a universe only after launching a throwaway nested container and
+  running a container inside it. `lxc` being installed says nothing about whether
+  podman runs inside it; podman being installed says nothing about whether a
+  `RUN` step will execute — on one workstation every build failed at `RUN`
+  because the session bus carried no systemd, which no inventory of binaries
+  would ever have revealed. An agent that lists binaries manufactures confidence;
+  an agent that launches and observes produces a verdict.
+
+* **First boot, inside the container**: `apt-get update && apt-get dist-upgrade
+  -y && apt-get clean`, then inject `skel/etc/{bash.bashrc,inputrc}`. Host kernel
+  modules are loaded via `/etc/modules-load.d/lxc-podman.conf`.
+
+* **What is restored, and what is merely rebuilt.** A universe's restorable
+  identity is its `manifest.json`, its `cfg-image-lock.json` and its volumes.
+  Images are never backed up: they are rebuilt from source at the recorded
+  commit, or pulled by the digest the lock names. A backup containing images is
+  backing up a derivative, and hiding that the original may no longer be
+  reproducible. Restoration ends with the universe's own `deploy/proof.sh` — a
+  restore nobody proved is a claim (Rule 33).
 
 ---
 
@@ -713,6 +763,7 @@ Rule 29 requires that every bug resolved gives birth to a regression test. That 
 
 ---
 
+<a id="rule-36"></a>
 ### Rule 36: Fractal SSH Authority & Ephemeral Sandbox Access Law (Clean-Sheet Dev/Test Promotion)
 
 * **Parent Authority Over Child Lifecycle**: To supervise, develop, and test improvements on a child universe without risking production, the Parent Universe ($K+1$) has the explicit authority to instantiate, access, and destroy child environments ($K$). An agent never mutates its own vital organs in-flight (Rule 23); its supervisor operates the lifecycle.

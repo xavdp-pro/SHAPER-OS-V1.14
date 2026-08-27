@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Intent: software/packages/pkg-vault/INTENT.md
 /**
  * Bootstrap encrypted vault from resources/vault-resources.local.json
  * Sovereign REMOTE2 — plaintext resources live ONLY in resources/*.local.json (gitignored).

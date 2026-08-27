@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: software/RULES.md#rule-10
 # ==============================================================================
 # backup-pra-sync.sh — AES-256 encrypted replication of backup to central DRP vault
 # Usage:

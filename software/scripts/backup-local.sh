@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: software/RULES.md#rule-10
 # ==============================================================================
 # backup-local.sh — Sovereign daily local backup (/data/backups/)
 # Takes a full snapshot of persistent data:

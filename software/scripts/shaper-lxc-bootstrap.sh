@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: software/RULES.md#rule-11
 # ==============================================================================
 # Shaper OS — 1-Click Bootstrap for Clean LXC Container (Debian 12 / Ubuntu)
 # Deploys the ecosystem and hands over to the OpenCode agent.

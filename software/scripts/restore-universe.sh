@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: software/RULES.md#rule-10
 set -euo pipefail
 
 SNAPSHOT_TAR="${1:-}"

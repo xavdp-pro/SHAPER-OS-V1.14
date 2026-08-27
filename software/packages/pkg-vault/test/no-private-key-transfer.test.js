@@ -5,6 +5,8 @@ import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+// Intent: software/RULES.md#rule-36
+
 /**
  * No document and no script may move a private key.
  *

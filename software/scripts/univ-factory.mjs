@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Intent: software/universes/README.md
 /**
  * @file univ-factory.mjs
  * @description Universal CLI Factory for SHAPER OS.

@@ -2,6 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { FREE_MODEL, normalizeConversationName, buildOpencodeSpawnEnv, OpencodeBridgeServer } from '../index.js';
 
+// Intent: software/RULES.md#rule-7
+
 describe('bridge-opencode', () => {
   // Non-regression (Rule 29): this test used to assert a model name, and kept
   // passing after that model was withdrawn from the catalogue — a green suite

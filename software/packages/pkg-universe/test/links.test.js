@@ -4,6 +4,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+// Intent: AGENTS.md#documentation-is-a-map
+
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 function markdownFiles(dir = REPO, found = []) {
