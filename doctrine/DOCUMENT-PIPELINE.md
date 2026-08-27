@@ -36,53 +36,33 @@ Processing a document "as a whole" amounts to applying the first page's method t
 
 This order is not advisory: **each stage depends on the one before it**. Straightening after reading is pointless; running the triple reading before straightening degrades all three witnesses at once.
 
+```mermaid
+flowchart TB
+    intake["<b>STEP 0 — INTAKE</b><br/><i>the document arrives, with its source and its depositor</i>"]
+
+    intake -->|PDF| split
+    intake -->|"IMAGE only<br/>jpg, png, scan, photo, heic"| orient
+    intake -->|"TEXT only<br/>txt, csv, docx…"| arbitrate
+
+    split["<b>STEP 1 — SPLIT INTO PAGES</b><br/>for each page: the page image,<br/>and the native text layer if present"]
+    orient["<b>STEP 2 — ORIENTATION AND DESKEW</b><br/>analyse reading direction,<br/>rotate 0/90/180/270, deskew"]
+    legible["<b>STEP 3 — LEGIBILITY MEASUREMENT</b><br/><i>score stored on the page</i>"]
+    triple["<b>STEP 4 — TRIPLE READING</b><br/>native text · OCR · vision"]
+    arbitrate["<b>STEP 5 — ARBITRATION</b><br/>the arbiter agent produces the result,<br/><i>or refuses if the quality is not there</i>"]
+    recognise["<b>STEP 6 — TYPE RECOGNITION</b>"]
+    handler["<b>STEP 7 — BUSINESS HANDLER</b><br/>filing and database write"]
+
+    split --> orient --> legible --> triple --> arbitrate --> recognise --> handler
+
+    classDef s fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    classDef e fill:#161b22,stroke:#58a6ff,color:#e6edf3
+    class split,orient,legible,triple,arbitrate,recognise,handler s
+    class intake e
 ```
-STEP 0    INTAKE
-          the document arrives, with its source and its depositor
-             │
-             ├── PDF ────────────────────────┐
-             │                               │
-             ├── IMAGE only ─────────┐       │
-             │   (jpg, png, scan,    │       │
-             │    photo, heic)       │       │
-             │                       │       │
-             └── TEXT only ───┐      │       │
-                 (txt, csv,   │      │       │
-                  docx…)      │      │       ▼
-                              │      │   STEP 1  SPLIT INTO PAGES
-                              │      │   for each page:
-                              │      │     • the page image
-                              │      │     • the native text layer if present
-                              │      │       │
-                              │      └───────┤   ◀── a lone image enters HERE,
-                              │              │        as a one-page document
-                              │              ▼
-                              │          STEP 2  ORIENTATION AND DESKEW
-                              │          analyse the image's reading direction →
-                              │          rotate 0/90/180/270 + deskew
-                              │              │
-                              │              ▼
-                              │          STEP 3  LEGIBILITY MEASUREMENT
-                              │          score stored on the page
-                              │              │
-                              │              ▼
-                              │          STEP 4  TRIPLE READING
-                              │          native text │ OCR │ vision
-                              │              │
-                              └──────────────┤   ◀── a text file enters HERE,
-                                             │        with a single witness
-                                             ▼
-                                         STEP 5  ARBITRATION
-                                         the arbiter agent produces the result,
-                                         or refuses if quality is not there
-                                             │
-                                             ▼
-                                         STEP 6  TYPE RECOGNITION
-                                             │
-                                             ▼
-                                         STEP 7  BUSINESS HANDLER
-                                         GED filing + database write
-```
+
+A lone image enters at **step 2**, as a one-page document. A text file enters at
+**step 5**, with a single witness instead of three — and the arbiter is told so,
+rather than left to infer it from silence.
 
 ### The stages in detail
 
@@ -113,24 +93,26 @@ This is the part not to miss:
 
 This is the heart of the doctrine, and **the piece that unblocked everything** on bank transactions as well as on identity documents.
 
-```
-                    ┌──────────────────────────────┐
-                    │  PAGE STRAIGHTENED, MEASURED │
-                    └──────────────┬───────────────┘
-              ┌────────────────────┼────────────────────┐
-              ▼                    ▼                    ▼
-      Native extraction      OCR of the image      Vision agent
-      (raw text layer)       (dedicated engine)    (read by a model)
-              │                    │                    │
-              └────────────────────┼────────────────────┘
-                                   ▼
-                    ┌──────────────────────────────┐
-                    │        ARBITER AGENT         │
-                    │  compares the three versions │
-                    │   and PRODUCES THE RESULT    │
-                    └──────────────┬───────────────┘
-                                   ▼
-                  final fields + confidence + disagreements
+```mermaid
+flowchart TB
+    page["<b>PAGE STRAIGHTENED, MEASURED</b>"]
+
+    native["Native extraction<br/><i>raw text layer</i>"]
+    ocr["OCR of the image<br/><i>dedicated engine</i>"]
+    vision["Vision agent<br/><i>read by a model</i>"]
+
+    arbiter["<b>ARBITER AGENT</b><br/>compares the three versions<br/>and produces the result"]
+    out["final fields + confidence + disagreements"]
+
+    page --> native --> arbiter
+    page --> ocr --> arbiter
+    page --> vision --> arbiter
+    arbiter --> out
+
+    classDef p fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    classDef w fill:#161b22,stroke:#58a6ff,color:#e6edf3
+    class page,arbiter,out p
+    class native,ocr,vision w
 ```
 
 ### This is not a vote, nor a mechanical merge
@@ -185,16 +167,22 @@ It is not decoration:
 
 The pipeline **identifies** what the document is. A **declared handler** decides what is done with it. The two never mix: adding a document type must never force a change to the pipeline.
 
-```
-document → pages → witnesses → TYPE RECOGNISED → declared handler → effects
-                                     │
-        ┌────────────────────────────┼────────────────────────┐
-        ▼                            ▼                        ▼
-  restaurant receipt          bank statement            identity document
-        │                            │                        │
-   amount, date,              transactions line          name, dates, number,
-   establishment,             by line, balance           validity
-   purpose if any
+```mermaid
+flowchart TB
+    chain["document → pages → witnesses → <b>TYPE RECOGNISED</b> → declared handler → effects"]
+
+    receipt["<b>restaurant receipt</b><br/>amount, date, establishment,<br/>purpose if any"]
+    bank["<b>bank statement</b><br/>transactions line by line,<br/>balance"]
+    identity["<b>identity document</b><br/>name, dates, number,<br/>validity"]
+
+    chain --> receipt
+    chain --> bank
+    chain --> identity
+
+    classDef c fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    classDef t fill:#161b22,stroke:#58a6ff,color:#e6edf3
+    class chain c
+    class receipt,bank,identity t
 ```
 
 ### The restaurant receipt, followed through end to end

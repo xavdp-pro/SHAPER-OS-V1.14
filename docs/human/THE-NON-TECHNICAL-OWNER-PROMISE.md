@@ -25,25 +25,21 @@ A business owner running a retail shop, a service agency, an association, or an 
 
 To guarantee that this promise never breaks, the codebase enforces an automated 3-tier validation pyramid that runs continuously:
 
+```mermaid
+flowchart BT
+    T1["<b>TIER 1 — atomic unit verification</b><br/><i>vault, logger, auth, storage</i>"]
+    T2["<b>TIER 2 — inter-brick integration</b><br/><i>queue, maestro, retrieval, streams</i>"]
+    T3["<b>TIER 3 — browser end-to-end</b><br/><i>the full user flow, and the delivery</i>"]
+
+    T1 --> T2 --> T3
+
+    classDef t fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    class T1,T2,T3 t
 ```
-                  ┌──────────────────────────────┐
-                  │          TIER 3:             │
-                  │   Playwright Browser E2E     │
-                  │ (Full User Flow & Delivery)  │
-                  └──────────────┬───────────────┘
-                                 │
-                  ┌──────────────┴───────────────┐
-                  │          TIER 2:             │
-                  │   Inter-Brick Integration    │
-                  │  (Queue, Maestro, RAG, SSE)  │
-                  └──────────────┬───────────────┘
-                                 │
-                  ┌──────────────┴───────────────┐
-                  │          TIER 1:             │
-                  │  Atomic Unit Verification    │
-                  │  (Vault, Logger, Auth, GED)  │
-                  └──────────────────────────────┘
-```
+
+Each tier can pass while the one above it fails. That is the point: a green unit
+suite proves the parts, and only the top tier proves that a person can actually
+use what was built.
 
 ### Tier 1 — Atomic Brick Verification (100% Deterministic)
 Every foundational building block must pass isolated unit tests with zero mock leaks:

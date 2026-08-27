@@ -16,18 +16,22 @@ is the work.
 
 You can prompt a universe in whichever way feels natural to you:
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 1. BY HUMAN ARCHETYPE (1 Word / Business Preset)                                       │
-│    "Build me a store universe..."  OR  "Build me a document-hub universe..."           │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ 2. BY MODULAR LEGO FORMULA (Floor + Options)                                           │
-│    "Build me an agent +documents +public universe..."                                  │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ 3. BY HYBRID COMBINATION (Archetype + Modular Extensions)                              │
-│    "Build me a store +voice +waf universe..."                                          │
-│    "Build me a document-hub +intake +webmail +telephony universe..."                   │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    ask["What you ask for"]
+
+    A["<b>1 · By human archetype</b><br/>one word, a business preset<br/><i>“Build me a store universe”</i>"]
+    B["<b>2 · By modular formula</b><br/>a floor plus options<br/><i>“Build me an agent +documents +public universe”</i>"]
+    C["<b>3 · By hybrid combination</b><br/>archetype plus modular extensions<br/><i>“Build me a store +voice +waf universe”</i>"]
+
+    ask --> A
+    ask --> B
+    ask --> C
+
+    classDef q fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    classDef w fill:#161b22,stroke:#58a6ff,color:#e6edf3
+    class ask q
+    class A,B,C w
 ```
 
 ---
@@ -183,21 +187,26 @@ for one is a deliberate act rather than a surprise at deploy time.
 > **Doctrine Reminder (Rule 28 & Sovereign Web Chain)**:  
 > *A WAF cannot be an arbitrary static black-box. It must be structurally prepared with a generic base, and then **shaped in live execution according to the specific application it protects**.*
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                     THE 2-PHASE ADAPTIVE SOVEREIGN WAF ARCHITECTURE                    │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE 1 : GENERIC STRUCTURAL BASE (Pre-boot)                                           │
-│ • Zero Trust Cloudflare Ingress (0 open inbound ports on the host).                    │
-│ • Deterministic low-level filters (< 0.2 ms): Anti-SQLi, Anti-XSS, Path-Traversal.    │
-│ • IP sliding-window rate limiting & brute-force shield.                                │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE 2 : LIVE APPLICATION SHAPING (Post-boot / Positive Security)                     │
-│ • Once the application runs, whatever it is, the Parent Agent inspects the            │
-│   active routes and compiles an **exact positive whitelist** (`GET /api/search`...).  │
-│ • Precomputed SSR cache for read-only pages (served in 0.3 ms without waking Node.js). │
-│ • Any request outside the positive application shape is dropped at layer 3 in 0.1 ms. │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph p1["PHASE 1 — generic structural base, pre-boot"]
+        direction TB
+        a["Zero Trust ingress<br/><i>no open inbound port on the host</i>"]
+        b["Deterministic low-level filters &lt; 0.2 ms<br/><i>anti-SQLi, anti-XSS, path traversal</i>"]
+        c["Sliding-window rate limiting<br/><i>brute-force shield</i>"]
+    end
+
+    subgraph p2["PHASE 2 — live application shaping, post-boot"]
+        direction TB
+        d["The parent agent inspects the running routes<br/>and compiles an <b>exact positive whitelist</b>"]
+        e["Precomputed cache for read-only pages<br/><i>0.3 ms, without waking the runtime</i>"]
+        f["Anything outside the application's shape<br/>is dropped at layer 3 in 0.1 ms"]
+    end
+
+    p1 --> p2
+
+    classDef s fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    class a,b,c,d,e,f s
 ```
 
 Adding **`+waf`** to any universe activates this adaptive guardian.

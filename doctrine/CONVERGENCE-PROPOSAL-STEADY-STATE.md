@@ -17,16 +17,22 @@ This document synthesizes the strategic and technical answers to the questions r
 
 The steady state of SHAPER-OS is the situation where **the system simultaneously and frictionlessly satisfies the requirements of its three stakeholders**:
 
-```
-                                  SHAPER-OS STEADY STATE
-                                             │
-        ┌────────────────────────────────────┼────────────────────────────────────┐
-        ▼                                    ▼                                    ▼
-THE DECISION-MAKER (Non-Technical)   THE CTO / CIO (Technical)           AI AGENTS (Orchestration)
-• Zero opaque jargon                 • Zero black box                    • Abstract capability classes
-• Contract-verified deliverables     • 100% unit/live tests PASS         • Zero radio silence (anti-silence)
-• Sovereignty with 3 clear tiers     • Strict P1 / P2 / P3 isolation     • Typed Quality Gate per deliverable
-• Natural result-oriented dialogue   • JSONL traceability & reconcile    • Isolated vector memory
+```mermaid
+flowchart TD
+    S["<b>SHAPER-OS STEADY STATE</b>"]
+
+    D["<b>THE DECISION-MAKER</b><br/><i>non-technical</i><br/>• zero opaque jargon<br/>• contract-verified deliverables<br/>• sovereignty in three clear tiers<br/>• result-oriented dialogue"]
+    C["<b>THE CTO / CIO</b><br/><i>technical</i><br/>• zero black box<br/>• unit and live tests pass<br/>• strict P1 / P2 / P3 isolation<br/>• JSONL traceability"]
+    A["<b>AI AGENTS</b><br/><i>orchestration</i><br/>• abstract capability classes<br/>• zero radio silence<br/>• typed quality gate per deliverable<br/>• isolated vector memory"]
+
+    S --> D
+    S --> C
+    S --> A
+
+    classDef root fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    classDef aud fill:#161b22,stroke:#58a6ff,color:#e6edf3
+    class S root
+    class D,C,A aud
 ```
 
 ### Sovereignty in 3 Explicit Tiers (Total Technical Honesty):

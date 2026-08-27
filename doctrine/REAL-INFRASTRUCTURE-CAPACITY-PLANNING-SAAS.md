@@ -54,18 +54,16 @@ What spikes in real life?
 * A Google index crawler or aggressive scraper hammering the catalog.
 * A denial-of-service attack (DDoS) or a webhook loop.
 
-```
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                     THE ZERO BLAST RADIUS RULE                                    │
-├───────────────────────────────────────────────────────────────────────────────────┤
-│ Even if child universe #12 undergoes a request storm (1000 req/s):               │
-│ 1. The univ12 container absorbs or saturates within its cgroups/RAM CPU perimeter.│
-│ 2. The 49 other stores and other clients on the same VPS continue operating       │
-│    at 100% of their nominal speed without any disruption.                         │
-│ 3. The parent Manager receives the saturation alert and activates static caching │
-│    (Prerender / Edge / Fast-Response) if needed to relieve the database.          │
-└───────────────────────────────────────────────────────────────────────────────────┘
-```
+> ### The zero blast radius rule
+>
+> Even if child universe #12 takes a request storm of 1000 req/s:
+>
+> 1. That container absorbs it, or saturates, **inside its own cgroup and memory
+>    perimeter** — and nowhere else.
+> 2. The other forty-nine children, and every other client on the same VPS,
+>    continue at their nominal speed with no disruption.
+> 3. The parent manager receives the saturation alert and may enable static
+>    caching to relieve the database.
 
 ---
 

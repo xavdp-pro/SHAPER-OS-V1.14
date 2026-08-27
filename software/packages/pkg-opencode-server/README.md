@@ -15,8 +15,11 @@ OpenCode fournit un vrai serveur headless : le bridge lance **une seule fois**
 C'est ce qui donne le **streaming token par token** (`message.part.delta`), là où
 `opencode run --format json` ne renvoie le texte qu'en un seul bloc à la fin.
 
-```
-console ──HTTP──> opencode-bridge :4340 ──HTTP/SSE──> opencode serve :4341 ──> modèle
+```mermaid
+flowchart LR
+    console["console"] -- HTTP --> bridge["opencode-bridge<br/>:4340"]
+    bridge -- "HTTP / SSE" --> serve["opencode serve<br/>:4341"]
+    serve --> model["modèle"]
 ```
 
 ## API

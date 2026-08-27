@@ -16,41 +16,59 @@
 
 ## 🗺️ Extended Bricks Overview
 
-```
-                               ┌────────────────────────────────────────────────────────┐
-                               │           SHAPER OS EXTENDED BRICK ECOSYSTEM           │
-                               └────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph base["🟢 SHIPPED BY THE BASE"]
+        direction LR
+        b1["brick-vault · brick-logger<br/>brick-queue · brick-maestro<br/>brick-bridge-*"]
+        b2["<i>packages, not bricks:</i><br/>pkg-auth · pkg-supervisor<br/>pkg-agent-runtime · pkg-universe"]
+    end
 
-    ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-    │ 🟢 LIVE IN CORE / REPO                                                                          │
-    │   • brick-vault (:8610)        • brick-logger (:8620)           • brick-queue (:8640)           │
-    │   • brick-maestro (:8630)      • brick-bridge-* (:4440)         • brick-helm (:8650)            │
-    │   • brick-ged (:8760)          • brick-qdrant (:6333)           • @shaper/pkg-rag (in-process)      │
-    │   • @shaper/pkg-supervisor (R23)   • brick-mariadb (:3306)          • @shaper/pkg-auth (in-process)     │
-    └─────────────────────────────────────────────────────────────────────────────────────────────────┘
-                                                       │
-                                                       ▼
-    ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-    │ 🟡 TARGET BRICKS (COMMUNICATIONS, TELEPHONY, WEBMAIL & INGRESS CHANNELS)                        │
-    │   1. brick-waf (:8680)           — Adaptive Sovereign Firewall & Positive SSR Cache             │
-    │   2. brick-telephony-pbx (:5060) — Sovereign IPBX Standard, SIP Trunk & Interactive Voice (IVR)│
-    │   3. brick-softphone (:8660)     — WebRTC Responsive Softphone (Desktop & Mobile PWA)           │
-    │   4. brick-webmail (:8652)       — Sovereign Responsive Webmail with AI-Assisted Composition    │
-    │   5. brick-mail-intake (:8655)   — Continuous IMAP IDLE Listener & Attachment Queue Ingress     │
-    │   6. brick-messaging (:8665)     — WhatsApp Pro / Telegram / Signal Client Ingress              │
-    │   7. brick-voice (:8670)         — Local Whisper STT & Low-Latency Voice Synthesis              │
-    │   8. brick-billing (:8690)       — Stripe Webhooks, Quotas & Sovereign Auto-Invoicing           │
-    │   9. brick-caldav (:8675)        — 2-Way CalDAV/ICS Calendar Sync & Online Slot Booking         │
-    │  10. brick-pdf (:8685)           — Deterministic Multi-page PDF Splitting & eIDAS Signature     │
-    │  11. brick-pipeline (:8695)      — 8-Stage Multi-Witness Document Understanding & Arbiter       │
-    │  12. brick-forms (:8692)         — Sovereign Public Form Builder & Secure Attachment Ingress    │
-    │  13. brick-sms (:8662)           — SMS Gateway, OTP & 2FA Dispatch (4G Dongle / SIP API)        │
-    │  14. brick-iot-mqtt (:1883/8682) — IoT Telemetry Ingress & MQTT Event Dispatch                  │
-    │  15. brick-bank-bridge (:8694)   — EBICS & Open Banking Statement Ingress (CAMT.053 / CFONB)    │
-    │  16. brick-sftp (:2222)          — Isolated B2B SFTP Drop & EDI Exchange Ingress                │
-    │  17. brick-social-feed (:8668)   — Customer Reviews & Social Feedback Ingress                   │
-    └─────────────────────────────────────────────────────────────────────────────────────────────────┘
+    subgraph cat["🔵 SHIPPED BY THE CATALOGUE"]
+        direction LR
+        c1["brick-helm · brick-ged<br/>brick-qdrant · brick-mariadb<br/>brick-pipeline · brick-waf"]
+    end
+
+    target["🟡 TARGET — specified, not built<br/><i>the table below</i>"]
+
+    base --> cat --> target
+
+    classDef g fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    classDef b fill:#0d1117,stroke:#58a6ff,color:#e6edf3
+    classDef y fill:#161b22,stroke:#d29922,color:#e6edf3
+    class b1,b2 g
+    class c1 b
+    class target y
 ```
+
+> **The boundary matters more than the list.** Until V1.12 this diagram put
+> `brick-helm`, `brick-ged`, `brick-qdrant` and `brick-mariadb` under "live in
+> core / repo". They are catalogue products: the base neither ships nor tests
+> them, and cannot stay right about them. See
+> [`ARTIFACT-BOUNDARY.md`](./ARTIFACT-BOUNDARY.md).
+
+### Target bricks — communications, telephony, webmail and ingress channels
+
+| # | Brick | Port | What it would do |
+| ---: | :--- | :--- | :--- |
+| 1 | `brick-waf` | 8680 | Adaptive sovereign firewall and positive SSR cache |
+| 2 | `brick-telephony-pbx` | 5060 | Sovereign IPBX, SIP trunk and interactive voice (IVR) |
+| 3 | `brick-softphone` | 8660 | WebRTC responsive softphone, desktop and mobile PWA |
+| 4 | `brick-webmail` | 8652 | Sovereign responsive webmail with AI-assisted composition |
+| 5 | `brick-mail-intake` | 8655 | Continuous IMAP IDLE listener and attachment queue ingress |
+| 6 | `brick-messaging` | 8665 | WhatsApp Pro / Telegram / Signal client ingress |
+| 7 | `brick-voice` | 8670 | Local Whisper STT and low-latency voice synthesis |
+| 8 | `brick-billing` | 8690 | Payment webhooks, quotas and sovereign auto-invoicing |
+| 9 | `brick-caldav` | 8675 | Two-way CalDAV/ICS calendar sync and online slot booking |
+| 10 | `brick-pdf` | 8685 | Deterministic multi-page PDF splitting and eIDAS signature |
+| 11 | `brick-pipeline` | 8695 | Eight-stage multi-witness document understanding and arbiter |
+| 12 | `brick-forms` | 8692 | Sovereign public form builder and secure attachment ingress |
+| 13 | `brick-sms` | 8662 | SMS gateway, OTP and 2FA dispatch |
+| 14 | `brick-iot-mqtt` | 1883 / 8682 | IoT telemetry ingress and MQTT event dispatch |
+| 15 | `brick-bank-bridge` | 8694 | EBICS and open banking statement ingress (CAMT.053 / CFONB) |
+| 16 | `brick-sftp` | 2222 | Isolated B2B SFTP drop and EDI exchange ingress |
+| 17 | `brick-social-feed` | 8668 | Customer reviews and social feedback ingress |
+
 
 ---
 
