@@ -24,8 +24,12 @@ echo "[backup-local] 📦 Starting local backup: ${SNAPSHOT_NAME}..."
 DUMP_DIR="${SHAPER_DIR}/data/_staging_dump"
 mkdir -p "$DUMP_DIR"
 if command -v mariadb-dump &>/dev/null; then
-  mariadb-dump -h 127.0.0.1 -u helm_user -phelm_password_local helm_db > "${DUMP_DIR}/helm_db.sql" 2>/dev/null || true
-elif podman exec "${UNIV_SLUG:?set UNIV_SLUG}-helm" mariadb-dump -u helm_user -phelm_password_local helm_db > "${DUMP_DIR}/helm_db.sql" 2>/dev/null; then
+  # The credential comes from the environment. It was a literal here, and this
+  # repository was public — see univ-base/INTENT.md on what a published
+  # credential is.
+  : "${MYSQL_PASSWORD:?not set — supply the database password; this repository ships none}"
+  mariadb-dump -h 127.0.0.1 -u "${MYSQL_USER:-helm_user}" -p"$MYSQL_PASSWORD" helm_db > "${DUMP_DIR}/helm_db.sql" 2>/dev/null || true
+elif podman exec "${UNIV_SLUG:?set UNIV_SLUG}-helm" mariadb-dump -u "${MYSQL_USER:-helm_user}" -p"${MYSQL_PASSWORD:?not set}" helm_db > "${DUMP_DIR}/helm_db.sql" 2>/dev/null; then
   echo "[backup-local] MariaDB dump successfully extracted via Podman."
 else
   echo "[backup-local] Note: MariaDB dump not directly available."
