@@ -50,6 +50,15 @@ differ: a registry may re-serialise the manifest it stores, so
 never heard of. The lock is filled from `podman push --digestfile`, and each
 entry is written only after the registry has served it back.
 
+**The method is reproducible; the artefact is not.** Building the same commit
+twice produces five different digests — layer timestamps and package state make
+sure of it. So the lock is not a convenience: it is the only record of *which*
+artefact was proven. Rebuilding from source gives a functionally equivalent
+image and a different digest, which means a lock whose registry has been lost
+cannot be satisfied by rebuilding — it can only be re-issued, and re-proved.
+Measured, not assumed: two clean builds of commit `33a5c6f` on the same host,
+five bricks, five digests changed.
+
 *Why this is written here.* On `gbs-test` the lock was filled by hand from
 `podman inspect`. The universe deployed, every brick answered, and `proof.sh`
 declared it proven — because the images were already in the local store from the
