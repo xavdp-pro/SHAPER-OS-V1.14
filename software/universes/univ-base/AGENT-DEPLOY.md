@@ -39,9 +39,18 @@ export SHAPER_IMAGE_TAG=v1.11.0 # never latest
 bash scripts/build-all-bricks.sh
 ```
 
-Then record each published digest in [`cfg-image-lock.json`](./cfg-image-lock.json),
-replacing every `null`. A tag can be moved; a digest cannot, and the lock file is
-what makes this deployment repeatable tomorrow.
+Then lock them:
+
+```bash
+python3 scripts/record-image-lock.py universes/univ-base --insecure
+```
+
+It reads what each `podman push` recorded and writes an entry only once the
+registry has served that digest back. Do not fill this file by hand — that step
+was a sentence in this document with no tool behind it until V1.12, and the one
+time it was performed manually it produced a lock in which every digest returned
+`manifest unknown`. A tag can be moved; a digest cannot; a digest the registry
+never stored cannot be pulled at all.
 
 ### 3. Materialise
 

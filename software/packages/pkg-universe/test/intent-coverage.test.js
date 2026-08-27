@@ -128,8 +128,23 @@ test('every script names the intent it materialises', () => {
   const orphans = [];
   const broken = [];
 
-  for (const name of fs.readdirSync(dir).filter((n) => /\.(sh|mjs|js)$/.test(n))) {
-    const text = fs.readFileSync(path.join(dir, name), 'utf8');
+  // Everything the repository ships as executable code, wherever it sits: a
+  // universe's deploy scripts are shipped code exactly like scripts/ is.
+  const shipped = fs.readdirSync(dir)
+    .filter((n) => /\.(sh|mjs|js|py)$/.test(n))
+    .map((n) => [`scripts/${n}`, path.join(dir, n)]);
+
+  const universes = path.join(REPO, 'software/universes');
+  for (const universe of fs.readdirSync(universes)) {
+    const deploy = path.join(universes, universe, 'deploy');
+    if (!fs.existsSync(deploy)) continue;
+    for (const n of fs.readdirSync(deploy).filter((f) => /\.(sh|mjs|js|py)$/.test(f))) {
+      shipped.push([`universes/${universe}/deploy/${n}`, path.join(deploy, n)]);
+    }
+  }
+
+  for (const [name, absolute] of shipped) {
+    const text = fs.readFileSync(absolute, 'utf8');
     const match = text.match(/^(?:#|\/\/)\s*Intent:\s*(\S+?)(?:#(\S+))?\s*$/m);
 
     if (!match) {

@@ -14,5 +14,9 @@ podman build \
   -f bricks/brick-vault/Containerfile \
   -t "$IMAGE" \
   bricks/brick-vault
-podman push --tls-verify="${SHAPER_TLS_VERIFY:-true}" "$IMAGE"
+# The digest is taken from the push, never from `podman inspect` on the local
+# image: the two differ, because a registry may re-serialise the manifest it
+# stores. Only what the registry holds can be pulled back.
+mkdir -p "$ROOT/.release"
+podman push --tls-verify="${SHAPER_TLS_VERIFY:-true}" --digestfile "$ROOT/.release/brick-vault.digest" "$IMAGE"
 echo "[build-brick-vault] published $IMAGE"

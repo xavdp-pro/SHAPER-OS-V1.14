@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: software/universes/README.md#materialise-before-mount
 # Golden snippet — first DEV universe (local). Parameterized. No secrets in this file.
 # Monorepo layout: clone SHAPER-OS-V1.12, universe sits beside software/:
 #   <repo>/software/  +  <repo>/<univ_slug>-dev/

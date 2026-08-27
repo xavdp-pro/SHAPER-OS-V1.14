@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: software/universes/univ-base/INTENT.md#proof
 # Proves univ-base is alive — and prints what it observed, not what it hoped.
 #
 # Rule 33: declaring, materialising and proving are three separate acts. This
@@ -42,6 +43,14 @@ else
   say FAIL "$declared" "declared in task-schedule.json but absent from /api/tasks"
   fail=1
 fi
+
+echo
+echo "── every image this universe runs can be pulled back ───────────────────"
+# A proof that only holds where the images were built proves the build, not the
+# release. On gbs-test every locked digest returned `manifest unknown` from the
+# registry, and this script still said "proven" — because the images were already
+# in the local store. See INTENT.md#image-lock.
+python3 "$UNIV/deploy/check-image-lock.py" "$UNIV/cfg-image-lock.json" || fail=1
 
 echo
 echo "── the logger holds evidence, not just a heartbeat ─────────────────────"

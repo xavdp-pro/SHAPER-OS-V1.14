@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Intent: software/universes/univ-base/INTENT.md#image-lock
 # Materialises univ-base — the canonical five-brick cell.
 #
 # This script is the reference an agent copies. It therefore does only what the

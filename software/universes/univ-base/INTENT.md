@@ -44,6 +44,21 @@ rejected by the scheduler shipped beside it.
 Its keys are the `img-*` values the manifest declares — no more, and no fewer.
 When a brick leaves the manifest, its entry leaves the lock with it.
 
+**A digest is what the registry holds, not what the builder computed.** The two
+differ: a registry may re-serialise the manifest it stores, so
+`podman inspect` on a locally built image reports a digest the registry has
+never heard of. The lock is filled from `podman push --digestfile`, and each
+entry is written only after the registry has served it back.
+
+*Why this is written here.* On `gbs-test` the lock was filled by hand from
+`podman inspect`. The universe deployed, every brick answered, and `proof.sh`
+declared it proven — because the images were already in the local store from the
+build. Every digest in that lock returned `manifest unknown` from the registry.
+On any other host, and after any reset, the release was unusable. **A lock that
+cannot be resolved is worse than an empty one, because it looks like a release.**
+A proof that runs only where the artefact was built proves the build, not the
+release.
+
 *Why this is written here.* V1.11 recognised `agent-runtime` as a package and
 stopped producing `img-agent-runtime`, but the lock kept listing it. That entry
 could never be filled, so `status` could never reach `released`: the lock was
