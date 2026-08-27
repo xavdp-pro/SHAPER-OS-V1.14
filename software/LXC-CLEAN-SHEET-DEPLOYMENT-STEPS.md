@@ -220,7 +220,7 @@ L'intégralité des étapes 1 à 7 est condensée dans le script exécutable `sc
 Sur un conteneur LXC neuf, il suffit de taper :
 
 ```bash
-git clone https://github.com/xavdp-pro/univ-shaper-os.git /root/SHAPER-OS
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.12.git /root/SHAPER-OS
 cd /root/SHAPER-OS
 bash scripts/shaper-lxc-bootstrap.sh
 ```
