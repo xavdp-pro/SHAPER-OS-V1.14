@@ -56,7 +56,7 @@ sure of it. So the lock is not a convenience: it is the only record of *which*
 artefact was proven. Rebuilding from source gives a functionally equivalent
 image and a different digest, which means a lock whose registry has been lost
 cannot be satisfied by rebuilding — it can only be re-issued, and re-proved.
-Measured, not assumed: two clean builds of commit `33a5c6f` on the same host,
+Measured, not assumed: two clean builds of the same tree on the same host,
 five bricks, five digests changed.
 
 *Why this is written here.* On `gbs-test` the lock was filled by hand from

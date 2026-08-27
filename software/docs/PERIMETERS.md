@@ -9,26 +9,20 @@ Every component, package, brick, or app MUST be classified into exactly one peri
 
 ## Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  PERIMETER 1 — MINIMAL SOCLE (P1)                           │
-│  Sovereign OS kernel: secrets, audit, auth, boot, jobs      │
-│  Zero business logic. Zero mandatory LLM.                   │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│  PERIMETER 2 — AGENTIC (P2)                                 │
-│  Deterministic agent orchestration + operator cockpit       │
-│  Maestro beats, bridges, queue→inject, KovZu organism       │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│  PERIMETER 3 — BUSINESS / CLIENT TOOLS (P3)                 │
-│  Persistent vertical apps outside P1+P2                     │
-│  CRM, market intel, client chat, OCR métier, ERP plugins    │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    P1["<b>PERIMETER 1 — MINIMAL SOCLE</b><br/>Sovereign OS kernel: secrets, audit, auth, boot, jobs<br/><i>Zero business logic. Zero mandatory LLM.</i>"]
+    P2["<b>PERIMETER 2 — AGENTIC</b><br/>Deterministic agent orchestration + operator cockpit<br/><i>Maestro beats, bridges, queue → inject</i>"]
+    P3["<b>PERIMETER 3 — BUSINESS / CLIENT TOOLS</b><br/>Persistent vertical apps outside P1+P2<br/><i>CRM, market intel, client chat, trade OCR, ERP plugins</i>"]
+
+    P1 --> P2 --> P3
+
+    classDef base fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    classDef agentic fill:#0d1117,stroke:#58a6ff,color:#e6edf3
+    classDef business fill:#161b22,stroke:#8b949e,color:#8b949e,stroke-dasharray:4 3
+    class P1 base
+    class P2 agentic
+    class P3 business
 ```
 
 **Golden rules**

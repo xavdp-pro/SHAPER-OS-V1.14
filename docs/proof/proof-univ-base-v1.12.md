@@ -9,6 +9,8 @@ Date         : 2026-08-27T05:38:30Z
 Host         : gbs-test (10.87.78.36), LXD 5.0.2
 Container    : univ-base-test — podman storage erased before this run
 Commit       : 33a5c6f fix(v1.12): the image lock held digests the registry had never heard of
+               (a commit of the private lineage — this public repository starts
+               at a single commit, see its first commit message)
 Podman       : podman version 5.4.2  |  node on host: none
 Registry     : 10.213.199.234:5000, tag v1.12.0
 Local store  : 0 images before build, emptied again before deploy
@@ -67,8 +69,7 @@ the registry before writing it, and `proof.sh` confirmed all five resolve. None
 of those three steps existed in this form four hours ago; all three exist because
 the previous run produced a lock that looked like a release and was not.
 
-**The method is reproducible; the artefact is not.** The same commit `33a5c6f`,
-built twice on the same host, produced five different digests:
+**The method is reproducible; the artefact is not.** The same tree, built twice on the same host, produced five different digests:
 
 | brick | first build | this build |
 | :--- | :--- | :--- |

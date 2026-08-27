@@ -100,3 +100,25 @@ test('every base service announces itself by its brick identity', () => {
 
   assert.deepEqual(offences, [], `services announcing a name outside the contract:\n  ${offences.join('\n  ')}`);
 });
+
+// The README's opening diagram is the first thing anyone sees, and until V1.12
+// it drew the cell as `pkg-auth` and `pkg-supervisor` with no bridge at all —
+// two packages that are not bricks, and a missing brick that is the only thing
+// in the cell able to spend work. It contradicted univ-base's own manifest for
+// releases, in the most-read file of the repository.
+test('the README draws the cell univ-base actually declares', () => {
+  const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+  const diagram = readme.slice(readme.indexOf('```mermaid'), readme.indexOf('```', readme.indexOf('```mermaid') + 10));
+  assert.ok(diagram.length > 0, 'the README opens with no diagram');
+
+  const universe = JSON.parse(fs.readFileSync(path.join(SOFTWARE, 'universes/univ-base/manifest.json'), 'utf8'));
+  for (const brick of Object.keys(universe.bricks)) {
+    // The bridge is drawn generically: a universe selects exactly one.
+    const drawn = brick.startsWith('brick-bridge-') ? 'brick-bridge-' : brick;
+    assert.ok(diagram.includes(drawn), `the README diagram omits ${brick}`);
+  }
+
+  for (const notABrick of ['pkg-auth<', 'pkg-supervisor<', 'brick-auth', 'brick-agent-runtime']) {
+    assert.ok(!diagram.includes(notABrick), `the README diagram draws ${notABrick} as part of the cell`);
+  }
+});

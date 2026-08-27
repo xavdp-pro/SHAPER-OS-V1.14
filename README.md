@@ -202,36 +202,41 @@ Every SHAPER OS universe is constructed from an **invariant set of elementary br
 > breaks when each brick is absent, in
 > [`docs/architecture/BRICKS.md`](./docs/architecture/BRICKS.md).
 
-```
-                              ┌────────────────────────────────────────────────────────┐
-                              │            THE UNIVERSAL SHAPER OS CELL                │
-                              └────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    task["task-*<br/><i>declared work</i>"]
 
-                                                ┌───────────────────────┐
-                                                │      @shaper/pkg-auth     │
-                                                │  (Identity & Sessions)│
-                                                └───────────┬───────────┘
-                                                            │
-                     ┌───────────────────────┐              │              ┌───────────────────────┐
-                     │     @shaper/pkg-vault     │──────────────┼──────────────│    @shaper/pkg-logger     │
-                     │  (Encrypted Secrets)  │              │              │   (Immutable Memory)  │
-                     └───────────────────────┘              │              └───────────────────────┘
-                                                            │
-                                                ┌───────────┴───────────┐
-                                                │     @shaper/pkg-queue     │
-                                                │ (Lanes & Prioritization)
-                                                └───────────┬───────────┘
-                                                            │
-                     ┌───────────────────────┐              │              ┌───────────────────────┐
-                     │    @shaper/pkg-maestro    │──────────────┼──────────────│   @shaper/pkg-supervisor  │
-                     │  (Orchestrator/Beats) │              │              │  (Vitals & Health R23)│
-                     └───────────────────────┘              │              └───────────────────────┘
-                                                            ▼
-                                                ┌───────────────────────┐
-                                                │    SPECIALIZED TOOLS  │
-                                                │  (catalogue bricks)   │
-                                                └───────────────────────┘
+    subgraph cell["THE UNIVERSAL SHAPER OS CELL — five bricks"]
+        direction LR
+        vault["brick-vault<br/><i>encrypted secrets</i>"]
+        logger["brick-logger<br/><i>immutable evidence</i>"]
+        queue["brick-queue<br/><i>persistent work ledger</i>"]
+        maestro["brick-maestro<br/><i>cadence · vendors pkg-agent-runtime</i>"]
+        bridge["brick-bridge-*<br/><i>the one AI engine</i>"]
+    end
+
+    catalogue["catalogue bricks<br/><i>console, documents, database…</i>"]
+
+    task --> maestro
+    maestro --> queue
+    queue --> bridge
+    vault -. secrets .-> maestro
+    vault -. secrets .-> bridge
+    maestro --> logger
+    queue --> logger
+    bridge --> logger
+    cell --> catalogue
+
+    classDef base fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    classDef out fill:#161b22,stroke:#8b949e,color:#8b949e,stroke-dasharray:4 3
+    class vault,logger,queue,maestro,bridge base
+    class catalogue,task out
 ```
+
+> **Five, not seven.** `@shaper/pkg-auth` and `@shaper/pkg-supervisor` are
+> packages, not bricks: they run inside the services that import them and no
+> `podman build` produces them. `pkg-agent-runtime` likewise lives inside
+> `brick-maestro`'s image. See [`docs/architecture/NAMING.md`](./docs/architecture/NAMING.md).
 
 ### 1. 🔐 `@shaper/pkg-vault` — The Cryptographic Safe
 * **Role:** Secure storage and isolation of secrets, API keys, database credentials, and license tokens.
@@ -277,39 +282,37 @@ In SHAPER OS, you **never reinvent the foundation**. You take the base cell and 
 SHAPER OS scales seamlessly across **multiple physical Bare-Metal servers or VPS nodes**.  
 Each server operates **its own autonomous Host Spawner Engine** communicating via outbound PULL links with the Central SaaS platform:
 
-```
-                                  ┌────────────────────────────────────────────────────────┐
-                                  │      MULTI-HOST FRACTAL FLEET CLOUD ARCHITECTURE       │
-                                  └────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    T0["🏢 <b>TIER 0 — Platform universe</b><br/>accounts · billing · quotas<br/>dispatch queue: SPAWN_CHILD, DESTROY_CHILD"]
 
-     ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-     │ 🏢 TIER 0 : CENTRAL SAAS PLATFORM (GRANDPARENT)                                                 │
-     │    • Customer accounts, billing (Stripe), subscription quotas (5, 10, 20 stores).               │
-     │    • Central mission dispatch queue (`SPAWN_STORE`, `DESTROY_STORE`).                           │
-     └───────────────────────────────┬─────────────────────────────────┬───────────────────────────────┘
-                                     │                                 │
-                 🔄 Outbound PULL    │                                 │    🔄 Outbound PULL
-                 (Zero Open Ports!)  │                                 │    (Zero Open Ports!)
-                                     ▼                                 ▼
-     ┌───────────────────────────────────────────────┐ ┌───────────────────────────────────────────────┐
-     │ 🚀 TIER 1A : HOST SPAWNER (BARE-METAL / VPS A)│ │ 🚀 TIER 1B : HOST SPAWNER (BARE-METAL / VPS B)│
-     │    • 1 Host Spawner dedicated to Server A.    │ │    • 1 Host Spawner dedicated to Server B.    │
-     │    • Local Podman + Cloudflare DNS Connector. │ │    • Local Podman + Cloudflare DNS Connector. │
-     └───────────────────────┬───────────────────────┘ └───────────────────────┬───────────────────────┘
-                             │                                                 │
-                             ▼                                                 ▼
-     ┌───────────────────────────────────────────────┐ ┌───────────────────────────────────────────────┐
-     │ 🎛️ TIER 2A : BOUTIQUE MANAGER (CLIENT ALICE)  │ │ 🎛️ TIER 2B : BOUTIQUE MANAGER (CLIENT BOB)    │
-     │    • Cockpit for Alice: 2/5 stores active.    │ │    • Cockpit for Bob: 4/10 stores active.     │
-     └───────────────────────┬───────────────────────┘ └───────────────────────┬───────────────────────┘
-                             │                                                 │
-            ┌────────────────┴────────────────┐               ┌────────────────┴────────────────┐
-            ▼                                 ▼               ▼                                 ▼
-     ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐
-     │ 🛍️ TIER 3 : CHILD 01 │ │ 🛍️ TIER 3 : CHILD 02 │ │ 🛍️ TIER 3 : CHILD 03 │ │ 🛍️ TIER 3 : CHILD 04 │
-     │   (name you supply)  │ │   (name you supply)  │ │   (name you supply)  │ │   (name you supply)  │
-     └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘
+    T1A["🚀 <b>TIER 1A — Host spawner</b><br/>bare-metal or VPS A<br/>local podman + DNS connector"]
+    T1B["🚀 <b>TIER 1B — Host spawner</b><br/>bare-metal or VPS B<br/>local podman + DNS connector"]
+
+    T2A["🎛️ <b>TIER 2A — Fleet manager</b><br/>operator A · 2 of 5 children active"]
+    T2B["🎛️ <b>TIER 2B — Fleet manager</b><br/>operator B · 4 of 10 children active"]
+
+    C1["TIER 3 — child 01"]
+    C2["TIER 3 — child 02"]
+    C3["TIER 3 — child 03"]
+    C4["TIER 3 — child 04"]
+
+    T0 -- "outbound pull · zero open ports" --> T1A
+    T0 -- "outbound pull · zero open ports" --> T1B
+    T1A --> T2A
+    T1B --> T2B
+    T2A --> C1
+    T2A --> C2
+    T2B --> C3
+    T2B --> C4
+
+    classDef tier fill:#0d1117,stroke:#3fb950,color:#e6edf3
+    classDef child fill:#161b22,stroke:#8b949e,color:#e6edf3
+    class T0,T1A,T1B,T2A,T2B tier
+    class C1,C2,C3,C4 child
 ```
+
+> Every name at Tier 3 is supplied by the operator. This repository ships none.
 
 ### 🌐 Key Multi-Host Properties:
 1. **1 Host Spawner Per Physical Node / VPS:** Each Bare-Metal machine (OVH, Scaleway, Hetzner, On-Premise) runs its own lightweight Host Spawner cell that manages only its local Podman containers and storage volumes.
