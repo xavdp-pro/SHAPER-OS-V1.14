@@ -220,6 +220,7 @@ echo "[podman-up] queue :$QUEUE_PORT"
 podman run -d --name "${SLUG}-queue" --network "$NET" --replace \
   -e QUEUE_PORT="$QUEUE_PORT" \
   -e QUEUE_AUTO_DISPATCH=1 \
+  -e LOGGER_URL="http://127.0.0.1:$LOGGER_PORT" \
   -e QUEUE_BRIDGE_URL="http://127.0.0.1:$OPENCODE_BRIDGE_PORT" \
   -e QUEUE_BRIDGE_TOKEN="$BRIDGE_AUTH_TOKEN" \
   -e QUEUE_POLL_MS=2000 \

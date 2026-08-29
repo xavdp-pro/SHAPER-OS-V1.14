@@ -4,6 +4,7 @@ import { capacityReport } from './capacity.js';
 import { vitals, ageSeconds, writable } from '../pkg-logger/vitals.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ingestLog } from '../pkg-logger/ingest-client.js';
 
 /**
  * Quality Gate Contract Validator (Rule 20)
@@ -87,11 +88,18 @@ export function validateQualityGate(job, { gedRoot = null, testRunner = null } =
 }
 
 export class JobQueue extends EventEmitter {
-  constructor({ storageFile = null, enforceQualityGate = false, gedRoot = null, storageAdapter = null } = {}) {
+  constructor({ storageFile = null, enforceQualityGate = false, gedRoot = null, storageAdapter = null, loggerUrl = null, fetchImpl = fetch } = {}) {
     super();
     this.jobs = new Map();
     this.jobCounter = 0;
     this.storageFile = storageFile;
+    // The queue is the universe's ledger of work, so it is the queue that must
+    // say a job existed — not whoever happened to enqueue it. Until V1.13.4
+    // only maestro logged, so a job POSTed by hand (exactly what the runbook's
+    // own proof step prescribes) completed with a persisted answer and left
+    // ZERO audit trace: proof #4 was unsatisfiable on the documented path.
+    this.loggerUrl = loggerUrl;
+    this.fetchImpl = fetchImpl;
     this.enforceQualityGate = enforceQualityGate;
     this.gedRoot = gedRoot;
     this.storageAdapter = storageAdapter; // Optional MariaDB or external adapter
@@ -119,6 +127,24 @@ export class JobQueue extends EventEmitter {
     } catch (err) {
       console.error('[queue] disk hydration failed:', err.message);
     }
+  }
+
+  /**
+   * Audit, correlated to the job id and read from outside the queue (Rule 0G).
+   * Fire-and-forget: a logger that is down must never stop work — but it says
+   * so on stderr rather than failing silently (Rule 0K, never silent).
+   */
+  _audit(event, job, level = 'INFO') {
+    if (!this.loggerUrl) return;
+    ingestLog({
+      loggerUrl: this.loggerUrl,
+      pod: 'queue',
+      event,
+      level,
+      correlationId: job.id,
+      data: { jobId: job.id, type: job.type, status: job.status, conversation: job.payload?.conversation },
+      fetchImpl: this.fetchImpl,
+    }).catch((err) => console.error('[queue] audit failed:', err.message));
   }
 
   _persistJob(job) {
@@ -159,6 +185,7 @@ export class JobQueue extends EventEmitter {
     this.jobs.set(jobId, job);
     this._persistJob(job);
 
+    this._audit('JOB_CREATED', job);
     this.emit('jobCreated', job);
     this.emit('statusChange', job);
     return job;
@@ -208,6 +235,9 @@ export class JobQueue extends EventEmitter {
     this.jobs.set(jobId, job);
     this._persistJob(job);
 
+    if (job.status === 'COMPLETED') this._audit('JOB_COMPLETED', job);
+    else if (job.status === 'FAILED') this._audit('JOB_FAILED', job, 'ERROR');
+
     this.emit('jobUpdated', job);
     this.emit('statusChange', job);
     return job;
@@ -242,6 +272,7 @@ export function createQueueServer({
   storageFile = null,
   enforceQualityGate = null,
   gedRoot = null,
+  loggerUrl = null,
 } = {}) {
   const jobQueue = queue || new JobQueue({
     storageFile: storageFile || process.env.QUEUE_STORAGE_FILE || null,
@@ -251,6 +282,7 @@ export function createQueueServer({
       ? enforceQualityGate
       : process.env.QUALITY_GATE_ENFORCE === '1',
     gedRoot: gedRoot || process.env.GED_ROOT || null,
+    loggerUrl: loggerUrl || process.env.LOGGER_URL || null,
   });
   const sseClients = new Set();
 

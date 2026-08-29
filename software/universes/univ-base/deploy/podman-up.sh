@@ -129,6 +129,7 @@ wait_healthy "http://127.0.0.1:$LOGGER_PORT/api/health" logger
 echo "[podman-up] layer 1 — queue :$QUEUE_PORT"
 podman run -d --name "$(ctr queue)" --network "$NET" --replace \
   -e QUEUE_PORT="$QUEUE_PORT" \
+  -e LOGGER_URL="http://127.0.0.1:$LOGGER_PORT" \
   -e QUEUE_AUTO_DISPATCH=1 \
   -e QUEUE_BRIDGE_URL="http://127.0.0.1:$BRIDGE_PORT" \
   -e QUEUE_BRIDGE_TOKEN="$BRIDGE_AUTH_TOKEN" \
