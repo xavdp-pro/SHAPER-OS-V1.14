@@ -82,7 +82,9 @@ describe('committed-identity — never commit what is yours alone', () => {
   it('catches a tracked .env, an identity fallback, a committed credential', () => {
     const r = repo('identity-bad', {
       '.env': 'API_KEY=sk-live-1234567890',
-      'server.js': "const host = process.env.PUBLIC_HOST || 'shop.acme-client.com';",
+      // A .invalid host: fictional for the repo's own domain-agnosticism guard,
+      // yet still an identity fallback this check must catch.
+      'server.js': "const host = process.env.PUBLIC_HOST || 'shop.acme-client.invalid';",
       'auth.js': "const secret = process.env.JWT_SECRET || 'helm-dev-secret';",
       'deploy.sh': 'MARIADB_PASSWORD="s3cretPr0dPass"',
     });
