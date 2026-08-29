@@ -23,6 +23,22 @@ ls software/packages
   SHAPER OS monorepo — `software/packages` is missing." Do not clone anything,
   do not create the directory.
 
+## Step 0a — The terrain: you deploy inside an LXC, not on the host
+
+Rule 11: **LXC is the universe, podman is the brick.** Never deploy a universe
+directly on a host that carries production. Create the container first — the
+exact commands for both host families (Proxmox `pct`, Debian/LXD `lxc`) are in
+[`../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md`](../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md),
+including the package list. Nesting is mandatory; without it podman fails on
+the first image with a `Permission denied` that says nothing about nesting.
+
+- **The host has neither Proxmox nor LXD → STOP and ask.** Installing a
+  hypervisor is an architecture decision, not a package install (Rule 11).
+
+*(Added in V1.13.5: a cold tester following the runbook literally reached the
+build with no container, and had to derive its creation from the Boot Contract.
+Terrain is a step, not an assumption.)*
+
 ## Step 0b — The machine prerequisites (ask, never invent)
 
 *(Added in V1.13.1: all five beta testers were blocked or improvised here.)*

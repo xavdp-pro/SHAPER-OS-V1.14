@@ -41,6 +41,16 @@ if [[ ! -d "$SHAPER/packages" ]]; then
   fi
 fi
 
+# A .env file carries DEFAULTS. Anything the operator already exported wins —
+# until V1.13.5 `source` clobbered it, so the engine measured at runbook step
+# 4.2b was silently replaced by the empty OPENCODE_MODEL in .env and the deploy
+# halted on its own halt-check; a cold tester had to sed this script to get
+# past it. Same principle as the vault's storage file (V1.13.1): an explicit
+# choice always beats a packaged default.
+KEEP_VARS=(OPENCODE_MODEL SHAPER_REGISTRY SHAPER_IMAGE_TAG SHAPER_TLS_VERIFY
+           VAULT_MASTER_KEY VAULT_TOKEN APP_PASSWORD MAESTRO_QUEUE_URL)
+for v in "${KEEP_VARS[@]}"; do declare -g "__KEEP_$v=${!v:-}"; done
+
 # 1. Base defaults from software/.env or root .env
 if [[ -f "$SHAPER/.env" ]]; then
   set -a; source "$SHAPER/.env"; set +a
@@ -58,6 +68,11 @@ elif [[ -f "$UNIV/deploy/env" ]]; then
 elif [[ -f "$UNIV/deploy/${SLUG}.env" ]]; then
   set -a; source "$UNIV/deploy/${SLUG}.env"; set +a
 fi
+
+# The operator's explicit exports come back on top of every file.
+for v in "${KEEP_VARS[@]}"; do
+  k="__KEEP_$v"; [[ -n "${!k}" ]] && export "$v=${!k}"
+done
 
 export VAULT_MASTER_KEY="${VAULT_MASTER_KEY:?Set VAULT_MASTER_KEY in $ENV_FILE}"
 export VAULT_TOKEN="${VAULT_TOKEN:-}"
