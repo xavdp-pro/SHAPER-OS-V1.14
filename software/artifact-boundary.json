@@ -5,7 +5,7 @@
       "pkg-agent-runtime", "pkg-auth", "pkg-bridge-agy", "pkg-bridge-cursor",
       "pkg-bridge-deepseek", "pkg-bridge-opencode", "pkg-logger", "pkg-maestro",
       "pkg-opencode-server", "pkg-queue", "pkg-supervisor", "pkg-universe",
-      "pkg-vault"
+      "pkg-vault", "pkg-verify"
     ],
     "bricks": [
       "brick-bridge-agy", "brick-bridge-cursor", "brick-bridge-deepseek",

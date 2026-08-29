@@ -112,7 +112,11 @@ how a declared dependency becomes physical only inside an OCI image.
 
 Before creating or changing an `univ-*`, read
 [`docs/agent/UNIVERSE-DESIGN-QUESTIONS.md`](./docs/agent/UNIVERSE-DESIGN-QUESTIONS.md)
-and [`docs/architecture/NAMING.md`](./docs/architecture/NAMING.md). Answer every
+and [`docs/architecture/NAMING.md`](./docs/architecture/NAMING.md). If the
+universe is extended or bound for production, it is born in **its own
+repository** — [`docs/agent/UNIVERSE-REPO-BIRTH.md`](./docs/agent/UNIVERSE-REPO-BIRTH.md)
+is the birth procedure, and this repository stays upstream, touched only when
+an incident climbs back. Answer every
 question from repository evidence. If an answer is absent or contradictory,
 stop and report it; do not invent architecture.
 
