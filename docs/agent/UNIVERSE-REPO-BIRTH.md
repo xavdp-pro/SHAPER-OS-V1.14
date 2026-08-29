@@ -27,12 +27,12 @@ will" into "fork forever":
 | | A universe **class** | A universe **instance** |
 | :--- | :--- | :--- |
 | What it is | A template: intent, manifest shape, brick set, tests | One materialisation for one owner |
-| Where it lives | **A repository of its own** (`univ-shop`) | **Data, not a repository**: a `manifest.json`, a vault, volumes |
+| Where it lives | **A repository of its own** (`univ-boutik-shop`) | **Data, not a repository**: a `manifest.json`, a vault, volumes |
 | How many exist | One per kind of universe | As many as subscriptions demand |
 | How it changes | Commits, reviewed, versioned, tagged | Redeployed from its class at a named tag |
 
 A client's tenth shop is not a tenth repository — it is a tenth **manifest**
-deployed from `univ-shop` at an immutable tag, with its own vault and its own
+deployed from `univ-boutik-shop` at an immutable tag, with its own vault and its own
 volumes. The repository count grows with the *kinds* of universes you invent,
 not with the number of clients who subscribe.
 
@@ -44,9 +44,11 @@ improvements found there travel back upstream.
 
 ## The birth procedure
 
-1. **`git init`** a fresh repository named for the class: `univ-<class>` —
-   never a copy of the base with folders deleted.
-2. **Record the lineage first.** A `LINEAGE.md` at the root, before any code:
+1. **`git init`** a fresh repository named for the class:
+   `univ-<projet>-<classe>` (Rule 1 — projet is one word; a single-class
+   project takes `-core`) — never a copy of the base with folders deleted.
+2. **Record the lineage first.** A `LINEAGE.md` at the root, before any code —
+   copy [`examples/universe-LINEAGE.md`](../../examples/universe-LINEAGE.md):
    which base version it was cut against (`SHAPER-OS-V1.13`), which catalogue
    bricks it consumes and at which image tags, and why this universe exists.
    A repository whose origin is unknown cannot be maintained (Rule 33.1).
@@ -55,9 +57,21 @@ improvements found there travel back upstream.
    Copying `software/packages/` or a brick `Containerfile` is forbidden
    (Rule 32, Boot Contract forbidden list): the day the base fixes a bug, a
    copied mechanism keeps it.
-4. **Reference every brick by image and immutable tag** (Rule 0E). The
-   manifest is the whole dependency: `"ged": { "image":
-   "registry/shaper-ged:v1.9.0" }`. If the universe needs a brick the
+4. **Reference every brick by image identity, pinned by the lock** (Rule 0E).
+   The manifest entry is the whole dependency, in the schema's real shape:
+
+   ```json
+   "brick-ged": {
+     "source": "catalogue", "perimeter": "P2",
+     "package": "@shaper/pkg-ged-engine", "image": "img-ged",
+     "intent": "SHAPER-OS-BRICKS-V1.13/bricks/brick-ged/INTENT.md",
+     "role": "Document memory of this universe"
+   }
+   ```
+
+   The `image` field carries the `img-` identity; the **immutable tag and
+   digest live in `cfg-image-lock.json`** (the manifest's `imageLock` field),
+   never inline. If the universe needs a brick the
    catalogue does not have, the brick is *contributed to the catalogue*, then
    consumed by tag like any other. **The boundary in one line: a brick goes
    to the catalogue when its INTENT can be written without the business
@@ -67,13 +81,24 @@ improvements found there travel back upstream.
    fallback of the shape `process.env.X || '<a real value>'` is a committed
    credential with extra steps (Boot Contract 10b).
 6. **Carry the law without carrying the base.** The universe repository runs
-   `shaper verify` (from `@shaper/pkg-verify`) in its CI, on a clean clone —
-   the checks are generic and need no configuration. `RULES.md` still binds by
+   the verifier in its CI, on a clean clone. **The sanctioned channel today**:
+   CI clones the base at the tag LINEAGE.md names, beside the class repo, and
+   runs `node ../SHAPER-OS-V1.13/software/packages/pkg-verify/verify.mjs
+   --root .` — an explicit, pinned exemption to the no-path rule, for CI
+   only, never for runtime imports. (`@shaper/pkg-verify` is not published to
+   a registry yet; when it is, the pinned package replaces the clone.) The
+   checks are generic and need no configuration. `RULES.md` still binds by
    reading; the verifier is the part that binds by machine.
 7. **Live by the suffix discipline** (Rule 36): `-dev` ephemeral, `-test`
    rebuilt clean-sheet and destroyed after its verdict, `-prod` permanent —
    promoted only through the canary protocol, operated by the parent, never by
    the universe on itself (Rule 23).
+8. **Register the class in its scope's fleet map** —
+   [`docs/architecture/FLEET.md`](../architecture/FLEET.md): one entry in
+   `<scope>-fleet/fleet.yml` (name, repo, tag, `governedBy`). Today this is a
+   manual PR; `shaper new` will automate it (TARGET). The registration guard
+   is also TARGET — until it ships, this step is held by reading, which is
+   exactly why it is written as a numbered step and not a footnote.
 
 ## What crosses the boundary, and in which direction
 

@@ -74,7 +74,9 @@
       "type": "object",
       "description": "Declared data lifecycle (Rule 31). personalData: false is a valid and common answer, but it must be written, not left silent.",
       "required": [
-        "personalData"
+        "personalData",
+        "retention",
+        "onTermination"
       ],
       "properties": {
         "personalData": {

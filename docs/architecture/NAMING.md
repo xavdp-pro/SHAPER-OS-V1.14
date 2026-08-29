@@ -47,3 +47,12 @@ from the catalogue:
 Nothing is inferred from a path. `@shaper/pkg-universe` validates it, and a base
 universe that needs `source: catalogue` fails the base's own test suite — it
 belongs in the catalogue, beside the brick it needs.
+
+## The universe field and the repo name (V1.13)
+
+For a **class repo**, the manifest's `universe` field IS the class name and
+matches the repository name exactly (`univ-mailo-core` in the repo
+`univ-mailo-core`). Universes living **inside the base** (`univ-base`, the
+`_template`, test universes) are not class repos — they keep their short
+slugs and are exempt from the `univ-<projet>-<classe>` grammar, which binds
+repositories, not in-base folders (Rule 1).

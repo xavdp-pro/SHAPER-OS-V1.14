@@ -158,6 +158,17 @@ export function checkManifestInvariants(manifest) {
     if (!brick?.package && !brick?.upstream) {
       errors.push(`bricks.${key}: declares neither a package it is built from nor an upstream image it wraps`);
     }
+
+    // Rule 37: a fork states its origin, and only a fork carries one. The
+    // schema expresses this as if/then, which validateAgainstSchema's subset
+    // does not evaluate — so the invariant is enforced here, in words the
+    // schema and the verifier agree on.
+    if (brick?.source === 'fork' && !(brick?.forkedFrom?.package && brick?.forkedFrom?.atVersion)) {
+      errors.push(`bricks.${key}: source is fork with no forkedFrom { package, atVersion } — a fork whose origin is unknown cannot be maintained (Rule 37)`);
+    }
+    if (brick?.source && brick.source !== 'fork' && brick?.forkedFrom) {
+      errors.push(`bricks.${key}: carries forkedFrom but is not source: fork — one of the two is lying (Rule 37)`);
+    }
   }
 
   const booted = (manifest?.bootOrder || []).flat();

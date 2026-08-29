@@ -132,9 +132,13 @@ never fork):
 
 ```json
 "bricks": {
-  "queue": {
-    "ref": "./software/bricks/brick-queue",
+  "brick-queue": {
+    "source": "base",
+    "perimeter": "P1",
+    "package": "@shaper/pkg-queue",
+    "image": "img-queue",
     "intent": "./software/bricks/brick-queue/INTENT.md",
+    "role": "Async work ledger for this universe",
     "cognition": {
       "capacityClass": "infra-ops",
       "depth": "D2",

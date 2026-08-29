@@ -272,7 +272,7 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
 * **The universe class repo grammar**: `univ-<projet>-<classe>`, where
   **projet is ONE word, no hyphen** — everything after the first word is the
   class, which may be composite. One-line parse:
-  `^univ-([a-z0-9]+)-([a-z0-9-]+)$`. A single-class project takes `-core`
+  `^univ-[a-z0-9]+(-[a-z0-9]+)+$`. A single-class project takes `-core`
   (`univ-mailo-core`): five characters against a future rename, settled.
 * **The five repo kinds, exhaustively** — every git repository in the
   ecosystem is exactly one of these, and nothing else exists:
@@ -841,7 +841,11 @@ rule is what killed the synonyms, and it keeps them dead.*
     never a rival.
 * **The ledger is the only instance store**: one row per instance (class, tag,
   machine, env, state, bucket) in the governing universe's database (Rule 26).
-  A standalone universe governs itself: its ledger lives in its own database.
+  A standalone universe governs itself: its ledger lives in its own database —
+  which means a standalone class that will hold its own ledger takes the
+  `+data` profile option (the default `agent` profile carries no database
+  brick). The canonical ledger table contract ships with `brick-forge`
+  (TARGET); until then the ledger binds by this rule's reading.
   "placement" survives only as the name of the machine-assignment column.
   Tag precedence: **fleet.yml = the default for new instances and the PRA
   floor; the ledger row = the truth, which may lag during a canary; an audit
@@ -855,7 +859,7 @@ rule is what killed the synonyms, and it keeps them dead.*
   sovereign fork (Rule 33) keeps its own mirrored fleet map — a client's PRA
   never hinges on the vendor's repo.
 * **Lexicon closure**: the vocabulary of this architecture is the prefix table
-  (Rule 1) plus twelve words — class, instance, ledger, drift, PURRING (and
+  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus twelve words — class, instance, ledger, drift, PURRING (and
   its state machine), status.json, board, fleet map, forge, forkedFrom, the
   mirror rule, source/perimeter. A new noun enters only by amending this rule,
   with the failure it prevents written beside it. New bricks are not new

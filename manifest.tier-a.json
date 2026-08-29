@@ -3,6 +3,11 @@
   "universe": "univ-example",
   "parent": null,
   "environment": "dev",
+  "dataLifecycle": {
+    "personalData": false,
+    "retention": "unlimited — evidence and configuration only",
+    "onTermination": "destroy all volumes and the vault; nothing is exported"
+  },
   "profile": "agent",
   "description": "Tier-a install manifest: copy to <univ_slug>-dev/manifest.json and replace every value. The five bricks a universe needs to exist, and no copy of their source.",
   "intent": "./INTENT.md",

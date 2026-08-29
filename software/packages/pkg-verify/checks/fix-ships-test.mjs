@@ -8,7 +8,9 @@ const CODE = /\.(m?js|cjs|sh|py)$/;
 const TEST = /(^|\/)test(s)?\/|\.test\.(m?js|cjs)$/;
 
 function git(root, args) {
-  return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim();
+  // stderr ignored: on a repo with no commits yet, raw locale-dependent git
+  // noise between PASS lines reads as a failure to the agent this tool reassures.
+  return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 }
 
 /**

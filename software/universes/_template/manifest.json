@@ -3,6 +3,11 @@
   "universe": "univ-example",
   "parent": null,
   "environment": "dev",
+  "dataLifecycle": {
+    "personalData": false,
+    "retention": "unlimited — evidence and configuration only",
+    "onTermination": "destroy all volumes and the vault; nothing is exported"
+  },
   "profile": "agent",
   "description": "Template — copy to universes/<slug>/manifest.json and replace every value. Validated on every test run, so a copy that drifts fails immediately.",
   "intent": "./INTENT.md",

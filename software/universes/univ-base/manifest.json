@@ -3,8 +3,13 @@
   "universe": "univ-base",
   "parent": null,
   "environment": "dev",
+  "dataLifecycle": {
+    "personalData": false,
+    "retention": "unlimited — evidence and configuration only",
+    "onTermination": "destroy all volumes and the vault; nothing is exported"
+  },
   "profile": "agent",
-  "description": "The canonical V1.12 base cell. Five bricks, no catalogue brick, no domain, no account. Every other universe starts from this shape.",
+  "description": "The canonical V1.13 base cell. Five bricks, no catalogue brick, no domain, no account. Every other universe starts from this shape.",
   "intent": "./INTENT.md",
   "agentDeploy": "./AGENT-DEPLOY.md",
   "context": "./ctx-base.md",

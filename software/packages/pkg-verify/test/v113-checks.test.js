@@ -104,10 +104,22 @@ describe('universe-slug-grammar — Rule 1', () => {
   });
 
   it('accepts a well-formed class repo, ignores non-universe repos', () => {
-    const ok = repo('univ-mailo-core', { 'LINEAGE.md': '# LINEAGE' });
+    const ok = repo('univ-mailo-core', { 'LINEAGE.md': '# LINEAGE\nCut from: SHAPER-OS-V1.13 @ v1.13.0' });
     assert.deepEqual(slugGrammar.run(ok), []);
     const base = repo('SHAPER-OS-V9.9', { 'README.md': '# base' });
     assert.deepEqual(slugGrammar.run(base), []);
+  });
+
+  it('refuses degenerate hyphen slugs — segments never start or end with one', () => {
+    for (const bad of ['univ-badname--', 'univ-x--y', 'univ--core']) {
+      const r = repo(bad, { 'LINEAGE.md': 'Cut from: SHAPER-OS-V1.13' });
+      assert.equal(slugGrammar.run(r).length, 1, `${bad} should be refused`);
+    }
+  });
+
+  it('refuses a LINEAGE that never names the base it was cut against', () => {
+    const r = repo('univ-mailo-batch', { 'LINEAGE.md': '# LINEAGE\nBecause reasons.' });
+    assert.match(slugGrammar.run(r)[0], /never names the base/);
   });
 });
 

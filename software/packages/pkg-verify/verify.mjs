@@ -45,9 +45,14 @@ for (const check of checks) {
   }
 }
 
+// The honest count: a check citing "Rule N" enforces the canon; the others
+// hold AGENTS.md and the Boot Contract. Counting checks as canon rules would
+// be a numerator over the wrong denominator (Rule 0G).
+const canonChecks = checks.filter((c) => /^Rule \d/.test(c.rule)).length;
 const total = canonRuleCount(root);
-console.log(`\n  ${checks.length} rule${checks.length > 1 ? 's' : ''} mechanically enforced` +
-  (total ? ` of ${total} in the canon — the rest binds by reading, in full.` : '.'));
+console.log(`\n  ${checks.length} checks — ${canonChecks}${total ? ` of ${total}` : ''} canon rules enforced by machine` +
+  `${checks.length > canonChecks ? `, ${checks.length - canonChecks} more holding AGENTS.md and the Boot Contract` : ''}` +
+  (total ? ' — the rest binds by reading, in full.' : '.'));
 
 if (failed > 0) {
   console.log(`\n  ${failed} rule${failed > 1 ? 's' : ''} violated. Stop. Fix. Do not stub your way to green.`);

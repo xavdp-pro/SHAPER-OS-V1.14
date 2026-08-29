@@ -22,7 +22,9 @@ const SECRET_SAFE = /example|placeholder|changeme|change-me|your[-_]|dummy|redac
 /** In a git repo, "committed" means tracked — the working tree is not the crime scene. */
 function candidates(root) {
   try {
-    const out = execFileSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8' });
+    // stderr ignored: outside a git repo the fallback below is the answer,
+    // not a French "fatal:" line spilled between PASS lines.
+    const out = execFileSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     return out.split('\0').filter(Boolean).map((f) => path.join(root, f));
   } catch {
     return [...walk(root)];

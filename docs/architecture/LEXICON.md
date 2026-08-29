@@ -8,14 +8,14 @@
 ## The three grammar rules (they held at every scale)
 
 1. **`univ-<projet>-<classe>`** — projet is ONE word, no hyphen. A single-class
-   project takes `-core`. Parse: `^univ-([a-z0-9]+)-([a-z0-9-]+)$`.
+   project takes `-core`. Parse: `^univ-[a-z0-9]+(-[a-z0-9]+)+$`.
 2. **Position lives in data, never in the slug** — LINEAGE.md, manifest,
    ledger. *The identifier says WHAT a thing is; structured data says WHENCE
    it comes and WHERE it sits.*
 3. **A class has a repo; an instance never does** — an instance is a ledger
    row + a vault + volumes.
 
-## The prefixes (existing law, unchanged — Rule 1)
+## The prefixes (existing law, unchanged — Rule 1 + [NAMING.md](./NAMING.md), the canonical table)
 
 `univ-` `brick-` `pkg-` `img-` `ctr-` `vol-` `cfg-` `ctx-` `task-` `proof-`
 — a new brick is **not** a new noun: `brick-forge`, `brick-scraper`,
@@ -31,7 +31,7 @@
 | **drift** | Any gap between the ledger and what actually runs — the sole repair trigger (Rule 27 governs the ladder) |
 | **PURRING** | The **dated** healthy state written on every on-time beat when observed == desired. One state machine everywhere: `DESIRED → RECONCILING → PURRING → DEGRADED` (DEGRADED is terminal, never self-clears) |
 | **status.json** | The canonical per-instance surface (state + lastPurr + lastBackup). Every board, tile or STATE file is a rendering of it, never a rival |
-| **board** | THE fleet view: one line per ledger row, all machines. Terminal twin `shaper board`, offline floor `cat fleet.yml` |
+| **board** | THE fleet view: one line per ledger row, all machines. Terminal twin `shaper board`. Offline, `cat fleet.yml` tells you what SHOULD exist — health only ever comes from status.json |
 | **fleet map** | The `fleet.yml` in a `<scope>-fleet` repo: base, catalogue, classes pinned to immutable tags, plus machines. Never instances. `-dev` bypasses it; `-test`/`-prod` are guarded by it |
 | **forge** | `brick-forge`: the single organ that deploys/destroys/repairs (LXC, podman, escalation restart → rebuild → redeploy + R2) |
 | **forkedFrom** | The lineage proof, at both levels: brick `{package, atVersion}`, repo `{repo, atTag}` — machine-checkable |
@@ -40,13 +40,18 @@
 
 ## The six verbs (one dialect, one target grammar)
 
+Only `verify` is **BINDING** today — its real invocation is
+`node software/packages/pkg-verify/verify.mjs [--root <repo>]`. The other five
+are **TARGET**: the contract is sealed here so five dialects never grow back,
+and the tool arrives with `brick-forge`.
+
 ```
-shaper new <class>             # birth: LINEAGE first, fleet.yml PR automatic
-shaper verify [--root]         # the executable law, identical everywhere
-shaper deploy <slug>-<env> [--on <machine>]
-shaper snapshot / restore <slug>-<env>
-shaper pra                     # clone the fleet map → redeploy all at tag → data from R2
-shaper board                   # is everything purring?
+shaper new <class>             # TARGET — birth: LINEAGE first, fleet.yml PR automatic
+shaper verify [--root]         # BINDING — the executable law, identical everywhere
+shaper deploy <slug>-<env> [--on <machine>]    # TARGET
+shaper snapshot / restore <slug>-<env>         # TARGET
+shaper pra                     # TARGET — clone the fleet map → redeploy at tags → data from R2
+shaper board                   # TARGET — is everything purring?
 ```
 
 Killed in critique: `subscribe` (a P3 app action, not a fleet verb),

@@ -7,7 +7,9 @@
 
 ## 1. Declarative Objective
 
-In-memory async job queue with progress tracking and SSE streaming — no external broker.
+Async job queue with progress tracking and SSE streaming — no external broker.
+Optional JSONL evidence trail: records survive a crash, in-flight execution
+does not (invariant 2).
 
 ---
 
@@ -23,7 +25,11 @@ In-memory async job queue with progress tracking and SSE streaming — no extern
    state and is never re-executed by this brick. No crash-survival claim may
    rest on this queue re-running work; a universe that needs at-least-once
    execution must make its jobs idempotent and re-enqueue from its own beat
-   (maestro), reading the hydrated records to know what was in flight. Without
+   (maestro), reading the hydrated records to know what was in flight. One
+   scoping note, verified in `worker.js`: hydrated **PENDING** jobs are
+   dispatched normally after a restart when the worker runs — a first
+   execution, not a resumption; hydrated **RUNNING** jobs are adopted as
+   `FAILED`, never re-run. Without
    `storageFile`, the queue is fully in-memory and a crash loses everything.
 3. **Events**: `EventEmitter` hooks + `JobQueue.formatSSE()` for HTTP streams.
 4. **Isolation**: `type` and `payload` are opaque. Zero business logic in the queue core.
