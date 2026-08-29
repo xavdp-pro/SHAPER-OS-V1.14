@@ -12,6 +12,7 @@
   "bricks": {
     "brick-vault": {
       "source": "base",
+      "perimeter": "P1",
       "package": "@shaper/pkg-vault",
       "image": "img-vault",
       "intent": "../../bricks/brick-vault/INTENT.md",
@@ -25,6 +26,7 @@
     },
     "brick-logger": {
       "source": "base",
+      "perimeter": "P1",
       "package": "@shaper/pkg-logger",
       "image": "img-logger",
       "intent": "../../bricks/brick-logger/INTENT.md",
@@ -33,6 +35,7 @@
     },
     "brick-queue": {
       "source": "base",
+      "perimeter": "P1",
       "package": "@shaper/pkg-queue",
       "image": "img-queue",
       "intent": "../../bricks/brick-queue/INTENT.md",
@@ -41,6 +44,7 @@
     },
     "brick-maestro": {
       "source": "base",
+      "perimeter": "P2",
       "package": "@shaper/pkg-maestro",
       "image": "img-maestro",
       "intent": "../../bricks/brick-maestro/INTENT.md",
@@ -53,12 +57,15 @@
     },
     "brick-bridge-opencode": {
       "source": "base",
+      "perimeter": "P2",
       "package": "@shaper/pkg-bridge-opencode",
       "image": "img-bridge-opencode",
       "intent": "../../bricks/brick-bridge-opencode/INTENT.md",
       "role": "<WHY this brick in THIS universe>",
       "port": 4440,
-      "specialize": { "how": "Measure the model from the target host at deployment (Rule 7)" }
+      "specialize": {
+        "how": "Measure the model from the target host at deployment (Rule 7)"
+      }
     }
   },
   "resources": {
@@ -67,9 +74,18 @@
     "agentContext": "./context/ctx-universe.md"
   },
   "bootOrder": [
-    ["brick-vault", "brick-logger"],
-    ["brick-queue"],
-    ["brick-bridge-opencode"],
-    ["brick-maestro"]
+    [
+      "brick-vault",
+      "brick-logger"
+    ],
+    [
+      "brick-queue"
+    ],
+    [
+      "brick-bridge-opencode"
+    ],
+    [
+      "brick-maestro"
+    ]
   ]
 }

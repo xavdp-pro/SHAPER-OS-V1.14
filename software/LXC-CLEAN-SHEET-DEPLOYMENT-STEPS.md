@@ -220,7 +220,7 @@ L'intégralité des étapes 1 à 7 est condensée dans le script exécutable `sc
 Sur un conteneur LXC neuf, il suffit de taper :
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.12.git /root/SHAPER-OS
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git /root/SHAPER-OS
 cd /root/SHAPER-OS
 bash scripts/shaper-lxc-bootstrap.sh
 ```
@@ -256,8 +256,8 @@ The message says nothing about nesting, which is why it belongs here.
 
 ```bash
 apt-get install -y podman git curl jq nodejs npm openssh-server rsync
-git clone --depth 1 https://github.com/xavdp-pro/SHAPER-OS-V1.12.git
-cd SHAPER-OS-V1.12/software
+git clone --depth 1 https://github.com/xavdp-pro/SHAPER-OS-V1.13.git
+cd SHAPER-OS-V1.13/software
 TAG="v1.7.1-$(git -C .. rev-parse --short HEAD)"
 for b in vault logger queue maestro bridge-opencode; do
   podman build -q -f bricks/brick-$b/Containerfile -t "localhost/shaper-$b:$TAG" .

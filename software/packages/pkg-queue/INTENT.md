@@ -14,7 +14,17 @@ In-memory async job queue with progress tracking and SSE streaming — no extern
 ## 2. Universal Invariants (Parameterized)
 
 1. **Lifecycle**: `PENDING` → `RUNNING` → `COMPLETED` | `FAILED` — set explicitly by the consumer (or by `QUEUE_AUTO_DISPATCH=1` worker for `agent.inject`).
-2. **Ephemeral**: In-memory only. No persistence, no retry logic in this brick.
+2. **Durability is evidence, never resumption** *(corrected in V1.13 — this
+   line used to say "in-memory only, no persistence", which the code itself
+   contradicted)*: when `storageFile` is configured, every job state change is
+   appended as JSONL and hydrated back at boot — the **record** of a job
+   survives a crash. What does NOT survive is its **execution**: a job that was
+   `RUNNING` when the process died comes back as a record in its last persisted
+   state and is never re-executed by this brick. No crash-survival claim may
+   rest on this queue re-running work; a universe that needs at-least-once
+   execution must make its jobs idempotent and re-enqueue from its own beat
+   (maestro), reading the hydrated records to know what was in flight. Without
+   `storageFile`, the queue is fully in-memory and a crash loses everything.
 3. **Events**: `EventEmitter` hooks + `JobQueue.formatSSE()` for HTTP streams.
 4. **Isolation**: `type` and `payload` are opaque. Zero business logic in the queue core.
 5. **Optional worker**: `worker.js` understands only `type=agent.inject` and forwards `payload.message` (+ optional params) to a bridge HTTP inject.

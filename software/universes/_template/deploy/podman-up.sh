@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Intent: software/universes/README.md#materialise-before-mount
 # Golden snippet — first DEV universe (local). Parameterized. No secrets in this file.
-# Monorepo layout: clone SHAPER-OS-V1.12, universe sits beside software/:
+# Monorepo layout: clone SHAPER-OS-V1.13, universe sits beside software/:
 #   <repo>/software/  +  <repo>/<univ_slug>-dev/
 set -euo pipefail
 
@@ -29,10 +29,10 @@ REPO_ROOT="$(cd "$UNIV/.." && pwd)"
 SHAPER="${SHAPER_ROOT:-$REPO_ROOT/software}"
 
 if [[ ! -d "$SHAPER/packages" ]]; then
-  if [[ -d "$REPO_ROOT/SHAPER-OS-V1.12/software/packages" ]]; then
-    SHAPER="$REPO_ROOT/SHAPER-OS-V1.12/software"
-  elif [[ -d "/root/SHAPER-OS-V1.12/software/packages" ]]; then
-    SHAPER="/root/SHAPER-OS-V1.12/software"
+  if [[ -d "$REPO_ROOT/SHAPER-OS-V1.13/software/packages" ]]; then
+    SHAPER="$REPO_ROOT/SHAPER-OS-V1.13/software"
+  elif [[ -d "/root/SHAPER-OS-V1.13/software/packages" ]]; then
+    SHAPER="/root/SHAPER-OS-V1.13/software"
   elif [[ -d "$UNIV/software/packages" ]]; then
     SHAPER="$UNIV/software"
   else

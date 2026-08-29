@@ -6,7 +6,7 @@
 > rules are the law; the phases only tell you which of them are live at this
 > moment.
 
-The 48 rules have uniform binding force but they do not all apply at the same
+The 49 rules have uniform binding force but they do not all apply at the same
 time. Reading them as one flat wall is how an agent ends up applying a promotion
 rule during exploration, or skipping a proof rule because it was in the same
 paragraph as something already done.

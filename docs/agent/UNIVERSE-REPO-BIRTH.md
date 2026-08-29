@@ -47,7 +47,7 @@ improvements found there travel back upstream.
 1. **`git init`** a fresh repository named for the class: `univ-<class>` —
    never a copy of the base with folders deleted.
 2. **Record the lineage first.** A `LINEAGE.md` at the root, before any code:
-   which base version it was cut against (`SHAPER-OS-V1.12`), which catalogue
+   which base version it was cut against (`SHAPER-OS-V1.13`), which catalogue
    bricks it consumes and at which image tags, and why this universe exists.
    A repository whose origin is unknown cannot be maintained (Rule 33.1).
 3. **Copy templates, never mechanisms.** Take `examples/universe-INTENT.md`,
@@ -59,7 +59,10 @@ improvements found there travel back upstream.
    manifest is the whole dependency: `"ged": { "image":
    "registry/shaper-ged:v1.9.0" }`. If the universe needs a brick the
    catalogue does not have, the brick is *contributed to the catalogue*, then
-   consumed by tag like any other.
+   consumed by tag like any other. **The boundary in one line: a brick goes
+   to the catalogue when its INTENT can be written without the business
+   word.** A brick whose intent cannot avoid naming the client or the
+   vertical is `source: native` and stays in the class repo (Rule 37).
 5. **Secrets exist only in the vault.** No `.env` is ever tracked; every
    fallback of the shape `process.env.X || '<a real value>'` is a committed
    credential with extra steps (Boot Contract 10b).
@@ -86,7 +89,16 @@ particularity into a shared brick.
 
 ## Naming
 
-`univ-<class>` for the class repository; `univ-<class>-<owner>` only for a
-Rule 33 fork; `<slug>-dev` / `<slug>-test` / `<slug>-prod` for the running
+*(Amended in V1.13 — this section used to say `univ-<class>-<owner>` for a
+fork, which contradicted the projet-first grammar; the fortress archetype
+forced the resolution: the owner becomes the projet word.)*
+
+`univ-<projet>-<classe>` for the class repository — projet is one word, a
+single-class project takes `-core` (Rule 1). A Rule 33 fork follows the
+**mirror rule**: swap only the projet word, keep every classe word verbatim
+(`univ-boutik-shop → univ-fortex-shop`), and declare repo-level
+`forkedFrom { repo, atTag }` in the manifest so `shaper verify` can hold it
+(Rule 37). `<slug>-dev` / `<slug>-test` / `<slug>-prod` for the running
 instances (Rule 36). The fractal DNS naming of a fleet's children is
-`pkg-fleet-dns`'s contract, not a convention to improvise.
+`pkg-fleet-dns`'s contract, not a convention to improvise. The full
+vocabulary is one page: [`../architecture/LEXICON.md`](../architecture/LEXICON.md).

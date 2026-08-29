@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "SHAPER OS universe manifest (V1.12)",
-  "description": "A universe declares what it is made of. It never copies a brick, and it never leaves the origin of a brick to be guessed: every entry states whether the brick comes from the base or from the catalogue.",
+  "title": "SHAPER OS universe manifest (V1.13)",
+  "description": "A universe declares what it is made of. It never copies a brick, and it never leaves anything about a brick to be guessed: every entry states where the brick comes from (source), which layer it belongs to (perimeter), and — when it diverged from a standard brick — what it forked from (Rule 37). The identifier says WHAT; these fields say WHENCE and WHERE.",
   "type": "object",
   "required": [
     "universe",
@@ -28,6 +28,71 @@
       ],
       "pattern": "^univ-[a-z0-9][a-z0-9-]*$",
       "description": "Parent supervisor universe for the fractal hierarchy (Rule 23 & Rule 36)."
+    },
+    "forkedFrom": {
+      "type": "object",
+      "description": "Repo-level lineage, mandatory for a Rule 33 fork repo: which upstream class repo this one diverged from, cut at which immutable tag. This is what lets shaper verify enforce the mirror rule (Rules 1 & 37).",
+      "required": [
+        "repo",
+        "atTag"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repo": {
+          "type": "string"
+        },
+        "atTag": {
+          "type": "string",
+          "pattern": "^v[0-9]"
+        }
+      }
+    },
+    "alerting": {
+      "type": "object",
+      "description": "The declared out-of-band escalation channel (Rule 27). A universe with no declared channel MUST NOT be promoted beyond DEV; the channel is tested at deploy time like any brick.",
+      "required": [
+        "channel"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "type": "string",
+          "minLength": 1,
+          "description": "mobile push, mail, Telegram, or an existing prod-alerting relay — whatever actually reaches a human out-of-band."
+        },
+        "target": {
+          "type": "string",
+          "description": "Where the channel delivers. Never a real personal address in a tracked example (Boot Contract 10b)."
+        },
+        "testedAtDeploy": {
+          "type": "boolean",
+          "description": "Set by the deploy proof once the channel has actually fired. An unverified alert path is an absent alert path (Rule 0G)."
+        }
+      }
+    },
+    "dataLifecycle": {
+      "type": "object",
+      "description": "Declared data lifecycle (Rule 31). personalData: false is a valid and common answer, but it must be written, not left silent.",
+      "required": [
+        "personalData"
+      ],
+      "properties": {
+        "personalData": {
+          "type": "boolean"
+        },
+        "retention": {
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "onTermination": {
+          "type": [
+            "string",
+            "object"
+          ]
+        }
+      }
     },
     "environment": {
       "type": "string",
@@ -106,19 +171,66 @@
         "type": "object",
         "required": [
           "source",
+          "perimeter",
           "image",
           "intent",
           "role"
         ],
         "additionalProperties": false,
+        "if": {
+          "properties": {
+            "source": {
+              "const": "fork"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "source",
+            "perimeter",
+            "image",
+            "intent",
+            "role",
+            "forkedFrom"
+          ]
+        },
         "properties": {
           "source": {
             "type": "string",
             "enum": [
               "base",
-              "catalogue"
+              "catalogue",
+              "fork",
+              "native"
             ],
-            "description": "Which repository ships this brick. A universe that assembles a catalogue brick says so here; nothing is inferred from a path."
+            "description": "Where this brick comes from (Rule 37). base/catalogue: shipped by that repository, consumed by image+tag. fork: inherited from a standard brick and specialised — forkedFrom becomes mandatory. native: a P3 brick scaffolded inside this class repo (the shaper-tool-scaffold path). Nothing is inferred from a path."
+          },
+          "perimeter": {
+            "type": "string",
+            "enum": [
+              "P1",
+              "P2",
+              "P3"
+            ],
+            "description": "Which layer this brick belongs to (Rule 0A, Rule 37). Perimeter means LAYER, never OWNER — a client-specific brick can be P1."
+          },
+          "forkedFrom": {
+            "type": "object",
+            "description": "Brick-level lineage, mandatory when source is fork: the standard package this brick diverged from, at which version (Rule 37).",
+            "required": [
+              "package",
+              "atVersion"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "package": {
+                "type": "string",
+                "pattern": "^@shaper/pkg-[a-z0-9][a-z0-9-]*$"
+              },
+              "atVersion": {
+                "type": "string"
+              }
+            }
           },
           "package": {
             "type": "string",

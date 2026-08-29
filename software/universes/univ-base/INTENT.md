@@ -4,7 +4,7 @@
 
 ## Objective
 
-The canonical V1.12 reference universe. It proves the generic SHAPER base, and
+The canonical V1.13 reference universe. It proves the generic SHAPER base, and
 it contains no catalogue product, no client workflow and no public name. If this
 universe does not come up, nothing built on top of it will — which is its whole
 job.

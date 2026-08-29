@@ -49,7 +49,7 @@ are the originals.
 
 | Document | Role |
 | :--- | :--- |
-| Helm product docs | Moved with `brick-helm` to the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.12) catalogue |
+| Helm product docs | Moved with `brick-helm` to the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13) catalogue |
 
 
 

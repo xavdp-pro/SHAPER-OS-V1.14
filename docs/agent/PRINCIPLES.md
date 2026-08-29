@@ -2,12 +2,12 @@
 
 > **Audience:** AI agents able to derive consequences from principles.
 > **Status:** generative index — **not** authority. The binding text is
-> [`software/RULES.md`](../../software/RULES.md) (48 rules) and [`LAW.md`](../../LAW.md).
+> [`software/RULES.md`](../../software/RULES.md) (49 rules) and [`LAW.md`](../../LAW.md).
 > **Size:** read this file in full. It is short on purpose.
 
 ## How to use this file
 
-The 48 rules of `RULES.md` are not 48 independent decisions. They are the
+The 49 rules of `RULES.md` are not 49 independent decisions. They are the
 **consequences** of ten principles. If you can hold these ten, you can predict
 most of the corpus before reading it, and you will recognise a violation even in
 a situation no rule anticipated.

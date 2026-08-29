@@ -28,7 +28,7 @@ because the cost of reading literal steps you did not need is minutes, and the
 cost of deriving something you should have read is a defect nobody notices.
 
 Whatever your row: **the binding text is
-[`software/RULES.md`](./software/RULES.md)** — 48 rules, read in full, never
+[`software/RULES.md`](./software/RULES.md)** — 49 rules, read in full, never
 summarised. Principles and phases are indexes over it, never substitutes for it.
 
 Reading only your row is enough to start correctly. Reading everything is still
@@ -71,7 +71,7 @@ that can be trusted with the next decision.
 
 | File | Force |
 | :--- | :--- |
-| [`software/RULES.md`](./software/RULES.md) | The canon. 48 rules. Uniform binding force. |
+| [`software/RULES.md`](./software/RULES.md) | The canon. 49 rules. Uniform binding force. |
 | [`LAW.md`](./LAW.md) | What is never skipped, in one page. |
 | [`docs/agent/BOOT-CONTRACT.md`](./docs/agent/BOOT-CONTRACT.md) | What you may do, and when you must stop. |
 | The universe `INTENT.md` + `manifest.json` | This specific universe's objective and shape. |
@@ -84,7 +84,7 @@ and *find*. It never grants permission.
 ## 3. Where you are
 
 ```
-SHAPER-OS-V1.12/
+SHAPER-OS-V1.13/
 ├── README.md                ← human door (5 levels)
 ├── AGENTS.md                ← you are here: agent door
 ├── LAW.md                   ← what is never skipped, one page
@@ -166,7 +166,9 @@ decides.** Record the measurement with the choice.
 Principles describe how it must behave. To learn what it has actually been proven
 to do, read the most recent verdict under
 `software/universes/*/proof/VERDICT.md`, then
-[`docs/human/PROOF.md`](./docs/human/PROOF.md). A verdict states what was tested,
+[`docs/human/PROOF.md`](./docs/human/PROOF.md). What changed in this release,
+gesture by gesture, is [`docs/V1.13-GENESIS.md`](./docs/V1.13-GENESIS.md);
+the language it sealed is [`docs/architecture/LEXICON.md`](./docs/architecture/LEXICON.md). A verdict states what was tested,
 on which commit, and what failed on the way — including the attempts that were
 rejected. Trust it over any summary, including this one.
 

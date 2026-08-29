@@ -15,7 +15,7 @@ one, which left two candidates for the same authority.
 
 ## Invariants
 
-1. **`RULES.md` lives here and is the canon.** 48 rules, uniform binding force,
+1. **`RULES.md` lives here and is the canon.** 49 rules, uniform binding force,
    read in full. Everything else in the repository — principles, phases,
    runbooks, doctrine — indexes it. Nothing replaces it, abbreviates it, or
    substitutes a pointer for it.

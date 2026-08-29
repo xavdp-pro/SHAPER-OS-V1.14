@@ -1,4 +1,4 @@
-# SHAPER OS V1.12
+# SHAPER OS V1.13
 
 > **The Sovereign Operating System of Standardized Bricks & Intentions — Where Humans Formulate Vision and AI Agents Build & Operate**
 
@@ -40,7 +40,7 @@ Go to **[`AGENTS.md`](./AGENTS.md)**. It routes you by capability:
 
 | Your class | Your path |
 | :--- | :--- |
-| **High abstraction** — you hold a system in one context and derive from principles | [`docs/agent/PRINCIPLES.md`](./docs/agent/PRINCIPLES.md) — ten principles that generate the 48 rules — then [`docs/agent/PHASES.md`](./docs/agent/PHASES.md) |
+| **High abstraction** — you hold a system in one context and derive from principles | [`docs/agent/PRINCIPLES.md`](./docs/agent/PRINCIPLES.md) — ten principles that generate the 49 rules — then [`docs/agent/PHASES.md`](./docs/agent/PHASES.md) |
 | **Fast or light** — high throughput, short context, or work that must not be improvised | [`docs/agent/RUNBOOK-EXPLICIT.md`](./docs/agent/RUNBOOK-EXPLICIT.md) — literal steps, explicit stops, no derivation required |
 | **Any class, first** | [`docs/agent/BOOT-CONTRACT.md`](./docs/agent/BOOT-CONTRACT.md) — what you may do and when you must stop |
 
@@ -136,7 +136,7 @@ For creators and developers familiar with the concept of **"Vibe Coding"** (prom
   1. **Zero Lines of Code Required from Humans:** The human provides **pure directives and intentions** (`INTENT.md`), stating what must be achieved and what must *never* happen (unless specifying a precise technical concept).
   2. **Carte Blanche for the AI Agent:** The agent is given total operational autonomy to write the implementation, orchestrate containers, and wire the services to fulfill the human's demand.
   3. **Inviolable Sovereign Guardrails:** The agent operates under the strict governance of:
-     - The **canon of 48 rules** ([`software/RULES.md`](./software/RULES.md)) — e.g. Rule 23 External Healing, Rule 27 Convergence Guard, Rule 36 Fractal SSH Authority — condensed to one page as [`LAW.md`](./LAW.md).
+     - The **canon of 49 rules** ([`software/RULES.md`](./software/RULES.md)) — e.g. Rule 23 External Healing, Rule 27 Convergence Guard, Rule 36 Fractal SSH Authority — condensed to one page as [`LAW.md`](./LAW.md).
      - The **Package & Isolation Rules** ([`software/RULES.md`](./software/RULES.md)).
      - The **Core Manifesto** ([`software/MANIFESTO.md`](./software/MANIFESTO.md)).
      - Mandatory automated test validation before any deployment or promotion.
@@ -351,9 +351,9 @@ In legacy programming, code is written in Python, Rust, or JavaScript, while Mar
 | :--- | :--- | :--- |
 | **`INTENT.md`** | Deploy / IDE Agent | The absolute objective, architectural boundaries, and 4 to 6 non-negotiable invariants. |
 | **`AGENTS.md`** | Any Agent, First | The entry door: which reading matches your capability class. |
-| **`LAW.md`** | All Agents | What is never skipped, in one page. The full canon is `software/RULES.md` (48 rules). |
+| **`LAW.md`** | All Agents | What is never skipped, in one page. The full canon is `software/RULES.md` (49 rules). |
 | **`docs/agent/BOOT-CONTRACT.md`** | Any Agent, First | Granted authority, hard stops, and the obligation to report every correction back into the repository. |
-| **`docs/agent/PRINCIPLES.md`** | High-Abstraction Models | The ten principles the 48 rules derive from. |
+| **`docs/agent/PRINCIPLES.md`** | High-Abstraction Models | The ten principles the 49 rules derive from. |
 | **`docs/agent/RUNBOOK-EXPLICIT.md`** | Fast / Light Models | Literal ordered steps with explicit stop conditions. |
 | **`docs/architecture/COGNITION.md`** | Dispatching Agent | The reasoning depth and throughput each piece of work requires. |
 | **`AGENT-DEPLOY.md`** | Provisioning Agent | Exact operational permissions on this host (commands allowed autonomously vs human approval required). |
@@ -422,8 +422,8 @@ Full scales and declaration format: [`docs/architecture/COGNITION.md`](./docs/ar
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.12.git
-cd SHAPER-OS-V1.12
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git
+cd SHAPER-OS-V1.13
 ```
 
 ### 2. Bootstrap the Local Foundation (Tier-a)
@@ -467,7 +467,7 @@ logger holds the evidence that it did. That output is the proof — not this pag
 | :--- | :--- |
 | [`AGENTS.md`](./AGENTS.md) | The agent door. Routes by model class. |
 | [`docs/agent/BOOT-CONTRACT.md`](./docs/agent/BOOT-CONTRACT.md) | Twelve statements: what you may do, when you must stop. |
-| [`docs/agent/PRINCIPLES.md`](./docs/agent/PRINCIPLES.md) | Ten principles that generate the 48 rules. Dense, for high-abstraction models. |
+| [`docs/agent/PRINCIPLES.md`](./docs/agent/PRINCIPLES.md) | Ten principles that generate the 49 rules. Dense, for high-abstraction models. |
 | [`docs/agent/PHASES.md`](./docs/agent/PHASES.md) | The seven phases, and which rules bind in each. |
 | [`docs/agent/RUNBOOK-EXPLICIT.md`](./docs/agent/RUNBOOK-EXPLICIT.md) | Literal steps for fast and light models. |
 | [`docs/architecture/COGNITION.md`](./docs/architecture/COGNITION.md) | Declaring required depth, throughput, and degradation. |
@@ -488,7 +488,7 @@ logger holds the evidence that it did. That output is the proof — not this pag
 
 | Document | Force |
 | :--- | :--- |
-| [`software/RULES.md`](./software/RULES.md) | The canon. 48 rules, read in full, never summarised. |
+| [`software/RULES.md`](./software/RULES.md) | The canon. 49 rules, read in full, never summarised. |
 | [`LAW.md`](./LAW.md) | What is never skipped, in one page. |
 | [`FRACTAL-ARCHITECTURE-AND-SECURITY.md`](./docs/architecture/FRACTAL-ARCHITECTURE-AND-SECURITY.md) | Fractal recursivity, PULL workers, security model. |
 | [`doctrine/`](./doctrine/) | The master corpus. `software/docs/` references it; it does not duplicate it. |

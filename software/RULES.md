@@ -262,24 +262,50 @@ SHAPER OS uses **two complementary layers** — never one replacing the other:
 
 ---
 
-### Rule 1: Canonical Naming Conventions & Mandatory `univ-` Git Prefix
+### Rule 1: Canonical Naming Conventions & the Universe Repo Grammar
 
-* **Mandatory `univ-` Git Repository Prefix (Everywhere)**: All Git repositories across the entire ecosystem MUST STRICTLY begin with the prefix `univ-`. No exceptions are permitted.
-  * Master Core Framework: `univ-shaper-os` (or `univ-shaper`)
-  * Business Universes: `univ-immo`, `univ-sinistre`, `univ-artisan`, `univ-ciel`
-  * Standalone Engines / Tools: `univ-vault`, `univ-app-shell`, `univ-mail-agent`
+*Amended in V1.13. The previous text demanded `univ-` on every repository "with
+no exceptions" while the ecosystem's own base (`SHAPER-OS`) and catalogue
+(`SHAPER-OS-BRICKS`) violated it from the first day. A rule the canon itself
+cannot obey is a defect; the amendment names the real repo kinds instead.*
 
-The `univ-` prefix provides a unified sovereign brand across Git, container namespaces, and system services while internally distinguishing deployable applications from composable logic packages.
+* **The universe class repo grammar**: `univ-<projet>-<classe>`, where
+  **projet is ONE word, no hyphen** — everything after the first word is the
+  class, which may be composite. One-line parse:
+  `^univ-([a-z0-9]+)-([a-z0-9-]+)$`. A single-class project takes `-core`
+  (`univ-mailo-core`): five characters against a future rename, settled.
+* **The five repo kinds, exhaustively** — every git repository in the
+  ecosystem is exactly one of these, and nothing else exists:
+
+| Kind | Naming | Example |
+| :--- | :--- | :--- |
+| The base | `SHAPER-OS` (versioned folder/repo) | `SHAPER-OS-V1.13` |
+| The catalogue | `SHAPER-OS-BRICKS` | `SHAPER-OS-BRICKS-V1.13` |
+| A universe class | `univ-<projet>-<classe>` | `univ-boutik-shop` |
+| A fork's catalogue | `<projet>-bricks` (Rule 33 forks only) | `fortex-bricks` |
+| The fleet map | `<scope>-fleet` | `shaper-fleet`, `fortex-fleet` |
+
+* **The mirror rule (Rule 33 forks)**: a fork swaps **only the projet word**
+  and keeps every classe word, repo kind and file name verbatim
+  (`univ-boutik-shop → univ-fortex-shop`). A fork costs zero new vocabulary,
+  and `shaper verify` can hold it via the repo-level `forkedFrom`.
+* **Classes have repos; instances never do.** An instance is a ledger row +
+  a vault + volumes. Runtime instance names follow the triumvirate lifecycle
+  (`<slug>-dev`, `<slug>-test`, `<slug>-prod`, Rule 36); the DNS-level
+  instance grammar is `pkg-fleet-dns`'s contract.
+* **Package and brick prefixes are unchanged**:
 
 | Element Type | Scope / Layer | Canonical Naming Convention | Real-World Examples |
 | :--- | :--- | :--- | :--- |
-| Composable Logic Bricks | NPM Scope `@shaper/` | `@shaper/<brick>` | `@shaper/pkg-vault`, `@shaper/pkg-logger`, `@shaper/pkg-queue` (**P1**); `@shaper/pkg-maestro`, `@shaper/pkg-mail-agent`, bridges (**P2**); `@shaper/waf`, `@shaper/variables`, `@shaper/ai-client` (**planned** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)) |
-| Vertical Universes (Apps) | Apps / Containers | `univ-<vertical>` | `univ-sinistre` (Legal & Insurance), `univ-artisan` (Construction/BTP), `univ-crm`, `univ-webmail`, `univ-wiki` |
-| AI Agent Bridges | Apps / Containers | `univ-bridge-<agent>` | `univ-bridge-agy`, `univ-bridge-opencode`, `univ-bridge-claude` |
-| Master Repository | Git Organization | `univ-shaper-os` | `xavdp-pro/univ-shaper-os` (Master Git) |
+| Composable Logic Bricks | NPM Scope `@shaper/` | `@shaper/<brick>` | `@shaper/pkg-vault`, `@shaper/pkg-logger`, `@shaper/pkg-queue` (**P1**); `@shaper/pkg-maestro`, `@shaper/pkg-mail-agent`, bridges (**P2**) |
+| Deployable bricks | OCI images | `brick-<name>` / `img-<name>` | `brick-vault`, `brick-forge`, `img-logger` |
 
 * **Brick Isolation Invariant**: A `@shaper/*` package never has knowledge of the universe consuming it (zero coupling, 100% isolated unit test coverage).
-* **Universe Lifecycle Invariant**: Every deployable container/app conforms to the triumvirate lifecycle (`univ-<slug>-dev`, `univ-<slug>-test`, `univ-<slug>-prod`).
+* **The meta-rule this grammar serves**: *the identifier says WHAT a thing is;
+  structured data (manifest, LINEAGE.md, ledger row, fleet.yml) says where it
+  comes from and where it sits.* No slug ever encodes graph position,
+  perimeter, or lineage — those live in data, so the graph can evolve without
+  a rename (see Rule 37).
 
 ---
 
@@ -778,3 +804,66 @@ Rule 29 requires that every bug resolved gives birth to a regression test. That 
   * Once the clean-sheet `-test` container passes 100% green, the git commit/tag is promoted to production via the canary protocol (Rule 25).
   * Immediately after promotion, the Parent executes complete destruction (`podman rm -f` / `lxc delete`) of the `-dev` and `-test` containers, releasing all ports, memory, and scratch volumes (Universe Garbage Collector).
 
+
+---
+
+<a id="rule-37"></a>
+### Rule 37: The Tree Speaks (Lexicon Closure, Manifest Lineage Fields & the Fleet Map)
+
+*Born in V1.13 from the ZEST convergence: five project archetypes were designed
+independently against the same grammar, then judged by three adversarial
+critics. The grammar held at every scale; every failure was a synonym. This
+rule is what killed the synonyms, and it keeps them dead.*
+
+* **Three manifest fields carry all lineage — never the slug**:
+  * `perimeter`: `P1` | `P2` | `P3`, **mandatory on every declared brick**.
+    Perimeter means **LAYER, never OWNER** — a client-specific brick can be P1.
+  * `source`: `base` | `catalogue` | `fork` | `native`, mandatory.
+    `native` = a P3 brick scaffolded inside the class repo (the
+    `shaper-tool-scaffold` path); `fork` = inherited from a standard brick and
+    specialised.
+  * `forkedFrom`: `{ "package": "@shaper/pkg-x", "atVersion": "x.y.z" }` —
+    **mandatory when `source` is `fork`**, forbidden otherwise. A Rule 33 fork
+    repo additionally declares repo-level lineage in its manifest root:
+    `"forkedFrom": { "repo": "<upstream>", "atTag": "vX.Y.Z" }` — this is what
+    lets `shaper verify` enforce the mirror rule by machine.
+* **One state machine, one set of names, everywhere**:
+  `DESIRED → RECONCILING → PURRING → DEGRADED`.
+  * **PURRING** is the healthy state, and it is **dated**: the universe writes
+    it to its `status.json` on every on-time beat when observed == desired.
+    Silence is ambiguous between "fine" and "dead and unable to say so"; a
+    stale `lastPurr` timestamp is the alarm. `running`, `green`, `OK` and
+    every other synonym are forbidden as state words.
+  * **drift** is the ONLY word for observed != desired, and the only repair
+    trigger. Rule 27 governs the repair ladder and the terminal `DEGRADED`.
+  * `status.json` (per instance: state, lastPurr, lastBackup) is the canonical
+    surface; every board, cockpit tile or STATE file is a rendering of it,
+    never a rival.
+* **The ledger is the only instance store**: one row per instance (class, tag,
+  machine, env, state, bucket) in the governing universe's database (Rule 26).
+  A standalone universe governs itself: its ledger lives in its own database.
+  "placement" survives only as the name of the machine-assignment column.
+  Tag precedence: **fleet.yml = the default for new instances and the PRA
+  floor; the ledger row = the truth, which may lag during a canary; an audit
+  task reconciles them.**
+* **The fleet map**: one tiny repo (`<scope>-fleet`) holding one `fleet.yml` —
+  base, catalogue and every class repo pinned to an **immutable tag**
+  (Rule 0E), plus the `machines:` inventory. Instances NEVER appear in it;
+  R2 buckets are derivable (`r2://<instance-id>`), never enumerated. `-dev`
+  bypasses the fleet map by law; `-test` and `-prod` are guarded by it: a
+  universe repo not registered in its fleet map is refused promotion. A
+  sovereign fork (Rule 33) keeps its own mirrored fleet map — a client's PRA
+  never hinges on the vendor's repo.
+* **Lexicon closure**: the vocabulary of this architecture is the prefix table
+  (Rule 1) plus twelve words — class, instance, ledger, drift, PURRING (and
+  its state machine), status.json, board, fleet map, forge, forkedFrom, the
+  mirror rule, source/perimeter. A new noun enters only by amending this rule,
+  with the failure it prevents written beside it. New bricks are not new
+  nouns — `brick-forge`, `brick-scraper`, `brick-sso` are the prefix system
+  doing its job.
+* **What it protects**: a human juggling several vibecoded projects and a cold
+  agent landing in a repo must both answer, from one page — *where is the
+  truth?* (the ledger) — *who repairs?* (the forge, triggered by drift) —
+  *is everything fine?* (the board, rendering status.json) — *how is it all
+  recreated?* (the fleet map + R2, Rule 16). A vocabulary that cannot fit on
+  one page has already failed them both.

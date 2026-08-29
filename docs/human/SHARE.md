@@ -14,7 +14,7 @@ Send:
 They generate **their** vault keys and **their** tunnel token.
 
 ```
-SHAPER-OS-V1.12/          ← one clone
+SHAPER-OS-V1.13/          ← one clone
 ├── software/
 └── <univ_slug>-dev/
 ```

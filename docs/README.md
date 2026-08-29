@@ -33,7 +33,7 @@ read the same text.
 | File | Purpose |
 | :--- | :--- |
 | [`BOOT-CONTRACT.md`](./agent/BOOT-CONTRACT.md) | Twelve statements: granted authority, hard stops, the obligation to report corrections back into the repository. **Read first, at every capability level.** |
-| [`PRINCIPLES.md`](./agent/PRINCIPLES.md) | Ten principles that generate the 48 rules. Dense. For models that derive. |
+| [`PRINCIPLES.md`](./agent/PRINCIPLES.md) | Ten principles that generate the 49 rules. Dense. For models that derive. |
 | [`PHASES.md`](./agent/PHASES.md) | Seven phases, and which rules bind in each. The ordered spine. |
 | [`RUNBOOK-EXPLICIT.md`](./agent/RUNBOOK-EXPLICIT.md) | Literal steps, explicit stops, no derivation required. |
 | [`COLD-READ-TEST.md`](./agent/COLD-READ-TEST.md) | For an agent asked to *evaluate* the documentation: seven questions, one report format. |
@@ -53,5 +53,5 @@ read the same text.
 ---
 
 **Not here:** the binding law. That is [`../software/RULES.md`](../software/RULES.md)
-— 48 rules, read in full, never summarised — with [`../LAW.md`](../LAW.md) as its
+— 49 rules, read in full, never summarised — with [`../LAW.md`](../LAW.md) as its
 one-page condensation and [`../doctrine/`](../doctrine/) as the master corpus.

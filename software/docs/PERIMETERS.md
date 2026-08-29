@@ -30,6 +30,18 @@ flowchart TB
 1. **P1 never knows P3** — socle bricks have zero knowledge of verticals (Rule 1: brick isolation).
 2. **P2 is the organism, not the product** — Helm/KovZu, GED/RAG memory, Maestro tasks enrich the assistant; they do not replace client-facing ERPs (Rule 0F).
 3. **P3 is built via the Shaper Way** — sandbox → `shaper-tool-scaffold.mjs` → dedicated brick + volume `/data/<slug>/` + own port; never merged into KovZu’s belly.
+4. **Perimeter means LAYER, never OWNER** *(V1.13, Rule 37)* — a brick that
+   exists for a single client can still be P1: a fork's hardened SSO brick is
+   socle-layer even though one owner demanded it. Who a brick belongs to is
+   said by `source`/`forkedFrom` and the repo it lives in; the perimeter says
+   only where it sits in the stack. Every declared brick carries its
+   `perimeter` in the manifest — the canonical table below is what
+   `shaper verify` checks known bricks against.
+5. **Behaviour files ride the brick that executes them** — a `ctx-*` or
+   `task-*` file carrying P3 business behaviour (a mailbox's triage rules)
+   inside a P1/P2 universe does not need a perimeter field of its own: its
+   perimeter is P3 by definition, and the universe hosting it stays what its
+   bricks say. One sentence, no new manifest slot.
 
 ---
 
@@ -43,7 +55,7 @@ flowchart TB
 | `@shaper/pkg-logger` / `brick-logger` | JSONL append-only audit | ✅ |
 | `@shaper/pkg-auth` | Stateless Bearer, in-process | ✅ |
 | `@shaper/pkg-db` / `brick-mariadb` | Turbinobash DB config resolver | ✅ |
-| `@shaper/pkg-queue` / `brick-queue` | In-memory async jobs (opaque payload) | ✅ |
+| `@shaper/pkg-queue` / `brick-queue` | Async jobs, opaque payload — JSONL evidence survives a crash, execution does not (see its INTENT) | ✅ |
 | `@shaper/waf` | Edge WAF (deterministic) | ❌ planned |
 | `log-sentinel` | System telemetry | ❌ planned |
 
