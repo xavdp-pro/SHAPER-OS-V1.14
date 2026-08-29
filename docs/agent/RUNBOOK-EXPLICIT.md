@@ -37,25 +37,16 @@ ls software/packages
    > *"Which registry does this machine use, at an address reachable **from
    > inside a universe LXC**, and is it TLS-verified?"*
 
-   **Why the wording matters.** The build runs inside the universe LXC
-   (Rule 11), and an address is only meaningful from where you stand: a
-   human standing on the host answers `127.0.0.1:5000` in good faith, and
-   inside the LXC that names the LXC's own loopback. The push then dies on
-   `connection refused` at the first image, with nothing in the message
-   pointing at the cause. A V1.13.2 tester lost its whole run there and
-   proved the shape read-only: host loopback, LXC loopback and host bridge
-   all refused; only the registry's own address answered.
+   **Why the wording matters**: the build runs inside the universe LXC
+   (Rule 11), so a loopback address answered from the host names the LXC
+   itself, and the first push dies on `connection refused` with nothing in
+   the message pointing at the cause.
 
    ```bash
-   export SHAPER_REGISTRY=<what the human named>     # e.g. 10.213.199.234:5000
+   export SHAPER_REGISTRY=<HOST_OR_IP>:<PORT>        # what the human named
    export SHAPER_TLS_VERIFY=false                    # ONLY if the human said it is insecure
-   ```
 
-   **Verify it before building anything** — one command, and it fails now
-   instead of ten minutes into a build:
-
-   ```bash
-   curl -sf "http://$SHAPER_REGISTRY/v2/" && echo "registry reachable"
+   curl -sf "http://$SHAPER_REGISTRY/v2/" && echo "registry reachable"   # BEFORE building
    ```
 
    - **It does not answer → STOP.** Do not guess another address, do not
