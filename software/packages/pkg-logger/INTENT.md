@@ -57,7 +57,9 @@ where it put it. A guard that reads a name proves nothing about a path.
 `/api/events` is a live stream: it answers the moment it is opened, whether or
 not anything was ever recorded. A proof that reads it observes a socket. The
 question "is there evidence" is answered by `/api/events/last`, which returns
-what is actually held.
+what is actually held. Practical note that has cost two testers ~2 minutes
+each: a plain `curl` on `/api/events` **never returns** — an SSE stream needs
+`curl -N` and a bounded read, or just use `/api/events/last`.
 
 *Why this is written here.* `univ-base`'s proof script reported "the logger holds
 evidence" while observing only that a connection succeeded. A probe that cannot

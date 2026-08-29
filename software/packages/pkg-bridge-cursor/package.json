@@ -1,6 +1,6 @@
 {
   "name": "@shaper/pkg-bridge-cursor",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "type": "module",
   "description": "HTTP/SSE bridge for Cursor Composer 2.5 Fast",
   "main": "index.js"

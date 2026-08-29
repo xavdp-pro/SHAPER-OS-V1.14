@@ -1,6 +1,6 @@
 {
   "name": "@shaper/pkg-vault",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "description": "AES-256-GCM Encrypted Secret Store and REST Server for GBS Podman Multi-Agent Infrastructure",
   "type": "module",
   "main": "index.js",

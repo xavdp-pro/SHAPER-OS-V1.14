@@ -23,6 +23,37 @@ ls software/packages
   SHAPER OS monorepo — `software/packages` is missing." Do not clone anything,
   do not create the directory.
 
+## Step 0b — The machine prerequisites (ask, never invent)
+
+*(Added in V1.13.1: all five beta testers were blocked or improvised here.)*
+
+1. **The podman registry.** Every machine that builds or deploys has ONE
+   registry — it is infrastructure, like its disk. **Ask the human which
+   registry this machine uses.** Do not invent one, do not start a throwaway
+   one, do not push to a registry another machine owns. When the human answers,
+   also ask whether it is TLS-verified. Then:
+
+   ```bash
+   export SHAPER_REGISTRY=<what the human named>     # e.g. 127.0.0.1:5000
+   export SHAPER_TLS_VERIFY=false                    # ONLY if the human said it is insecure
+   ```
+
+   - **The human is absent and you do not know the registry → STOP.** That is
+     the measured result; write it down.
+
+2. **Node.js ≥ 20 on the machine that runs the tests:**
+
+   ```bash
+   node --version
+   ```
+
+   - **Not correct:** absent or too old → install it (Debian:
+     `apt-get install -y nodejs npm`) before Step 4. `npm test` runs on the
+     host; images carry their own runtime, the host test run does not.
+
+3. **Memory.** The image build wants roughly 4 GB free. Below that it can be
+   OOM-killed with `exit 137` and no other explanation.
+
 ## Step 1 — Read these four files, in this order
 
 1. [`LAW.md`](../../LAW.md)
@@ -72,11 +103,16 @@ a ticket number is not a slug, and a tester who assumed the two were the same
 said afterwards that he should have asked. It is lowercase, letters, digits and
 hyphens only (Rule 1).
 
-**Where the universe directory goes.** `<univ_slug>-dev/` beside the repository
-root is the default. A universe carrying real work belongs **outside** the
-repository — this one is generic and publishes what it contains — and then the
-deploy script needs `SHAPER_ROOT` pointing at the `software/` tree, since it can
-no longer find it by walking up.
+**Where the universe directory goes.** `<univ_slug>-dev/` at the repository
+top level (a sibling of `software/`, inside the clone) is the default — one
+concrete example: repo at `/root/SHAPER-OS-V1.13`, universe at
+`/root/SHAPER-OS-V1.13/<univ_slug>-dev/`. The repo's own test suite only
+checks manifests the repo ships (tracked files), so your workspace inside the
+clone does not break `npm test` (fixed in V1.13.1 — beta finding F12). A
+universe carrying real work belongs **outside** the repository — this one is
+generic and publishes what it contains — and then the deploy script needs
+`SHAPER_ROOT` pointing at the `software/` tree, since it can no longer find
+it by walking up.
 
 **Write the universe's INTENT before you create anything.** Principle 1 is
 *intent precedes form*, and it is broken by habit: a tester created the container
@@ -101,16 +137,34 @@ cp software/resources/vault-resources.dev.example.json \
 cd software
 npm run vault:bootstrap
 npm test                              # packages only — MUST be green
+
+# The registry and tag from Step 0b MUST be exported here — the build
+# publishes to <SHAPER_REGISTRY>/shaper/brick-*:<SHAPER_IMAGE_TAG>, and the
+# deploy step resolves exactly those names (one ladder, V1.13.1).
+export SHAPER_IMAGE_TAG=<the tag you are deploying, e.g. v1.13.1>
 bash scripts/build-all-bricks.sh
+# Pin what the registry now serves — this is what lets TEST start pinned
+# instead of needing the forbidden SHAPER_ALLOW_UNPINNED=1:
+python3 scripts/record-image-lock.py --help   # then run it as it instructs
 cd ..
+
+# 4.2b — measure the engine, ONLY possible now: the opencode CLI ships inside
+# the bridge image you just built (until V1.13.1 this ordering was written
+# nowhere and the .env asked for a measurement no blank machine could make).
+podman run --rm --entrypoint opencode \
+  "$SHAPER_REGISTRY/shaper/brick-bridge-opencode:$SHAPER_IMAGE_TAG" models
+export OPENCODE_MODEL=<the cheapest engine that answered — Rule 7>
 
 # 4.3 — create the universe from the templates (never by copying packages)
 mkdir -p <univ_slug>-dev/deploy <univ_slug>-dev/tasks
 cp manifest.tier-a.json          <univ_slug>-dev/manifest.json
+cp examples/universe-AGENT-DEPLOY.md <univ_slug>-dev/AGENT-DEPLOY.md
 cp software/universes/_template/deploy/podman-up.sh  <univ_slug>-dev/deploy/podman-up.sh
 cp examples/tasks/task-schedule.json <univ_slug>-dev/tasks/task-schedule.json
 
-# 4.4 — start it, then prove the stack is up
+# 4.4 — start it, then prove the stack is up. SHAPER_REGISTRY, SHAPER_IMAGE_TAG
+# (and SHAPER_TLS_VERIFY if set) must still be exported: the deploy pulls the
+# images the build published, with the same TLS posture.
 bash <univ_slug>-dev/deploy/podman-up.sh     # health must exit 0
 
 # 4.5 — live tests, only now that the stack is running
@@ -184,7 +238,12 @@ curl -s -X POST "http://127.0.0.1:8640/api/jobs" \
 ```
 
 Then poll the job until it reaches a terminal state, and read `job.result.answer`
-— the persisted answer, not the streamed one.
+— the persisted answer, not the streamed one:
+
+```bash
+# the POST reply carries {"job":{"id":"job-..."}} — poll that id:
+curl -s "http://127.0.0.1:8640/api/jobs/<the id>"   # until status is COMPLETED or FAILED
+```
 
 For functional proof you need all four:
 

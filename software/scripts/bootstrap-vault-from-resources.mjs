@@ -27,9 +27,13 @@ let secrets = {};
 if (fs.existsSync(RESOURCES_FILE)) {
   try {
     const resources = JSON.parse(fs.readFileSync(RESOURCES_FILE, 'utf8'));
-    if (resources?.vault?.masterKey) vaultMasterKey = resources.vault.masterKey;
-    if (resources?.vault?.token) vaultToken = resources.vault.token;
-    if (resources?.vault?.storageFile) storageFile = path.resolve(ROOT, resources.vault.storageFile);
+    if (!process.env.VAULT_MASTER_KEY && resources?.vault?.masterKey) vaultMasterKey = resources.vault.masterKey;
+    if (!process.env.VAULT_TOKEN && resources?.vault?.token) vaultToken = resources.vault.token;
+    // An explicit env choice always beats the packaged default. Until V1.13.1
+    // the resources file silently overrode VAULT_STORAGE_FILE, so every
+    // universe on a host wrote into ONE shared vault.enc (beta finding F9) —
+    // a deployment that asked for isolation got commingling, silently.
+    if (!process.env.VAULT_STORAGE_FILE && resources?.vault?.storageFile) storageFile = path.resolve(ROOT, resources.vault.storageFile);
     if (resources?.secrets) secrets = resources.secrets;
   } catch (err) {
     console.warn(`[bootstrap-vault] Warning reading ${RESOURCES_FILE}: ${err.message}`);

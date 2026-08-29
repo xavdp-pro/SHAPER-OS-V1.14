@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -12,15 +13,37 @@ import {
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
-/** Every universe manifest this repository ships, wherever it sits. */
-function everyManifest(dir = REPO, found = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === '.git' || entry.name === 'node_modules') continue;
-    const absolute = path.join(dir, entry.name);
-    if (entry.isDirectory()) everyManifest(absolute, found);
-    else if (entry.name === 'manifest.json' || /^manifest\..+\.json$/.test(entry.name)) found.push(absolute);
+/**
+ * Every universe manifest this repository SHIPS — and shipped means tracked.
+ * Until V1.13.1 this walked the working tree, so an operator's own universe
+ * workspace created inside the repo (`<univ_slug>-dev/`, exactly what the
+ * runbook's default layout produces) failed the repo's own suite with a
+ * manifest the repo never shipped (beta finding F12).
+ */
+function everyManifest() {
+  try {
+    const out = execFileSync('git', ['-C', REPO, 'ls-files', '-z'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return out.split('\0').filter(Boolean)
+      .filter((rel) => {
+        const base = path.basename(rel);
+        return base === 'manifest.json' || /^manifest\..+\.json$/.test(base);
+      })
+      .map((rel) => path.join(REPO, rel));
+  } catch {
+    // Not a git checkout (an exported tarball): fall back to the walk.
+    const found = [];
+    (function walk(dir) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === '.git' || entry.name === 'node_modules') continue;
+        const absolute = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(absolute);
+        else if (entry.name === 'manifest.json' || /^manifest\..+\.json$/.test(entry.name)) found.push(absolute);
+      }
+    }(REPO));
+    return found;
   }
-  return found;
 }
 
 // The defect this test exists to prevent, stated plainly: until V1.11 the schema

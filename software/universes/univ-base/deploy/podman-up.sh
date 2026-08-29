@@ -47,14 +47,22 @@ resolve_image() {
     echo "$pinned"
     return
   fi
+  # Rung 2 (V1.13.1): the images just published by scripts/build-brick-*.sh,
+  # exactly as the build named them — the lock stays the release path, this is
+  # the freshly-built path. One ladder for every deploy script (beta F2).
+  if [[ -n "${SHAPER_REGISTRY:-}" && -n "${SHAPER_IMAGE_TAG:-}" ]]; then
+    echo "${SHAPER_REGISTRY}/shaper/brick-${key#img-}:${SHAPER_IMAGE_TAG}"
+    return
+  fi
   if [[ "${SHAPER_ALLOW_UNPINNED:-0}" != "1" ]]; then
-    echo "[podman-up] $key is not pinned in cfg-image-lock.json." >&2
-    echo "[podman-up] Build and publish the images, record their digests, then run again." >&2
+    echo "[podman-up] $key is not pinned in cfg-image-lock.json and no SHAPER_REGISTRY/SHAPER_IMAGE_TAG is set." >&2
+    echo "[podman-up] The registry is an infrastructure prerequisite, one per machine —" >&2
+    echo "[podman-up] ask the operator which one this machine uses (RUNBOOK step 0)." >&2
     echo "[podman-up] For a local dev run only: SHAPER_ALLOW_UNPINNED=1 $0" >&2
     exit 1
   fi
-  # Must match what scripts/build-brick-*.sh produces: shaper/brick-<component>.
-  echo "localhost/shaper-brick-${key#img-}:dev"
+  # Matches a local laptop build: SHAPER_REGISTRY=localhost SHAPER_IMAGE_TAG=dev.
+  echo "localhost/shaper/brick-${key#img-}:dev"
 }
 
 IMG_VAULT="$(resolve_image img-vault)"
@@ -65,7 +73,7 @@ IMG_BRIDGE="$(resolve_image img-bridge-opencode)"
 
 # ── 3. Volumes the universe owns ────────────────────────────────────────────
 VOL="$UNIV/.state"
-mkdir -p "$VOL/vol-univ-base-vault" "$VOL/vol-univ-base-log" \
+mkdir -p "$VOL/vol-univ-base-vault" "$VOL/vol-univ-base-log" "$VOL/vol-univ-base-opencode-ws" \
          "$VOL/vol-univ-base-queue" "$VOL/vol-univ-base-bridge"
 
 BRIDGE_TOKEN_FILE="$VOL/vol-univ-base-bridge/token"
@@ -138,6 +146,7 @@ podman run -d --name "$(ctr bridge-opencode)" --network "$NET" --replace \
   -e OPENCODE_BIN=/usr/local/bin/opencode \
   -e OPENCODE_WS_BASE=/data/opencode-ws \
   -e OPENCODE_MODEL="${OPENCODE_MODEL:-}" \
+  -v "$VOL/vol-univ-base-opencode-ws:/data/opencode-ws:Z" \
   -e BRIDGE_OPENCODE_STUB="${BRIDGE_OPENCODE_STUB:-0}" \
   -e HOME=/root \
   -e TOKEN_FILE=/root/.config/opencode-bridge/token \

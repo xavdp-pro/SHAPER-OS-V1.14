@@ -1,6 +1,6 @@
 {
   "name": "@shaper/pkg-opencode-server",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "private": true,
   "type": "module",
   "description": "HTTP + SSE bridge in front of the OpenCode CLI, on the shared agent-bridge contract",

@@ -50,10 +50,17 @@ Pour permettre à Podman de tourner sans restriction dans le conteneur LXC :
 
 ---
 
+> **Deux familles d'hôtes, un contrat (Rule 11).** Les étapes `pct`/Proxmox de
+> ce document ne s'appliquent PAS telles quelles à un hôte Debian/LXD : sur
+> LXD, c'est `lxc launch` + profil `podman-univ` + `security.nesting=true`
+> (section « Verified from scratch » plus bas, et Rule 11). Un agent identifie
+> la famille de l'hôte AVANT de suivre une commande de conteneur — constat
+> beta V1.13 : les scripts ne routent qu'une famille, la loi route les deux.
+
 ### Étape 1 — Provisioning OS & Outils d'Ingénierie
 Exécuté sur le système Debian 13 vierge :
 ```bash
-apt-get update && apt-get install -y   podman   git   curl   wget   jq   ripgrep   openssh-server   openssh-client   python3   python3-pip   rsync   unzip   ca-certificates
+apt-get update && apt-get install -y   podman   git   curl   wget   jq   ripgrep   openssh-server   openssh-client   python3   python3-pip   rsync   unzip   ca-certificates   nodejs   npm
 ```
 
 ---
@@ -85,7 +92,7 @@ Le montage réel est celui-ci :
 | :--- | :--- |
 | `$UNIV/sav/<brique>/` | `/data/<brique>` ou `/sav/<brique>` |
 | `$UNIV/log/` | `/data/logger` |
-| `software/data/vault/` | `/data/vault` |
+| `$UNIV/sav/vault/` | `/data/vault` — per-universe since V1.13.1 (beta F9) |
 
 L'état persistant d'un univers vit donc **sous le dossier de cet univers**, ce
 qui est ce qui rend un univers déplaçable, sauvegardable et destructible d'un
@@ -159,6 +166,7 @@ chmod 600 /root/.ssh/authorized_keys
 #   sed -i '/agent:<univ_slug>-bridge-opencode/d' /root/.ssh/authorized_keys
 ```
 
+```bash
 # Déploiement du wrapper /usr/local/bin/podman
 cat << 'EOF_WRAPPER' > /tmp/podman-wrapper.sh
 #!/bin/bash
@@ -265,6 +273,11 @@ done
 cp -r universes/_template universes/univ-<slug>-test   # then specialize INTENT + manifest + deploy/env
 cd universes/univ-<slug>-test && ENV_FILE=deploy/env ./deploy/podman-up.sh
 ```
+
+> *(Dated record — 23 August 2026. The `localhost/shaper-$b:$TAG` names above
+> predate the unified image ladder of V1.13.1: today the build publishes
+> `<registry>/shaper/brick-*:<tag>` and the deploy resolves the same — see
+> `scripts/deploy-image-resolve.sh`.)*
 
 Result: **five containers healthy**, a job injected into the queue reaching
 `COMPLETED`, and `/api/vitals` answering with evidence.

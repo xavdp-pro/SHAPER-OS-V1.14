@@ -62,13 +62,45 @@ fi
 export VAULT_MASTER_KEY="${VAULT_MASTER_KEY:?Set VAULT_MASTER_KEY in $ENV_FILE}"
 export VAULT_TOKEN="${VAULT_TOKEN:-}"
 export BRIDGE_OPENCODE_STUB="${BRIDGE_OPENCODE_STUB:-0}"
-export VAULT_PORT="${VAULT_PORT:-8610}"
-export LOGGER_PORT="${LOGGER_PORT:-8620}"
-export OPENCODE_BRIDGE_PORT="${OPENCODE_BRIDGE_PORT:-4440}"
+
+# The images this universe runs resolve through ONE ladder — the same names
+# the build published. See scripts/deploy-image-resolve.sh (V1.13.1, beta
+# campaign findings F1/F2/F8).
+source "$SHAPER/scripts/deploy-image-resolve.sh"
+IMG_VAULT="$(shaper_image_ref img-vault)"
+IMG_LOGGER="$(shaper_image_ref img-logger)"
+IMG_BRIDGE="$(shaper_image_ref img-bridge-opencode)"
+IMG_QUEUE="$(shaper_image_ref img-queue)"
+IMG_MAESTRO="$(shaper_image_ref img-maestro)"
+
+# Ports: the manifest declares them; env may override; these defaults are the
+# last resort. Until V1.13.1 the manifest said one family and this script
+# hardcoded another, and `test:live` failed as documented (beta finding F5).
+manifest_port() {
+  python3 - "$UNIV/manifest.json" "$1" "$2" 2>/dev/null <<'PY' || echo "$2"
+import json, sys
+try:
+    doc = json.load(open(sys.argv[1]))
+    port = (doc.get("bricks", {}).get(sys.argv[2], {}) or {}).get("port")
+    print(port if port else sys.argv[3])
+except Exception:
+    print(sys.argv[3])
+PY
+}
+export VAULT_PORT="${VAULT_PORT:-$(manifest_port brick-vault 8610)}"
+export LOGGER_PORT="${LOGGER_PORT:-$(manifest_port brick-logger 8620)}"
+export OPENCODE_BRIDGE_PORT="${OPENCODE_BRIDGE_PORT:-$(manifest_port brick-bridge-opencode 4440)}"
 export OPENCODE_SERVE_PORT="${OPENCODE_SERVE_PORT:-4441}"
-export QUEUE_PORT="${QUEUE_PORT:-8640}"
-export MAESTRO_PORT="${MAESTRO_PORT:-8630}"
-export OPENCODE_MODEL="${OPENCODE_MODEL:-opencode/nemotron-3.5-lightning-free}"
+export QUEUE_PORT="${QUEUE_PORT:-$(manifest_port brick-queue 8640)}"
+export MAESTRO_PORT="${MAESTRO_PORT:-$(manifest_port brick-maestro 8630)}"
+
+# No default model — Rule 7: engines are measured from THIS host, never
+# declared. The opencode CLI ships inside the bridge image you just resolved:
+#   podman run --rm --entrypoint opencode "$IMG_BRIDGE" models
+# measure, pick the cheapest that answers, and set OPENCODE_MODEL. (Until
+# V1.13.1 a withdrawn model was hardcoded here — the very one documented as
+# timing out on the reference host.)
+export OPENCODE_MODEL="${OPENCODE_MODEL:?not set — measure engines from this host (Rule 7): podman run --rm --entrypoint opencode <bridge-image> models}"
 export DEEPGRAM_API_KEY="${DEEPGRAM_API_KEY:-}"
 export GROQ_API_KEY="${GROQ_API_KEY:-}"
 # The queue is the universe's unit of work. Lanes are how it is sized to the
@@ -95,12 +127,15 @@ export AGY_BRIDGE_PORT="${AGY_BRIDGE_PORT:-4330}"
 # Every path mounted below must exist first: podman refuses to create a missing
 # bind source, and the failure only shows on a from-scratch universe — which is
 # precisely why we deploy one from scratch.
-mkdir -p "$SHAPER/data/vault" \
+mkdir -p "$UNIV/sav/vault" \
   "$UNIV/log" "$UNIV/sav" "$UNIV/state" \
   "$UNIV/sav/opencode-ws" "$UNIV/sav/opencode-bridge" \
   "$UNIV/sav/queue" "$WORK_ROOT"
 
-if [[ ! -f "$SHAPER/data/vault/vault.enc" ]]; then
+# The vault is PER-UNIVERSE state, in this universe's own sav/ (Rule 26 spirit).
+# Until V1.13.1 it lived in software/data/vault, shared by every universe on the
+# host (beta finding F9).
+if [[ ! -f "$UNIV/sav/vault/vault.enc" ]]; then
   echo "[podman-up] Bootstrapping vault..."
   # Bootstrapped inside the vault image, not with a host npm.
   #
@@ -112,15 +147,23 @@ if [[ ! -f "$SHAPER/data/vault/vault.enc" ]]; then
   # a workstation that happened to have node.
   #
   # The image already carries the runtime. Use it.
+  shaper_pull "$IMG_VAULT"
   podman run --rm \
     -v "$SHAPER:/shaper:Z" \
+    -v "$UNIV/sav/vault:/data/vault:Z" \
     -w /shaper \
     -e VAULT_MASTER_KEY \
-    -e VAULT_STORAGE_FILE=/shaper/data/vault/vault.enc \
+    -e VAULT_STORAGE_FILE=/data/vault/vault.enc \
     --entrypoint node \
-    localhost/shaper-vault:latest \
+    "$IMG_VAULT" \
     scripts/bootstrap-vault-from-resources.mjs
 fi
+
+# Pull everything up front, with the same TLS posture the build pushed with —
+# a stack must never discover mid-boot that its registry needs --tls-verify=false.
+for ref in "$IMG_VAULT" "$IMG_LOGGER" "$IMG_BRIDGE" "$IMG_QUEUE" "$IMG_MAESTRO"; do
+  shaper_pull "$ref"
+done
 
 TOKEN_FILE="$UNIV/sav/opencode-bridge/token"
 if [[ -n "${OPENCODE_BRIDGE_TOKEN:-}" ]]; then
@@ -157,15 +200,32 @@ podman run -d --name "${SLUG}-vault" --network "$NET" --replace \
   -e VAULT_MASTER_KEY \
   -e VAULT_TOKEN \
   -e VAULT_STORAGE_FILE=/data/vault/vault.enc \
-  -v "$SHAPER/data/vault:/data/vault:Z" \
-  localhost/shaper-vault:latest
+  -v "$UNIV/sav/vault:/data/vault:Z" \
+  "$IMG_VAULT"
 
 echo "[podman-up] logger :$LOGGER_PORT"
 podman run -d --name "${SLUG}-logger" --network "$NET" --replace \
   -e LOGGER_PORT="$LOGGER_PORT" \
   -e LOG_DIR=/data/logger \
   -v "$UNIV/log:/data/logger:Z" \
-  localhost/shaper-logger:latest
+  "$IMG_LOGGER"
+
+# Start order mirrors the manifest bootOrder: [vault, logger] -> [queue] -> [bridge] -> [maestro].
+# Until V1.13.1 this script started the bridge before the queue, in an order the
+# manifest never declared (beta finding H6; BOOT-CONTRACT point 6).
+echo "[podman-up] queue :$QUEUE_PORT"
+podman run -d --name "${SLUG}-queue" --network "$NET" --replace \
+  -e QUEUE_PORT="$QUEUE_PORT" \
+  -e QUEUE_AUTO_DISPATCH=1 \
+  -e QUEUE_BRIDGE_URL="http://127.0.0.1:$OPENCODE_BRIDGE_PORT" \
+  -e QUEUE_BRIDGE_TOKEN="$BRIDGE_AUTH_TOKEN" \
+  -e QUEUE_POLL_MS=2000 \
+  -e QUEUE_CONCURRENCY \
+  -e QUEUE_AGING_SECONDS \
+  -e QUEUE_STORAGE_FILE="${QUEUE_STORAGE_FILE:-/sav/queue/jobs.jsonl}" \
+  -e QUALITY_GATE_ENFORCE="${QUALITY_GATE_ENFORCE:-0}" \
+  -v "$UNIV/sav/queue:/sav/queue:Z" \
+  "$IMG_QUEUE"
 
 echo "[podman-up] bridge-opencode :$OPENCODE_BRIDGE_PORT"
 podman run -d --name "${SLUG}-bridge-opencode" --network "$NET" --replace \
@@ -181,21 +241,7 @@ podman run -d --name "${SLUG}-bridge-opencode" --network "$NET" --replace \
   -v "$UNIV/sav/opencode-ws:/data/opencode-ws:Z" \
   -v "$UNIV/sav/opencode-bridge:/root/.config/opencode-bridge:Z" \
   -v "$WORK_ROOT:$WORK_ROOT:Z" \
-  localhost/shaper-bridge-opencode:latest
-
-echo "[podman-up] queue :$QUEUE_PORT"
-podman run -d --name "${SLUG}-queue" --network "$NET" --replace \
-  -e QUEUE_PORT="$QUEUE_PORT" \
-  -e QUEUE_AUTO_DISPATCH=1 \
-  -e QUEUE_BRIDGE_URL="http://127.0.0.1:$OPENCODE_BRIDGE_PORT" \
-  -e QUEUE_BRIDGE_TOKEN="$BRIDGE_AUTH_TOKEN" \
-  -e QUEUE_POLL_MS=2000 \
-  -e QUEUE_CONCURRENCY \
-  -e QUEUE_AGING_SECONDS \
-  -e QUEUE_STORAGE_FILE="${QUEUE_STORAGE_FILE:-/sav/queue/jobs.jsonl}" \
-  -e QUALITY_GATE_ENFORCE="${QUALITY_GATE_ENFORCE:-0}" \
-  -v "$UNIV/sav/queue:/sav/queue:Z" \
-  localhost/shaper-queue:latest
+  "$IMG_BRIDGE"
 
 if [[ "$WITH_BRIDGE_CURSOR" == "1" ]]; then
   echo "[podman-up] bridge-cursor :$CURSOR_BRIDGE_PORT"
@@ -212,7 +258,7 @@ if [[ "$WITH_BRIDGE_CURSOR" == "1" ]]; then
     ${CURSOR_AGENT_DIR:+-v "${CURSOR_AGENT_DIR}:/opt/cursor-agent:ro"} \
     ${CURSOR_AGENT_DIR:+-e CURSOR_BIN=/opt/cursor-agent/cursor-agent} \
     -v "${WORK_ROOT}:${WORK_ROOT}:Z" \
-    localhost/shaper-bridge-cursor:latest
+    "$(shaper_image_ref img-bridge-cursor)"
 fi
 
 if [[ "$WITH_BRIDGE_AGY" == "1" ]]; then
@@ -228,7 +274,7 @@ if [[ "$WITH_BRIDGE_AGY" == "1" ]]; then
     ${AGY_HOST_BIN:+-v "${AGY_HOST_BIN}:/usr/local/bin/agy:ro"} \
     ${AGY_HOST_HOME:+-v "${AGY_HOST_HOME}:/root/.gemini"} \
     -v "${WORK_ROOT}:${WORK_ROOT}:Z" \
-    localhost/shaper-bridge-agy:latest
+    "$(shaper_image_ref img-bridge-agy)"
 fi
 
 TASKS_FILE="/data/univ/tasks/task-schedule.json"
@@ -248,7 +294,7 @@ podman run -d --name "${SLUG}-maestro" --network "$NET" --replace \
   -e BRIDGE_AUTH_TOKEN="$BRIDGE_AUTH_TOKEN" \
   -e MAESTRO_TASKS_FILE="$TASKS_FILE" \
   -v "$UNIV:/data/univ:Z" \
-  localhost/shaper-maestro:latest
+  "$IMG_MAESTRO"
 
 # brick-helm and the tunnel used to be started here. Both are catalogue bricks,
 # and this is the base template: a blueprint that starts a brick the base does

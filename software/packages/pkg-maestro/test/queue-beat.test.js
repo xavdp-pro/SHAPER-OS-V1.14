@@ -154,3 +154,37 @@ describe('maestro queue beat handler', () => {
     assert.throws(() => createQueueBeatHandler({}), /queueUrl is required/);
   });
 });
+
+// Intent: software/universes/univ-base/INTENT.md#proof
+// Non-regression (Rule 29): until V1.13.1 BEAT_ENQUEUED was logged BEFORE the
+// job existed, correlated to the slug — so no audit event could ever join a
+// queue job id, and the runbook's proof #4 was unsatisfiable by construction.
+// All five V1.13 beta testers hit this. This test fails on the unpatched code.
+describe('the audit event joins the job id (proof #4)', () => {
+  it('logs BEAT_ENQUEUED after creation, correlated to the created job id', async () => {
+    const logged = [];
+    const fetchImpl = async (url, opts = {}) => {
+      if (url.includes('/api/ingest')) {
+        logged.push(JSON.parse(opts.body));
+        return { ok: true, status: 202, json: async () => ({}) };
+      }
+      if ((opts.method || 'GET') === 'GET') {
+        return { ok: true, status: 200, json: async () => ({ status: 'ok', jobs: [] }) };
+      }
+      return { ok: true, status: 201, json: async () => ({ status: 'ok', job: { id: 'job-77' } }) };
+    };
+    const beat = createQueueBeatHandler({
+      queueUrl: 'http://127.0.0.1:8540/',
+      loggerUrl: 'http://127.0.0.1:8520',
+      fetchImpl,
+    });
+
+    const result = await beat({ slug: 'task-contact' });
+
+    assert.equal(result.jobId, 'job-77');
+    const enqueued = logged.find((e) => e.event === 'BEAT_ENQUEUED');
+    assert.ok(enqueued, 'BEAT_ENQUEUED must be logged');
+    assert.equal(enqueued.correlationId, 'job-77', 'the audit event carries the JOB ID, never just the slug');
+    assert.equal(enqueued.data.jobId, 'job-77');
+  });
+});

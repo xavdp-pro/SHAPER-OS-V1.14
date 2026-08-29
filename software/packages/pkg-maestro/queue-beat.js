@@ -61,15 +61,6 @@ export function createQueueBeatHandler({
     const message = entry.beatMessage
       || `Scheduled beat for ${slug}. Do the work this pod is registered for, then stop.`;
 
-    await ingestLog({
-      loggerUrl,
-      pod: 'maestro',
-      event: 'BEAT_ENQUEUED',
-      correlationId: slug,
-      data: { slug, kind: entry.kind || 'bridge', queue: target },
-      fetchImpl,
-    });
-
     const headers = { 'Content-Type': 'application/json' };
     if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
@@ -144,6 +135,20 @@ export function createQueueBeatHandler({
       });
       return { ok: false, skipped: true, reason: 'enqueue_rejected', processed: 0 };
     }
+
+    // The audit event is written AFTER the job exists, correlated to the job
+    // id — not before, correlated to the slug. Until V1.13.1 this event fired
+    // before createJob, so no audit line could ever join a queue job id and
+    // the runbook's proof #4 was unsatisfiable by construction (found by all
+    // five beta testers).
+    await ingestLog({
+      loggerUrl,
+      pod: 'maestro',
+      event: 'BEAT_ENQUEUED',
+      correlationId: body.job.id,
+      data: { slug, jobId: body.job.id, kind: entry.kind || 'bridge', queue: target },
+      fetchImpl,
+    });
 
     // Queued, and that is all this handler is entitled to claim.
     return { ok: true, enqueued: true, jobId: body.job.id, queue: target, processed: 0 };

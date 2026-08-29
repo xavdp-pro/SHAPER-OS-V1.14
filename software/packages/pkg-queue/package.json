@@ -1,6 +1,6 @@
 {
   "name": "@shaper/pkg-queue",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "type": "module",
   "main": "index.js",
   "scripts": {

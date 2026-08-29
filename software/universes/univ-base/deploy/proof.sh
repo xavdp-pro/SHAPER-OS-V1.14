@@ -53,17 +53,26 @@ echo "── every image this universe runs can be pulled back ─────�
 python3 "$UNIV/deploy/check-image-lock.py" "$UNIV/cfg-image-lock.json" || fail=1
 
 echo
-echo "── the logger holds evidence, not just a heartbeat ─────────────────────"
-# /api/events is a live SSE stream: it answers ": connected" the moment you
-# open it, whether or not anything was ever logged. Probing it proved the
-# endpoint was reachable and called that evidence. /api/events/last returns
-# what the logger actually holds.
-events="$(curl -sf --max-time 5 "http://127.0.0.1:$LOGGER_PORT/api/events/last?limit=5" 2>/dev/null || true)"
-count="$(printf '%s' "$events" | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("events", [])))' 2>/dev/null || echo 0)"
-if [[ "$count" -gt 0 ]]; then
-  say OK events "$count recorded — $(printf '%s' "$events" | python3 -c 'import json,sys; e=json.load(sys.stdin)["events"]; print(", ".join(sorted({x["pod"]+":"+x["event"] for x in e})))' 2>/dev/null)"
+echo "── the audit trail joins a real job (proof #4) ─────────────────────────"
+# Until V1.13.1 this section warned when the logger was empty and the script
+# still concluded "proven" — a green that Rule 0G forbids, found by all five
+# beta testers. The proof standard (runbook step 6, PROOF.md step 2) is: an
+# audit event correlated with a queue job id, read from outside the thing
+# that produced it. No job yet, or no correlated event → NOT proven.
+last_job="$(curl -sf --max-time 5 "http://127.0.0.1:$QUEUE_PORT/api/jobs" 2>/dev/null \
+  | python3 -c 'import json,sys; j=json.load(sys.stdin).get("jobs", []); print(j[-1]["id"] if j else "")' 2>/dev/null || true)"
+if [[ -z "$last_job" ]]; then
+  say FAIL audit "no queue job exists yet — the proof requires one real deliverable (Rule 25: the gate is the typed gate, not the health port)"
+  fail=1
 else
-  say WARN events "the logger holds nothing yet — wait one cadence and run again"
+  correlated="$(curl -sf --max-time 5 "http://127.0.0.1:$LOGGER_PORT/api/events/last?limit=50" 2>/dev/null \
+    | python3 -c "import json,sys; e=json.load(sys.stdin).get('events', []); print(sum(1 for x in e if x.get('correlationId')=='$last_job' or (x.get('data') or {}).get('jobId')=='$last_job'))" 2>/dev/null || echo 0)"
+  if [[ "$correlated" -gt 0 ]]; then
+    say OK audit "$correlated event(s) correlated with $last_job"
+  else
+    say FAIL audit "job $last_job left no correlated audit event — the work happened off the record"
+    fail=1
+  fi
 fi
 
 echo

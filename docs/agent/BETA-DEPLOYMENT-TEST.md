@@ -208,6 +208,25 @@ commit that carries your fix.
 
 ---
 
+
+## 7b. Report-only mode, and the build-vs-pull question
+
+*(Added in V1.13.1 — a live campaign hit both gaps.)*
+
+**Report-only mode.** An operator may mandate that testers fix NOTHING —
+several models testing the same frozen tag must all measure the same state,
+and the fixes are made once, together, afterwards. That mandate **overrides
+section 2**: reproduce, capture the raw error, record your workaround as a
+workaround, and deliver the report. Declare the mode at the top of your
+report. Everything else here still applies.
+
+**Build or pull?** Two legitimate paths exist and the answer depends on what
+is being tested. *A beta run builds from source* — the question is "can a
+cold agent build this"; pulling pre-built images would test the registry, not
+the repository. *A fleet deployment pulls from the machine's registry* — that
+is the normal path (RUNBOOK step 0b; the registry is an infrastructure
+prerequisite). Say in your report which path you took and why.
+
 ## 8. Related
 
 | If you were asked to… | Read |

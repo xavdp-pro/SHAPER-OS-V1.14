@@ -29,6 +29,10 @@ classes:
 machines:
   - name: <machine-name>   # the host inventory — a handful of rows that change yearly
     kind: proxmox | lxd
+    registry: <host:port>  # the machine's podman registry — an infrastructure
+                           # prerequisite, one per machine (V1.13.1, operator ruling):
+                           # deployments on this machine use THIS registry; an agent
+                           # that does not know it asks, never invents one
     reach: <how the operator reaches it — never a credential>
 ```
 

@@ -340,8 +340,16 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
 ### Rule 3: Proactive Podman Images & Quadlets Management
 * Whenever software or configuration changes impact a container:
   1. Rebuild the corresponding Podman image.
-  2. Push / tag the image to the local mesh registry (`10.87.78.3:5000` or local repo).
+  2. Push / tag the image to **the machine's registry** — an infrastructure
+     prerequisite, one per machine, asked of the operator and never invented
+     (`SHAPER_REGISTRY`, RUNBOOK step 0b).
   3. Reload Quadlets via Systemd: `systemctl daemon-reload && systemctl restart <service>`.
+
+  ### Illustrative Example (Non-Binding / Demonstration Only)
+  A mesh deployment may name its registry `10.87.78.3:5000`. That address is
+  one deployment's value, never this canon's — Rule 0B forbids a hardcoded IP
+  outside a header exactly like this one, and until V1.13.1 this rule carried
+  it bare (beta finding H8).
 
 ---
 
