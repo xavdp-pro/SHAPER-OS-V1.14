@@ -22,7 +22,7 @@
       "image": "img-vault",
       "intent": "../../bricks/brick-vault/INTENT.md",
       "role": "<WHY this brick in THIS universe>",
-      "port": 8510,
+      "port": 8610,
       "specialize": {
         "how": "Bootstrap from resources/vault-resources.local.json",
         "file": "../../resources/vault-resources.local.json",
@@ -36,7 +36,7 @@
       "image": "img-logger",
       "intent": "../../bricks/brick-logger/INTENT.md",
       "role": "<WHY this brick in THIS universe>",
-      "port": 8520
+      "port": 8620
     },
     "brick-queue": {
       "source": "base",
@@ -45,7 +45,7 @@
       "image": "img-queue",
       "intent": "../../bricks/brick-queue/INTENT.md",
       "role": "<WHY this brick in THIS universe>",
-      "port": 8540
+      "port": 8640
     },
     "brick-maestro": {
       "source": "base",
@@ -54,7 +54,7 @@
       "image": "img-maestro",
       "intent": "../../bricks/brick-maestro/INTENT.md",
       "role": "<WHY this brick in THIS universe>",
-      "port": 8530,
+      "port": 8630,
       "specialize": {
         "how": "MAESTRO_TASKS_FILE → ./tasks/task-schedule.json",
         "file": "./tasks/task-schedule.json"

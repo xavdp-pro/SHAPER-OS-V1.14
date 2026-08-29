@@ -22,7 +22,7 @@
       "image": "img-vault",
       "intent": "./software/bricks/brick-vault/INTENT.md",
       "role": "Sovereign secret store",
-      "port": 8510,
+      "port": 8610,
       "specialize": {
         "how": "Generate a master key locally, then bootstrap from resources",
         "file": "./software/resources/vault-resources.local.json",
@@ -43,7 +43,7 @@
       "image": "img-logger",
       "intent": "./software/bricks/brick-logger/INTENT.md",
       "role": "JSONL audit evidence",
-      "port": 8520,
+      "port": 8620,
       "cognition": {
         "role": "neutral",
         "depth": "D0",
@@ -59,7 +59,7 @@
       "image": "img-queue",
       "intent": "./software/bricks/brick-queue/INTENT.md",
       "role": "Async jobs → bridge",
-      "port": 8540,
+      "port": 8640,
       "cognition": {
         "role": "neutral",
         "depth": "D0",
@@ -75,7 +75,7 @@
       "image": "img-maestro",
       "intent": "./software/bricks/brick-maestro/INTENT.md",
       "role": "Cadence engine for declared task-* entries",
-      "port": 8530,
+      "port": 8630,
       "specialize": {
         "how": "MAESTRO_TASKS_FILE → ./tasks/task-schedule.json",
         "file": "./tasks/task-schedule.json"

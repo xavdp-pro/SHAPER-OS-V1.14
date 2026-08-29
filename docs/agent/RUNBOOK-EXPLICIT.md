@@ -135,7 +135,6 @@ cp software/resources/vault-resources.dev.example.json \
 
 # 4.2 — build and verify the software
 cd software
-npm run vault:bootstrap
 npm test                              # packages only — MUST be green
 
 # The registry and tag from Step 0b MUST be exported here — the build
@@ -143,9 +142,6 @@ npm test                              # packages only — MUST be green
 # deploy step resolves exactly those names (one ladder, V1.13.1).
 export SHAPER_IMAGE_TAG=<the tag you are deploying, e.g. v1.13.1>
 bash scripts/build-all-bricks.sh
-# Pin what the registry now serves — this is what lets TEST start pinned
-# instead of needing the forbidden SHAPER_ALLOW_UNPINNED=1:
-python3 scripts/record-image-lock.py --help   # then run it as it instructs
 cd ..
 
 # 4.2b — measure the engine, ONLY possible now: the opencode CLI ships inside
@@ -160,7 +156,14 @@ mkdir -p <univ_slug>-dev/deploy <univ_slug>-dev/tasks
 cp manifest.tier-a.json          <univ_slug>-dev/manifest.json
 cp examples/universe-AGENT-DEPLOY.md <univ_slug>-dev/AGENT-DEPLOY.md
 cp software/universes/_template/deploy/podman-up.sh  <univ_slug>-dev/deploy/podman-up.sh
+cp software/universes/univ-base/deploy/proof.sh          <univ_slug>-dev/deploy/proof.sh
+cp software/universes/univ-base/deploy/check-image-lock.py <univ_slug>-dev/deploy/check-image-lock.py
 cp examples/tasks/task-schedule.json <univ_slug>-dev/tasks/task-schedule.json
+
+# 4.3b — pin what the registry serves (the lock is what TEST and PROD start
+# from; a DEV run may skip this and proof.sh will say SKIP, not FAIL):
+python3 software/scripts/record-image-lock.py <univ_slug>-dev \
+  --registry="$SHAPER_REGISTRY"        # add --insecure if Step 0b said so
 
 # 4.4 — start it, then prove the stack is up. SHAPER_REGISTRY, SHAPER_IMAGE_TAG
 # (and SHAPER_TLS_VERIFY if set) must still be exported: the deploy pulls the
@@ -256,6 +259,12 @@ For functional proof you need all four:
 4. an audit event in the log correlates with the same queue job id.
 
 Missing any of the four → the work is **not** proven. Say so plainly.
+
+The four checks are scripted — run them instead of improvising them:
+
+```bash
+bash <univ_slug>-dev/deploy/proof.sh    # exit 0 = proven, and it says why not when not
+```
 
 ## Step 7 — Report every correction into the repository
 

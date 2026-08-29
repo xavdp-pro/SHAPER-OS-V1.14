@@ -110,7 +110,10 @@ export QUEUE_CONCURRENCY="${QUEUE_CONCURRENCY:-1}"
 export QUEUE_AGING_SECONDS="${QUEUE_AGING_SECONDS:-60}"
 # Set this to route every maestro beat through the queue instead of straight to
 # a bridge — one entry point, one ledger, one place that must be right.
-export MAESTRO_QUEUE_URL="${MAESTRO_QUEUE_URL:-}"
+# One entry point, one ledger, ONE DEFAULT (V1.13.2): beats route through the
+# queue unless the operator explicitly empties this — the audit trail that
+# joins a job id (proof #4) exists on the DEFAULT path, not a wired one.
+export MAESTRO_QUEUE_URL="${MAESTRO_QUEUE_URL:-http://127.0.0.1:$QUEUE_PORT}"
 # The work area every bridge can see. A perimeter is only enforceable where the
 # agent actually runs, so a path that exists on the host and not in the bridge
 # container bounds nothing. Mounting one shared root at the same path everywhere
