@@ -31,10 +31,19 @@ does not (invariant 2).
    execution, not a resumption; hydrated **RUNNING** jobs are adopted as
    `FAILED`, never re-run. Without
    `storageFile`, the queue is fully in-memory and a crash loses everything.
-3. **Events**: `EventEmitter` hooks + `JobQueue.formatSSE()` for HTTP streams.
-4. **Isolation**: `type` and `payload` are opaque. Zero business logic in the queue core.
-5. **Optional worker**: `worker.js` understands only `type=agent.inject` and forwards `payload.message` (+ optional params) to a bridge HTTP inject.
-6. **Terminal evidence**: a bridge terminal event decides success/failure; when it carries final answer text, the worker stores that answer in `job.result.answer` with the exit code.
+3. **The queue testifies for its own work** *(V1.13.4)*: with `LOGGER_URL` set,
+   every job emits `JOB_CREATED` and its terminal `JOB_COMPLETED` /
+   `JOB_FAILED`, **correlated to the job id**. The queue is the ledger of
+   work, so the queue is what must say a job existed — not whoever happened to
+   enqueue it. Until V1.13.4 only maestro logged, so a job POSTed by hand —
+   what the runbook prescribes for its own functional proof — finished with a
+   persisted answer and left no trace, making proof #4 unsatisfiable on the
+   documented path. Emission is fire-and-forget: a logger that is down never
+   stops work, and says so on stderr rather than failing silently.
+4. **Events**: `EventEmitter` hooks + `JobQueue.formatSSE()` for HTTP streams.
+5. **Isolation**: `type` and `payload` are opaque. Zero business logic in the queue core.
+6. **Optional worker**: `worker.js` understands only `type=agent.inject` and forwards `payload.message` (+ optional params) to a bridge HTTP inject.
+7. **Terminal evidence**: a bridge terminal event decides success/failure; when it carries final answer text, the worker stores that answer in `job.result.answer` with the exit code.
 
 ### Job parameters (voluntary enqueue)
 
