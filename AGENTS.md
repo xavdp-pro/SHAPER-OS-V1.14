@@ -27,6 +27,24 @@ had to choose without being told. The rule is: the row that assumes *less* wins,
 because the cost of reading literal steps you did not need is minutes, and the
 cost of deriving something you should have read is a defect nobody notices.
 
+<a id="two-audiences"></a>
+**Two audiences, one repository — and the improviser must not hide the rails'
+breakage.** Some engines derive their way around a hole in the documentation so
+naturally that they never report it; others stop at it. Both behaviours are
+right, and this repository serves both: the derivers get room (Rule 0C —
+guardrails, not handcuffs), the rest get [`RUNBOOK-EXPLICIT.md`](./docs/agent/RUNBOOK-EXPLICIT.md).
+What the V1.13 beta campaign established is that **an improviser reaching a
+green stack is not evidence that the literal path works**. Ten cold agents
+deployed this kit; the ones that improvised got furthest and reported least,
+and the literal path turned out to be the broken one — while the law points
+weak models at it. So:
+
+* **When you derive around something the documents do not say, say so.** The
+  workaround is a finding, not a detail. An undocumented step you solved
+  silently is a wall for the next agent who cannot.
+* **A path is proven by the agent who cannot leave it**, never by the one who
+  did not need it.
+
 Whatever your row: **the binding text is
 [`software/RULES.md`](./software/RULES.md)** — 49 rules, read in full, never
 summarised. Principles and phases are indexes over it, never substitutes for it.

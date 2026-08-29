@@ -32,7 +32,11 @@ machines:
     registry: <host:port>  # the machine's podman registry — an infrastructure
                            # prerequisite, one per machine (V1.13.1, operator ruling):
                            # deployments on this machine use THIS registry; an agent
-                           # that does not know it asks, never invents one
+                           # that does not know it asks, never invents one.
+                           # THE ADDRESS IS THE ONE REACHABLE FROM INSIDE A UNIVERSE
+                           # LXC, never a host-relative one: the build runs in the
+                           # LXC (Rule 11), so 127.0.0.1 there names the LXC itself
+                           # and the push dies on `connection refused` (V1.13.3).
     reach: <how the operator reaches it — never a credential>
 ```
 

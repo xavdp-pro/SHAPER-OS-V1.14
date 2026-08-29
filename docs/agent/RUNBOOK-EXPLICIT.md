@@ -28,18 +28,44 @@ ls software/packages
 *(Added in V1.13.1: all five beta testers were blocked or improvised here.)*
 
 1. **The podman registry.** Every machine that builds or deploys has ONE
-   registry — it is infrastructure, like its disk. **Ask the human which
-   registry this machine uses.** Do not invent one, do not start a throwaway
-   one, do not push to a registry another machine owns. When the human answers,
-   also ask whether it is TLS-verified. Then:
+   registry — it is infrastructure, like its disk. Do not invent one, do not
+   start a throwaway one, do not push to a registry another machine owns.
+
+   **Ask the human this exact question**, because a shorter one gets an
+   unusable answer:
+
+   > *"Which registry does this machine use, at an address reachable **from
+   > inside a universe LXC**, and is it TLS-verified?"*
+
+   **Why the wording matters.** The build runs inside the universe LXC
+   (Rule 11), and an address is only meaningful from where you stand: a
+   human standing on the host answers `127.0.0.1:5000` in good faith, and
+   inside the LXC that names the LXC's own loopback. The push then dies on
+   `connection refused` at the first image, with nothing in the message
+   pointing at the cause. A V1.13.2 tester lost its whole run there and
+   proved the shape read-only: host loopback, LXC loopback and host bridge
+   all refused; only the registry's own address answered.
 
    ```bash
-   export SHAPER_REGISTRY=<what the human named>     # e.g. 127.0.0.1:5000
+   export SHAPER_REGISTRY=<what the human named>     # e.g. 10.213.199.234:5000
    export SHAPER_TLS_VERIFY=false                    # ONLY if the human said it is insecure
    ```
 
+   **Verify it before building anything** — one command, and it fails now
+   instead of ten minutes into a build:
+
+   ```bash
+   curl -sf "http://$SHAPER_REGISTRY/v2/" && echo "registry reachable"
+   ```
+
+   - **It does not answer → STOP.** Do not guess another address, do not
+     start your own registry. Report: *"`$SHAPER_REGISTRY` does not answer
+     from here; I need an address reachable from inside the universe LXC."*
    - **The human is absent and you do not know the registry → STOP.** That is
      the measured result; write it down.
+   - The address is recorded per machine in the fleet map
+     (`machines[].registry` — see [`../architecture/FLEET.md`](../architecture/FLEET.md)),
+     so this question is asked once per machine, not once per deployment.
 
 2. **Node.js ≥ 20 on the machine that runs the tests:**
 
