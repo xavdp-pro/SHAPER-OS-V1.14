@@ -19,6 +19,7 @@ Sovereign AES-256-GCM secret engine — encrypt, persist, and inject credentials
 4. **Isolation**: Zero knowledge of consuming universes. Mailbox schema is a reusable contract only.
 5. **Materialized Empty State**: bootstrap persists an empty storage object even when no secrets are configured; successful initialization always leaves a storage file.
 6. **Owner-only Storage**: every persistence creates or repairs the Vault storage file with Unix mode `0600`.
+7. **No Documentation as a Key**: bootstrap refuses a master key or token left as an example template (`<...>`, `changeme`, …), whatever its source, and halts before creating anything — a value the operator never chose must never encrypt a vault (Rule 0J).
 
 ---
 
