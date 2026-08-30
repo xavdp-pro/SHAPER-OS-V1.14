@@ -99,6 +99,22 @@ Terrain is a step, not an assumption.)*
      (`machines[].registry` — see [`../architecture/FLEET.md`](../architecture/FLEET.md)),
      so this question is asked once per machine, not once per deployment.
 
+1c. **Step 0c — the start-line gate.** Once the registry is answered and
+   exported (with `SHAPER_IMAGE_TAG`), run the mechanical gate — it checks
+   every prerequisite of [`../PREREQUISITES.md`](../PREREQUISITES.md) and
+   runs on a naked clone, before any `npm install`:
+
+   ```bash
+   cd software && npm run preflight     # or: node scripts/preflight.mjs
+   ```
+
+   - **Exit 0 → start.**
+   - **Exit 1 → DO NOT START.** The failures it prints are your measured
+     result: report them. The only path past a red gate is the word of the
+     human working with you — they, never you, run it as
+     `SHAPER_HUMAN_OVERRIDE=1 npm run preflight` — and your report records
+     the override and what it covered.
+
 2. **Node.js ≥ 20 on the machine that runs the tests:**
 
    ```bash

@@ -1,5 +1,8 @@
 # TESTING REPORT — how V1.13 was proven, by whom, and what it cost
 
+> **Status**: dated snapshot — measurements of 29–30 August 2026. Model
+> names here are data from those runs, never recommendations (Rule 7).
+
 > **The claim under test.** SHAPER OS says a cold agent — any engine, any
 > model, no prior context — can deploy a universe by reading this repository
 > alone. That claim is only worth what an adversarial campaign says it is.

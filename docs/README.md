@@ -5,6 +5,7 @@ where its topic is.
 
 | Directory | Reader | Contents |
 | :--- | :--- | :--- |
+| [`PREREQUISITES.md`](./PREREQUISITES.md) | Both | What must be true before an agent starts — and the mechanical gate (`npm run preflight`) |
 | [`human/`](./human/) | People — owners, operators, engineers | Install, prove, operate, vocabulary, keys and accounts |
 | [`agent/`](./agent/) | AI agents, routed by capability | Boot contract, generative principles, process phases, explicit runbook |
 | [`architecture/`](./architecture/) | Anyone judging or extending the design | Brick taxonomy, cognition requirements, fractal security model |
