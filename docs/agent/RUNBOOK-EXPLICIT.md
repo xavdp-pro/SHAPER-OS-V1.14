@@ -188,12 +188,15 @@ export SHAPER_IMAGE_TAG=<the tag you are deploying>
 bash scripts/build-all-bricks.sh
 cd ..
 
-# Images already published at this tag are NOT rebuilt — the script checks the
-# registry and skips them. That is the difference between seconds and ~45
-# minutes of re-downloading the world (Rule 10, the two clocks), and it is
-# automatic: you never choose. SHAPER_FORCE_REBUILD=1 overrides, and the only
-# honest reason to is a source change behind an existing tag, which Rule 0E
-# forbids anyway.
+# Images already published at this tag are REUSED, not rebuilt — the script
+# asks the registry and skips them. Seconds instead of ~45 minutes of
+# re-downloading the world: Rule 10's fast clock, chosen for you.
+#
+# EXCEPT when you are PROVING rather than operating. A clean-sheet TEST
+# (Rule 10) or a beta run exists to show the edifice builds from nothing
+# (Pillar 1, creation ex nihilo) — and a skipped build shows nothing. There:
+#   export SHAPER_FORCE_REBUILD=1
+# and expect the slow clock. The slowness IS the measurement.
 
 # 4.2b — measure the engine, ONLY possible now: the opencode CLI ships inside
 # the bridge image you just built (until V1.13.1 this ordering was written

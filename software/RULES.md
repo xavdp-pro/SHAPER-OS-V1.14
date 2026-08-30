@@ -446,6 +446,7 @@ Every business universe `<slug>` operates across three strictly decoupled lifecy
 1. `univ-<slug>-dev`: Fast prototyping and vibe-coding on the `dev` branch.
 2. `univ-<slug>-test` (or `univ-test1`, `univ-test2`, `univ-testX` in parallel):
    - **The real PRA test is strictly FROM SCRATCH**: blank LXC container, WireGuard split-mesh attachment, Podman stack boot, Vault injection, and 100% test execution.
+   - **From scratch includes the images** *(V1.13.7)*: a TEST universe sets `SHAPER_FORCE_REBUILD=1` and builds every image from source. Reusing what the registry already serves is right when operating (Rule 0E) and hollow when proving — it turns a clean-sheet run into a claim about a build nobody performed (Rule 0G, Pillar 1 *creation ex nihilo*). The slow clock is the measurement, not an obstacle.
    - **Mandatory Destroy-After-Test Rule**: Once the test cycle is verified, the ephemeral test container **MUST BE DESTROYED** (`pct destroy <vmid>` or `lxc delete --force`) to guarantee zero residue and prove continuous cold recovery.
 3. `univ-<slug>-prod`: Initialized once, then atomic hot-updated via Git release tags (`v1.x.y`) and Quadlet reloads without service disruption.
 

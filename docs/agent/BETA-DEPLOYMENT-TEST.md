@@ -24,6 +24,32 @@ ten seconds to work out what a step meant, that pause is an incident.
 
 ---
 
+
+## 1b. Build from source — a reused image proves nothing
+
+*(V1.13.7, after a correction nearly hollowed out this protocol.)*
+
+`build-all-bricks.sh` reuses an image already published at your tag, because
+that is right when **operating**: the registry tag is the artefact (Rule 0E),
+and rebuilding it only re-downloads the world.
+
+**It is wrong when proving.** This protocol exists to answer Pillar 1 —
+*creation ex nihilo*: does the whole edifice still build from a single git
+repository, with no hidden dependency? A skipped build answers nothing, and a
+green run that skipped it is a false green (Rule 0G).
+
+So, before Step 4.2:
+
+```bash
+export SHAPER_FORCE_REBUILD=1     # a beta run builds every image from source
+```
+
+Expect it to be slow — around 45 minutes on the reference host for the nine
+images, against seconds when reusing. **That slowness is the measurement**, not
+an obstacle: it is the cost of proving the edifice from nothing, paid once by a
+tester so that no client ever pays it. Report the duration; it is one of Rule
+10's three clocks and the number belongs in your report.
+
 ## 2. Go all the way — and hand us the fix inside the report
 
 **Do not stop at the wall.** If you can reproduce a defect, understand it and

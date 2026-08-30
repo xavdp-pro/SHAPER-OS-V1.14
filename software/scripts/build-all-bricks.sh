@@ -13,16 +13,21 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# An image already published at this tag is the artefact — rebuilding it does
-# not make it truer, it only re-downloads the world. Rule 0E: the registry tag
-# IS the frozen artefact. Rule 10 names the two clocks; this is what puts a
-# deployment on the fast one.
+# TWO CLOCKS, TWO INTENTS — and confusing them makes a test prove nothing.
+#
+# **Operating** (Rule 0E): an image already published at this tag IS the
+# artefact. Rebuilding it does not make it truer, it re-downloads the world.
+# Reuse is correct, and it is the default: that is Rule 10's fast clock.
+#
+# **Proving** (Pillar 1, "creation ex nihilo"; Rule 10's clean-sheet TEST):
+# the question is whether the whole edifice still builds from a single git
+# repository with no hidden dependency. A skipped build answers nothing.
+# **A beta or clean-sheet run MUST set SHAPER_FORCE_REBUILD=1** — the protocol
+# says so, and this script says so too when it skips.
 #
 # Measured on the reference host: a cold rebuild of the nine images took ~45
 # minutes (base image pulled from docker.io, CLIs reinstalled per bridge);
-# the same nine already published took seconds to confirm. Set
-# SHAPER_FORCE_REBUILD=1 to rebuild anyway — the only reason to is a change in
-# the sources behind an existing tag, which Rule 0E forbids in the first place.
+# the same nine already published took seconds to confirm.
 published() {
   local repo="$1"
   curl -sf --max-time 10 \
@@ -31,8 +36,13 @@ published() {
     -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' >/dev/null 2>&1
 }
 
+if [[ "${SHAPER_FORCE_REBUILD:-0}" == "1" ]]; then
+  echo "[build-all-bricks] SHAPER_FORCE_REBUILD=1 — building every image from source (ex nihilo)"
+fi
+
 if [[ "${SHAPER_FORCE_REBUILD:-0}" != "1" ]] && published base; then
-  echo "[build-all-bricks] shaper/base:${SHAPER_IMAGE_TAG} is already published — skipping its build"
+  echo "[build-all-bricks] shaper/base:${SHAPER_IMAGE_TAG} already published — REUSED, not built."
+  echo "[build-all-bricks]   Proving a clean sheet? This proves nothing: SHAPER_FORCE_REBUILD=1."
 else
   bash scripts/build-base-image.sh
 fi
