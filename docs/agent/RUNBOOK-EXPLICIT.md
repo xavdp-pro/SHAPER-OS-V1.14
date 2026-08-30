@@ -76,6 +76,17 @@ Terrain is a step, not an assumption.)*
    curl -sf "http://$SHAPER_REGISTRY/v2/" && echo "registry reachable"   # BEFORE building
    ```
 
+   - **If a later `podman push` fails with `http: server gave HTTP response
+     to HTTPS client`** — seen on Debian trixie LXCs even with
+     `SHAPER_TLS_VERIFY=false` — the container engine itself must be told.
+     Two lines, hard-won:
+
+     ```bash
+     mkdir -p /etc/containers/registries.conf.d
+     printf '[[registry]]\nlocation="%s"\ninsecure=true\n' "$SHAPER_REGISTRY" \
+       > /etc/containers/registries.conf.d/shaper.conf
+     ```
+
    - **It does not answer → STOP.** Do not guess another address, do not
      start your own registry. Report: *"`$SHAPER_REGISTRY` does not answer
      from here; I need an address reachable from inside the universe LXC."*
@@ -175,7 +186,18 @@ cp software/universes/_template/context/ctx-universe.md <univ_slug>-dev/context/
 cp .env.example software/.env
 cp software/resources/vault-resources.dev.example.json \
    software/resources/vault-resources.local.json
-# fill the generated vault keys into BOTH files
+# Fill the generated keys into BOTH files — with this exact command, because
+# "fill them in" left a tester shipping the placeholder token:
+python3 - <<'FILL'
+import json, re
+env = dict(re.findall(r'^([A-Z_]+)=(.*)$', open('software/.env').read(), re.M))
+p = 'software/resources/vault-resources.local.json'
+d = json.load(open(p))
+d.setdefault('vault', {})['masterKey'] = env['VAULT_MASTER_KEY']
+d['vault']['token'] = env.get('VAULT_TOKEN', '')
+json.dump(d, open(p, 'w'), indent=2)
+print('vault-resources.local.json filled from software/.env')
+FILL
 
 # 4.2 — build and verify the software
 cd software
@@ -189,14 +211,14 @@ bash scripts/build-all-bricks.sh
 cd ..
 
 # Images already published at this tag are REUSED, not rebuilt — the script
-# asks the registry and skips them. Seconds instead of ~45 minutes of
-# re-downloading the world: Rule 10's fast clock, chosen for you.
+# asks the registry and skips them — Rule 10's fast clock, chosen for you.
 #
 # EXCEPT when you are PROVING rather than operating. A clean-sheet TEST
 # (Rule 10) or a beta run exists to show the edifice builds from nothing
 # (Pillar 1, creation ex nihilo) — and a skipped build shows nothing. There:
 #   export SHAPER_FORCE_REBUILD=1
-# and expect the slow clock. The slowness IS the measurement.
+# on a tag the registry has NEVER served. The proof is factual, not a
+# stopwatch: tag absent before, present after, digests servable back.
 
 # 4.2b — measure the engine, ONLY possible now: the opencode CLI ships inside
 # the bridge image you just built (until V1.13.1 this ordering was written
@@ -213,6 +235,7 @@ cp software/universes/_template/deploy/podman-up.sh  <univ_slug>-dev/deploy/podm
 cp software/universes/univ-base/deploy/proof.sh          <univ_slug>-dev/deploy/proof.sh
 cp software/universes/univ-base/deploy/check-image-lock.py <univ_slug>-dev/deploy/check-image-lock.py
 cp examples/tasks/task-schedule.json <univ_slug>-dev/tasks/task-schedule.json
+cp software/universes/_template/cfg-image-lock.json <univ_slug>-dev/cfg-image-lock.json
 
 # 4.3b — pin what the registry serves (the lock is what TEST and PROD start
 # from; a DEV run may skip this and proof.sh will say SKIP, not FAIL):

@@ -25,9 +25,11 @@ cd "$ROOT"
 # **A beta or clean-sheet run MUST set SHAPER_FORCE_REBUILD=1** — the protocol
 # says so, and this script says so too when it skips.
 #
-# Measured on the reference host: a cold rebuild of the nine images took ~45
-# minutes (base image pulled from docker.io, CLIs reinstalled per bridge);
-# the same nine already published took seconds to confirm.
+# No duration is promised here — Rule 10 forbids the figure, and the one this
+# header once carried came from an unverified report and was wrong by 45x.
+# The proof of an ex nihilo build is factual, never a stopwatch: the tag was
+# absent from the registry before, present after, and every digest in
+# .release/ is servable back.
 published() {
   local repo="$1"
   curl -sf --max-time 10 \

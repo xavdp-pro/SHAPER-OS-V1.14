@@ -44,11 +44,20 @@ So, before Step 4.2:
 export SHAPER_FORCE_REBUILD=1     # a beta run builds every image from source
 ```
 
-Expect it to be slow — around 45 minutes on the reference host for the nine
-images, against seconds when reusing. **That slowness is the measurement**, not
-an obstacle: it is the cost of proving the edifice from nothing, paid once by a
-tester so that no client ever pays it. Report the duration; it is one of Rule
-10's three clocks and the number belongs in your report.
+**The proof is factual, never a stopwatch** (Rule 10 forbids promised
+durations — and the figure this section once carried was wrong by 45x on the
+reference host). An ex nihilo build is proven by three facts, all checkable
+from outside the build:
+
+1. the tag was **absent** from the registry before the build
+   (`curl .../v2/shaper/base/tags/list`);
+2. it is **present** after;
+3. every digest recorded in `software/.release/*.digest` is **servable back**
+   (`HEAD /v2/shaper/<brick>/manifests/<digest>` answers 200).
+
+Record the duration you measured, with the hardware — it is an observation for
+the report, never a pass/fail criterion. A fast build on strong hardware
+proves exactly as much as a slow one.
 
 ## 2. Go all the way — and hand us the fix inside the report
 
