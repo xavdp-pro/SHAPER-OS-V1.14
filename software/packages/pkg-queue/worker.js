@@ -165,6 +165,12 @@ export function startQueueAgentWorker({
   concurrency: initialConcurrency = Math.max(1, Number(process.env.QUEUE_CONCURRENCY || 1)),
   // How fast waiting converts into rank. See `effectivePriority`.
   agingSeconds = Math.max(1, Number(process.env.QUEUE_AGING_SECONDS || 60)),
+  // How long a lane will wait for a run's terminal event before giving up.
+  // A hung event stream once held the only lane forever: the job sat RUNNING,
+  // every later job sat PENDING, and only a container restart freed the queue
+  // (v1.13.11 sealing run, incident 2). Same epistemology as adoptOrphans:
+  // giving up is not inventing an outcome — it is saying nobody watches anymore.
+  runMaxSeconds = Math.max(0.05, Number(process.env.QUEUE_RUN_MAX_SECONDS || 900)),
   fetchImpl = fetch,
   followImpl = followViaSse,
 } = {}) {
@@ -283,12 +289,34 @@ export function startQueueAgentWorker({
     queue.updateJobProgress(job.id, { status: 'RUNNING', progress: 50, step: 1, result });
 
     let outcome;
+    const GAVE_UP = Symbol('gave-up');
+    let watchTimer;
     try {
-      outcome = await follower.done;
+      outcome = await Promise.race([
+        follower.done,
+        new Promise((resolve) => {
+          watchTimer = setTimeout(() => resolve(GAVE_UP), runMaxSeconds * 1000);
+          watchTimer.unref?.();
+        }),
+      ]);
     } catch (err) {
       queue.updateJobProgress(job.id, {
         status: 'RUNNING', progress: 50, step: 1,
         result: { ...result, unobserved: `event stream interrupted: ${err.message}` },
+      });
+      return;
+    } finally {
+      clearTimeout(watchTimer);
+    }
+
+    if (outcome === GAVE_UP) {
+      follower.cancel();
+      queue.updateJobProgress(job.id, {
+        status: 'FAILED',
+        progress: 100,
+        step: 2,
+        error: `no terminal event after ${runMaxSeconds}s — the watcher gave up; the outcome is unknowable`,
+        result: { ...result, unobserved: `gave up after ${runMaxSeconds}s without a terminal event` },
       });
       return;
     }

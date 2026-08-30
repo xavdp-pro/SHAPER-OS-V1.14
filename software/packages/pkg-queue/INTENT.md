@@ -44,6 +44,13 @@ does not (invariant 2).
 5. **Isolation**: `type` and `payload` are opaque. Zero business logic in the queue core.
 6. **Optional worker**: `worker.js` understands only `type=agent.inject` and forwards `payload.message` (+ optional params) to a bridge HTTP inject.
 7. **Terminal evidence**: a bridge terminal event decides success/failure; when it carries final answer text, the worker stores that answer in `job.result.answer` with the exit code.
+8. **A lane is never held by silence** *(V1.13.12)*: the worker waits at most
+   `QUEUE_RUN_MAX_SECONDS` (default 900) for a run's terminal event, then
+   fails the job with the reason stated — the watcher gave up, the outcome is
+   unknowable, as with orphans — and frees the lane. Until V1.13.12 a hung
+   event stream held the only lane forever: the job sat `RUNNING`, every later
+   job sat `PENDING`, and only a container restart freed the queue (v1.13.11
+   sealing run, incident 2). Giving up is not inventing an outcome.
 
 ### Job parameters (voluntary enqueue)
 
