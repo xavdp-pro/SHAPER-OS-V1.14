@@ -57,6 +57,17 @@ test('template-socle-live — queue job round-trip', async () => {
   assert.equal(getRes.status, 200);
   const fetched = await getRes.json();
   assert.equal(fetched.job.id, pushed.job.id);
+
+  // Auto-dispatch only consumes agent.inject. Close the ping ourselves so
+  // the proof leaves no PENDING residue in the ledger (H9).
+  const closeRes = await fetch(`${QUEUE_URL}/api/jobs/${pushed.job.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'COMPLETED', progress: 100 }),
+  });
+  assert.equal(closeRes.status, 200);
+  const closed = await closeRes.json();
+  assert.equal(closed.job.status, 'COMPLETED');
 });
 
 test('template-socle-live — logger ingest', async () => {
