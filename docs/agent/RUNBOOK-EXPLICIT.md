@@ -26,11 +26,22 @@ ls software/packages
 ## Step 0a — The terrain: you deploy inside an LXC, not on the host
 
 Rule 11: **LXC is the universe, podman is the brick.** Never deploy a universe
-directly on a host that carries production. Create the container first — the
-exact commands for both host families (Proxmox `pct`, Debian/LXD `lxc`) are in
-[`../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md`](../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md),
-including the package list. Nesting is mandatory; without it podman fails on
-the first image with a `Permission denied` that says nothing about nesting.
+directly on a host that carries production. Create the container first:
+
+```bash
+# Debian/Ubuntu host with LXD. The `< /dev/null` is not decoration: over a
+# piped SSH session lxc launch waits on stdin forever without it.
+lxc launch images:debian/13 <univ_slug> --profile podman-univ < /dev/null
+lxc exec <univ_slug> -- apt-get update
+lxc exec <univ_slug> -- apt-get install -y podman git curl jq nodejs npm openssl
+```
+
+On a **Proxmox** host it is `pct create` with `features: nesting=1,keyctl=1`
+instead — both families, with the full package list and the profile
+definition, are in
+[`../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md`](../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md).
+Nesting is mandatory; without it podman fails on the first image with a
+`Permission denied` that says nothing about nesting.
 
 - **The host has neither Proxmox nor LXD → STOP and ask.** Installing a
   hypervisor is an architecture decision, not a package install (Rule 11).
@@ -173,9 +184,16 @@ npm test                              # packages only — MUST be green
 # The registry and tag from Step 0b MUST be exported here — the build
 # publishes to <SHAPER_REGISTRY>/shaper/brick-*:<SHAPER_IMAGE_TAG>, and the
 # deploy step resolves exactly those names (one ladder, V1.13.1).
-export SHAPER_IMAGE_TAG=<the tag you are deploying, e.g. v1.13.1>
+export SHAPER_IMAGE_TAG=<the tag you are deploying>
 bash scripts/build-all-bricks.sh
 cd ..
+
+# Images already published at this tag are NOT rebuilt — the script checks the
+# registry and skips them. That is the difference between seconds and ~45
+# minutes of re-downloading the world (Rule 10, the two clocks), and it is
+# automatic: you never choose. SHAPER_FORCE_REBUILD=1 overrides, and the only
+# honest reason to is a source change behind an existing tag, which Rule 0E
+# forbids anyway.
 
 # 4.2b — measure the engine, ONLY possible now: the opencode CLI ships inside
 # the bridge image you just built (until V1.13.1 this ordering was written
