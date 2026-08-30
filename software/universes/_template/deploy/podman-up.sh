@@ -74,7 +74,11 @@ for v in "${KEEP_VARS[@]}"; do
   k="__KEEP_$v"; [[ -n "${!k}" ]] && export "$v=${!k}"
 done
 
-export VAULT_MASTER_KEY="${VAULT_MASTER_KEY:?Set VAULT_MASTER_KEY in $ENV_FILE}"
+# The halt must SPEAK. Under set -u a bare $ENV_FILE in this message crashed
+# the script with "ENV_FILE: unbound variable" whenever the key was missing
+# and no override file was named — masking the real cause behind a shell
+# error (v1.13.14 sealing run, incident 1).
+export VAULT_MASTER_KEY="${VAULT_MASTER_KEY:?Set VAULT_MASTER_KEY in your shell or in ${ENV_FILE:-software/.env} — generate it per docs/PREREQUISITES.md §4}"
 export VAULT_TOKEN="${VAULT_TOKEN:-}"
 export BRIDGE_OPENCODE_STUB="${BRIDGE_OPENCODE_STUB:-0}"
 
