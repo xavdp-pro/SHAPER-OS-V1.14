@@ -237,6 +237,10 @@ cd ..
 podman run --rm --entrypoint opencode \
   "$SHAPER_REGISTRY/shaper/brick-bridge-opencode:$SHAPER_IMAGE_TAG" models
 export OPENCODE_MODEL=<the cheapest engine that answered — Rule 7>
+# Exports live only in YOUR shell. If your harness opens a fresh shell per
+# command (lxc exec does), re-export SHAPER_REGISTRY, SHAPER_IMAGE_TAG and
+# OPENCODE_MODEL before any step that uses them — podman-up.sh halts on a
+# missing model by design, and the halt names the variable, not this cause.
 
 # 4.3 — create the universe from the templates (never by copying packages)
 mkdir -p <univ_slug>-dev/deploy <univ_slug>-dev/tasks
