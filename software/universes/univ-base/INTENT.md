@@ -81,5 +81,10 @@ looks like work remaining rather than a mistake.
 ## Proof
 
 `bash deploy/proof.sh`. It shows that every declared brick answers, that the
-declared task is held by the cadence registry, and that the logger holds
-evidence rather than a heartbeat. Rule 33: a deployment nobody proved is a claim.
+declared task is held by the cadence registry, that the job persisted its answer
+and delivered the artefact it was asked for — compared byte for byte with `cmp`
+against the deployer's declaration (`PROOF_ARTIFACT`, `PROOF_EXPECTED`) — and
+that the logger holds evidence rather than a heartbeat. What was not declared is
+printed as skipped and repeated by the closing verdict: a standard that is only
+half-scripted is applied by half the deployers, and the artefact was the half
+nobody ever opened. Rule 33: a deployment nobody proved is a claim.

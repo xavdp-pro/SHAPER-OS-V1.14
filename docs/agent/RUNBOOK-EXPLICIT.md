@@ -312,7 +312,11 @@ A green `/api/health` proves the stack is up. It does **not** prove a job ran.
 **Submitting the job.** The queue accepts one job type for agent work, and its
 shape is declared in [`../../software/packages/pkg-queue/INTENT.md`](../../software/packages/pkg-queue/INTENT.md).
 It is written here too, because a tester looked for it in the live tests, did not
-find it, and had to read `worker.js` to work it out:
+find it, and had to read `worker.js` to work it out.
+
+The job asks for **both** halves of the proof — a persisted answer and a file on
+disk — because proof 2 below compares an artefact, and a job that was never asked
+for one leaves nothing to compare:
 
 ```bash
 curl -s -X POST "http://127.0.0.1:8640/api/jobs" \
@@ -321,7 +325,7 @@ curl -s -X POST "http://127.0.0.1:8640/api/jobs" \
     "type": "agent.inject",
     "totalSteps": 2,
     "payload": {
-      "message": "Reply with the exact text: <a marker you choose>",
+      "message": "Write the exact text <a marker you choose>, with no trailing newline, into <an absolute path under this universe>. Then reply with that same exact text.",
       "conversation": "<a session name>",
       "model": "<the engine you measured at deployment>"
     }
@@ -348,15 +352,27 @@ For functional proof you need all four:
 
 Missing any of the four → the work is **not** proven. Say so plainly.
 
-Checks 1 and 4 are scripted — run them instead of improvising them:
+All four are scripted — run them instead of improvising them. What the job was
+asked to produce is the one thing the script cannot guess, so you declare it and
+the script decides:
 
 ```bash
+PROOF_ARTIFACT='<the absolute path you named in the job>' \
+PROOF_EXPECTED='<the marker you chose>' \
+PROOF_ANSWER='<the same marker>' \
 bash <univ_slug>-dev/deploy/proof.sh    # exit 0 = proven, and it says why not when not
 ```
 
-Checks 2 and 3 — the artefact's existence and its byte-exact `cmp` — are
-**yours to perform by hand today**; proof.sh does not script them yet (a
-tester proved this by reading it). Use `cmp`, never `test "$(cat f)" = v`.
+- `PROOF_EXPECTED` is written out with `printf '%s'` and compared with `cmp`, so
+  it is byte-exact: a trailing newline is declared as `PROOF_EXPECTED=$'…\n'`.
+  For anything longer than a line, put the exact bytes in a file and declare
+  `PROOF_EXPECTED_FILE` instead.
+- `PROOF_JOB_ID` picks the job to read; without it the script reads the most
+  recent one.
+- Declaring no artefact is allowed and stays visible: the script prints
+  `SKIP artefact` and its closing verdict repeats that proofs 2 and 3 were not
+  performed. That run is not a full functional proof — either declare the
+  artefact, or do the `cmp` by hand and record its output.
 
 ## Step 7 — Report every correction into the repository
 
