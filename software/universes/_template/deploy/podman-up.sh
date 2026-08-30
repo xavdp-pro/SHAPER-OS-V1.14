@@ -44,8 +44,8 @@ fi
 # A .env file carries DEFAULTS. Anything the operator already exported wins —
 # until V1.13.5 `source` clobbered it, so the engine measured at runbook step
 # 4.2b was silently replaced by the empty OPENCODE_MODEL in .env and the deploy
-# halted on its own halt-check; a cold tester had to sed this script to get
-# past it. Same principle as the vault's storage file (V1.13.1): an explicit
+# halted on its own halt-check; a cold tester reported patching this script (run
+# without an on-disk report), and a second tester confirmed the clobbering. Same principle as the vault's storage file (V1.13.1): an explicit
 # choice always beats a packaged default.
 KEEP_VARS=(OPENCODE_MODEL SHAPER_REGISTRY SHAPER_IMAGE_TAG SHAPER_TLS_VERIFY
            VAULT_MASTER_KEY VAULT_TOKEN APP_PASSWORD MAESTRO_QUEUE_URL)

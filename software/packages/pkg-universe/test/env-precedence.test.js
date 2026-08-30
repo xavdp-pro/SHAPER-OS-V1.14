@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 // Non-regression (Rule 29): until V1.13.5 the template's `source .env` clobbered
 // whatever the operator had exported, so the engine measured at runbook step
 // 4.2b was silently replaced by the empty OPENCODE_MODEL in .env and the deploy
-// halted on its own halt-check. Two independent cold testers hit it; one had to
-// sed the shipped script to get past it. A file carries DEFAULTS — an explicit
+// halted on its own halt-check. Two independent cold testers hit it; one reported
+// patching the shipped script (a run with no on-disk report). A file carries DEFAULTS — an explicit
 // export always wins (the same principle the vault's storage file was given).
 
 const TEMPLATE = path.resolve(

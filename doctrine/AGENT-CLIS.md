@@ -42,17 +42,19 @@ once, by hand, and its terminal output read.**
 <a id="full-auto"></a>
 ### 2b. Running unattended: the full-auto flag, per CLI
 
-An agent driving a deployment cannot answer a prompt, and **every one of these
-CLIs blocks silently rather than failing** when it wants an approval. Each has
+An agent driving a deployment cannot answer a prompt — and each CLI misbehaves
+in its own way when it wants one: **agy and muse block silently**,
+cursor-agent **exits 0 while refusing**, opencode **ends its session** without
+saying why. None fails loudly. Each has
 its own formula, and none resembles the others:
 
 | CLI | Everything allowed, nothing asked |
 | :--- | :--- |
 | `agy` | `--dangerously-skip-permissions` |
 | `cursor-agent` | `--force` |
-| `codex` | `--dangerously-bypass-approvals-and-sandbox` |
+| `codex` | `--dangerously-bypass-approvals-and-sandbox` *(documented; not yet exercised in a campaign here)* |
 | `opencode` | `--auto` |
-| `muse` (Meta) | `--yolo --approval-mode never --disable-sandbox --sandbox-network enabled` |
+| `muse` (Meta) | `--yolo` *(implies approval and sandbox off; the extra `--approval-mode`/`--disable-sandbox`/`--sandbox-network` flags used in the first successful run were belt-and-braces — one is reported ignored by muse itself)* |
 
 **The sandbox is the part that surprises.** `muse` defaults to a bwrap sandbox
 whose network is `proxy-only` — an HTTP proxy, which cannot carry SSH. A run
@@ -61,7 +63,7 @@ measured session, 16 tool calls were rejected in silence while the agent kept
 working, and it eventually spent its turns diagnosing its own cage (`ip addr`,
 `wg show`, `nc -zv`) instead of deploying. `opencode` confines file tools to
 its working directory, so a repository cloned to `/tmp` becomes unreadable —
-clone inside the workspace, or pass `--dir`.
+clone inside the workspace, or pass `--dir` (present in 1.18.25; absent from the 1.18.18 help captured above).
 
 **The rule this yields**: before trusting an unattended run, prove the agent
 can reach its terrain — not that its process is alive. Watch for the artefact

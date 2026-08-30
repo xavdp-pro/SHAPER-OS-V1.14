@@ -40,7 +40,7 @@ is the Boot Contract's point 8 applied to the law itself.
 | `profile-bootorder` | AGENTS.md §4b + Boot Contract 6 | Two agents, the same words, two different systems |
 | `fix-ships-test` | Rule 29 — every fixed bug ships its test | Bugs closed on "it works now", met again in v1.8 |
 | `manifest-lineage` | Rule 37 — perimeter, source, forkedFrom | Perimeters inferred from a fixed table; forks with unstated origins (V1.13) |
-| `universe-slug-grammar` | Rule 1 — univ-<projet>-<classe> | "univ-shop and univ-client help nobody" — the family was missing from the name (V1.13) |
+| `universe-slug-grammar` | Rule 1 — univ-<projet>-<classe> | univ-shop and univ-client helped nobody (operator feedback, paraphrased) — the family was missing from the name (V1.13) |
 | `prod-declares-alerting` | Rule 27 — the channel is declared | Four of five archetype designs routed alerts to a UI nobody watches (V1.13) |
 
 ## How to run

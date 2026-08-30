@@ -26,7 +26,7 @@ shape*, before any dedicated security work:
 | :--- | :--- |
 | **Cloudflare in front of everything published** | The raw internet never touches an origin |
 | **The sovereign WAF** (Rust, target — [`SOVEREIGN-WEB-CHAIN-WAF-AND-CACHE.md`](./SOVEREIGN-WEB-CHAIN-WAF-AND-CACHE.md)) | The web chain filters before the live process |
-| **Podman inside LXC, one brick one container** | An image carries **exactly the packages its function needs** — most bricks have no SSH, no shell worth taking, no egress, nothing to pivot from |
+| **Podman inside LXC, one brick one container** | An image carries **exactly the packages its function needs**. Target posture: no SSH, minimal shell, no egress. (Today's DEV deployments still use host networking and alpine shells — locking that down is precisely the hardening pass this doctrine schedules) |
 | **Operators come in from underneath** | Humans and agents act through the **host**, never through the published surface. The host is therefore the real door: SSH only, effectively unreachable from outside, a whitelist of friendly IPs |
 
 An attacker facing this has few angles; the paranoid pass, when it comes,

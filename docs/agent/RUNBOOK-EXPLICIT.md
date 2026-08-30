@@ -106,8 +106,9 @@ Terrain is a step, not an assumption.)*
      `apt-get install -y nodejs npm`) before Step 4. `npm test` runs on the
      host; images carry their own runtime, the host test run does not.
 
-3. **Memory.** The image build wants roughly 4 GB free. Below that it can be
-   OOM-killed with `exit 137` and no other explanation.
+3. **Memory.** On a small host the image build can be killed with `exit 137`
+   and no other explanation — if that happens, memory is the first suspect.
+   (No figure is given: none has been measured. Rule 10's spirit applies.)
 
 ## Step 1 — Read these four files, in this order
 
@@ -337,11 +338,15 @@ For functional proof you need all four:
 
 Missing any of the four → the work is **not** proven. Say so plainly.
 
-The four checks are scripted — run them instead of improvising them:
+Checks 1 and 4 are scripted — run them instead of improvising them:
 
 ```bash
 bash <univ_slug>-dev/deploy/proof.sh    # exit 0 = proven, and it says why not when not
 ```
+
+Checks 2 and 3 — the artefact's existence and its byte-exact `cmp` — are
+**yours to perform by hand today**; proof.sh does not script them yet (a
+tester proved this by reading it). Use `cmp`, never `test "$(cat f)" = v`.
 
 ## Step 7 — Report every correction into the repository
 
