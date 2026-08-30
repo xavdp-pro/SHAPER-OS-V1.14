@@ -56,6 +56,8 @@ was ~58 seconds).
 | 2b | v1.13.10 | Haiku 4.5 | **Sealed** — zero workarounds, counter-verified at the registry |
 | 3 | v1.13.11 | Muse | Repository clean; **one runtime defect** (F22: a hung run froze the queue) → fixed in v1.13.12 |
 | 4 | v1.13.12 | Muse | **Sealed** — all four proofs served, watchdog verified in the field |
+| 5 | v1.13.14 | Muse | Preflight gate green on first field use; **one regression** (F23: the vault-key halt crashed on its own message) → fixed in v1.13.15 |
+| 6 | v1.13.15 | Muse | **Sealed** — "ZERO new workarounds; the sealing criterion is MET" |
 
 Every seal was counter-verified from outside the tester: registry tags,
 terrain cleanliness, report-vs-ledger cross-checks. One tester's earlier
@@ -123,6 +125,9 @@ field: byte-exact artefact, `cmp` exit 0, all four proofs served.
 
 ## 5. State at close
 
-**v1.13.12 — sealed.** 262/262 tests on a naked clone, verify 8/8, fleet
-map pinned, four sealing runs on record, 22 findings closed with their
-tests. The claim at the top of this page survived its adversaries.
+**v1.13.15 — sealed.** 267/267 tests on a naked clone, verify 8/8, fleet
+map pinned, six sealing runs on record, 23 findings closed with their
+tests — the last two found by sealing the sealers: the start line became a
+mechanical gate (`npm run preflight`, human-overridable only by the human),
+and a halt that crashed while speaking learned to speak. The claim at the
+top of this page survived its adversaries.
