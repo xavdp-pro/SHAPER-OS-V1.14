@@ -40,10 +40,57 @@ if (fs.existsSync(RESOURCES_FILE)) {
   }
 }
 
-if (!vaultMasterKey) {
+if (!vaultMasterKey || !String(vaultMasterKey).trim()) {
   console.error('[bootstrap-vault] VAULT_MASTER_KEY in .env or vault.masterKey in resources file is required');
   process.exit(1);
 }
+
+// Rule 0J — a value the operator never chose must halt, not flow. The shipped
+// resources examples carry their vault keys as templates
+// (`<same as .env VAULT_MASTER_KEY>`, `<GENERATE_PASSPHRASE_OR_64_HEX>`), and a
+// literal `cp` that was never filled in used to reach this point unchallenged:
+// the vault was encrypted with the documentation itself as master key, the
+// token the example publishes became the vault's bearer token, and the run
+// exited 0 reporting OK (Muse Code beta, v1.13.7 incident 1). Documentation is
+// not a key. Refuse it BEFORE anything is created — a halt that already wrote
+// half a vault teaches the next run to trust a file nobody chose.
+const PLACEHOLDER = [
+  /<[^>]*>/,                                        // the examples' own shape: <same as .env VAULT_MASTER_KEY>
+  /\bchange[-_ ]?me\b/i,
+  /\bplaceholder\b/i,
+  /\byour[-_ ](key|token|secret|master|passphrase)\b/i,
+  /\b(todo|fixme|tbd)\b/i,
+  /^x{3,}$/i,
+  /^(example|sample|dummy|secret|password|token|key)$/i,
+];
+const isPlaceholder = (value) => PLACEHOLDER.some((re) => re.test(String(value).trim()));
+
+const FIX = [
+  'Generate real keys and mirror them — see docs/agent/RUNBOOK-EXPLICIT.md §4.1:',
+  '  sed -i "s|^VAULT_MASTER_KEY=.*|VAULT_MASTER_KEY=$(openssl rand -hex 32)|" software/.env',
+  '  sed -i "s|^VAULT_TOKEN=.*|VAULT_TOKEN=$(openssl rand -hex 24)|" software/.env',
+  '  then run the runbook\'s python3 block, which fills the resources file from software/.env.',
+];
+
+function haltOnPlaceholder(field, value, origin) {
+  if (value === undefined || value === null || !isPlaceholder(value)) return;
+  console.error(`[bootstrap-vault] HALT — ${field} (${origin}) is still an example placeholder, not a value you chose.`);
+  console.error('[bootstrap-vault] Rule 0J: a key nobody chose must never encrypt a vault. Nothing was written.');
+  for (const line of FIX) console.error(`[bootstrap-vault] ${line}`);
+  process.exit(1);
+}
+
+haltOnPlaceholder(
+  'vault.masterKey',
+  vaultMasterKey,
+  process.env.VAULT_MASTER_KEY ? 'VAULT_MASTER_KEY in the environment' : RESOURCES_FILE,
+);
+haltOnPlaceholder(
+  'vault.token',
+  vaultToken,
+  process.env.VAULT_TOKEN ? 'VAULT_TOKEN in the environment' : RESOURCES_FILE,
+);
+
 fs.mkdirSync(path.dirname(storageFile), { recursive: true });
 
 const store = new VaultStore({ masterKey: vaultMasterKey, storageFile });
