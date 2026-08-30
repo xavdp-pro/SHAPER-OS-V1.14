@@ -76,9 +76,12 @@ Terrain is a step, not an assumption.)*
    curl -sf "http://$SHAPER_REGISTRY/v2/" && echo "registry reachable"   # BEFORE building
    ```
 
-   - **If a later `podman push` fails with `http: server gave HTTP response
-     to HTTPS client`** — seen on Debian trixie LXCs even with
-     `SHAPER_TLS_VERIFY=false` — the container engine itself must be told.
+   - **If the human said the registry is insecure, tell the container engine
+     NOW — do not wait for a push to fail.** `SHAPER_TLS_VERIFY` steers
+     SHAPER's own scripts, but podman has its own TLS policy and on Debian it
+     defaults to TLS for any non-loopback registry: without the stanza below,
+     the first `podman push` dies with `http: server gave HTTP response to
+     HTTPS client` (seen on trixie LXCs even with `SHAPER_TLS_VERIFY=false`).
      Two lines, hard-won:
 
      ```bash
@@ -133,8 +136,10 @@ openssl rand -hex 32   # VAULT_MASTER_KEY
 openssl rand -hex 24   # VAULT_TOKEN
 ```
 
-Write them into `software/.env`. Never write a secret into a chat message, a
-commit, a shell script, or a log line.
+These are the two secrets the universe runs on. Do **not** hand-edit them into
+a file now — `software/.env` does not exist yet, and Step 4.1 injects them with
+exact commands. Never write a secret into a chat message, a commit, a shell
+script, or a log line.
 
 ## Step 3 — Verify every required secret BEFORE building anything
 
@@ -187,8 +192,13 @@ cp software/universes/_template/context/ctx-universe.md <univ_slug>-dev/context/
 cp .env.example software/.env
 cp software/resources/vault-resources.dev.example.json \
    software/resources/vault-resources.local.json
-# Fill the generated keys into BOTH files — with this exact command, because
-# "fill them in" left a tester shipping the placeholder token:
+# The copies carry EMPTY vault keys. Inject fresh secrets into software/.env
+# FIRST — with these exact commands, because "write them into .env" left every
+# literal tester stalled on empty keys and deriving this sed alone:
+sed -i "s|^VAULT_MASTER_KEY=.*|VAULT_MASTER_KEY=$(openssl rand -hex 32)|" software/.env
+sed -i "s|^VAULT_TOKEN=.*|VAULT_TOKEN=$(openssl rand -hex 24)|" software/.env
+# THEN mirror them into vault-resources.local.json — with this exact command,
+# because "fill them in" left a tester shipping the placeholder token:
 python3 - <<'FILL'
 import json, re
 env = dict(re.findall(r'^([A-Z_]+)=(.*)$', open('software/.env').read(), re.M))

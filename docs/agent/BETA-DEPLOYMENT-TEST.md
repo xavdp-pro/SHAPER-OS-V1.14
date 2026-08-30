@@ -52,8 +52,18 @@ from outside the build:
 1. the tag was **absent** from the registry before the build
    (`curl .../v2/shaper/base/tags/list`);
 2. it is **present** after;
-3. every digest recorded in `software/.release/*.digest` is **servable back**
-   (`HEAD /v2/shaper/<brick>/manifests/<digest>` answers 200).
+3. every digest recorded in `software/.release/*.digest` is **servable back**.
+   The manifests are OCI, so ask with the OCI Accept header — without it the
+   registry answers a false 404 (`MANIFEST_UNKNOWN: OCI manifest found, but
+   accept header does not support OCI manifests`):
+
+   ```bash
+   curl -sf -I -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+     "http://$SHAPER_REGISTRY/v2/shaper/<brick>/manifests/$(cat software/.release/<brick>.digest)"
+   # 200, and Docker-Content-Digest matches the .digest file.
+   # (podman images --digests prints a DIFFERENT value — that is the config
+   # digest, not the manifest digest; only the .release file is the proof.)
+   ```
 
 Record the duration you measured, with the hardware — it is an observation for
 the report, never a pass/fail criterion. A fast build on strong hardware
