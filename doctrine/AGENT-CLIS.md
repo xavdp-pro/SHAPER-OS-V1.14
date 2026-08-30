@@ -39,6 +39,35 @@ once, by hand, and its terminal output read.**
 | Exit code trustworthy | **no** | partially | **no** — exits 0 while refusing on a trust prompt |
 | Vision | yes (quota) | yes, with an image-capable model | not used for that here |
 
+<a id="full-auto"></a>
+### 2b. Running unattended: the full-auto flag, per CLI
+
+An agent driving a deployment cannot answer a prompt, and **every one of these
+CLIs blocks silently rather than failing** when it wants an approval. Each has
+its own formula, and none resembles the others:
+
+| CLI | Everything allowed, nothing asked |
+| :--- | :--- |
+| `agy` | `--dangerously-skip-permissions` |
+| `cursor-agent` | `--force` |
+| `codex` | `--dangerously-bypass-approvals-and-sandbox` |
+| `opencode` | `--auto` |
+| `muse` (Meta) | `--yolo --approval-mode never --disable-sandbox --sandbox-network enabled` |
+
+**The sandbox is the part that surprises.** `muse` defaults to a bwrap sandbox
+whose network is `proxy-only` — an HTTP proxy, which cannot carry SSH. A run
+driving a remote host therefore fails every `ssh` while looking healthy: in one
+measured session, 16 tool calls were rejected in silence while the agent kept
+working, and it eventually spent its turns diagnosing its own cage (`ip addr`,
+`wg show`, `nc -zv`) instead of deploying. `opencode` confines file tools to
+its working directory, so a repository cloned to `/tmp` becomes unreadable —
+clone inside the workspace, or pass `--dir`.
+
+**The rule this yields**: before trusting an unattended run, prove the agent
+can reach its terrain — not that its process is alive. Watch for the artefact
+it must create (a container, a file), never for the process. A live process
+that asks and is auto-denied looks exactly like a working one.
+
 ---
 
 ## 3. agy — Gemini through Antigravity
