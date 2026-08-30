@@ -22,7 +22,18 @@ export function run(root) {
   const findings = [];
   let log;
   try {
-    log = git(root, ['log', '--format=%H %s', '-20']);
+    // Judge the work not yet released — commits since the last tag — not an
+    // arbitrary window of immutable history. A released commit's history
+    // cannot be amended, so re-reporting it forever is noise, not signal
+    // (V1.13.6: this check kept failing on a commit whose missing test had
+    // already been shipped by the commit after it). Before a release, every
+    // fix must still carry its test: that is exactly this window.
+    let range = '-20';
+    try {
+      const lastTag = git(root, ['describe', '--tags', '--abbrev=0']);
+      if (lastTag) range = `${lastTag}..HEAD`;
+    } catch { /* no tag yet — the last 20 is the right window */ }
+    log = git(root, ['log', '--format=%H %s', range]);
   } catch {
     return findings; // not a git repository — nothing to check
   }
