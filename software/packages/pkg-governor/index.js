@@ -222,7 +222,12 @@ export function createGovernorServer({ governor, port = 0, host = '127.0.0.1', a
     if (req.method === 'POST' && pathname === '/api/makers/enrol') {
       if (bearer(req) !== adminToken) return sendJson(res, 401, { error: 'enrolment is the tandem\'s act' });
       const body = await readBody(req);
-      try { return sendJson(res, 201, governor.enrolMaker({ host: body?.host })); }
+      // The fleetName crosses the door too. Enrolment is WHERE the kernel's
+      // name and the fleet's name are bound (v1.13.24); an HTTP door that
+      // dropped it re-created the two-names defect for every remote tandem:
+      // rows written for "gbs-test" while the maker asks as its hostname,
+      // and work silently never delivered.
+      try { return sendJson(res, 201, governor.enrolMaker({ host: body?.host, fleetName: body?.fleetName })); }
       catch (err) { return sendJson(res, 400, { error: err.message }); }
     }
     if (req.method === 'POST' && pathname === '/api/makers/poll') {
