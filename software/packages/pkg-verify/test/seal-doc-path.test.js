@@ -70,6 +70,17 @@ describe('sealing incident F24 — the probe is the contract', () => {
       'the measure step probes an echo only — an engine can pass the ping and hang on the real work (report-seal7-muse incident 1)');
     assert.match(section, /cmp -s/, 'the probe verdict must be a byte comparison, not a read of the reply');
   });
+  it('the probe writes a RELATIVE path from a set workdir — the sandbox rejects absolute paths for every engine', () => {
+    const section = runbook.slice(runbook.indexOf('# 4.2b'), runbook.indexOf('# 4.3'));
+    assert.match(section, /-w \/probe/,
+      'without a workdir the CLI sandbox auto-rejects /probe/* as external_directory and ZERO candidates pass (report-seal8-muse incident 1)');
+    assert.match(section, /into marker\.txt/, 'the instructed path must be relative');
+  });
+  it("step 6 instructs the artefact path as the bridge's view, with the host equivalence stated", () => {
+    assert.match(runbook, /\/data\/opencode-ws\/<the conversation>\/marker\.txt/,
+      'a host-side path in the payload gets created nested inside the workspace (report-seal8-muse incident 2)');
+    assert.match(runbook, /bridge's view, never the host's/);
+  });
   it('Rule 7 states the principle', () => {
     const rules = fs.readFileSync(path.join(root, 'software/RULES.md'), 'utf8');
     assert.match(rules, /probe is the contract/i);

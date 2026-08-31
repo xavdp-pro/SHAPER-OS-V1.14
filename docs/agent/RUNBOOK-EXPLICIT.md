@@ -257,11 +257,15 @@ podman run --rm --entrypoint opencode \
 # answered generic text once stopped). Probe each candidate on the SHAPE OF
 # THE WORK this universe will ask, not on an echo. For the base, that shape
 # is write-a-file-then-reply — measurable before the stack exists:
+# The path is RELATIVE and the workdir is the mount: the CLI's sandbox
+# auto-rejects any absolute path outside its working directory
+# (external_directory) — with an absolute /probe/... EVERY engine fails the
+# probe and none can be selected (v1.13.18 sealing run, incident 1).
 PROBE_DIR=$(mktemp -d)
-timeout 90 podman run --rm -v "$PROBE_DIR:/probe" --entrypoint opencode \
+timeout 90 podman run --rm -v "$PROBE_DIR:/probe" -w /probe --entrypoint opencode \
   "$SHAPER_REGISTRY/shaper/brick-bridge-opencode:$SHAPER_IMAGE_TAG" \
   run --pure --model <candidate> \
-  "Write the exact text PROBE-OK, with no trailing newline, into /probe/marker.txt. Then reply with exactly PROBE-OK and nothing else."
+  "Write the exact text PROBE-OK, with no trailing newline, into marker.txt. Then reply with exactly PROBE-OK and nothing else."
 printf '%s' PROBE-OK | cmp -s - "$PROBE_DIR/marker.txt" && echo "<candidate>: contract OK" || echo "<candidate>: FAILED the contract — out at any price"
 # Record each candidate's verdict and its wall time; they are your measurement.
 # Rule 7, two cursors: engines failing the probe are OUT at any price;
@@ -363,12 +367,19 @@ curl -s -X POST "http://127.0.0.1:8640/api/jobs" \
     "type": "agent.inject",
     "totalSteps": 2,
     "payload": {
-      "message": "Write the exact text <a marker you choose>, with no trailing newline, into <an absolute path under this universe>. Then reply with that same exact text.",
+      "message": "Write the exact text <a marker you choose>, with no trailing newline, into /data/opencode-ws/<the conversation>/marker.txt. Then reply with that same exact text.",
       "conversation": "<a session name>",
       "model": "<the engine you measured at deployment>"
     }
   }'
 ```
+
+The artefact path is **the bridge's view, never the host's**: the agent
+works inside the bridge container, where the universe's `sav/opencode-ws/`
+is mounted at `/data/opencode-ws/`. A host-side path in the message gets
+created NESTED inside the workspace and proof.sh fails on it (v1.13.18
+sealing run, incident 2). Host equivalence for your later `cmp`:
+`<univ_slug>-dev/sav/opencode-ws/<the conversation>/marker.txt`.
 
 Then poll the job until it reaches a terminal state, and read `job.result.answer`
 — the persisted answer, not the streamed one:
