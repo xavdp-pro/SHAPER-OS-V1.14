@@ -17,6 +17,7 @@ This directory gathers the **7 founding reference documents** and the convergenc
 | **7** | [`DOCUMENT-PIPELINE.md`](./DOCUMENT-PIPELINE.md) | **Document understanding**: the page as the unit, three witnesses (native text, OCR, vision), deskewing and legibility, type recognition then business handlers, multiplexing, state in the database, open sources. Brick intent: [`brick-pipeline`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13). |
 | **8** | [`SECURITY-FOLLOWS-FUNCTION.md`](./SECURITY-FOLLOWS-FUNCTION.md) | **When security work happens and who dictates its depth**: structure defends first, the paranoid pass comes once the symphony plays, sized by the cahier des charges — with the floor that is never deferred. |
 | **9** | [`DIRECTION-IS-THE-BOUNDARY.md`](./DIRECTION-IS-THE-BOUNDARY.md) | **The structural half of security-follows-function**: what holds power has no inbound door, what is reachable holds no power. A link that does not exist cannot be misconfigured. |
+| **10** | [`THE-SYSTEM-LEARNS-NO-DIALECT.md`](./THE-SYSTEM-LEARNS-NO-DIALECT.md) | **Interoperability is survival, not craftsmanship**: a component serving several variants never branches on the variant, it declares a contract and reads a table. The first silent `if (variant === …)` is a defect. |
 
 ---
 
