@@ -16,6 +16,7 @@ This directory gathers the **7 founding reference documents** and the convergenc
 | **6** | [`SOVEREIGN-WEB-CHAIN-WAF-AND-CACHE.md`](./SOVEREIGN-WEB-CHAIN-WAF-AND-CACHE.md) | **The sovereign web chain (R28)**: Cloudflare Zero-Trust → static Nginx → routing WAF and precomputed cache → live Node.js, with a mandatory attack corpus. |
 | **7** | [`DOCUMENT-PIPELINE.md`](./DOCUMENT-PIPELINE.md) | **Document understanding**: the page as the unit, three witnesses (native text, OCR, vision), deskewing and legibility, type recognition then business handlers, multiplexing, state in the database, open sources. Brick intent: [`brick-pipeline`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13). |
 | **8** | [`SECURITY-FOLLOWS-FUNCTION.md`](./SECURITY-FOLLOWS-FUNCTION.md) | **When security work happens and who dictates its depth**: structure defends first, the paranoid pass comes once the symphony plays, sized by the cahier des charges — with the floor that is never deferred. |
+| **9** | [`DIRECTION-IS-THE-BOUNDARY.md`](./DIRECTION-IS-THE-BOUNDARY.md) | **The structural half of security-follows-function**: what holds power has no inbound door, what is reachable holds no power. A link that does not exist cannot be misconfigured. |
 
 ---
 
