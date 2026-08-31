@@ -58,6 +58,9 @@ was ~58 seconds).
 | 4 | v1.13.12 | Muse | **Sealed** — all four proofs served, watchdog verified in the field |
 | 5 | v1.13.14 | Muse | Preflight gate green on first field use; **one regression** (F23: the vault-key halt crashed on its own message) → fixed in v1.13.15 |
 | 6 | v1.13.15 | Muse | **Sealed** — "ZERO new workarounds; the sealing criterion is MET" |
+| 7 | v1.13.17 | Muse | Sealed via a documented fallback; taught F24: the probe must be the contract, not an echo |
+| 8 | v1.13.18 | Muse | **NOT sealed** — the referee's own untested probe failed every engine (F25) and the artefact path was ambiguous (F26); both fixes field-proven before publishing |
+| 9 | v1.13.19 | Muse | **Sealed** — five checkpoints, the probe passed literally, zero workarounds |
 
 Every seal was counter-verified from outside the tester: registry tags,
 terrain cleanliness, report-vs-ledger cross-checks. One tester's earlier
@@ -125,9 +128,10 @@ field: byte-exact artefact, `cmp` exit 0, all four proofs served.
 
 ## 5. State at close
 
-**v1.13.15 — sealed.** 267/267 tests on a naked clone, verify 8/8, fleet
-map pinned, six sealing runs on record, 23 findings closed with their
-tests — the last two found by sealing the sealers: the start line became a
-mechanical gate (`npm run preflight`, human-overridable only by the human),
-and a halt that crashed while speaking learned to speak. The claim at the
-top of this page survived its adversaries.
+**v1.13.19 — sealed.** 274/274 tests on a naked clone, verify 8/8, fleet
+map pinned, nine sealing runs on record, 26 findings closed with their
+tests. The late findings all came from sealing the sealers: the start line
+became a mechanical gate, a halt learned to speak, Rule 7 grew two cursors
+and its probe became the contract — and when the referee published an
+untested probe, the next seal caught the referee. The claim at the top of
+this page survived its adversaries, the referee included.
