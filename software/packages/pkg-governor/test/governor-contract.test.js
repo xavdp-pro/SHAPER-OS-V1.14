@@ -132,3 +132,33 @@ describe('a referenced matrix may never be deleted', () => {
       'a digest no living row references is releasable');
   });
 });
+
+describe('two names, bound once — found on terrain at the first birth', () => {
+  it('work written for the fleet name reaches the maker asking under its hostname', () => {
+    const g = createGovernor();
+    // The machine answers `vps-053c1354`; the fleet map calls it `gbs-test`.
+    const { token } = g.enrolMaker({ host: 'vps-053c1354', fleetName: 'gbs-test' });
+    g.desire({
+      account: 'a1', klass: 'univ-demo-crm', matrix: 'crm',
+      digest: 'sha256:aa', machine: 'gbs-test',
+    });
+    const out = g.poll({ token, host: 'vps-053c1354', inventory: ['sha256:aa'] });
+    assert.equal(out.work.length, 1,
+      'a row written for the fleet name found no maker: the two names were never bound, and nothing would ever happen — silently');
+  });
+
+  it('a fleet name binds to exactly one host', () => {
+    const g = createGovernor();
+    g.enrolMaker({ host: 'vps-aaa', fleetName: 'gbs-test' });
+    assert.throws(() => g.enrolMaker({ host: 'vps-bbb', fleetName: 'gbs-test' }),
+      /already bound/, 'two machines answering to one fleet name would split the ledger in half');
+  });
+
+  it('without a fleet name, the hostname is the name — no ceremony for a simple fleet', () => {
+    const g = createGovernor();
+    const { token, fleetName } = g.enrolMaker({ host: 'solo-host' });
+    assert.equal(fleetName, 'solo-host');
+    g.desire({ account: 'a1', klass: 'k', matrix: 'm', digest: 'sha256:aa', machine: 'solo-host' });
+    assert.equal(g.poll({ token, host: 'solo-host', inventory: ['sha256:aa'] }).work.length, 1);
+  });
+});

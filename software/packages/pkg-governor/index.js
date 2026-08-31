@@ -30,16 +30,30 @@ export function createGovernor({ now = () => Date.now() } = {}) {
 
   const stamp = () => new Date(now()).toISOString();
 
-  /** The tandem enrols a maker; the fleet is not a place one walks into. */
-  function enrolMaker({ host }) {
+  /** The tandem enrols a maker; the fleet is not a place one walks into.
+   *
+   *  Two names, and they are not the same thing (found on terrain, the first
+   *  birth): `host` is what the machine answers when asked who it is —
+   *  `vps-053c1354` — and it is the identity, because it is the only name
+   *  that cannot drift from reality. `fleetName` is what the fleet map and
+   *  the humans call it — `gbs-test` — and it is what a ledger row names,
+   *  because a row is written by a person or a product, not by a kernel.
+   *  Enrolment is where the two are bound, once, by the tandem. Without this
+   *  the governor hands work to `gbs-test` while the maker asks as
+   *  `vps-053c1354`, and nothing ever happens — silently. */
+  function enrolMaker({ host, fleetName }) {
     if (!host) throw new Error('host is required — a maker\'s identity is its host');
+    const name = fleetName || host;
     if (makers.has(host)) throw new Error(`host "${host}" is already enrolled`);
+    for (const m of makers.values()) {
+      if (m.fleetName === name) throw new Error(`fleet name "${name}" is already bound to host "${m.host}"`);
+    }
     const token = crypto.randomBytes(24).toString('hex');
     makers.set(host, {
-      token, host, version: null, lanes: 0,
+      token, host, fleetName: name, version: null, lanes: 0,
       inventory: new Set(), lastPollAt: null, enrolledAt: stamp(),
     });
-    return { host, token };
+    return { host, fleetName: name, token };
   }
 
   function makerByToken(token) {
@@ -82,7 +96,9 @@ export function createGovernor({ now = () => Date.now() } = {}) {
     const work = [];
     const preload = new Set();
     for (const row of rows.values()) {
-      if (row.machine !== host) continue;
+      // A row names the machine the way the fleet map does; the maker asks
+      // under the name its kernel gives. Enrolment bound the two.
+      if (row.machine !== maker.fleetName && row.machine !== maker.host) continue;
       const pastDeadline = row.deadlineAt && now() >= new Date(row.deadlineAt).getTime();
       let kind = null;
       if (row.state === 'DESIRED') kind = 'stamp';
@@ -121,7 +137,7 @@ export function createGovernor({ now = () => Date.now() } = {}) {
     const cutoff = now() - maxAgeMs;
     return [...makers.values()]
       .filter((m) => !m.lastPollAt || new Date(m.lastPollAt).getTime() < cutoff)
-      .map((m) => ({ host: m.host, lastPollAt: m.lastPollAt }));
+      .map((m) => ({ host: m.host, fleetName: m.fleetName, lastPollAt: m.lastPollAt }));
   }
 
   /** Matrices still referenced by a live row may never be deleted. */
