@@ -252,6 +252,18 @@ cd ..
 # nowhere and the .env asked for a measurement no blank machine could make).
 podman run --rm --entrypoint opencode \
   "$SHAPER_REGISTRY/shaper/brick-bridge-opencode:$SHAPER_IMAGE_TAG" models
+# THE PROBE IS THE CONTRACT (added after the v1.13.17 sealing run: an engine
+# passed the echo ping, then hung on Step 6's real write-then-reply job and
+# answered generic text once stopped). Probe each candidate on the SHAPE OF
+# THE WORK this universe will ask, not on an echo. For the base, that shape
+# is write-a-file-then-reply — measurable before the stack exists:
+PROBE_DIR=$(mktemp -d)
+timeout 90 podman run --rm -v "$PROBE_DIR:/probe" --entrypoint opencode \
+  "$SHAPER_REGISTRY/shaper/brick-bridge-opencode:$SHAPER_IMAGE_TAG" \
+  run --pure --model <candidate> \
+  "Write the exact text PROBE-OK, with no trailing newline, into /probe/marker.txt. Then reply with exactly PROBE-OK and nothing else."
+printf '%s' PROBE-OK | cmp -s - "$PROBE_DIR/marker.txt" && echo "<candidate>: contract OK" || echo "<candidate>: FAILED the contract — out at any price"
+# Record each candidate's verdict and its wall time; they are your measurement.
 # Rule 7, two cursors: engines failing the probe are OUT at any price;
 # dominated engines (more expensive AND slower) are OUT by measurement; the
 # manifest's enginePolicy declares the cursor among what remains —

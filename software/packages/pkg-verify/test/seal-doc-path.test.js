@@ -62,3 +62,16 @@ describe('sealing incident 3 — the digest proof asks with the OCI Accept heade
     );
   });
 });
+
+describe('sealing incident F24 — the probe is the contract', () => {
+  it('runbook 4.2b probes the write-then-reply shape with a byte-exact cmp, not a bare echo', () => {
+    const section = runbook.slice(runbook.indexOf('# 4.2b'), runbook.indexOf('# 4.3'));
+    assert.match(section, /marker\.txt/,
+      'the measure step probes an echo only — an engine can pass the ping and hang on the real work (report-seal7-muse incident 1)');
+    assert.match(section, /cmp -s/, 'the probe verdict must be a byte comparison, not a read of the reply');
+  });
+  it('Rule 7 states the principle', () => {
+    const rules = fs.readFileSync(path.join(root, 'software/RULES.md'), 'utf8');
+    assert.match(rules, /probe is the contract/i);
+  });
+});

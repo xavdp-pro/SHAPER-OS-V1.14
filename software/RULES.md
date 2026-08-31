@@ -427,6 +427,10 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
        ceiling the operator declares. The number comes from the operator,
        never from this canon: a weighting constant invented here would be an
        unmeasured figure, and Rule 10 forbids those.
+    **The probe is the contract.** An engine is measured on the shape of the
+    work the universe will ask of it — for the base, write-a-file-then-reply,
+    never a bare echo: an engine has passed the ping and then hung on the
+    real task, answering generic text once stopped (v1.13.17 sealing run).
     Performance is **measured from the target host** — correctness on a
     bounded probe and observed latency/throughput — never a figure read from
     a vendor page or a public ranking. Published speed has already been wrong
