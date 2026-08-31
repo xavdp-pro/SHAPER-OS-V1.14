@@ -79,3 +79,32 @@ describe('the governor derives validation from facts', () => {
     assert.deepEqual(workKinds(g, token), ['validate'], 'eleven minutes of silence is an event');
   });
 });
+
+describe('a degraded demo is not a wall', () => {
+  it('asking again ends the broken row and births a fresh one', () => {
+    let clock = 1000;
+    const g = createGovernor({ now: () => clock });
+    const token = enrolled(g);
+    const row = purringRow(g, token, { checks: true });
+    g.report({ token, rowId: row.id, event: 'VALIDATING' });
+    g.report({ token, rowId: row.id, event: 'VALIDATION_FAILED', data: {} });
+    assert.equal(g.getRow(row.id).state, 'DEGRADED');
+
+    // The account presses the remote again.
+    const { row: fresh, created } = g.desire({
+      account: 'A', klass: 'univ-demo-crm', matrix: 'demo-crm-nu',
+      digest: 'sha256:aa', machine: 'gbs-test', env: 'demo',
+    });
+    assert.equal(created, true, 'a fresh row is born, not the broken one returned');
+    assert.notEqual(fresh.id, row.id);
+
+    // The broken one's deadline became now: the maker is offered its reap
+    // in the same poll that offers the fresh stamp.
+    clock += 1;
+    const offered = g.poll({
+      token, host: 'gbs-test', inventory: ['sha256:aa'], version: 't', lanes: 4,
+    }).work.map((w) => `${w.kind}:${w.rowId}`);
+    assert.ok(offered.includes(`reap:${row.id}`), `the broken row is reaped (${offered})`);
+    assert.ok(offered.includes(`stamp:${fresh.id}`), 'the fresh row is stamped');
+  });
+});

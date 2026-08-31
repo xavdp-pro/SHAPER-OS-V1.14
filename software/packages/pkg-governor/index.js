@@ -115,7 +115,16 @@ export function createGovernor({ now = () => Date.now(), storage = null } = {}) 
     }
     const live = [...rows.values()].find((r) =>
       r.account === account && r.klass === klass && r.state !== 'REAPED');
-    if (live) return { row: live, created: false };
+    // A DEGRADED row is not a life to protect — it is a failure the account
+    // is stuck behind. Asking again means: end the broken one (its deadline
+    // becomes now, and a maker will reap whatever half-exists), start fresh.
+    if (live && live.state === 'DEGRADED') {
+      live.deadlineAt = stamp();
+      live.updatedAt = stamp();
+      persist('row', live);
+    } else if (live) {
+      return { row: live, created: false };
+    }
     const id = `inst-${now()}-${++seq}`;
     const row = {
       id, account, klass, matrix, digest, machine, env,
