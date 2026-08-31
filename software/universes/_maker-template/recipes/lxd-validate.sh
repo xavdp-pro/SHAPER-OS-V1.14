@@ -48,7 +48,24 @@ trap 'rm -f "$SPEC"' EXIT
 lxc file pull "$INSTANCE/etc/shaper/checks.json" "$SPEC" 2> /dev/null \
   || { echo "[lxd-validate] $INSTANCE declared checks at stamp time but ships none now" >&2; exit 2; }
 
-# 4. The verifier looks. Host network so the container reaches the child's
+# 4. A newborn is given time to open its eyes. STAMPED means the container
+#    runs; the application inside it boots on its own clock (database up,
+#    identity read, server bound). The first validation ran 500ms after the
+#    stamp and refused a connection that was never offered — so we wait for
+#    the child's FIRST answer, bounded, before judging any of its promises.
+BOOT_BUDGET="${SHAPER_VALIDATE_BOOT_BUDGET:-90}"
+UP=""
+for _ in $(seq 1 "$BOOT_BUDGET"); do
+  if curl -fsS -m 2 -o /dev/null "http://$ADDR/" 2> /dev/null; then UP=1; break; fi
+  sleep 1
+done
+[[ -n "$UP" ]] || {
+  printf '{"passed":false,"error":"the child never answered HTTP within %ss of its stamp"}\n' "$BOOT_BUDGET"
+  say "the child never opened its eyes (budget ${BOOT_BUDGET}s)"
+  exit 1
+}
+
+# 5. The verifier looks. Host network so the container reaches the child's
 #    bridge address; the spec mounted read-only; evidence kept per row.
 mkdir -p "$EVIDENCE_DIR"
 say "verifying $INSTANCE at http://$ADDR/ against its own spec"
@@ -62,7 +79,7 @@ VERDICT="$(podman run --rm --network host \
 CODE=$?
 set -e
 
-# 5. The verdict is the last line, and it rides the event into the ledger —
+# 6. The verdict is the last line, and it rides the event into the ledger —
 #    the operator reads WHICH step failed without touching the host.
 printf '%s\n' "$VERDICT"
 case "$CODE" in
