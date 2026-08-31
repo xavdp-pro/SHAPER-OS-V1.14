@@ -208,3 +208,18 @@ describe('the ledger survives its governor', () => {
     assert.equal(g.listRows().length, 1);
   });
 });
+
+describe('the observation surface', () => {
+  it('lists makers without their credentials — presence, never power', () => {
+    const g = createGovernor();
+    const { token } = g.enrolMaker({ host: 'vps-1', fleetName: 'gbs-test' });
+    g.poll({ token, host: 'vps-1', version: 'v9', lanes: 2, inventory: ['sha256:aa'] });
+    const [m] = g.listMakers();
+    assert.equal(m.host, 'vps-1');
+    assert.equal(m.fleetName, 'gbs-test');
+    assert.equal(m.version, 'v9');
+    assert.equal(m.inventory, 1);
+    assert.ok(m.lastPollAt, 'last seen is a recorded fact');
+    assert.equal(Object.hasOwn(m, 'token'), false, 'the credential never leaves');
+  });
+});

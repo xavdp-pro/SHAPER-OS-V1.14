@@ -223,6 +223,13 @@ export function createGovernor({ now = () => Date.now(), storage = null } = {}) 
 
   return {
     enrolMaker, desire, poll, report, silentMakers, referencedDigests,
+    /** The observation surface: who runs, under which names, last seen when.
+     *  Credentials never leave — an observer reads presence, not power. */
+    listMakers: () => [...makers.values()].map((m) => ({
+      host: m.host, fleetName: m.fleetName, version: m.version,
+      lanes: m.lanes, lastPollAt: m.lastPollAt, enrolledAt: m.enrolledAt,
+      inventory: m.inventory.size,
+    })),
     listRows: () => [...rows.values()],
     getRow: (id) => rows.get(id) || null,
     STATES,
