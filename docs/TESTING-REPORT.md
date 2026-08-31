@@ -1,6 +1,6 @@
 # TESTING REPORT — how V1.13 was proven, by whom, and what it cost
 
-> **Status**: dated snapshot — measurements of 29–30 August 2026. Model
+> **Status**: dated snapshot — measurements of 29–31 August 2026. Model
 > names here are data from those runs, never recommendations (Rule 7).
 
 > **The claim under test.** SHAPER OS says a cold agent — any engine, any
@@ -26,7 +26,7 @@ repository can.*
 (Composer 2.5, Grok 4.6, Sol, Terra, Luna), Antigravity (Gemini), opencode
 free models (nemotron), and Muse Code (Meta's CLI, muse-spark-1.2). Full
 reports live in the campaign workspace (`ZEST5-BETA/report-*.md`,
-operator-side); the consolidated defect ledger runs **F1–F22**.
+operator-side); the consolidated defect ledger runs **F1–F26**.
 
 **What it found.** The software under the docs was solid from day one
 (all tests green on a naked clone, honest halts on missing keys — Rule 0J
