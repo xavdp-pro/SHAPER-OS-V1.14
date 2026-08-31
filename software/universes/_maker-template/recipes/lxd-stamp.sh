@@ -43,10 +43,20 @@ say "matrix verified ($DIGEST)"
 
 # 2. Import once per digest; the alias is derived from the digest, so a
 #    second stamp of the same matrix costs nothing.
+#
+#    Under a LOCK, because check-then-import is a race: two simultaneous
+#    stamps of the same digest both saw the alias absent, both imported, and
+#    the loser died mid-import — one visitor's demo was silently never born
+#    (found on terrain, first two-instance birth, 2026-08-31). The lock is
+#    per digest: stamps of different matrices never wait on each other.
+LOCK_DIR="${SHAPER_LOCK_DIR:-/run/lock}"
+exec 9> "$LOCK_DIR/shaper-import-$BARE.lock"
+flock 9
 if ! lxc image info "$ALIAS" > /dev/null 2>&1; then
   lxc image import "$FILE" --alias "$ALIAS" > /dev/null
   say "matrix imported as $ALIAS"
 fi
+exec 9>&-
 
 # 3. Idempotent by construction: the row already has its container or it
 #    does not. Re-running a stamp never births a twin.
