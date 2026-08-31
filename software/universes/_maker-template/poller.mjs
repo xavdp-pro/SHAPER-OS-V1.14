@@ -20,7 +20,13 @@ export function defaultRecipeRunner({ recipesDir, hostKind }) {
     // argv only — the recipe receives typed positions, quotes nothing.
     const args = [work.rowId, work.klass, work.matrix, work.digest, work.account, work.env];
     const { stdout } = await execFileP('bash', [script, ...args], { timeout: 15 * 60 * 1000 });
-    return { stdout: stdout.slice(-2000) };
+    // Every recipe ends with one JSON line of facts. Parsed, those facts ride
+    // the event into the ledger — the stamp says whether the child ships an
+    // acceptance spec, the validation says which step failed — and the
+    // governor derives work from facts, never from prose. Unparseable output
+    // stays what it is: a tail of text, kept for the audit.
+    const lastLine = stdout.trim().split('\n').at(-1) || '';
+    try { return JSON.parse(lastLine); } catch { return { stdout: stdout.slice(-2000) }; }
   };
 }
 
@@ -57,9 +63,15 @@ export function startMaker({
 
   async function handle(work) {
     inFlight += 1;
-    const begin = work.kind === 'stamp' ? 'STAMPING' : 'REAPING';
-    const done = work.kind === 'stamp' ? 'STAMPED' : 'REAPED';
-    const failed = work.kind === 'stamp' ? 'STAMP_FAILED' : 'REAP_FAILED';
+    // A table, not branches: a new kind of work is one line here, and the
+    // governor's transition table holds the matching line (no dialect).
+    const EVENTS = {
+      stamp: ['STAMPING', 'STAMPED', 'STAMP_FAILED'],
+      reap: ['REAPING', 'REAPED', 'REAP_FAILED'],
+      validate: ['VALIDATING', 'VALIDATED', 'VALIDATION_FAILED'],
+    };
+    const [begin, done, failed] = EVENTS[work.kind] || [];
+    if (!begin) { inFlight -= 1; return log(`unknown work kind "${work.kind}" — refused`); }
     try {
       await reportEvent(work.rowId, begin, {});
       const result = await runRecipe(work);

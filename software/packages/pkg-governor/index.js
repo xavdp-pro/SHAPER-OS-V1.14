@@ -23,6 +23,9 @@ const EVENT_TRANSITIONS = {
   REAPING: 'RECONCILING',
   REAPED: 'REAPED',
   REAP_FAILED: 'DEGRADED',
+  VALIDATING: 'PURRING',
+  VALIDATED: 'PURRING',
+  VALIDATION_FAILED: 'DEGRADED',
 };
 
 /** A journal on disk: every change appended, the last word per id winning at
@@ -138,6 +141,21 @@ export function createGovernor({ now = () => Date.now(), storage = null } = {}) 
     maker.inventory = new Set(inventory.map((i) => (typeof i === 'string' ? i : i.digest)));
     persist('maker', maker);
 
+    /** The governor validates a child from FACTS the ledger holds: the stamp
+     *  recipe reported whether the child ships an acceptance spec, and the
+     *  governor knows no more than that. Work is derived once, and offered
+     *  again only if a VALIDATING claim went silent past its budget. */
+    const VALIDATE_RETRY_MS = 10 * 60 * 1000;
+    const needsValidation = (row) => {
+      const stamped = row.events.find((e) => e.event === 'STAMPED');
+      if (!stamped || stamped.data?.checks !== true) return false;
+      if (row.events.some((e) => e.event === 'VALIDATED' || e.event === 'VALIDATION_FAILED')) return false;
+      const claims = row.events.filter((e) => e.event === 'VALIDATING');
+      if (claims.length === 0) return true;
+      const last = new Date(claims[claims.length - 1].at).getTime();
+      return now() - last > VALIDATE_RETRY_MS;
+    };
+
     const work = [];
     const preload = new Set();
     for (const row of rows.values()) {
@@ -148,6 +166,7 @@ export function createGovernor({ now = () => Date.now(), storage = null } = {}) 
       let kind = null;
       if (row.state === 'DESIRED') kind = 'stamp';
       else if (pastDeadline && row.state !== 'REAPED' && row.state !== 'RECONCILING') kind = 'reap';
+      else if (row.state === 'PURRING' && needsValidation(row)) kind = 'validate';
       if (!kind) continue;
       if (kind === 'stamp' && !maker.inventory.has(row.digest)) {
         preload.add(row.digest);

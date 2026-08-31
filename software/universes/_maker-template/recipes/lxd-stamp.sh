@@ -76,8 +76,16 @@ printf 'row=%s\nclass=%s\nmatrix=%s\ndigest=%s\nenv=%s\n' \
 printf '%s' "$ACCOUNT" | lxc exec "$INSTANCE" -- tee /etc/shaper/account > /dev/null
 
 # 5. Report facts, not hopes: the caller records what the host observed.
+#    Among them: does this child ship an acceptance spec? The governor
+#    derives validation work from that fact and learns nothing else about
+#    what the class is — the spec's content never crosses this boundary.
 STATE="$(lxc list "$INSTANCE" --format csv -c s | head -1)"
 ADDR="$(lxc list "$INSTANCE" --format csv -c 4 | head -1 | awk '{print $1}')"
-say "state=$STATE address=${ADDR:-pending}"
-printf '{"instance":"%s","state":"%s","address":"%s","digest":"%s"}\n' \
-  "$INSTANCE" "$STATE" "${ADDR:-}" "$DIGEST"
+if lxc exec "$INSTANCE" -- test -s /etc/shaper/checks.json 2> /dev/null; then
+  CHECKS=true
+else
+  CHECKS=false
+fi
+say "state=$STATE address=${ADDR:-pending} checks=$CHECKS"
+printf '{"instance":"%s","state":"%s","address":"%s","digest":"%s","checks":%s}\n' \
+  "$INSTANCE" "$STATE" "${ADDR:-}" "$DIGEST" "$CHECKS"
