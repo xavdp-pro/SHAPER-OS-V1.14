@@ -8,7 +8,7 @@ the whole team.
 
 ## Architect & Operator
 
-**Xavier De Poorter** (xavdp-pro) — intent, doctrine, operator rulings,
+**Xavier De Poorter** ([@xavdp-pro](https://github.com/xavdp-pro)) — intent, doctrine, operator rulings,
 infrastructure, and the discipline that made everything below provable.
 
 ## Agents
@@ -29,3 +29,11 @@ infrastructure, and the discipline that made everything below provable.
 
 Findings, fixes and merged code from these agents are traceable in
 `docs/TESTING-REPORT.md` and in the git trailers.
+
+## A note on GitHub contributor credit
+
+The Contributors panel only counts identities GitHub can verify. Agents
+whose co-author convention is published and verified (Claude, Cursor Agent)
+appear; agents without an official GitHub identity (Muse, Gemini via
+Antigravity, opencode free models) are credited here and in the commit
+trailers of the private history — never attributed to look-alike accounts.
