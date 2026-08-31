@@ -2,20 +2,49 @@
   "contractVersion": 2,
   "base": {
     "packages": [
-      "pkg-agent-runtime", "pkg-auth", "pkg-bridge-agy", "pkg-bridge-cursor",
-      "pkg-bridge-deepseek", "pkg-bridge-opencode", "pkg-logger", "pkg-maestro",
-      "pkg-opencode-server", "pkg-queue", "pkg-supervisor", "pkg-universe",
-      "pkg-vault", "pkg-verify"
+      "pkg-agent-runtime",
+      "pkg-auth",
+      "pkg-bridge-agy",
+      "pkg-bridge-cursor",
+      "pkg-bridge-deepseek",
+      "pkg-bridge-opencode",
+      "pkg-governor",
+      "pkg-logger",
+      "pkg-maestro",
+      "pkg-opencode-server",
+      "pkg-queue",
+      "pkg-supervisor",
+      "pkg-universe",
+      "pkg-vault",
+      "pkg-verify"
     ],
     "bricks": [
-      "brick-bridge-agy", "brick-bridge-cursor", "brick-bridge-deepseek",
-      "brick-bridge-opencode", "brick-logger", "brick-maestro", "brick-queue",
+      "brick-bridge-agy",
+      "brick-bridge-cursor",
+      "brick-bridge-deepseek",
+      "brick-bridge-opencode",
+      "brick-logger",
+      "brick-maestro",
+      "brick-queue",
       "brick-vault"
     ]
   },
   "catalog": {
     "repository": "SHAPER-OS-BRICKS",
-    "packages": ["pkg-db", "pkg-ged-engine", "pkg-mail-agent", "pkg-rag", "pkg-fleet-dns"],
-    "bricks": ["brick-ged", "brick-helm", "brick-mariadb", "brick-pipeline", "brick-qdrant", "brick-waf"]
+    "packages": [
+      "pkg-db",
+      "pkg-ged-engine",
+      "pkg-mail-agent",
+      "pkg-rag",
+      "pkg-fleet-dns"
+    ],
+    "bricks": [
+      "brick-ged",
+      "brick-helm",
+      "brick-mariadb",
+      "brick-pipeline",
+      "brick-qdrant",
+      "brick-waf"
+    ]
   }
 }

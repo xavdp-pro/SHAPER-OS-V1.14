@@ -1,0 +1,9 @@
+{
+  "name": "@shaper/pkg-governor",
+  "version": "1.13.23",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

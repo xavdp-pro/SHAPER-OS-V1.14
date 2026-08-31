@@ -17,7 +17,10 @@ const dirs = (relative) => fs.readdirSync(path.join(SOFTWARE, relative), { withF
 test('V1.11 names every base artefact by its layer', () => {
   assert.ok(dirs('packages').every((name) => name.startsWith('pkg-')));
   assert.ok(dirs('bricks').every((name) => name.startsWith('brick-')));
-  assert.ok(dirs('universes').every((name) => name.startsWith('univ-') || name === '_template'));
+  // An underscored directory is a mold, not a living universe: `_template`
+  // seeded the convention, `_maker-template` follows it (one maker per
+  // machine is stamped FROM it, and it belongs to no project).
+  assert.ok(dirs('universes').every((name) => name.startsWith('univ-') || name.startsWith('_')));
 
   for (const directory of dirs('packages')) {
     const manifest = JSON.parse(fs.readFileSync(path.join(SOFTWARE, 'packages', directory, 'package.json'), 'utf8'));
