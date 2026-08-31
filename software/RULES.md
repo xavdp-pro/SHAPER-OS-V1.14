@@ -404,13 +404,34 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
   * At every deployment the agent enumerates the engines actually reachable from
     the target host, sends a bounded ping, measures, and selects the **cheapest
     engine that satisfies the declared depth and throughput**.
-  * **Where cost does not discriminate, measured speed does.** Free engines all
-    cost the same, so among those that satisfy the declared depth the default is
-    the one with the **highest measured throughput** — tokens per second observed
-    from the target host, on a bounded prompt, not a figure read from a vendor
-    page or a public ranking. Published speed has already been wrong here: the
-    fastest model on paper timed out twice from inside an LXC while a slower one
-    did the work.
+  * **Cost and performance are two cursors, reconciled by fact and by
+    declaration — never by a hidden formula.** *(Amended after the first
+    production deployment: the operator observed that the most performant
+    engine is sometimes cheap and sometimes not — a single hard-coded
+    "cheapest wins" policy encodes an arbitration the law has no right to
+    make.)* The procedure:
+    1. **The contract eliminates.** An engine that fails the declared depth,
+       throughput or correctness probe is out at any price.
+    2. **Dominance eliminates.** An engine both more expensive AND less
+       performant than another measured engine is discarded — that is a fact,
+       not a policy. What remains is the frontier, where every choice is
+       legitimate.
+    3. **The universe declares its cursor** (`enginePolicy` in its manifest;
+       absent means `frugal`):
+       `frugal` — the cheapest engine on the frontier. Dominance makes it
+       automatically the fastest of the cheapest, so free-tier ties resolve
+       to measured speed, as before.
+       `swift` — the most performant engine on the frontier; for voice and
+       real-time universes, where a slow engine is useless at any price.
+       `budget: <max cost per task>` — the most performant engine under a
+       ceiling the operator declares. The number comes from the operator,
+       never from this canon: a weighting constant invented here would be an
+       unmeasured figure, and Rule 10 forbids those.
+    Performance is **measured from the target host** — correctness on a
+    bounded probe and observed latency/throughput — never a figure read from
+    a vendor page or a public ranking. Published speed has already been wrong
+    here: the fastest model on paper timed out twice from inside an LXC while
+    a slower one did the work.
   * **The measurement is part of the deployment, not a preliminary.** An engine
     adopted without a recorded ping is an undocumented dependency, even when it
     answers: a healthy bridge proves the bridge, never the model behind it.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "SHAPER OS universe manifest (V1.13)",
-  "description": "A universe declares what it is made of. It never copies a brick, and it never leaves anything about a brick to be guessed: every entry states where the brick comes from (source), which layer it belongs to (perimeter), and — when it diverged from a standard brick — what it forked from (Rule 37). The identifier says WHAT; these fields say WHENCE and WHERE.",
+  "description": "A universe declares what it is made of. It never copies a brick, and it never leaves anything about a brick to be guessed: every entry states where the brick comes from (source), which layer it belongs to (perimeter), and \u2014 when it diverged from a standard brick \u2014 what it forked from (Rule 37). The identifier says WHAT; these fields say WHENCE and WHERE.",
   "type": "object",
   "required": [
     "universe",
@@ -58,7 +58,7 @@
         "channel": {
           "type": "string",
           "minLength": 1,
-          "description": "mobile push, mail, Telegram, or an existing prod-alerting relay — whatever actually reaches a human out-of-band."
+          "description": "mobile push, mail, Telegram, or an existing prod-alerting relay \u2014 whatever actually reaches a human out-of-band."
         },
         "target": {
           "type": "string",
@@ -205,7 +205,7 @@
               "fork",
               "native"
             ],
-            "description": "Where this brick comes from (Rule 37). base/catalogue: shipped by that repository, consumed by image+tag. fork: inherited from a standard brick and specialised — forkedFrom becomes mandatory. native: a P3 brick scaffolded inside this class repo (the shaper-tool-scaffold path). Nothing is inferred from a path."
+            "description": "Where this brick comes from (Rule 37). base/catalogue: shipped by that repository, consumed by image+tag. fork: inherited from a standard brick and specialised \u2014 forkedFrom becomes mandatory. native: a P3 brick scaffolded inside this class repo (the shaper-tool-scaffold path). Nothing is inferred from a path."
           },
           "perimeter": {
             "type": "string",
@@ -214,7 +214,7 @@
               "P2",
               "P3"
             ],
-            "description": "Which layer this brick belongs to (Rule 0A, Rule 37). Perimeter means LAYER, never OWNER — a client-specific brick can be P1."
+            "description": "Which layer this brick belongs to (Rule 0A, Rule 37). Perimeter means LAYER, never OWNER \u2014 a client-specific brick can be P1."
           },
           "forkedFrom": {
             "type": "object",
@@ -237,7 +237,7 @@
           "package": {
             "type": "string",
             "pattern": "^@shaper/pkg-[a-z0-9][a-z0-9-]*$",
-            "description": "The pkg- source package this brick is built from, when the base or the catalogue ships one. A brick that wraps a third-party image declares `upstream` instead — brick-mariadb has no @shaper package, and pretending otherwise would be a lie a test can be made to enforce."
+            "description": "The pkg- source package this brick is built from, when the base or the catalogue ships one. A brick that wraps a third-party image declares `upstream` instead \u2014 brick-mariadb has no @shaper package, and pretending otherwise would be a lie a test can be made to enforce."
           },
           "image": {
             "type": "string",
@@ -362,6 +362,32 @@
           "pattern": "^brick-[a-z0-9][a-z0-9-]*$"
         }
       }
+    },
+    "enginePolicy": {
+      "description": "Rule 7, the two cursors: how this universe arbitrates cost vs performance among engines that pass the contract. Dominated engines are discarded by measurement; this field declares the cursor. Absent means frugal.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "frugal",
+            "swift"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "budgetPerTask"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "budgetPerTask": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Operator-declared cost ceiling per task, in the account's billing unit. The most performant engine under this ceiling wins. The number comes from the operator, never from the canon (Rule 10)."
+            }
+          }
+        }
+      ]
     }
   }
 }

@@ -252,7 +252,13 @@ cd ..
 # nowhere and the .env asked for a measurement no blank machine could make).
 podman run --rm --entrypoint opencode \
   "$SHAPER_REGISTRY/shaper/brick-bridge-opencode:$SHAPER_IMAGE_TAG" models
-export OPENCODE_MODEL=<the cheapest engine that answered — Rule 7>
+# Rule 7, two cursors: engines failing the probe are OUT at any price;
+# dominated engines (more expensive AND slower) are OUT by measurement; the
+# manifest's enginePolicy declares the cursor among what remains —
+# frugal (default: cheapest, ties resolve to measured speed), swift (most
+# performant — voice/real-time), or {budgetPerTask: N} (best under a ceiling
+# the operator declares).
+export OPENCODE_MODEL=<the engine your measurements and the declared enginePolicy select — Rule 7>
 # Exports live only in YOUR shell. If your harness opens a fresh shell per
 # command (lxc exec does), re-export SHAPER_REGISTRY, SHAPER_IMAGE_TAG and
 # OPENCODE_MODEL before any step that uses them — podman-up.sh halts on a

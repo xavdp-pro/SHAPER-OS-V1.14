@@ -171,6 +171,21 @@ export function checkManifestInvariants(manifest) {
     }
   }
 
+  // Rule 7, the two cursors: the schema declares enginePolicy with a oneOf
+  // the subset validator does not evaluate — so the grammar of the cursor is
+  // enforced here, exactly like forkedFrom above. Three shapes and no other:
+  // 'frugal', 'swift', or { budgetPerTask: > 0 } declared by the operator.
+  const policy = manifest?.enginePolicy;
+  if (policy !== undefined) {
+    const isNamed = policy === 'frugal' || policy === 'swift';
+    const isBudget = policy !== null && typeof policy === 'object' && !Array.isArray(policy)
+      && Object.keys(policy).length === 1
+      && typeof policy.budgetPerTask === 'number' && policy.budgetPerTask > 0;
+    if (!isNamed && !isBudget) {
+      errors.push(`enginePolicy: ${JSON.stringify(policy)} is not a cursor the law names — 'frugal', 'swift', or { budgetPerTask: > 0 } (Rule 7)`);
+    }
+  }
+
   const booted = (manifest?.bootOrder || []).flat();
   const seen = new Set();
   for (const name of booted) {
