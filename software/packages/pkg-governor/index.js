@@ -7,6 +7,8 @@
  * never commands — this module contains no fetch on purpose.
  */
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import http from 'node:http';
 
 const STATES = ['DESIRED', 'RECONCILING', 'PURRING', 'DEGRADED', 'REAPED'];
@@ -23,10 +25,49 @@ const EVENT_TRANSITIONS = {
   REAP_FAILED: 'DEGRADED',
 };
 
-export function createGovernor({ now = () => Date.now() } = {}) {
+/** A journal on disk: every change appended, the last word per id winning at
+ *  boot. The ledger is not like the queue — a queue's durability is evidence
+ *  and never resumption, but a ledger IS the desired state: a governor that
+ *  forgot its rows would abandon every universe it asked for. So this one is
+ *  authoritative, and it is read back in full. */
+export function createFileStorage(file) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  return {
+    load() {
+      if (!fs.existsSync(file)) return [];
+      return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean)
+        .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+        .filter(Boolean);
+    },
+    append(record) {
+      fs.appendFileSync(file, `${JSON.stringify(record)}\n`, 'utf8');
+    },
+  };
+}
+
+export function createGovernor({ now = () => Date.now(), storage = null } = {}) {
   const rows = new Map();     // id -> ledger row
   const makers = new Map();   // host -> { token, version, lanes, inventory:Set<digest>, lastPollAt, enrolledAt }
   let seq = 0;
+
+  /** Persist a snapshot. Inventory is a Set in memory and a list on disk. */
+  const persist = (kind, value) => {
+    if (!storage) return;
+    const body = kind === 'maker' ? { ...value, inventory: [...value.inventory] } : value;
+    storage.append({ kind, at: new Date(now()).toISOString(), body });
+  };
+
+  if (storage) {
+    for (const record of storage.load()) {
+      if (record.kind === 'row') {
+        rows.set(record.body.id, record.body);
+        const n = Number(String(record.body.id).split('-').pop());
+        if (Number.isFinite(n) && n > seq) seq = n;
+      } else if (record.kind === 'maker') {
+        makers.set(record.body.host, { ...record.body, inventory: new Set(record.body.inventory || []) });
+      }
+    }
+  }
 
   const stamp = () => new Date(now()).toISOString();
 
@@ -49,10 +90,12 @@ export function createGovernor({ now = () => Date.now() } = {}) {
       if (m.fleetName === name) throw new Error(`fleet name "${name}" is already bound to host "${m.host}"`);
     }
     const token = crypto.randomBytes(24).toString('hex');
-    makers.set(host, {
+    const maker = {
       token, host, fleetName: name, version: null, lanes: 0,
       inventory: new Set(), lastPollAt: null, enrolledAt: stamp(),
-    });
+    };
+    makers.set(host, maker);
+    persist('maker', maker);
     return { host, fleetName: name, token };
   }
 
@@ -77,6 +120,7 @@ export function createGovernor({ now = () => Date.now() } = {}) {
       createdAt: stamp(), updatedAt: stamp(), events: [],
     };
     rows.set(id, row);
+    persist('row', row);
     return { row, created: true };
   }
 
@@ -92,6 +136,7 @@ export function createGovernor({ now = () => Date.now() } = {}) {
     maker.version = version ?? maker.version;
     maker.lanes = lanes ?? maker.lanes;
     maker.inventory = new Set(inventory.map((i) => (typeof i === 'string' ? i : i.digest)));
+    persist('maker', maker);
 
     const work = [];
     const preload = new Set();
@@ -129,6 +174,7 @@ export function createGovernor({ now = () => Date.now() } = {}) {
       row.state = next;
       row.updatedAt = stamp();
     }
+    persist('row', row);
     return { ok: true, state: row.state };
   }
 

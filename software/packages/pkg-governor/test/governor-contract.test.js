@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGovernor } from '../index.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createFileStorage, createGovernor } from '../index.js';
 
 // Intent: software/packages/pkg-governor/INTENT.md
 //
@@ -160,5 +163,48 @@ describe('two names, bound once — found on terrain at the first birth', () => 
     assert.equal(fleetName, 'solo-host');
     g.desire({ account: 'a1', klass: 'k', matrix: 'm', digest: 'sha256:aa', machine: 'solo-host' });
     assert.equal(g.poll({ token, host: 'solo-host', inventory: ['sha256:aa'] }).work.length, 1);
+  });
+});
+
+describe('the ledger survives its governor', () => {
+  it('a restarted governor recovers its rows, its enrolments and its credentials', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shaper-ledger-'));
+    const file = path.join(dir, 'ledger.jsonl');
+
+    const first = createGovernor({ storage: createFileStorage(file) });
+    const { token } = first.enrolMaker({ host: 'vps-aaa', fleetName: 'gbs-test' });
+    const { row } = first.desire({
+      account: 'Atelier Vallier', klass: 'univ-demo-crm', matrix: 'crm',
+      digest: 'sha256:aa', machine: 'gbs-test',
+      deadlineAt: new Date(Date.now() + 86400000).toISOString(),
+    });
+    first.report({ token, rowId: row.id, event: 'STAMPED' });
+
+    // The process dies. The universe it asked for is still running out there.
+    const second = createGovernor({ storage: createFileStorage(file) });
+
+    const recovered = second.getRow(row.id);
+    assert.ok(recovered, 'a governor that forgets its rows abandons every universe it asked for');
+    assert.equal(recovered.state, 'PURRING');
+    assert.equal(recovered.account, 'Atelier Vallier');
+
+    // The credential still works, and still names the same two names.
+    const out = second.poll({ token, host: 'vps-aaa', inventory: ['sha256:aa'] });
+    assert.equal(out.ok, true, 'an enrolment lost on restart would silence the whole fleet');
+    assert.ok(second.referencedDigests().has('sha256:aa'));
+
+    // And idempotence survives too: no twin after a restart.
+    const again = second.desire({
+      account: 'Atelier Vallier', klass: 'univ-demo-crm', matrix: 'crm',
+      digest: 'sha256:aa', machine: 'gbs-test',
+    });
+    assert.equal(again.created, false);
+    assert.equal(again.row.id, row.id);
+  });
+
+  it('without storage it stays in memory — the contract is testable on a naked clone', () => {
+    const g = createGovernor();
+    g.desire({ account: 'a', klass: 'k', matrix: 'm', digest: 'sha256:aa', machine: 'h' });
+    assert.equal(g.listRows().length, 1);
   });
 });
