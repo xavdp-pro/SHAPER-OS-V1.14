@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="docs/shaper-os-mascot.png" alt="The SHAPER OS mascot: a geometric guardian between fox and owl, holding an S built from blocks, bricks assembled at its feet" width="380">
+</p>
+
+<p align="center"><em>Shape systems. Orchestrate intelligence.</em></p>
+
 # SHAPER OS V1.13
 
 > **The Sovereign Operating System of Standardized Bricks & Intentions — Where Humans Formulate Vision and AI Agents Build & Operate**
