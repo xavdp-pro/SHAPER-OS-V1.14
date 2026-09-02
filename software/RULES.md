@@ -522,8 +522,10 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
     `linux.kernel_modules: overlay,nf_nat,ip_tables,ip6_tables,fuse,tun`.
   * **`liblxc` — Debian with plain LXC** (the `lxc-*` tools over the library,
     no LXD daemon; amended 2 September 2026, maker-and-governor verdict, D2).
-    The same three prerequisites as the `lxd` family, spelled in the
-    container's `config` instead of a profile: nesting
+    The same three concerns as the `lxd` family — nesting, the privilege
+    model, the host modules — spelled in the container's `config` instead of
+    a profile, and with an unprivileged idmap where the `lxd` profile runs
+    privileged: nesting
     (`lxc.include = /usr/share/lxc/config/nesting.conf`, and the AppArmor
     profile that allows it), an **unprivileged idmap** (`lxc.idmap = u 0
     <subuid> 65536` / `g …`, the ranges granted in `/etc/subuid` and
