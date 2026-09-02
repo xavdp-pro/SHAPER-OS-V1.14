@@ -79,6 +79,7 @@ systemctl enable --now ssh
 
 ---
 
+<a id="no-host-data-tree"></a>
 ### Étape 3 — L'état persistant vit dans l'univers, pas dans `/data/`
 
 **Rien à créer à la main ici.** Cette étape demandait autrefois de créer une
@@ -101,6 +102,17 @@ monter — un test le vérifie désormais pour chaque point de montage.
 
 Il n'y a par conséquent **aucun `chmod 777` à passer** : la ligne qui figurait
 ici ouvrait en écriture universelle des répertoires que personne n'utilisait.
+
+> **The one-click script obeys this step too.** Until the 2 September audit
+> `scripts/shaper-lxc-bootstrap.sh` still ran `mkdir -p /data/{…}` and
+> `chmod -R 777 /data/ged /data/workspaces /data/timelines` on the host while
+> this page said the opposite, and it seeded a journal under
+> `/data/workspaces/<author>/_kovzu/` that nothing in this repository reads.
+> The script now creates nothing on the host: the deploy script of the universe
+> creates what it mounts, under the universe, before it mounts it
+> ([`universes/README.md` §5](./universes/README.md#materialise-before-mount)).
+> A guard reads the script for any host `/data` creation, any `chmod 777`, and
+> any unquoted slug (`pkg-universe/test/lxc-bootstrap-script.test.js`).
 
 ---
 
@@ -224,14 +236,27 @@ L'agent est opérationnel sur le port 8650 (Cockpit Helm) et par voix/chat. Il e
 
 ## ⚡ Script de Bootstrap 1-Click (`scripts/shaper-lxc-bootstrap.sh`)
 
-L'intégralité des étapes 1 à 7 est condensée dans le script exécutable `scripts/shaper-lxc-bootstrap.sh`.  
-Sur un conteneur LXC neuf, il suffit de taper :
+Les étapes 1, 2, 4, 5 et 7 sont condensées dans le script exécutable
+`software/scripts/shaper-lxc-bootstrap.sh` (l'étape 3 ne crée rien, et
+l'étape 6 n'a pas de forme générique — voir plus haut). Il exige deux choses
+que la commande nomme : le slug de l'univers, et un univers déjà dérivé de
+`software/universes/_template/` sous `software/universes/<univ_slug>/`.
+Sur un conteneur LXC neuf :
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git /root/SHAPER-OS
-cd /root/SHAPER-OS
-bash scripts/shaper-lxc-bootstrap.sh
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git /root/SHAPER-OS-V1.13
+cd /root/SHAPER-OS-V1.13
+UNIV_SLUG=<univ_slug> bash software/scripts/shaper-lxc-bootstrap.sh
 ```
+
+> Until the 2 September audit this block read `cd /root/SHAPER-OS` then
+> `bash scripts/shaper-lxc-bootstrap.sh`: there is no `scripts/` at the
+> repository root (it is `software/scripts/`), and the script halts without
+> `UNIV_SLUG`, which no line here named. The script now resolves `software/`
+> from its own location, so it runs from any directory; the universe it starts
+> is `software/universes/$UNIV_SLUG`, and a slug that names no universe is a
+> halt that says so, not a warning that scrolls by.
+
 **Durée d'exécution constatée dans ce contexte précis** : images déjà présentes en cache local, univers vide sans données à restaurer, provisionnement LXC et `apt` **non inclus**.
 Cette valeur est une mesure d'observation, **pas un engagement** : elle ne vaut que pour ce contexte exact. Voir Rule 10 (trois horloges) avant de la citer où que ce soit.  
 **Résultat** : Univers opérationnel, agent prêt au service.
