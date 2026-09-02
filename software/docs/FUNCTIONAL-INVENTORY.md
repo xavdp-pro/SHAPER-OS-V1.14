@@ -1,265 +1,265 @@
-# SHAPER OS — Inventaire parallèle Objectifs / Fonctionnalités
+# SHAPER OS — Parallel Inventory of Objectives / Features
 
-> **Scan** : 2026-08-19 · workspace `REMOTE2/`  
-> **Loi canonique** : [`PERIMETERS.md`](./PERIMETERS.md) — taxonomie **P1 / P2 / P3**.  
-> **Index doc** : [`DOC-INDEX.md`](./DOC-INDEX.md).  
-> **Hors scope UI** : `/talk` et `/voice` **retirés** (redirect `/console`). Voix opérateur **dans** `/console` = **P2**.  
-> **Convention** : objectif (pourquoi) ↔ fonction (quoi / où).  
-> **Statut** : `vivant` · `partiel` · `vision` · `retiré` · `absent` (doc/script promis mais pas dans le repo).
+> **Scan**: 2026-08-19 · workspace `REMOTE2/`  
+> **Canonical law**: [`PERIMETERS.md`](./PERIMETERS.md) — **P1 / P2 / P3** taxonomy.  
+> **Doc index**: [`DOC-INDEX.md`](./DOC-INDEX.md).  
+> **Out of UI scope**: `/talk` and `/voice` **removed** (redirect to `/console`). Operator voice **inside** `/console` = **P2**.  
+> **Convention**: objective (why) ↔ feature (what / where).  
+> **Status**: `live` · `partial` · `vision` · `retired` · `absent` (doc/script promised but not in the repo).
 
 ---
 
-## 0. Trois périmètres (vue d’ensemble)
+## 0. Three perimeters (overview)
 
-| Périmètre | Objectif | Composants clés | Statut |
+| Perimeter | Objective | Key components | Status |
 | :--- | :--- | :--- | :--- |
-| **P1 — Socle minimal** | Boot souverain : secrets, audit, auth, jobs génériques | vault, logger, auth, db, queue | vivant |
-| **P2 — Agentique** | Beats, bridges, cockpit, mémoire organisme | maestro, agent, mail-agent, bridges, helm, ged, rag | vivant (rag/qdrant partiel) |
-| **P3 — Métier / clients** | Outils pérennes hors socle et hors KovZu | market-intelligence, enterprise-chat, ocr, univ-* | vision |
+| **P1 — Minimal socle** | Sovereign boot: secrets, audit, auth, generic jobs | vault, logger, auth, db, queue | live |
+| **P2 — Agentic** | Beats, bridges, cockpit, organism memory | maestro, agent, mail-agent, bridges, helm, ged, rag | live (rag/qdrant partial) |
+| **P3 — Business / clients** | Durable tools outside the socle and outside KovZu | market-intelligence, enterprise-chat, ocr, univ-* | vision |
 
-- Helm `/console` = **P2**. **`enterprise-chat`** = **P3** (chat portails clients, ≠ KovZu).
-- **`market-intelligence`** = **P3** (veille / scraper métier).
-- UNIV7/8/9 = sandboxes **P1+P2**, pas P3.
+- Helm `/console` = **P2**. **`enterprise-chat`** = **P3** (client-portal chat, ≠ KovZu).
+- **`market-intelligence`** = **P3** (business watch / scraper).
+- UNIV7/8/9 = **P1+P2** sandboxes, not P3.
 
 ---
 
-## 0b. Doctrine OS (loi transverse)
+## 0b. OS doctrine (transversal law)
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Intent-driven engineering | INTENT.md (4–6 invariants) + silence = agent décide | vivant |
-| Zéro token idle | Beats Maestro ; inject LLM si handler le décide | vivant |
-| Générique vs spécifique | Rule 0B · GENERIC vs SPECIFIC INTENT | vivant |
-| Graphe de dépendances | `topology.json` (boot P1+P2) | vivant |
-| Validateur topology CLI | `scripts/shaper-deps.mjs doctor` | **absent** (doc TOPOLOGY-INTENT) |
-| Pipeline materialization | Rule 0E : intent → materialize → test → registry → deploy | vivant |
-| Cockpit ≠ clients | Rule 0F · PERIMETERS P2 vs P3 | vivant |
-| Trois périmètres | [`PERIMETERS.md`](./PERIMETERS.md) | vivant |
-| PRA (3 clocks: cache / rebuild / data) | `pra-univ7-rebuild.mjs` + tests UNIV* | vivant |
-| Bootstrap OS complet | `bootstrap-shaper-os.sh` (`npm run bootstrap`) | **absent** |
-| Distillation UNIV-X → SHAPER-OS | MANIFESTO §6 | vivant |
+| Intent-driven engineering | INTENT.md (4–6 invariants) + silence = the agent decides | live |
+| Zero idle tokens | Maestro beats; LLM inject if the handler decides | live |
+| Generic vs specific | Rule 0B · GENERIC vs SPECIFIC INTENT | live |
+| Dependency graph | `topology.json` (P1+P2 boot) | live |
+| Topology CLI validator | `scripts/shaper-deps.mjs doctor` | **absent** (doc TOPOLOGY-INTENT) |
+| Materialization pipeline | Rule 0E: intent → materialize → test → registry → deploy | live |
+| Cockpit ≠ clients | Rule 0F · PERIMETERS P2 vs P3 | live |
+| Three perimeters | [`PERIMETERS.md`](./PERIMETERS.md) | live |
+| PRA (3 clocks: cache / rebuild / data) | `pra-univ7-rebuild.mjs` + UNIV* tests | live |
+| Full OS bootstrap | `bootstrap-shaper-os.sh` (`npm run bootstrap`) | **absent** |
+| Distillation UNIV-X → SHAPER-OS | MANIFESTO §6 | live |
 
 ---
 
-## 1. P1 — Socle minimal
+## 1. P1 — Minimal socle
 
 ### 1.1 Vault
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Secrets souverains | AES-256-GCM · `@shaper/pkg-vault` · `brick-vault` | vivant |
-| CRUD HTTP | `/api/secrets`, health | vivant |
-| Bootstrap | `npm run vault:bootstrap` | vivant |
+| Sovereign secrets | AES-256-GCM · `@shaper/pkg-vault` · `brick-vault` | live |
+| HTTP CRUD | `/api/secrets`, health | live |
+| Bootstrap | `npm run vault:bootstrap` | live |
 
 ### 1.2 Logger
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Audit append-only | JSONL · `@shaper/pkg-logger` · `brick-logger` | vivant |
-| Ingest / events | `/api/ingest`, `/api/events`, `/api/events/last` | vivant |
+| Append-only audit | JSONL · `@shaper/pkg-logger` · `brick-logger` | live |
+| Ingest / events | `/api/ingest`, `/api/events`, `/api/events/last` | live |
 
 ### 1.3 Auth
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Bearer stateless | `@shaper/pkg-auth` (paquet, exécuté dans le service protégé) | vivant |
+| Stateless Bearer | `@shaper/pkg-auth` (package, executed inside the protected service) | live |
 
 ### 1.4 Queue
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Jobs async opaques | `@shaper/pkg-queue` · `brick-queue` · SSE | vivant |
-| Worker agent.inject | `QUEUE_AUTO_DISPATCH` → bridge | vivant |
+| Opaque async jobs | `@shaper/pkg-queue` · `brick-queue` · SSE | live |
+| agent.inject worker | `QUEUE_AUTO_DISPATCH` → bridge | live |
 
 ### 1.5 DB (Turbinobash)
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| `user = database = slug` | `@shaper/pkg-db` (catalogue) | vivant — hors socle |
-| Brick MariaDB | `brick-mariadb` | vivant |
+| `user = database = slug` | `@shaper/pkg-db` (catalogue) | live — outside the socle |
+| MariaDB brick | `brick-mariadb` | live |
 
-### 1.6 P1 planifié
+### 1.6 Planned P1
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| WAF edge | `@shaper/waf` | vision |
-| Télémétrie | `log-sentinel` | vision |
-| Quadlets racine | `quadlet/*.container` | absent |
+| Edge WAF | `@shaper/waf` | vision |
+| Telemetry | `log-sentinel` | vision |
+| Root quadlets | `quadlet/*.container` | absent |
 
 ---
 
-## 2. P2 — Couche agentique (packages)
+## 2. P2 — Agentic layer (packages)
 
 ### 2.1 Maestro
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Cadence déterministe | `@shaper/pkg-maestro` · `brick-maestro` | vivant |
-| Registre + tick | `/api/pods`, `/api/pods/:slug/tick` | vivant |
+| Deterministic cadence | `@shaper/pkg-maestro` · `brick-maestro` | live |
+| Registry + tick | `/api/pods`, `/api/pods/:slug/tick` | live |
 
 ### 2.2 Agent
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| 1 image, N tâches | `@shaper/pkg-agent-runtime` (embarqué dans `brick-maestro`) · `task-schedule.json` | vivant |
-| Beat handler | `createAgentBeatHandler`, probe bridge health | vivant |
-| Bridge-agnostique | agy, opencode, cursor, claude (URL param) | vivant |
+| 1 image, N tasks | `@shaper/pkg-agent-runtime` (embedded in `brick-maestro`) · `task-schedule.json` | live |
+| Beat handler | `createAgentBeatHandler`, bridge health probe | live |
+| Bridge-agnostic | agy, opencode, cursor, claude (URL param) | live |
 
 ### 2.3 Mail-agent
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| IMAP vault-only | `@shaper/pkg-mail-agent` · checkpoint | vivant |
+| Vault-only IMAP | `@shaper/pkg-mail-agent` · checkpoint | live |
 
 ### 2.4 Bridges (Rule 8)
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Antigravity | `@shaper/pkg-bridge-agy` · `brick-bridge-agy` | vivant |
-| OpenCode free | `@shaper/pkg-bridge-opencode` · `opencode-bridge` | vivant |
-| Claude au socle | `@shaper/bridge-claude` | absent (Helm routes seulement) |
+| Antigravity | `@shaper/pkg-bridge-agy` · `brick-bridge-agy` | live |
+| OpenCode free | `@shaper/pkg-bridge-opencode` · `opencode-bridge` | live |
+| Claude in the socle | `@shaper/bridge-claude` | absent (Helm routes only) |
 
-### 2.5 GED organisme
+### 2.5 Organism GED
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Hub docs opérateur | `@shaper/pkg-ged-engine` · `brick-ged` · `:8660` | vivant |
-| Stack UNIV8/9 | conteneur ged dans manifest | partiel |
+| Operator document hub | `@shaper/pkg-ged-engine` · `brick-ged` · `:8660` | live |
+| UNIV8/9 stack | ged container in the manifest | partial |
 
 ### 2.6 RAG / Qdrant
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Index + search | `@shaper/pkg-rag` · API Helm `/api/rag/*` | vivant |
-| Vecteurs | `brick-qdrant` | partiel (pas déployé UNIV8/9) |
-| topology.json | `@shaper/pkg-rag` absent de `minimalSocle` | partiel |
+| Index + search | `@shaper/pkg-rag` · Helm API `/api/rag/*` | live |
+| Vectors | `brick-qdrant` | partial (not deployed in UNIV8/9) |
+| topology.json | `@shaper/pkg-rag` absent from `minimalSocle` | partial |
 
-### 2.7 Codex (planifié P2)
+### 2.7 Codex (planned P2)
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Registre contexte agent | `codex-v1` (PLAN-CODEX-V1) | vision |
+| Agent context registry | `codex-v1` (PLAN-CODEX-V1) | vision |
 
 ---
 
-## 3. P2 — Cockpit Helm / KovZu
+## 3. P2 — Helm / KovZu cockpit
 
-**Retiré** : `/talk`, `/voice` → redirect `/console`.  
-**Actif** : voix dans `/console` (STT/TTS, ack Groq).
+**Removed**: `/talk`, `/voice` → redirect to `/console`.  
+**Active**: voice inside `/console` (STT/TTS, Groq ack).
 
 ### 3.1 Surface
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Console opérateur | `/console` · chat CLI · timeline | vivant |
-| Admin | `/admin/{maestro,socle,agent,cli,briefing,voices,users}` | vivant |
-| i18n | FR / EN / ES | vivant |
+| Operator console | `/console` · CLI chat · timeline | live |
+| Admin | `/admin/{maestro,socle,agent,cli,briefing,voices,users}` | live |
+| i18n | FR / EN / ES | live |
 
-### 3.2 Chat multi-CLI
+### 3.2 Multi-CLI chat
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Plugins | agy · cursor · claude · opencode | vivant |
-| Inject + SSE | `/api/inject`, `/api/events` | vivant |
-| Sessions / timeline / workspaces | routes conversations, timeline, workspace | vivant |
-| Browser / neko | `/api/browser/*` | partiel |
+| Plugins | agy · cursor · claude · opencode | live |
+| Inject + SSE | `/api/inject`, `/api/events` | live |
+| Sessions / timeline / workspaces | conversations, timeline, workspace routes | live |
+| Browser / neko | `/api/browser/*` | partial |
 
-### 3.3 Voix console
+### 3.3 Console voice
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| STT / TTS | Deepgram, Cartesia, Groq ack | vivant |
-| Admin voix | Voices, aliases, catalog | vivant |
+| STT / TTS | Deepgram, Cartesia, Groq ack | live |
+| Voice admin | Voices, aliases, catalog | live |
 
-### 3.4 Admin socle
+### 3.4 Socle admin
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Health | `/api/socle/health` | vivant |
-| Maestro UI | `/api/maestro/tasks`, run-now | vivant |
-| Proxy GED | `/api/ged` | vivant |
+| Health | `/api/socle/health` | live |
+| Maestro UI | `/api/maestro/tasks`, run-now | live |
+| GED proxy | `/api/ged` | live |
 
-### 3.5 Déploiement
+### 3.5 Deployment
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Image | `brick-helm` · `:8650` | vivant |
-| Tunnel | cloudflared → `ia.example.com` | vivant |
-| MariaDB embarqué | UNIV9 | vivant |
+| Image | `brick-helm` · `:8650` | live |
+| Tunnel | cloudflared → `ia.example.com` | live |
+| Embedded MariaDB | UNIV9 | live |
 
 ---
 
-## 4. P2 — Univers test (P1+P2)
+## 4. P2 — Test universes (P1+P2)
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Template | `universes/_template/` | vivant |
-| UNIV7 | PRA BTP · mail zoutik + storm-watch | vivant |
-| UNIV8 | stack Podman + Helm + OpenCode | vivant |
-| UNIV9 | Helm tout-en-un + MariaDB | vivant |
+| Template | `universes/_template/` | live |
+| UNIV7 | PRA BTP · zoutik mail + storm-watch | live |
+| UNIV8 | Podman stack + Helm + OpenCode | live |
+| UNIV9 | All-in-one Helm + MariaDB | live |
 | Factory | none — a universe class is born by `docs/agent/UNIVERSE-REPO-BIRTH.md`, a procedure, not a generator; the factory script left on 2 September 2026 (it wrote `apps/` and `quadlet/`, a frame the base does not have, and was run by nothing) | retired |
-| Doublons miroir | `SHAPER-OS/universes/univ*` vs `UNIV*` | partiel (dérive) |
-| UNIV9 INTENT.md | manifest seulement | partiel |
+| Mirror duplicates | `SHAPER-OS/universes/univ*` vs `UNIV*` | partial (drift) |
+| UNIV9 INTENT.md | manifest only | partial |
 
-### Instances agentiques UNIV7 (P2)
+### UNIV7 agentic instances (P2)
 
-| Instance | Rôle | Statut |
+| Instance | Role | Status |
 | :--- | :--- | :--- |
-| `mail-contact-zoutik-shop` | IMAP test 300s | vivant |
-| `ops-univ7-storm-watch` | inject ops BTP 300s | vivant |
+| `mail-contact-zoutik-shop` | IMAP test 300s | live |
+| `ops-univ7-storm-watch` | BTP ops inject 300s | live |
 
 ---
 
-## 5. P3 — Métier / outils clients
+## 5. P3 — Business / client tools
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Veille marché | `market-intelligence` | vision |
-| Chat portails clients | `enterprise-chat` (**≠** KovZu) | vision |
-| OCR métier | `ocr-engine` | vision |
-| Showcase RBAC | `wikiuniv-v1` | vision |
-| ERP verticaux | univ-sinistre, artisan, immo | vision |
-| POC CRM | app séparée (VISION phase 5) | vision |
+| Market watch | `market-intelligence` | vision |
+| Client-portal chat | `enterprise-chat` (**≠** KovZu) | vision |
+| Business OCR | `ocr-engine` | vision |
+| RBAC showcase | `wikiuniv-v1` | vision |
+| Vertical ERPs | univ-sinistre, artisan, immo | vision |
+| CRM POC | separate app (VISION phase 5) | vision |
 | Helm Desk | mobile → desktop WS (phase 4) | vision |
-| Outillage scaffold | `shaper-tool-scaffold.mjs` (writes `packages/pkg-<slug>` + `bricks/brick-<slug>`, from a universe class repository, never from the base), `shaper-sandbox.sh` | vivant |
+| Scaffold tooling | `shaper-tool-scaffold.mjs` (writes `packages/pkg-<slug>` + `bricks/brick-<slug>`, from a universe class repository, never from the base), `shaper-sandbox.sh` | live |
 
-**Protocole** : sandbox → brick dédiée → volume `/data/<slug>/` → jamais dans KovZu.
+**Protocol**: sandbox → dedicated brick → volume `/data/<slug>/` → never inside KovZu.
 
 ---
 
-## 6. Host, flotte, usine
+## 6. Host, fleet, factory
 
-| Objectif | Fonctionnalité | Statut |
+| Objective | Feature | Status |
 | :--- | :--- | :--- |
-| skel LXC | `skel/etc/*` | vivant |
-| Build bricks | `build-all-bricks.sh` (8 scripts) | vivant |
-| PRA rebuild | `pra-univ7-rebuild.mjs` | vivant |
-| Snapshots | `snapshot-universe.sh` / restore | vivant |
-| Bootstrap OS | `bootstrap-shaper-os.sh` | **absent** |
+| LXC skel | `skel/etc/*` | live |
+| Brick builds | `build-all-bricks.sh` (8 scripts) | live |
+| PRA rebuild | `pra-univ7-rebuild.mjs` | live |
+| Snapshots | `snapshot-universe.sh` / restore | live |
+| OS bootstrap | `bootstrap-shaper-os.sh` | **absent** |
 | shaper-deps | validate topology | **absent** |
 
 ---
 
-## 7. Couverture globale
+## 7. Global coverage
 
-| Objectif | Statut |
+| Objective | Status |
 | :--- | :--- |
-| P1 socle opérationnel | vivant |
-| P2 agentique + KovZu | vivant (rag/qdrant partiel) |
-| P3 métier | vision |
-| Talk `/talk` | **retiré** |
-| Doc Talk (SPEC_ZEPHIR) | **supprimée en V1.11** — la voix vit dans `/console` |
+| P1 socle operational | live |
+| P2 agentic + KovZu | live (rag/qdrant partial) |
+| P3 business | vision |
+| Talk `/talk` | **retired** |
+| Talk doc (SPEC_ZEPHIR) | **removed in V1.11** — voice lives in `/console` |
 
 ---
 
-## 8. Où ça vit
+## 8. Where it lives
 
-| Périmètre | Chemin |
+| Perimeter | Path |
 | :--- | :--- |
-| Loi | `docs/PERIMETERS.md` |
+| Law | `docs/PERIMETERS.md` |
 | Index | `docs/DOC-INDEX.md` |
 | Packages | `packages/` |
 | Bricks | `bricks/` |
-| Graphe | `topology.json` |
+| Graph | `topology.json` |
 | KovZu | `bricks/brick-helm/` |
 | Sandboxes | `UNIV7/` `UNIV8/` `UNIV9/` |
