@@ -10,6 +10,15 @@ set -euo pipefail
 # is a halt that says what to supply, never a default that points at the
 # author's network. REGISTRY_HOST is the name this script has always read;
 # SHAPER_REGISTRY is the name the registry contract documents — either works.
+#
+# Accepting SHAPER_REGISTRY does not make this the registry contract. This
+# script publishes a flat namespace, ${REGISTRY}/shaper-<brick>:latest and
+# :<timestamp>; the contract (ARTIFACT-BOUNDARY.md#registry-contract) and
+# deploy-image-resolve.sh read ${SHAPER_REGISTRY}/shaper/brick-<component>:
+# ${SHAPER_IMAGE_TAG}, and hold that `latest` is not a deployable reference.
+# What this script pushes is therefore not what a TEST or PROD lockfile
+# resolves — aligning the two is a change of its own, not a side effect of
+# removing a password.
 REGISTRY="${REGISTRY_HOST:-${SHAPER_REGISTRY:-}}"
 : "${REGISTRY:?set REGISTRY_HOST (or SHAPER_REGISTRY) to the private OCI registry as host:port — this repository ships none}"
 : "${REGISTRY_USER:?set REGISTRY_USER to the registry account — this repository ships none}"
