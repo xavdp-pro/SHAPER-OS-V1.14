@@ -7,7 +7,7 @@
 > **Phase 1 — articulate, and verify that it works end to end.**
 > **Phase 2 — hardening**, once the whole picture is in hand, and at the latest before the first universe serving a real client.
 
-Last verified: **22 August 2026**, by reading the code (`grep` across `packages/`, `bricks/`, `universes/`), not by taking anyone's word for it.
+Last verified: **22 August 2026**, by reading the code (`grep` across `packages/`, `bricks/`, `universes/`), not by taking anyone's word for it. The maker-and-governor section was verified on **2 September 2026** the same way.
 
 ---
 
@@ -36,13 +36,34 @@ Last verified: **22 August 2026**, by reading the code (`grep` across `packages/
 | **24** | Root guardian | ✅ | Carried by the tooled human (Cursor / Claude Code / Antigravity), exactly as the rule provides for. |
 | **25** | Canary deployment | ⬜ | No fleet, so not yet applicable. To implement before the first Manager universe. |
 | **26** | One MariaDB per universe | 🟡 | Isolation respected wherever MariaDB is used (Helm). The **queue** persists to JSONL on a volume, not to a database: `storageAdapter` is planned, no adapter written. |
-| **27** | Convergence guard + escalation channel | ⬜ | No reconciliation engine, therefore no `observed-state.json` and no `DEGRADED`. |
+| **27** | Convergence guard + escalation channel | ⬜ | For Maestro: no reconciliation engine, therefore no `observed-state.json`. For the governor's ledger (`pkg-governor`, 2 September 2026): `DEGRADED` and `REAPED` exist, backoff and `maxHealingAttempts` bound the governor's own reap offers, a refused reap rests — see the maker-and-governor section below for what still binds by reading. |
 | **28** | WAF validated against an attack corpus | ⬜ | No WAF. Moot until the web chain exists. |
 | **Pipeline** | Document understanding (brick-pipeline) | ⬜ | Fully a target. Today extraction lives in `packages/pkg-rag` and runs **inside the GED container**, synchronously: measured, a 20 MB file freezes that container for 4.3 s. PDF extraction is genuinely solved (per-font ToUnicode); OCR, vision, deskewing, legibility, type recognition and multiplexing all remain to be built. |
 | **32-33** | Founding method: a perfect base before specialisation, fractal client fork | ✅ | Method rules, applied rather than "implemented". Writing the doctrine before the code is that method in action. |
 | **29** | Constructive integrity | ✅ | Respected: recent fixes (auth, deployment) arrived with their tests. |
 | **30** | Snapshot before migration | ⬜ | No fleet migration to date. The rule is waiting for its first case. |
 | **31** | Declared data lifecycle | ⬜ | No `dataLifecycle` in any existing manifest. To be added to `_template`. |
+
+---
+
+## Maker and governor — the gaps declared on 2 September 2026
+
+Verified by reading `software/packages/pkg-governor/index.js`,
+`software/universes/_maker-template/poller.mjs` and the shipped `lxd-*`
+recipes on the branch that carries the maker-and-governor amendments of
+Rules 11, 27, 36 and 37 (the verdict of 2 September). Each line is a gap
+the doctrine page names as TARGET; none is a promise anywhere else.
+
+| Rule | Subject | Status | What the code actually does |
+| :---: | :--- | :---: | :--- |
+| **37** | Ledger columns and states | 🟡 | Rule 37 was amended in this release to the row and the automaton `pkg-governor` has always held (`id … events[]`, five states, REAPED terminal, carrier = `pkg-governor`), and `lexicon-and-code-agree.test.js` holds the rule, the lexicon and the code's `STATES` to one set of names. **Until this release is tagged**, the previous reading — (class, tag, machine, env, state, bucket), four states, contract with `brick-forge` — is what every earlier tag says; a reader of an older tag must take the code, not the rule. Ratified by the tag. |
+| **26** | The governor's storage | 🟡 | `createFileStorage` in `pkg-governor` is a JSONL journal on disk, read back in full at boot: the package's **reference adapter**, and the demo governor's transitional storage. Rule 26 and Rule 37 place the ledger in the governing universe's database; the `storage` slot is the seam, and no database adapter is written. A real governor binds its own (`pkg-governor/INTENT.md`). |
+| **37 / 10** | Matrix maturity | ⬜ | The doctrine's invariant `maturity(matrix) ≥ environment(instance)` has no carrier: `grep -rni maturity` over `pkg-governor` and `_maker-template` finds nothing, the row has no maturity field, no manifest sits beside `<sha>.tar.gz`, the maker's inventory is a list of bare digests, and `desire()` accepts any `env` with any `digest`. TARGET: a `matrices` table {digest, maturity, promotedAt} in the governor and a refusal in `desire()`. The invariant binds by reading. |
+| **23** | Lanes set from above | ⬜ | The maker template's invariant 4 says its lanes are set from above. Today `poller.mjs` declares `lanes` (default 1) at every poll and `pkg-governor` records them (`maker.lanes = lanes ?? maker.lanes`); `poll()` returns all the work a host owes and the maker truncates to its own lanes. The from-above form — lanes fixed at enrolment, echoed in the poll answer, never more work handed than lanes — is not built. |
+| **27** | Silence heard, `manifest.json` of the maker | ⬜ | `silentMakers()` computes which hosts are quiet past an interval and has no caller outside its tests; the poll interval stays local to `poller.mjs` and is not declared to the governor. The maker template lists a `manifest.json` with an `alerting` channel in its document map and ships none — `_maker-template/` holds `INTENT.md`, `poller.mjs`, `recipes/`. The silence is computed, not heard; Rule 27's channel exists by reading. The `verify` check on alerting cannot see a universe that has no manifest at all. |
+| **37** | Drift of a living instance | ⬜ | `poll()` derives work from a row's state and deadline only. PURRING is written once, on STAMPED, and never re-dated: the row carries no `lastPurr`, the maker's inventory is of matrices, not of instances, and a container that died after its birth stays PURRING forever. Rule 37 says PURRING is dated on every on-time beat. TARGET: the maker declares at every poll the instances it actually runs (by row id, from `lxc list`), the governor re-dates PURRING, and a missing instance becomes stamp work. |
+| **11 / 36** | The maker lives in an LXC | ⬜ | Ruled 31 August 2026, not built: the shipped `lxd-*` recipes call `lxc` on the host directly, and `poller.mjs` asks under `os.hostname()`, which inside an LXC is the container's own name — the label the maker's invariant 5 forbids. The LXC form needs a hop whose arguments never cross a remote shell (the recipe travels to the host and reads its positions from stdin as one JSON line, never as an ssh command string) and an identity asked of the HOST, tested with the hostile account string before it ships. Until then the maker runs on the host it acts on. |
+| **11** | One matrix, three host kinds | ⬜ | `lxd-stamp.sh` imports a single file — LXD's unified tarball (`metadata.yaml` + `rootfs/`); `pct create` and plain LXC consume a bare rootfs. The sha256 the recipe verifies names the stored file. Whether one pivot serves the three families of Rule 11 — a bare rootfs hashed, wrapped at import by each stamp — is decided by the second recipe (`proxmox-*` or `liblxc-*`), with its proof in `recipes/README.md`. "One truth" across host kinds binds by reading until then. |
 
 ---
 
