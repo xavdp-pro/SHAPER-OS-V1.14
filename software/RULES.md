@@ -562,10 +562,11 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   * **Nesting does not apply to a running container.** `lxc config set <ct>
     security.nesting=true` (or a profile added, or `pct set --features`) on a
     launched container takes effect only after `lxc restart` (`pct reboot`).
-    The symptom without that restart is byte for byte the symptom without
-    nesting — `Permission denied` on the first image — so a script that sets
-    nesting on an existing container restarts it in the same breath, and a
-    profile is given at launch whenever it can be.
+    Until that restart the container behaves as if it had no nesting, and
+    the symptom to expect is the one the LXC guide documents for that case
+    (`Permission denied` on the first image) — so a script that sets nesting
+    on an existing container restarts it in the same breath, and a profile
+    is given at launch whenever it can be.
 
   <a id="rule-11-declared-ports-are-free"></a>
   * **A declared port is a claim on the whole universe.** Bricks run with
@@ -625,6 +626,7 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
 
 ---
 
+<a id="rule-16"></a>
 ### Rule 16: Multi-level backup (container → files tar.bz2 → database → git → S3)
 This set is **enough**. Missing a level is a hole. Same idea as turbinobash-web (`tb app sudo/backup` + `/var/sav1/`) — **adapted to Podman / Shaper OS**.
 

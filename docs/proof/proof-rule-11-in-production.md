@@ -36,11 +36,15 @@ public URL      → 200, {"sector":"commerce"}
 containers      → exactly two: crm-mariadb, crm-app
 ```
 
-Thirty-three seconds from a visitor's click to a validated, publicly served
+About 32 s (32.45 s between the recorded timestamps, 17:14:15.823 →
+17:14:48.277) from a visitor's click to a validated, publicly served
 universe, with the governor on one machine, the maker and the instance on
-another, and the visitor outside both. This is an **observation**, labelled
-as such with its conditions (matrix already imported, images already pulled,
-no data restored) — never an engagement (Rule 10).
+another, and the visitor outside both. This is an **observation**, never an
+engagement (Rule 10), and its conditions are exactly those the minutes
+record: a real mailbox (Mailjet, read over IMAP), the maker reached through
+the VPN, a real browser for the validation, exactly two containers born. The
+state of the image cache, of the matrix and of any data volume were **not
+recorded in the minutes** — a later run must not read them into this figure.
 
 ## What this run establishes
 
@@ -102,7 +106,7 @@ next universe meets again (Boot Contract 8, Rule 29, Rule 35).
   not provide.
 * **Constraint**: name the client the image ships; fall back to `mysqldump`
   only where that name exists.
-* **Lives in**: [`RULES.md` Rule 16, level 3](../../software/RULES.md#rule-16-multi-level-backup-container-files-tarbz2-database-git-s3)
+* **Lives in**: [`RULES.md` Rule 16, level 3](../../software/RULES.md#rule-16)
   now prescribes `mariadb-dump` with `mysqldump` as the fallback;
   `scripts/snapshot-universe.sh` already chose that order.
 
@@ -126,8 +130,10 @@ next universe meets again (Boot Contract 8, Rule 29, Rule 35).
 <a id="lesson-5-nesting-needs-a-restart"></a>
 ### 5 — nesting does not apply to a running container
 
-* **Seen**: a profile added to a launched LXC did not give it nesting; the
-  failure was the same `Permission denied` as with no nesting at all.
+* **Seen**: a profile added to a launched LXC did not give it nesting; a
+  restart was needed before the rights applied (the minutes record no error
+  text — the symptom to expect is the one the LXC guide documents for no
+  nesting at all, `Permission denied` on the first image).
 * **Cause**: `security.nesting` (and `pct --features`) is read at container
   start. Set on a running container, it waits for the next restart, and the
   symptom is indistinguishable from the feature being absent.

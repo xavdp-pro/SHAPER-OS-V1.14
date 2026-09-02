@@ -236,7 +236,7 @@ sed -i "s|^VAULT_TOKEN=.*|VAULT_TOKEN=$(openssl rand -hex 24)|" software/.env
 # because "fill them in" left a tester shipping the placeholder token:
 python3 - <<'FILL'
 import json, re
-env = dict(re.findall(r'^([A-Z_]+)=(.*)$', open('software/.env').read(), re.M))
+env = dict(re.findall(r'^([A-Z][A-Z0-9_]*)=(.*)$', open('software/.env').read(), re.M))
 p = 'software/resources/vault-resources.local.json'
 d = json.load(open(p))
 d.setdefault('vault', {})['masterKey'] = env['VAULT_MASTER_KEY']
