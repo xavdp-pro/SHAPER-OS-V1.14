@@ -1,7 +1,7 @@
 /**
  * @package @shaper/pkg-bridge-deepseek
  * HTTP/SSE bridge for DeepSeek & Ollama Cloud Agent Harness — Rule 8 agent contract.
- * Default model: nemotron-3-nano:30b (Nvidia free agent-optimized coding model on Ollama Cloud).
+ * The model is never named here: it is measured at deployment (Rule 7).
  */
 import http from 'node:http';
 import { spawn } from 'node:child_process';
@@ -9,7 +9,37 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { vitals, ageSeconds, dependency, writable } from '../pkg-logger/vitals.js';
 
-export const OLLAMA_DEFAULT_MODEL = 'gpt-oss:120b';
+/**
+ * No model is named here. This package used to export a default and the header
+ * above named a second, different one — two "defaults" for the same bridge,
+ * neither measured, both ageing with their vendor while the suite asserted the
+ * first and stayed green (Rule 7: a default that must be edited when a vendor
+ * ships a version is a cache, not a rule).
+ *
+ * The model comes from OLLAMA_MODEL (or DEEPSEEK_MODEL for the DeepSeek API
+ * path), chosen by measurement from the target host. When it is missing, the
+ * bridge halts and says which variable to provide rather than starting on a
+ * guess (Rule 0J). The simulated bridge (stub mode) calls no engine, so it is
+ * the one place a model is not required.
+ */
+export const DEEPSEEK_MODEL_ENV = 'OLLAMA_MODEL';
+export const DEEPSEEK_MODEL_ENV_ALT = 'DEEPSEEK_MODEL';
+
+export function resolveDeepseekModel(env = process.env) {
+  return String(env[DEEPSEEK_MODEL_ENV] || env[DEEPSEEK_MODEL_ENV_ALT] || '').trim();
+}
+
+export class ModelUnsetError extends Error {
+  constructor(envVar = DEEPSEEK_MODEL_ENV) {
+    super(`bridge-deepseek: no model is set — this bridge names no default (Rule 7). `
+      + `Measure the engines reachable from this host, pick one, and export ${envVar}=<model id> `
+      + `(or ${DEEPSEEK_MODEL_ENV_ALT}); set BRIDGE_DEEPSEEK_STUB=1 to run the simulated bridge instead.`);
+    this.name = 'ModelUnsetError';
+    this.code = 'BRIDGE_MODEL_UNSET';
+    this.envVar = envVar;
+  }
+}
+
 export const OLLAMA_CLOUD_ENDPOINT = 'https://ollama.com/v1';
 export const DEEPSEEK_API_ENDPOINT = 'https://api.deepseek.com/v1';
 
@@ -37,7 +67,7 @@ export class DeepseekBridgeServer {
   constructor({
     port = 4350,
     bind = '0.0.0.0',
-    model = process.env.OLLAMA_MODEL || process.env.DEEPSEEK_MODEL || OLLAMA_DEFAULT_MODEL,
+    model = resolveDeepseekModel(process.env),
     workspaceBase = '/tmp/deepseek-workspaces',
     authToken = '',
     stubMode = process.env.BRIDGE_DEEPSEEK_STUB === '1',
@@ -46,10 +76,13 @@ export class DeepseekBridgeServer {
   } = {}) {
     this.port = port;
     this.bind = bind;
-    this.model = model;
+    this.stubMode = stubMode;
+    // An empty model is reported as absent, never sent as '' to an API that
+    // would answer with an error about the wrong thing.
+    this.model = String(model || '').trim() || null;
+    if (!this.stubMode && !this.model) throw new ModelUnsetError();
     this.workspaceBase = workspaceBase;
     this.authToken = authToken;
-    this.stubMode = stubMode;
     this.apiKey = apiKey || resolveDeepseekApiKey(process.env);
     this.endpoint = endpoint || (this.apiKey ? OLLAMA_CLOUD_ENDPOINT : resolveDeepseekEndpoint(process.env));
     this.clients = new Map();
@@ -131,6 +164,9 @@ export class DeepseekBridgeServer {
     const cwd = this.ensureWorkspace(conv, opts.perimeter || null);
     const runId = `run-deepseek-${Date.now()}`;
     const targetModel = opts.model || this.model;
+    // The constructor already refused a real bridge without a model; this keeps
+    // a later mutation from reaching the API as `model: ''`.
+    if (!this.stubMode && !targetModel) throw new ModelUnsetError();
     const fullPrompt = this.buildContextualPrompt(prompt, {
       contextFile: opts.contextFile || null,
       contextText: opts.contextText || null,
@@ -300,8 +336,11 @@ export class DeepseekBridgeServer {
           res.end(JSON.stringify({ ok: true, conversation: conv, perimeter, ...result }));
         } catch (err) {
           this.metrics.errors++;
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, error: err.message }));
+          // A missing model is a configuration state, not a server fault: say
+          // so with a typed code the caller can act on.
+          const status = err.code === 'BRIDGE_MODEL_UNSET' ? 503 : 500;
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: err.message, code: err.code || undefined }));
         }
         return;
       }

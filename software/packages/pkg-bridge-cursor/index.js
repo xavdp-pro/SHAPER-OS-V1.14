@@ -1,7 +1,8 @@
 /**
  * @package @shaper/pkg-bridge-cursor
- * HTTP/SSE bridge for Cursor Composer 2.5 — Rule 8 agent container contract.
+ * HTTP/SSE bridge for the Cursor agent CLI — Rule 8 agent container contract.
  * Default mode: standard/normal (fast mode disabled by default, activatable on-demand).
+ * The model is never named here: it is measured at deployment (Rule 7).
  */
 import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
@@ -9,8 +10,36 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { vitals, ageSeconds, cliCheck, writable } from '../pkg-logger/vitals.js';
 
-export const COMPOSER_MODEL = 'composer-2.5';
 export const COMPOSER_DEFAULT_MODE = 'normal'; // Fast is DISABLED by default
+
+/**
+ * No model is named here. This bridge used to export a pinned Composer version
+ * and pass it to the CLI whatever the environment said — the CURSOR_MODEL the
+ * deploy script handed to the container was never read. The pin aged with its
+ * vendor while the suite kept asserting it, green (Rule 7: a default that must
+ * be edited when a vendor ships a version is a cache, not a rule).
+ *
+ * The model comes from CURSOR_MODEL, chosen by measurement from the target host.
+ * When it is missing, the bridge halts and says which variable to provide,
+ * rather than starting on a guess (Rule 0J). The simulated bridge (stub mode)
+ * never spawns the CLI, so it is the one place a model is not required.
+ */
+export const CURSOR_MODEL_ENV = 'CURSOR_MODEL';
+
+export function resolveCursorModel(env = process.env) {
+  return String(env[CURSOR_MODEL_ENV] || '').trim();
+}
+
+export class ModelUnsetError extends Error {
+  constructor(envVar = CURSOR_MODEL_ENV) {
+    super(`bridge-cursor: no model is set — this bridge names no default (Rule 7). `
+      + `Measure the engines reachable from this host, pick one, and export ${envVar}=<model id>; `
+      + 'set BRIDGE_CURSOR_STUB=1 to run the simulated bridge instead.');
+    this.name = 'ModelUnsetError';
+    this.code = 'BRIDGE_MODEL_UNSET';
+    this.envVar = envVar;
+  }
+}
 
 export function normalizeConversationName(name) {
   if (!name || typeof name !== 'string') return 'default';
@@ -34,7 +63,7 @@ export class CursorBridgeServer {
     port = 4310,
     bind = '0.0.0.0',
     cursorBin = process.env.CURSOR_BIN || 'cursor',
-    model = COMPOSER_MODEL,
+    model = resolveCursorModel(process.env),
     mode = process.env.CURSOR_MODE || COMPOSER_DEFAULT_MODE, // normal by default
     workspaceBase = '/tmp/cursor-workspaces',
     authToken = '',
@@ -43,11 +72,14 @@ export class CursorBridgeServer {
     this.port = port;
     this.bind = bind;
     this.cursorBin = cursorBin;
-    this.model = model;
+    this.stubMode = stubMode;
+    // An empty model is reported as absent, never carried as '' into a CLI
+    // argument where it would fail with a message about the wrong thing.
+    this.model = String(model || '').trim() || null;
+    if (!this.stubMode && !this.model) throw new ModelUnsetError();
     this.mode = mode; // 'normal' by default, 'fast' only when explicitly enabled
     this.workspaceBase = workspaceBase;
     this.authToken = authToken;
-    this.stubMode = stubMode;
     this.clients = new Map();
     this.runningProcesses = new Map();
     this.metrics = { injects: 0, completions: 0, errors: 0 };
@@ -110,7 +142,7 @@ export class CursorBridgeServer {
         type: 'text_delta',
         conversation: conv,
         run_id: runId,
-        text: `[Cursor Composer 2.5 (${targetMode})] Processed request in workspace: ${conv}`
+        text: `[Cursor ${this.model || 'stub'} (${targetMode})] Processed request in workspace: ${conv}`
       }, conv);
       this.broadcast({ type: 'done', conversation: conv, run_id: runId, exit_code: 0, stub: true }, conv);
       this.metrics.completions++;
@@ -123,6 +155,9 @@ export class CursorBridgeServer {
     const cwd = this.ensureWorkspace(conv);
     const runId = `run-cursor-${Date.now()}`;
     const targetMode = opts.mode || this.mode; // uses 'normal' unless 'fast' passed in opts
+    // The constructor already refused a real bridge without a model; this keeps
+    // a later mutation from reaching the CLI as `--model ''`.
+    if (!this.stubMode && !this.model) throw new ModelUnsetError();
     const fullPrompt = this.buildContextualPrompt(prompt, {
       contextFile: opts.contextFile || null,
       contextText: opts.contextText || null,
@@ -147,8 +182,8 @@ export class CursorBridgeServer {
     //
     // Note what the earlier flags assumed and the CLI does not have: there is no
     // `--composer`, no `--prompt`, no `--format`, and no `--mode`. Speed is a
-    // model choice, not a switch — which is how the standing instruction "Composer
-    // 2.5, never fast" is honoured: by the model id, nowhere else.
+    // model choice, not a switch — which is how "never fast by default" is
+    // honoured: by the measured model id, nowhere else.
     //
     // One asymmetry worth knowing: on failure cursor-agent emits no well-formed
     // JSON at all and only the exit code speaks. That is why this bridge keeps
@@ -332,8 +367,11 @@ export class CursorBridgeServer {
           res.end(JSON.stringify({ ok: true, conversation: conv, ...result }));
         } catch (err) {
           this.metrics.errors++;
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, error: err.message }));
+          // A missing model is a configuration state, not a server fault: say
+          // so with a typed code the caller can act on.
+          const status = err.code === 'BRIDGE_MODEL_UNSET' ? 503 : 500;
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: err.message, code: err.code || undefined }));
         }
         return;
       }

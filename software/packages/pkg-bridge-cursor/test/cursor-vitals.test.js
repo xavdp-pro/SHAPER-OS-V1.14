@@ -8,7 +8,8 @@ import { CursorBridgeServer } from '../index.js';
 describe('bridge-cursor vitals', () => {
   it('publishes evidence and no verdict on GET /api/vitals', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-vitals-'));
-    const bridge = new CursorBridgeServer({ stubMode: true, workspaceBase: tmpDir });
+    // The model is supplied, never defaulted (Rule 7).
+    const bridge = new CursorBridgeServer({ stubMode: true, model: 'engine/measured-at-deploy', workspaceBase: tmpDir });
     const server = bridge.createServer();
 
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -21,7 +22,7 @@ describe('bridge-cursor vitals', () => {
     assert.equal(vitals.service, 'brick-bridge-cursor');
     assert.equal(typeof vitals.uptimeSeconds, 'number');
     assert.equal(vitals.signals.injects, 0);
-    assert.equal(vitals.signals.model, 'composer-2.5');
+    assert.equal(vitals.signals.model, 'engine/measured-at-deploy');
     assert.equal(vitals.checks.workspace.writable, true);
 
     for (const forbidden of ['status', 'ok', 'healthy', 'verdict']) {

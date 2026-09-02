@@ -23,6 +23,12 @@ about Cursor.
    tool or a model error is surfaced, never an empty response.
 5. **Ships what it needs.** The CLI and its prerequisites are declared and
    pinned in the brick image (Rule 34).
+6. <a id="no-default-model"></a>**No default model.** The model is a measured
+   deployment value supplied through `CURSOR_MODEL`, never a constant in this
+   package (Rule 7): a pinned version expires with its vendor while the suite
+   asserting it stays green. A real bridge started without one halts and names
+   the variable to provide (Rule 0J); only the simulated bridge (`BRIDGE_CURSOR_STUB=1`),
+   which never spawns the CLI, runs without a model.
 
 ## Cognition
 
