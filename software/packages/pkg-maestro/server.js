@@ -14,7 +14,7 @@ import { ingestLog } from '../pkg-logger/ingest-client.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHAPER_ROOT = path.resolve(__dirname, '../..');
 
-const PORT = parseInt(process.env.PORT || process.env.MAESTRO_PORT || '8530', 10);
+const PORT = parseInt(process.env.PORT || process.env.MAESTRO_PORT || '8630', 10);
 const HOST = process.env.HOST || process.env.MAESTRO_HOST || '0.0.0.0';
 const LOG_DIR = process.env.LOG_DIR || '/data/brick-maestro/log';
 const TASKS_FILE = process.env.MAESTRO_TASKS_FILE || '';

@@ -103,7 +103,7 @@ describe('committed-identity — never commit what is yours alone', () => {
 
   it('stays quiet on configuration defaults, i18n labels and test helpers', () => {
     const r = repo('identity-config', {
-      'server.js': "const port = process.env.LOGGER_PORT || '8520'; const model = process.env.GED_LLM_MODEL || 'nemotron-3-nano:30b';",
+      'server.js': "const port = process.env.LOGGER_PORT || '8620'; const model = process.env.GED_LLM_MODEL || 'nemotron-3-nano:30b';",
       'locale.js': "export default { 'auth.password': 'Mot de passe', 'auth.password.short': 'Contraseña' };",
       'e2e/login.js': "const u = process.env.E2E_USER || 'admin';",
       'guard.js': "const pw = process.env.HELM_E2E_PASSWORD || 'set-HELM_E2E_PASSWORD';",

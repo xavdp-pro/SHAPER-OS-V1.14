@@ -25,5 +25,5 @@ Sovereign AES-256-GCM secret engine — encrypt, persist, and inject credentials
 
 ### Illustrative Example (Non-Binding / Demonstration Only)
 
-* **Dev port**: `8510` | **Brick port**: `8443`
+* **Brick port**: `8610`
 * **Storage**: `/data/<universe-slug>/vault/vault.enc`

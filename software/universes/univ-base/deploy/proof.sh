@@ -25,10 +25,10 @@ except Exception:
     print(sys.argv[3])
 PY
 }
-VAULT_PORT="${VAULT_PORT:-$(manifest_port brick-vault 8510)}"
-LOGGER_PORT="${LOGGER_PORT:-$(manifest_port brick-logger 8520)}"
-QUEUE_PORT="${QUEUE_PORT:-$(manifest_port brick-queue 8540)}"
-MAESTRO_PORT="${MAESTRO_PORT:-$(manifest_port brick-maestro 8530)}"
+VAULT_PORT="${VAULT_PORT:-$(manifest_port brick-vault 8610)}"
+LOGGER_PORT="${LOGGER_PORT:-$(manifest_port brick-logger 8620)}"
+QUEUE_PORT="${QUEUE_PORT:-$(manifest_port brick-queue 8640)}"
+MAESTRO_PORT="${MAESTRO_PORT:-$(manifest_port brick-maestro 8630)}"
 BRIDGE_PORT="${BRIDGE_PORT:-$(manifest_port brick-bridge-opencode 4440)}"
 
 fail=0

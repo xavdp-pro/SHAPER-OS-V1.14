@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { opencodeBridgeVitals } from './vitals.mjs';
+import { opencodeBridgeVitals } from '../vitals.mjs';
 
 test('opencode bridge vitals publish evidence without a verdict', () => {
   const body = opencodeBridgeVitals({

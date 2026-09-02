@@ -24,7 +24,7 @@ describe('queue-worker agent.inject', () => {
     const calls = [];
     const worker = startQueueAgentWorker({
       queue,
-      bridgeUrl: 'http://127.0.0.1:4340',
+      bridgeUrl: 'http://127.0.0.1:4440',
       pollMs: 50,
       fetchImpl: bridgeThatAccepts(calls),
       followImpl: followerReturning({ observable: true, exitCode: 0, runId: 'run-test-1' }),

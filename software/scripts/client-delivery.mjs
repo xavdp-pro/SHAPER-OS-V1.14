@@ -116,7 +116,7 @@ PRA_DEST_HOST="${process.env.PRA_DEST_HOST || ''}"   # set by the operator: dest
         image: 'img-vault',
         intent: '../../bricks/brick-vault/INTENT.md',
         role: `Secrets for ${client}, readable by this universe alone`,
-        port: 8510,
+        port: 8610,
       },
       'brick-logger': {
         source: 'base',
@@ -124,7 +124,7 @@ PRA_DEST_HOST="${process.env.PRA_DEST_HOST || ''}"   # set by the operator: dest
         image: 'img-logger',
         intent: '../../bricks/brick-logger/INTENT.md',
         role: 'Audit evidence for this client',
-        port: 8520,
+        port: 8620,
       },
       'brick-queue': {
         source: 'base',
@@ -132,7 +132,7 @@ PRA_DEST_HOST="${process.env.PRA_DEST_HOST || ''}"   # set by the operator: dest
         image: 'img-queue',
         intent: '../../bricks/brick-queue/INTENT.md',
         role: 'Persistent work ledger',
-        port: 8540,
+        port: 8640,
       },
       'brick-maestro': {
         source: 'base',
@@ -140,7 +140,7 @@ PRA_DEST_HOST="${process.env.PRA_DEST_HOST || ''}"   # set by the operator: dest
         image: 'img-maestro',
         intent: '../../bricks/brick-maestro/INTENT.md',
         role: 'Paces this client\u2019s declared tasks',
-        port: 8530,
+        port: 8630,
       },
       'brick-bridge-opencode': {
         source: 'base',

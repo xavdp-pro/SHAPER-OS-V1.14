@@ -24,7 +24,7 @@
       "image": "img-vault",
       "intent": "../../bricks/brick-vault/INTENT.md",
       "role": "Holds the secrets this universe — and only this universe — may read",
-      "port": 8510,
+      "port": 8610,
       "specialize": {
         "how": "Generate a master key locally, then bootstrap from resources",
         "file": "../../resources/vault-resources.local.json",
@@ -45,7 +45,7 @@
       "image": "img-logger",
       "intent": "../../bricks/brick-logger/INTENT.md",
       "role": "Keeps the append-only evidence that each step actually happened",
-      "port": 8520,
+      "port": 8620,
       "cognition": {
         "role": "neutral",
         "depth": "D0",
@@ -61,7 +61,7 @@
       "image": "img-queue",
       "intent": "../../bricks/brick-queue/INTENT.md",
       "role": "Persistent work ledger, so nothing is lost between a decision and its execution",
-      "port": 8540,
+      "port": 8640,
       "cognition": {
         "role": "neutral",
         "depth": "D0",
@@ -77,7 +77,7 @@
       "image": "img-maestro",
       "intent": "../../bricks/brick-maestro/INTENT.md",
       "role": "Paces the declared task-* entries and hands each beat to the queue",
-      "port": 8530,
+      "port": 8630,
       "specialize": {
         "how": "MAESTRO_TASKS_FILE points at this universe's task-schedule.json",
         "file": "./task-schedule.json"

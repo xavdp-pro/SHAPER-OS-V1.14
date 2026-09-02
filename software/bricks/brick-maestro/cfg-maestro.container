@@ -15,8 +15,8 @@ After=network-online.target
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-maestro
-PublishPort=127.0.0.1:8530:8530
-Environment=MAESTRO_PORT=8530
+PublishPort=127.0.0.1:8630:8630
+Environment=MAESTRO_PORT=8630
 Environment=MAESTRO_AUTO_START=1
 Restart=always
 

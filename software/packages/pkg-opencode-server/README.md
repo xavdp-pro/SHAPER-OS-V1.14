@@ -17,8 +17,8 @@ C'est ce qui donne le **streaming token par token** (`message.part.delta`), là 
 
 ```mermaid
 flowchart LR
-    console["console"] -- HTTP --> bridge["opencode-bridge<br/>:4340"]
-    bridge -- "HTTP / SSE" --> serve["opencode serve<br/>:4341"]
+    console["console"] -- HTTP --> bridge["opencode-bridge<br/>:4440"]
+    bridge -- "HTTP / SSE" --> serve["opencode serve<br/>:4441"]
     serve --> model["modèle"]
 ```
 
@@ -92,9 +92,9 @@ tableau markdown et prose.
 ## Vérification
 
 ```bash
-curl -s localhost:4340/api/health
+curl -s localhost:4440/api/health
 T=$(cat ~/.config/opencode-bridge/token)
-curl -s -H "Authorization: Bearer $T" localhost:4340/api/status
+curl -s -H "Authorization: Bearer $T" localhost:4440/api/status
 ```
 
 `ready: true` signifie que le `opencode serve` interne répond.

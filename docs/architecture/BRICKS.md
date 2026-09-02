@@ -55,6 +55,18 @@ Vault build are in [`ARTIFACT-BOUNDARY.md`](./ARTIFACT-BOUNDARY.md).
 
 **Boot order:** `vault ∥ logger → bridge → queue → maestro`.
 
+<a id="one-port-family"></a>
+**One port family.** The numbers above are the only default family the tree
+declares — manifests, Containerfiles, quadlets, package defaults, deploy and
+proof scripts, delivery tooling and documentation all say the same thing, and a
+guard (`pkg-universe/test/one-port-family.test.js`) refuses any other. Beta
+finding F5 is why: the manifest said one family and the deploy script another,
+`test:live` failed exactly as documented, and V1.13.1's fix — the template now
+reads the manifest — left half of the tree (univ-base, the bricks, every
+package default) on the old numbers, so a clean sheet built from a brick met
+the same wall again. A universe may still bind other ports through its
+manifest and env; what it may not do is inherit two answers from the repository.
+
 Vault and logger start together because everything else depends on both. The
 bridge before the queue because the queue dispatches to it. Maestro last because
 it triggers work and must never fire into a stack that is not ready.

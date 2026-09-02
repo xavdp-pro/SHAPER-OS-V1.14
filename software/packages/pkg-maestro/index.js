@@ -221,12 +221,12 @@ export class MaestroScheduler {
 /**
  * Creates the HTTP surface of `brick-maestro`.
  * @param {object} options
- * @param {number} [options.port=8530]
+ * @param {number} [options.port=8630]
  * @param {string} [options.host='0.0.0.0']
  * @param {MaestroScheduler} [options.scheduler]
  * @returns {http.Server}
  */
-export function createMaestroServer({ port = 8530, host = '0.0.0.0', scheduler = null } = {}) {
+export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler = null } = {}) {
   const sched = scheduler || new MaestroScheduler();
 
   const server = http.createServer((req, res) => {

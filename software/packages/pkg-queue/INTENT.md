@@ -61,7 +61,7 @@ does not (invariant 2).
   "payload": {
     "message": "required instruction",
     "conversation": "optional-session-name",
-    "bridgeUrl": "http://127.0.0.1:4340",
+    "bridgeUrl": "http://127.0.0.1:4440",
     "model": "<engine-measured-at-deployment>",
     "context": "optional extra instructions"
   }
@@ -73,7 +73,7 @@ does not (invariant 2).
 | `type` | yes | Must be `agent.inject` for auto-dispatch |
 | `payload.message` | yes | What the agent should do |
 | `payload.conversation` | no | Bridge conversation / workspace name |
-| `payload.bridgeUrl` | no | Default `QUEUE_BRIDGE_URL` or `:4340` |
+| `payload.bridgeUrl` | no | Default `QUEUE_BRIDGE_URL` or `:4440` |
 | `payload.model` | no | Engine id for the bridge. Selected by measurement at deployment against the declared depth and throughput (Rule 7) — never pinned in a tracked file |
 | `payload.context` | no | Extra context text |
 | `totalSteps` | no | Progress denominator (default 1) |

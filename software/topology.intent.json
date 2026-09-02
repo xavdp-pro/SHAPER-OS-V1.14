@@ -10,7 +10,7 @@
       "kind": "package",
       "brick": "brick-logger",
       "service": "logger",
-      "port": 8520,
+      "port": 8620,
       "requires": [],
       "provides": ["audit-jsonl", "log-ingest-api", "log-sse-tail"],
       "deploy": {
@@ -25,7 +25,7 @@
       "kind": "package",
       "brick": "brick-vault",
       "service": "vault",
-      "port": 8443,
+      "port": 8610,
       "requires": [],
       "provides": ["secret-store", "aes-256-gcm", "vault-rest-api"],
       "deploy": {
@@ -40,7 +40,7 @@
       "kind": "package",
       "brick": "brick-queue",
       "service": "queue",
-      "port": 8540,
+      "port": 8640,
       "requires": [],
       "provides": ["job-queue", "job-sse-progress"],
       "deploy": {
@@ -54,7 +54,7 @@
       "kind": "package",
       "brick": "brick-maestro",
       "service": "maestro",
-      "port": 8530,
+      "port": 8630,
       "requires": ["@shaper/pkg-logger"],
       "optionalRequires": ["@shaper/pkg-vault"],
       "provides": ["beat-scheduler", "pod-registry", "maestro-rest-api"],

@@ -15,8 +15,8 @@ After=network-online.target
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-vault
-PublishPort=127.0.0.1:8510:8510
-Environment=VAULT_PORT=8510
+PublishPort=127.0.0.1:8610:8610
+Environment=VAULT_PORT=8610
 Environment=VAULT_STORAGE_FILE=/data/vault/vault.enc
 Volume=vol-%i-vault:/data/vault:Z
 Restart=always

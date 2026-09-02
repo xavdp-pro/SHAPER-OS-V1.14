@@ -10,9 +10,9 @@ LABEL org.shaper.build-packages="logger"
 WORKDIR /app
 COPY --from=shaper_base /shaper/packages/pkg-logger/ ./
 
-EXPOSE 8520
+EXPOSE 8620
 ENV NODE_ENV=production
-ENV LOGGER_PORT=8520
+ENV LOGGER_PORT=8620
 ENV LOG_DIR=/data/logger
 
 CMD ["node", "server.js"]

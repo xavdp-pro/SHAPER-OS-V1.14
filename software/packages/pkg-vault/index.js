@@ -281,10 +281,10 @@ export class VaultStore {
 export class VaultClient {
   /**
    * @param {object} options
-   * @param {string} options.vaultUrl - Vault server URL (e.g. "http://127.0.0.1:8510")
+   * @param {string} options.vaultUrl - Vault server URL (e.g. "http://127.0.0.1:8610")
    * @param {string} [options.vaultToken] - Authentication Bearer token
    */
-  constructor({ vaultUrl = 'http://127.0.0.1:8510', vaultToken = null } = {}) {
+  constructor({ vaultUrl = 'http://127.0.0.1:8610', vaultToken = null } = {}) {
     this.vaultUrl = vaultUrl.replace(/\/+$/, '');
     this.vaultToken = vaultToken;
   }
@@ -354,7 +354,7 @@ export class VaultClient {
 /**
  * Creates and starts an HTTP REST server for Vault.
  * @param {object} options
- * @param {number} [options.port=8510]
+ * @param {number} [options.port=8610]
  * @param {string} [options.host='0.0.0.0']
  * @param {string|Buffer} options.masterKey
  * @param {string} [options.vaultToken]
@@ -363,7 +363,7 @@ export class VaultClient {
  * @returns {http.Server}
  */
 export function createVaultServer({
-  port = 8510,
+  port = 8610,
   host = '0.0.0.0',
   masterKey = null,
   vaultToken = null,

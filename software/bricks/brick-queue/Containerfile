@@ -18,8 +18,8 @@ WORKDIR /app
 COPY --from=shaper_base /shaper/packages/pkg-logger/ /pkg-logger/
 COPY --from=shaper_base /shaper/packages/pkg-queue/ ./
 
-EXPOSE 8540
+EXPOSE 8640
 ENV NODE_ENV=production
-ENV QUEUE_PORT=8540
+ENV QUEUE_PORT=8640
 
 CMD ["node", "server.js"]
