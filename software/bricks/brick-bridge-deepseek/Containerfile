@@ -17,7 +17,9 @@ ENV HOME=/root
 ENV DEEPSEEK_BRIDGE_PORT=4350
 ENV DEEPSEEK_BRIDGE_BIND=0.0.0.0
 ENV DEEPSEEK_WS_BASE=/data/deepseek-ws
-ENV OLLAMA_MODEL=gpt-oss:120b
-ENV DEEPSEEK_MODEL=gpt-oss:120b
+# No model is baked in: it is measured from the target host at deployment and
+# supplied here (Rule 7) — the same shape as the cursor and opencode bricks.
+ENV OLLAMA_MODEL=
+ENV DEEPSEEK_MODEL=
 
 CMD ["node", "server.js"]

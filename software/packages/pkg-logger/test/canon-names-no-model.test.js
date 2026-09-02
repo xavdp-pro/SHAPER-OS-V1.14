@@ -84,6 +84,10 @@ const VERSIONED_MODEL = new RegExp(
   [
     'claude[- ]?\\d',
     'gpt[- ]?\\d',
+    // An open-weight family is versioned by its name as much as by a digit: the
+    // deepseek bridge's Containerfile pinned one such family with a parameter
+    // count, and the guard read the line and let it through.
+    'gpt[- ]?oss',
     'gemini[- ]?\\d',
     'grok[- ]?\\d',
     'llama[- ]?\\d',
