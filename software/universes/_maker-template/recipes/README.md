@@ -12,6 +12,25 @@ process. The shipped `lxd-*` recipes read no param.
 **No recipe ships before it has run on real terrain.** A snippet published
 untested has already cost a sealing run (F25).
 
+A `<hostKind>-adopt.sh` — none ships here; it belongs to the class that
+needs it, proven on terrain first — binds a row to a container that already
+exists. The row is written with `matrix: "none"` and `digest: "none"` (two
+words, never absences) and names the container in its `instance` param. The
+recipe reads the name from `SHAPER_PARAM_INSTANCE`, looks (the container is
+there, its state), binds what the class needs bound, and ends with one line
+of facts carrying `state` and `legacy: true`. It creates nothing, launches
+nothing, and never `exec`s inside the container it adopts. Where adopted
+rows exist, that host kind's `-reap.sh` AND `-validate.sh` must take the
+instance name from `SHAPER_PARAM_INSTANCE` when present — the row's params
+ride every kind of work derived for it, the validation included. The shipped
+`lxd-reap.sh` and `lxd-validate.sh` derive the name from the row id: the
+reap would prove the absence of a container it never looked for, and the
+validation — which an ADOPTED reporting `checks: true` derives exactly as a
+STAMPED does — would find no `inst-<rowId>` on the host (exit 2) and degrade
+a healthy tenant. Until both recipes of a host kind read the variable, an
+adopt recipe must not report `checks: true`, and no adopted row may name a
+machine of that kind.
+
 ## `lxd-stamp.sh` — terrain-proven, 31 August 2026
 
 Proven on gbs-test before shipping, in this order:

@@ -82,6 +82,19 @@ it does not improvise.
    `STAMP_FAILED` and the row is never offered a stamp again, so it cannot
    storm; a `STAMP_REFUSED` event is one line in both tables the day it is
    needed.
+12. <a id="adopt"></a>**It adopts what it did not make, without touching
+   it.** Four kinds of work, one table in the poller and one in the
+   governor: `stamp`, `reap`, `validate`, `adopt`. An adoption binds a
+   ledger row to a container that already existed — named by the row's
+   `instance` param, read by the recipe as `SHAPER_PARAM_INSTANCE` — and
+   is a birth to the ledger, so it is proven like one: by the facts the
+   recipe looked at (the container runs, `legacy: true`), never by an exit
+   code; an adopt recipe that ends without a line of facts is reported
+   `ADOPT_FAILED`. The recipe looks and reports; it creates nothing,
+   launches nothing, and never exec's inside the container it adopts: a
+   frozen tenant is frozen. No adopt recipe ships with this template — it
+   belongs to the class that needs it and runs on terrain before it is
+   written down.
 
 ## 3. Cognition
 

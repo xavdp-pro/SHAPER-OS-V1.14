@@ -32,6 +32,15 @@ const EVENT_TRANSITIONS = {
   VALIDATING: 'PURRING',
   VALIDATED: 'PURRING',
   VALIDATION_FAILED: 'DEGRADED',
+  // The fourth kind of work: binding a row to a container that already
+  // exists. The stamp cannot adopt — its idempotence is keyed by row id,
+  // and "already exists" is only ever its own replay — so a frozen tenant
+  // written as a DESIRED row used to be offered a stamp, withheld forever
+  // by an inventory it was never part of, or born a second time beside
+  // the original. An adoption looks and binds; it creates nothing.
+  ADOPTING: 'RECONCILING',
+  ADOPTED: 'PURRING',
+  ADOPT_FAILED: 'DEGRADED',
 };
 
 /** Facts an event must carry to mean what it claims. A STAMPED whose facts
@@ -40,10 +49,21 @@ const EVENT_TRANSITIONS = {
  *  word is compared without case — LXD's list column says RUNNING, its API
  *  says Running — and any other word, or none, degrades the row. A second
  *  table, not a branch: the next fact a birth must prove is one line here. */
+const running = (v) => typeof v === 'string' && v.toLowerCase() === 'running';
 const EVENT_FACTS = {
-  STAMPED: { state: (v) => typeof v === 'string' && v.toLowerCase() === 'running' },
+  STAMPED: { state: running },
+  // An adoption purrs only if the recipe looked (the container runs) and
+  // said what it bound: `legacy: true`, the recipe's own admission that this
+  // instance was born outside the ledger, from no matrix it can name.
+  ADOPTED: { state: running, legacy: (v) => v === true },
 };
 const UNMET_TRANSITION = 'DEGRADED';
+
+/** The digest of a row that was never born from a matrix: an adopted row
+ *  binds to a container that already existed. It is a word, not an absence,
+ *  so that a missing digest stays the defect it always was — and it is
+ *  never a digest a maker could declare in its inventory. */
+export const ADOPTED_DIGEST = 'none';
 
 /** The shape of a row's `params`: a flat object of scalars under keys a shell
  *  can carry as `SHAPER_PARAM_<KEY>`. The key grammar is the whole defence
@@ -200,6 +220,15 @@ export function createGovernor({
     }
     const checked = checkParams(klass, params);
     if (checked.refused) return { refused: true, created: false, reason: checked.reason };
+    // An adopted row binds to a container by its name, carried in the
+    // params slot (`instance`, which the class must declare). A row with no
+    // matrix and no name would be a row for nothing: refused, typed.
+    if (digest === ADOPTED_DIGEST && typeof checked.params.instance !== 'string') {
+      return {
+        refused: true, created: false,
+        reason: `an adopted row (digest "${ADOPTED_DIGEST}") names the instance it binds to: params.instance, a string the class "${klass}" declares`,
+      };
+    }
     const open = [...rows.values()].filter((r) =>
       r.account === account && r.klass === klass && r.state !== 'REAPED');
     // The life to protect comes first, whatever the ledger's order. A re-ask
@@ -293,7 +322,7 @@ export function createGovernor({
      *  governor knows no more than that. Work is derived once, and offered
      *  again only if a VALIDATING claim went silent past its budget. */
     const needsValidation = (row) => {
-      const stamped = row.events.find((e) => e.event === 'STAMPED');
+      const stamped = row.events.find((e) => e.event === 'STAMPED' || e.event === 'ADOPTED');
       if (!stamped || stamped.data?.checks !== true) return false;
       if (row.events.some((e) => e.event === 'VALIDATED' || e.event === 'VALIDATION_FAILED')) return false;
       const claims = row.events.filter((e) => e.event === 'VALIDATING');
@@ -334,12 +363,16 @@ export function createGovernor({
       // under the name its kernel gives. Enrolment bound the two.
       if (row.machine !== maker.fleetName && row.machine !== maker.host) continue;
       const pastDeadline = row.deadlineAt && now() >= new Date(row.deadlineAt).getTime();
+      // How a row comes to life: stamped from its matrix, or adopted — bound
+      // to a container that already exists, which no inventory of matrices
+      // can vouch for and none needs to.
+      const birth = row.digest === ADOPTED_DIGEST ? 'adopt' : 'stamp';
       let kind = null;
       if (row.state === 'DESIRED') {
         // A row past its deadline is never stamped — it used to be born and
         // reaped in two consecutive beats. Its end is offered instead: the
         // reap recipe proves the absence ("already gone") and the slot frees.
-        kind = pastDeadline ? 'reap' : 'stamp';
+        kind = pastDeadline ? 'reap' : birth;
       } else if (row.state === 'RECONCILING') {
         // A claim. A maker that died mid-work used to hold the row here
         // forever — RECONCILING, counted living, its matrix pinned. Past the
@@ -347,7 +380,7 @@ export function createGovernor({
         // again; a stamp claim on a row now past its deadline becomes a reap.
         const claim = lastTransition(row);
         if (claim && ageOf(claim) > claimBudgetMs) {
-          kind = (claim.event === 'REAPING' || pastDeadline) ? 'reap' : 'stamp';
+          kind = (claim.event === 'REAPING' || pastDeadline) ? 'reap' : birth;
         }
       } else if (pastDeadline && row.state !== 'REAPED') {
         kind = 'reap';
@@ -364,7 +397,7 @@ export function createGovernor({
       // that predecessor's REAPED — reported by the same beat's reap, or
       // by a human when the reap rested (Rule 27). The wait is a typed
       // fact in the answer, never a silent absence of work.
-      const waitingOn = kind === 'stamp' ? predecessorOf(row) : null;
+      const waitingOn = kind === birth ? predecessorOf(row) : null;
       if (waitingOn) {
         withheld.push(waitingOn);
         continue;
@@ -425,10 +458,13 @@ export function createGovernor({
       .map((m) => ({ host: m.host, fleetName: m.fleetName, lastPollAt: m.lastPollAt }));
   }
 
-  /** Matrices still referenced by a live row may never be deleted. */
+  /** Matrices still referenced by a live row may never be deleted. An
+   *  adopted row references none: its container was born of no matrix. */
   function referencedDigests() {
     const held = new Set();
-    for (const row of rows.values()) if (row.state !== 'REAPED') held.add(row.digest);
+    for (const row of rows.values()) {
+      if (row.state !== 'REAPED' && row.digest !== ADOPTED_DIGEST) held.add(row.digest);
+    }
     return held;
   }
 

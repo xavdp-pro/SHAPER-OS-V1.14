@@ -114,6 +114,35 @@ contract, written once, so every governor speaks it and every maker reads it.
    `LD_PRELOAD` or `BASH_ENV` to a shell running as root. Assigning the
    value is the product's act, in process, before `desire()`, reading
    `listRows()`: the contract does not allocate, it guarantees uniqueness.
+10. <a id="an-adopted-row-creates-nothing"></a>**An adopted row creates
+   nothing.** A container that already exists — born by hand, before the
+   ledger — is brought under the ledger by a fourth kind of work, `adopt`,
+   never by the stamp: the stamp's idempotence is keyed by row id, its
+   "already exists" is only ever its own replay, it launches what it does
+   not find and exec's inside, and its work is withheld until a maker
+   declares the matrix — which a container born of no matrix never has. An
+   adopted row is written with `matrix: "none"` and `digest: "none"` (two
+   words, so that a missing matrix or digest stays the defect it is) and
+   names its container through the params slot, `instance`, which its
+   class declares (`unique`, so that two rows never adopt one container);
+   a nameless adopted row is refused, typed. Its birth is `adopt` work, not gated by the inventory and not
+   preloaded; it purrs only on an ADOPTED whose facts hold — the container
+   runs, and `legacy: true`, the recipe's own admission that the instance
+   was born outside the ledger; ADOPT_FAILED degrades. Its digest is never
+   a referenced matrix. What the adopt recipe of a host kind must do
+   belongs to the class repository and is proven on terrain first
+   (`recipes/README.md` says what it may and may not do); this package
+   ships the two tables and no recipe. The `instance` param rides every
+   work derived for the row — its end, and the validation an ADOPTED
+   reporting `checks: true` derives exactly as a STAMPED does — so the
+   reap and the validate recipes of that host kind must take the name from
+   `SHAPER_PARAM_INSTANCE` too. Until an adopt recipe exists for a host
+   kind and both read the variable, no adopted row may name a machine of
+   that kind, and an adopt recipe must not report `checks: true`: the
+   shipped `lxd-reap.sh` and `lxd-validate.sh` derive the name from the
+   row id; the one would prove the absence of an instance it never looked
+   for, the other would find no such instance (exit 2) and degrade a
+   healthy tenant.
 
 ## How to run
 

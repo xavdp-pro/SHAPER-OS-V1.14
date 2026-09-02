@@ -72,8 +72,10 @@ export function defaultRecipeRunner({ recipesDir, hostKind }) {
     // purred. It is a failure: the tail of text rides the STAMP_FAILED.
     const lastLine = stdout.trim().split('\n').at(-1) || '';
     try { return JSON.parse(lastLine); } catch {
-      if (work.kind === 'stamp') {
-        const err = new Error(`the stamp recipe ended without a line of facts: ${stdout.trim().slice(-400)}`);
+      // An adoption is a birth to the ledger — proven by what the recipe
+      // looked at, never by its exit code.
+      if (work.kind === 'stamp' || work.kind === 'adopt') {
+        const err = new Error(`the ${work.kind} recipe ended without a line of facts: ${stdout.trim().slice(-400)}`);
         err.stdout = stdout.slice(-2000);
         throw err;
       }
@@ -121,6 +123,11 @@ export function startMaker({
       stamp: ['STAMPING', 'STAMPED', 'STAMP_FAILED'],
       reap: ['REAPING', 'REAPED', 'REAP_FAILED', 'REAP_REFUSED'],
       validate: ['VALIDATING', 'VALIDATED', 'VALIDATION_FAILED'],
+      // Binding a row to a container that already exists, named by the
+      // row's `instance` param (SHAPER_PARAM_INSTANCE on the recipe's
+      // environment). The recipe looks, binds, reports `legacy: true` —
+      // it creates nothing and never exec's inside.
+      adopt: ['ADOPTING', 'ADOPTED', 'ADOPT_FAILED'],
     };
     const [begin, done, failed, refused] = EVENTS[work.kind] || [];
     if (!begin) { inFlight -= 1; return log(`unknown work kind "${work.kind}" — refused`); }
