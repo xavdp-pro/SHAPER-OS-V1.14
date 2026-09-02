@@ -293,11 +293,22 @@ one truth. This was the only path through blocker B1 (*five builds of one
 commit gave five fingerprints*; the podman registry is per machine and bakes
 its host into the locked identity).
 
+**Who makes a matrix: the tandem — the vibe coder and their AI agent.** Never
+the maker, never the governor. The maker only stamps bytes it has been handed
+and verifies they hash to their name; the governor only references a digest it
+has been told exists. Baking a matrix — building the class, locking the
+fingerprint, proving it, promoting it — is the work of the human and their agent,
+root on the system, coming in from underneath. It is the same act as enrolment:
+the fleet's identities and the fleet's artefacts both enter by the tandem's
+hand, and by no other. A robot that could bake its own matrix could also bake
+what it stamps, and the fingerprint lock would guard nothing.
+
 Three cadences, never mixed:
 
-1. **Stamping** (seconds): an instance is born from a frozen matrix.
-2. **Evolving a matrix** (days): build, lock, prove, publish a new version.
-   Living instances do not move.
+1. **Stamping** (seconds): an instance is born from a frozen matrix — the
+   maker's act.
+2. **Evolving a matrix** (days): build, lock, prove, publish a new version —
+   the tandem's act. Living instances do not move.
 3. **Raising an instance** (a decision): carry it from one matrix version to
    the next — backup first, proof after.
 
@@ -443,7 +454,7 @@ Grégory.
 | governor | WMANAGER itself, `pkg-governor` vendored, storage bound to its base |
 | `account` | the CRM client id (`clients.id`) — never free text |
 | `klass` | `univ-wmanager-vpn` (to ratify, Rule 1 grammar) |
-| `matrix` / `digest` | the tenant rootfs archive, baked from T10, sha256 |
+| `matrix` / `digest` | the tenant rootfs archive, **baked from T10 by the tandem**, sha256 |
 | `machine` | `gbs-vps` (fleetName), bound at enrolment to the real hostname |
 | `env` | `prod` for T11-T13 → **the reap recipe already refuses them (exit 4)** |
 | `deadlineAt` | `null` — a practice has no expiry |
@@ -561,7 +572,7 @@ Any answer other than the one given means the design is not finished.
 
 - **governor** — the universe that holds a ledger and makes it respected.
 - **maker** — the hand of a machine: asks, stamps, reports, never decides.
-- **matrix** — the locked, content-addressed artefact from which instances are stamped.
+- **matrix** — the locked, content-addressed artefact from which instances are stamped; baked by the tandem, never by a robot.
 - **stamp / reap / validate** — the three work kinds; the table grows by one line.
 
 And one line of `LEXICON.md` to revisit: the forge is described as the organ
