@@ -103,3 +103,41 @@ describe('the maker asks, stamps, reports — and listens on nothing', () => {
       'what holds power has no inbound door — a listening maker breaks the doctrine');
   });
 });
+
+describe('a refusal is not a failure', () => {
+  // Intent: software/packages/pkg-governor/INTENT.md#deadlines-are-desired-state
+  it('the maker reports a recipe\'s exit 4 as REAP_REFUSED, never as REAP_FAILED', async () => {
+    const { governor, server, url } = await liveGovernor();
+    const { token } = governor.enrolMaker({ host: 'test-host' });
+    const { row } = governor.desire({
+      account: 'a1', klass: 'univ-demo-crm', matrix: 'crm',
+      digest: 'sha256:aa', machine: 'test-host', env: 'prod',
+      deadlineAt: new Date(Date.now() - 1000).toISOString(),
+    });
+    governor.report({ token, rowId: row.id, event: 'STAMPED', data: { state: 'RUNNING' } });
+    let runs = 0;
+    const maker = startMaker({
+      governorUrl: url, token, host: 'test-host', intervalMs: 50,
+      inventory: () => ['sha256:aa'],
+      // What execFile throws when lxd-reap.sh exits 4: a production
+      // universe, and a robot does not end one.
+      runRecipe: async () => {
+        runs += 1;
+        const err = new Error('Command failed: bash lxd-reap.sh\n[lxd-reap] inst-x is a production universe');
+        err.code = 4;
+        throw err;
+      },
+      log: () => {},
+    });
+    await waitFor(() => governor.getRow(row.id).state === 'DEGRADED');
+    // A few more beats: a refused reap used to be offered again at each one.
+    await new Promise((r) => setTimeout(r, 300));
+    maker.stop();
+    server.close();
+    const events = governor.getRow(row.id).events.map((e) => e.event);
+    assert.deepEqual(events.slice(-2), ['REAPING', 'REAP_REFUSED'],
+      'exit 4 must reach the ledger under its own name');
+    assert.equal(governor.getRow(row.id).events.at(-1).data.exitCode, 4);
+    assert.equal(runs, 1, `the refused reap ran ${runs} times — the storm is back`);
+  });
+});

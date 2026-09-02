@@ -52,6 +52,12 @@ it does not improvise.
 9. **Two credentials, never confused.** The one that speaks to the SaaS may
    only ask and report. The one that acts on the host is the machine's own
    power, held in this universe's vault, reachable by no one.
+10. **A refusal is reported under its own name.** A recipe may refuse — an
+   unverified matrix, an absent one, a production universe asked to end —
+   and says so by its exit code. The maker reports a refusal as what it is
+   (exit 4 → `REAP_REFUSED`), never as a failure the governor would offer
+   again at every beat: a refused end retried forever is a storm on a row no
+   robot may touch.
 
 ## 3. Cognition
 

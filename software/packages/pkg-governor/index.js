@@ -23,6 +23,12 @@ const EVENT_TRANSITIONS = {
   REAPING: 'RECONCILING',
   REAPED: 'REAPED',
   REAP_FAILED: 'DEGRADED',
+  // A refusal is a fact, not a failure. The reap recipe looked at `env` and
+  // would not end a production universe (exit 4). Reported as REAP_FAILED it
+  // used to be offered again at every beat, forever — a reap storm on a row
+  // no robot may end. Under its own name the row rests: its end is a human
+  // decision (Rule 27), and the poll never offers it again.
+  REAP_REFUSED: 'DEGRADED',
   VALIDATING: 'PURRING',
   VALIDATED: 'PURRING',
   VALIDATION_FAILED: 'DEGRADED',
@@ -48,7 +54,15 @@ export function createFileStorage(file) {
   };
 }
 
-export function createGovernor({ now = () => Date.now(), storage = null } = {}) {
+/** Rule 27, applied to the governor's own offers: a reap that keeps failing
+ *  backs off (30s, 1m, 2m, 4m…) and stops after `maxHealingAttempts`; a claim
+ *  (STAMPING, REAPING, VALIDATING) silent past `claimBudgetMs` is offered
+ *  again. The numbers are options because a fleet's clock is its own; the
+ *  bounds themselves are not optional. */
+export function createGovernor({
+  now = () => Date.now(), storage = null,
+  maxHealingAttempts = 5, reapBackoffMs = 30 * 1000, claimBudgetMs = 10 * 60 * 1000,
+} = {}) {
   const rows = new Map();     // id -> ledger row
   const makers = new Map();   // host -> { token, version, lanes, inventory:Set<digest>, lastPollAt, enrolledAt }
   let seq = 0;
@@ -113,17 +127,33 @@ export function createGovernor({ now = () => Date.now(), storage = null } = {}) 
       const v = { account, klass, matrix, digest, machine }[field];
       if (!v) throw new Error(`${field} is required`);
     }
-    const live = [...rows.values()].find((r) =>
+    const open = [...rows.values()].filter((r) =>
       r.account === account && r.klass === klass && r.state !== 'REAPED');
-    // A DEGRADED row is not a life to protect — it is a failure the account
-    // is stuck behind. Asking again means: end the broken one (its deadline
-    // becomes now, and a maker will reap whatever half-exists), start fresh.
-    if (live && live.state === 'DEGRADED') {
-      live.deadlineAt = stamp();
-      live.updatedAt = stamp();
-      persist('row', live);
-    } else if (live) {
-      return { row: live, created: false };
+    // The life to protect comes first, whatever the ledger's order. A re-ask
+    // pressed twice used to meet the broken row again (a Map iterates in
+    // insertion order), end it a second time and birth a second fresh row —
+    // the twin invariant 4 exists to forbid.
+    const living = open.find((r) => r.state !== 'DEGRADED');
+    if (living) return { row: living, created: false };
+    // What remains is broken. A DEGRADED row is not a life to protect — for
+    // the environments a robot may end. A production universe is not one of
+    // them: its reap is refused by the recipe (exit 4), so ending it here
+    // would leave the old row storming and a twin stamped beside it. The
+    // re-ask is refused as a typed fact carrying the row id; its end is a
+    // human decision (Rule 27). Nothing is created, nothing is thrown.
+    const guarded = open.find((r) => r.env === 'prod');
+    if (guarded) {
+      return {
+        refused: true, created: false, row: guarded,
+        reason: `row "${guarded.id}" is a degraded production universe — a robot does not end one, and no twin is born beside it (Rule 27)`,
+      };
+    }
+    // Asking again means: end the broken one (its deadline becomes now, and
+    // a maker will reap whatever half-exists), start fresh.
+    for (const broken of open) {
+      broken.deadlineAt = stamp();
+      broken.updatedAt = stamp();
+      persist('row', broken);
     }
     const id = `inst-${now()}-${++seq}`;
     const row = {
@@ -150,19 +180,37 @@ export function createGovernor({ now = () => Date.now(), storage = null } = {}) 
     maker.inventory = new Set(inventory.map((i) => (typeof i === 'string' ? i : i.digest)));
     persist('maker', maker);
 
+    /** The last event the table understood. Unknown events are recorded
+     *  for audit and mean nothing to the automaton, so they never hide the
+     *  claim or the refusal that put the row where it is. */
+    const lastTransition = (row) =>
+      [...row.events].reverse().find((e) => e.event in EVENT_TRANSITIONS) || null;
+    const ageOf = (event) => now() - new Date(event.at).getTime();
+
     /** The governor validates a child from FACTS the ledger holds: the stamp
      *  recipe reported whether the child ships an acceptance spec, and the
      *  governor knows no more than that. Work is derived once, and offered
      *  again only if a VALIDATING claim went silent past its budget. */
-    const VALIDATE_RETRY_MS = 10 * 60 * 1000;
     const needsValidation = (row) => {
       const stamped = row.events.find((e) => e.event === 'STAMPED');
       if (!stamped || stamped.data?.checks !== true) return false;
       if (row.events.some((e) => e.event === 'VALIDATED' || e.event === 'VALIDATION_FAILED')) return false;
       const claims = row.events.filter((e) => e.event === 'VALIDATING');
       if (claims.length === 0) return true;
-      const last = new Date(claims[claims.length - 1].at).getTime();
-      return now() - last > VALIDATE_RETRY_MS;
+      return ageOf(claims[claims.length - 1]) > claimBudgetMs;
+    };
+
+    /** Rule 27 on the reap. A reap the recipe REFUSED is never offered
+     *  again — the row rests, a human ends it. A reap that FAILED is offered
+     *  again after an exponential pause, and never again after
+     *  `maxHealingAttempts`: the governor is not the storm. Both used to be
+     *  re-offered at every beat, five seconds apart, forever. */
+    const reapIsDue = (row) => {
+      if (lastTransition(row)?.event === 'REAP_REFUSED') return false;
+      const failures = row.events.filter((e) => e.event === 'REAP_FAILED');
+      if (failures.length === 0) return true;
+      if (failures.length >= maxHealingAttempts) return false;
+      return ageOf(failures[failures.length - 1]) >= reapBackoffMs * 2 ** (failures.length - 1);
     };
 
     const work = [];
@@ -173,10 +221,27 @@ export function createGovernor({ now = () => Date.now(), storage = null } = {}) 
       if (row.machine !== maker.fleetName && row.machine !== maker.host) continue;
       const pastDeadline = row.deadlineAt && now() >= new Date(row.deadlineAt).getTime();
       let kind = null;
-      if (row.state === 'DESIRED') kind = 'stamp';
-      else if (pastDeadline && row.state !== 'REAPED' && row.state !== 'RECONCILING') kind = 'reap';
-      else if (row.state === 'PURRING' && needsValidation(row)) kind = 'validate';
+      if (row.state === 'DESIRED') {
+        // A row past its deadline is never stamped — it used to be born and
+        // reaped in two consecutive beats. Its end is offered instead: the
+        // reap recipe proves the absence ("already gone") and the slot frees.
+        kind = pastDeadline ? 'reap' : 'stamp';
+      } else if (row.state === 'RECONCILING') {
+        // A claim. A maker that died mid-work used to hold the row here
+        // forever — RECONCILING, counted living, its matrix pinned. Past the
+        // budget the claim is presumed dead and the same work is offered
+        // again; a stamp claim on a row now past its deadline becomes a reap.
+        const claim = lastTransition(row);
+        if (claim && ageOf(claim) > claimBudgetMs) {
+          kind = (claim.event === 'REAPING' || pastDeadline) ? 'reap' : 'stamp';
+        }
+      } else if (pastDeadline && row.state !== 'REAPED') {
+        kind = 'reap';
+      } else if (row.state === 'PURRING' && needsValidation(row)) {
+        kind = 'validate';
+      }
       if (!kind) continue;
+      if (kind === 'reap' && !reapIsDue(row)) continue;
       if (kind === 'stamp' && !maker.inventory.has(row.digest)) {
         preload.add(row.digest);
         continue;

@@ -67,10 +67,10 @@ export function startMaker({
     // governor's transition table holds the matching line (no dialect).
     const EVENTS = {
       stamp: ['STAMPING', 'STAMPED', 'STAMP_FAILED'],
-      reap: ['REAPING', 'REAPED', 'REAP_FAILED'],
+      reap: ['REAPING', 'REAPED', 'REAP_FAILED', 'REAP_REFUSED'],
       validate: ['VALIDATING', 'VALIDATED', 'VALIDATION_FAILED'],
     };
-    const [begin, done, failed] = EVENTS[work.kind] || [];
+    const [begin, done, failed, refused] = EVENTS[work.kind] || [];
     if (!begin) { inFlight -= 1; return log(`unknown work kind "${work.kind}" — refused`); }
     try {
       await reportEvent(work.rowId, begin, {});
@@ -78,8 +78,17 @@ export function startMaker({
       await reportEvent(work.rowId, done, result || {});
     } catch (err) {
       // An unclear situation is reported and stops the job — never resolved
-      // by improvisation.
-      await reportEvent(work.rowId, failed, { error: String(err.message || err).slice(0, 500) });
+      // by improvisation. And a refusal is not a failure: exit 4 is the
+      // recipe saying "I looked, and a robot does not do this" (a production
+      // universe asked to end). Reported as a failure it used to be offered
+      // again at every beat; under its own name the governor lets the row
+      // rest. The exit code is the recipe's contract, so it rides the event.
+      const exitCode = typeof err.code === 'number' ? err.code : null;
+      const event = refused && exitCode === 4 ? refused : failed;
+      await reportEvent(work.rowId, event, {
+        error: String(err.message || err).slice(0, 500),
+        ...(exitCode === null ? {} : { exitCode }),
+      });
     } finally {
       inFlight -= 1;
     }
