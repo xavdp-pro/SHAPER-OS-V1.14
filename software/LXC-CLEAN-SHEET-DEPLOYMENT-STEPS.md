@@ -27,7 +27,7 @@ This document details the exact, chronological sequence that brings up a complet
 flowchart TD
     S0["Step 0: LXC creation (Proxmox / Linux)"] --> S1["Step 1: System packages & dependencies"]
     S1 --> S2["Step 2: Local SSH key pair"]
-    S2 --> S3["Step 3: Persistent tree /data/"]
+    S2 --> S3["Step 3: State under the universe (no /data/ on the host)"]
     S3 --> S4["Step 4: Podman bricks deployment"]
     S4 --> S5["Step 5: Wiring the transparent Podman bridge"]
     S5 --> S6["Step 6: Persistent memory & CONTEXT.md"]
