@@ -85,3 +85,29 @@ test('KEYS-AND-ACCOUNTS names every variable, the refusal, and the SKIP', () => 
     'the key map must say that without MYSQL_USER the backup scripts print SKIP and report the database as skipped',
   );
 });
+
+/**
+ * The 2 September review found the key map sending the operator to files no
+ * script reads: "values go in software/.env (or the universe's deploy/env)".
+ * None of the four scripts sources either — a backup script does not execute
+ * the operator's environment file — so a MYSQL_USER written into deploy/env
+ * yielded SKIP, and a PRA key written into software/.env yielded the halt
+ * that names it: a door that opens on nothing. The truth of the mechanism is
+ * read from the scripts; the documents must state it.
+ */
+const SCRIPTS = ['backup-local.sh', 'snapshot-universe.sh', 'backup-pra-sync.sh', 'push-images-to-registry.sh'];
+const SOURCES_ENV = /^\s*(source|\.)\s+\S*env\b|^\s*set -a\b/m;
+const EXPORTED = /exported environment/;
+
+test('the scripts read the exported environment, and every document says so instead of naming a file', () => {
+  const sourcing = SCRIPTS.filter((s) => SOURCES_ENV.test(read(`software/scripts/${s}`)));
+  assert.deepEqual(sourcing, [], `a backup or registry script that sources an env file — the documents describe a script that does not:\n  ${sourcing.join('\n  ')}`);
+  const section = read(KEYS).split('## Backups and the registry')[1]?.split('\n---')[0] ?? '';
+  assert.ok(section.length > 0, 'KEYS-AND-ACCOUNTS has lost its backup and registry section');
+  assert.match(section, EXPORTED, 'the key map must say the scripts read the exported environment');
+  assert.doesNotMatch(section, /[Vv]alues go in `software\/\.env`/, 'the key map sends the operator to a file no script reads');
+  assert.match(section, /sources?\s+(no|neither|`software\/\.env`)/, 'the key map must say that no script sources an env file');
+  for (const rel of EXAMPLES) {
+    assert.match(read(rel), EXPORTED, `${rel} must say the scripts read the exported environment, not this file`);
+  }
+});

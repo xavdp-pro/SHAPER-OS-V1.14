@@ -44,9 +44,10 @@ Template file: [`.env.example`](../../.env.example) → copy to `.env` or `softw
 ## Backups and the registry — what the operator scripts read
 
 Four scripts under `software/scripts/` take their credentials from the
-environment and from nowhere else. None carries a default: a required
-variable that is missing **halts the script, which names it**. Values go in
-`software/.env` (or the universe's `deploy/env`) — never in a tracked file.
+**exported environment** and from nowhere else: none of them sources
+`software/.env` or a universe's `deploy/env` — by design, a backup script
+does not execute the operator's environment file. None carries a default: a
+required variable that is missing **halts the script, which names it**.
 
 | Variable | Read by | Required? | What it does |
 | :--- | :--- | :---: | :--- |
@@ -60,11 +61,29 @@ variable that is missing **halts the script, which names it**. Values go in
 | `MYSQL_DATABASE` | `backup-local.sh`, `snapshot-universe.sh` | No | One schema to dump; unset, `--all-databases` |
 | `MYSQL_HOST`, `MYSQL_PORT` | `backup-local.sh`, `snapshot-universe.sh` | No | Default to `127.0.0.1` and `3306` inside the scripts |
 
-The universe's own database belongs in its `deploy/env`
-([`examples/universe.env.example`](../../examples/universe.env.example)); the
-PRA key and the registry account belong in `software/.env`
-([`software/.env.example`](../../software/.env.example)). Both example files
-declare every variable above **empty**.
+The example files are the record of the **names**, and declare every
+variable above **empty**:
+[`examples/universe.env.example`](../../examples/universe.env.example) for the
+universe's own database (Rule 26: one MariaDB per universe),
+[`software/.env.example`](../../software/.env.example) for the PRA key and
+the registry account. The **values** live in the shell — or the cron
+environment — that runs the script, never in a tracked file. From
+`software/`:
+
+```bash
+set -a && source ../<slug>-dev/deploy/env && set +a   # exports MYSQL_* into this shell
+bash scripts/backup-local.sh
+PRA_ENCRYPTION_KEY=<backup-only key> bash scripts/backup-pra-sync.sh
+export REGISTRY_HOST=<host:port> REGISTRY_USER=<account>
+read -rs REGISTRY_PASS && export REGISTRY_PASS      # typed, not written into a history
+bash scripts/push-images-to-registry.sh
+```
+
+A `MYSQL_USER` written into `deploy/env` and `backup-local.sh` run from a
+fresh shell gives `SKIP`; a `PRA_ENCRYPTION_KEY` written into `software/.env`
+gives the halt that names it — neither file is read as configuration.
+`backup-pra-sync.sh` opens the `.env` files line by line for one purpose
+only: to refuse a PRA key equal to the vault's.
 
 ---
 
