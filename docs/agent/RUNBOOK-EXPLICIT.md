@@ -306,7 +306,9 @@ export OPENCODE_MODEL=<the engine your measurements and the declared enginePolic
 # enables: CURSOR_MODEL (bridge-cursor), AGY_MODEL or ANTIGRAVITY_MODEL
 # (bridge-agy), OLLAMA_MODEL or DEEPSEEK_MODEL (bridge-deepseek) — each
 # measured at deploy, never written here. No bridge names a default: each
-# halts without its variable, and podman-up.sh halts before starting it.
+# halts without its variable; podman-up.sh halts before starting bridge-cursor
+# or bridge-agy, and bridge-deepseek (not started by the template) halts in
+# its own process.
 # Exports live only in YOUR shell. If your harness opens a fresh shell per
 # command (lxc exec does), re-export SHAPER_REGISTRY, SHAPER_IMAGE_TAG and
 # OPENCODE_MODEL before any step that uses them — podman-up.sh halts on a

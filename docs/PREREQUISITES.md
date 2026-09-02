@@ -40,15 +40,18 @@ does) re-exports them before every step that builds, pushes or deploys.
 | `VAULT_MASTER_KEY` | 64 hex chars, never a `<placeholder>` | `openssl rand -hex 32` |
 | `VAULT_TOKEN` | 48 hex chars, never a `<placeholder>` | `openssl rand -hex 24` |
 | `OPENCODE_MODEL` | the engine that passed the probe and the declared cursor (Rule 7) | **measured at Step 4.2b** — it cannot be known before the bridge image exists; `podman-up.sh` halts without it |
-| `CURSOR_MODEL` · `AGY_MODEL` (or `ANTIGRAVITY_MODEL`) · `OLLAMA_MODEL` (or `DEEPSEEK_MODEL`) | only when this universe enables `bridge-cursor`, `bridge-agy` or `bridge-deepseek` — then the same standard as `OPENCODE_MODEL` | **measured at deploy, never written here** — the same probe, from the same host; each bridge halts without its variable and `podman-up.sh` halts before starting it. No bridge names a default |
+| `CURSOR_MODEL` · `AGY_MODEL` (or `ANTIGRAVITY_MODEL`) · `OLLAMA_MODEL` (or `DEEPSEEK_MODEL`) | only when this universe enables `bridge-cursor`, `bridge-agy` or `bridge-deepseek` — then the same standard as `OPENCODE_MODEL` | **measured at deploy, never written here** — the same probe, from the same host; each bridge halts without its variable — `podman-up.sh` halts before starting `bridge-cursor` or `bridge-agy`, and `bridge-deepseek`, which the template does not start, halts in its own process (`ModelUnsetError`). No bridge names a default |
 
 Everything else in `.env.example` is either a port with a sane default or a
 **tier-b key** (Groq, Deepgram, …): those are optional — a missing tier-b
 key is an honest halt of that perimeter (P3), never a fake and never a
-blocker for tier-a. See `docs/human/KEYS-AND-ACCOUNTS.md`. No line of
-`.env.example` names a model: a model written there is a default, and a
-default that must be edited when a vendor ships a successor is a cache, not
-a rule (Rule 7).
+blocker for tier-a. See `docs/human/KEYS-AND-ACCOUNTS.md`. No bridge model variable
+(`OPENCODE_MODEL`, `CURSOR_MODEL`, `AGY_MODEL`, `OLLAMA_MODEL`, …) carries a
+value in `.env.example`: a model written there is a default, and a default
+that must be edited when a vendor ships a successor is a cache, not a rule
+(Rule 7). One model value does still ship there — `GROQ_ACK_MODEL`, the
+tier-b voice acknowledgement's engine — a question for the voice perimeter,
+not a bridge.
 
 **The file holds only variables.** Three kinds of line are admitted: blank,
 `#` comment, and `KEY=value` where `KEY` matches `[A-Z][A-Z0-9_]*` (digits
