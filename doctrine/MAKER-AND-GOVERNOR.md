@@ -1,20 +1,27 @@
 # The Maker and the Governor
 
 > **Status**: founding doctrine, assembled on 2 September 2026 from the operator's
-> rulings of 27 August – 1 September (demo fractal design sessions, `demoproof/`),
-> the contract already executable in `pkg-governor` and `_maker-template`, and the
-> first production birth (demo.xavdp.pro, 1 September). The contract was written
-> before its philosophy. This document writes the philosophy, so that the second
-> client of these organs — **WMANAGER**, Grégory's Windows fleet — inherits the
-> *why* and not only the *how*. WMANAGER is the worked example throughout.
+> rulings of 27 August – 1 September (the demo fractal's design sessions, kept
+> with the project's notes outside this repository), the contract executable in
+> `pkg-governor` and `_maker-template`, and the first birth in the `demo`
+> environment (1 September). The contract was written before its philosophy.
+> This document writes the philosophy, so that the second client of these
+> organs — **WMANAGER**, a Windows fleet manager — inherits the *why* and not
+> only the *how*. WMANAGER is the worked example throughout, as an example: its
+> field survey lives with the project's notes, never here.
+>
+> Passed through an adversarial reading on 2 September and amended. Where the
+> shipped code does not yet carry a mechanism this page describes, the page
+> says **TARGET** beside it; the gaps are also recorded in
+> [`CONVERGENCE-STATE.md`](./CONVERGENCE-STATE.md), amended in this release.
 
 ---
 
 ## 1. The law, in three lines
 
 **The governor writes what should exist. The maker makes it true. Neither ever
-commands the other: the maker asks, the governor answers, and the gap between the
-ledger and the world is the only source of work.**
+commands the other: the maker asks, the governor answers, and the gap between
+the ledger and what makers report is the only source of work.**
 
 Everything else in this document is a consequence.
 
@@ -32,11 +39,11 @@ The answer split in two, and the split is the doctrine:
 
 | | The governor | The maker |
 | :--- | :--- | :--- |
-| What it holds | **the ledger** — the desired state | **root on one host** |
+| What it holds | **the ledger** — the desired state | **root on one host**, in its vault |
 | What it does | writes rows, hears silences | executes frozen recipes, reports facts |
 | What it never does | touch a machine | decide anything |
 | Who reaches it | humans and makers, by its two doors | **nobody** — it listens on nothing |
-| How many | one per fractal level | **one per machine**, never per project |
+| How many | one per ledger — a governed scope, what a class's `governedBy` names | **one per machine**, never per project |
 
 **One organ cannot be both.** A thing that holds the ledger *and* root on hosts is
 reachable and powerful at once — the exact combination
@@ -59,7 +66,8 @@ The demo SaaS is a governor. WMANAGER is a governor. CLINIC's SaaS will be one.
 **The maker never learns which — it reads an address.** This is
 [`THE-SYSTEM-LEARNS-NO-DIALECT.md`](./THE-SYSTEM-LEARNS-NO-DIALECT.md) applied to
 the hierarchy itself: one does not know one's chief, one knows one's chief's
-address.
+address — and a maker that serves several ledgers reads a table of addresses
+(§4.3).
 
 ### 3.2 The three laws
 
@@ -67,50 +75,102 @@ address.
    of desired state. Realisation belongs to makers. There is no "deploy" button
    in a governor; there is a "desire" and then there is watching.
 2. **It is the only memory.** What is not in the ledger does not exist. What is
-   in the ledger and not running is a drift, therefore work. A governor that
-   forgot its rows would abandon every universe it asked for — which is why the
-   ledger is a journal read back in full at boot, unlike a queue whose
+   in the ledger and not reported as running is a drift, therefore work. A
+   governor that forgot its rows would abandon every universe it asked for —
+   which is why the ledger is read back in full at boot, unlike a queue whose
    durability is evidence and never resumption.
+   *Today the governor derives work from state and deadline only; drift of a
+   running instance is not observed. TARGET: the maker declares at every poll
+   the instances it actually runs (by row id, from `lxc list`), the governor
+   re-dates PURRING on each declaration, and a missing instance becomes stamp
+   work.*
 3. **It hears the silences.** It dates every maker's last call. Absence beyond
    the declared interval is an alarm out of band (Rule 27), never a green tile.
    A maker that calls and leaves empty-handed has *nothing to do*; a host that
    stopped calling is *dead*. The two are distinct events, and the poll is
-   what distinguishes them.
+   what distinguishes them. *(TARGET until the maker's manifest declares
+   `alerting`, the maker declares its interval at every poll, and
+   `silentMakers` is wired to that channel — today the silence is computed,
+   not heard.)*
+
+**Rule 36 and the governor — who is the Parent.** Rule 36 gives the Parent
+universe the authority to instantiate, access and destroy its children, with an
+SSH authority key that never leaves it. In this contract, that Parent is the
+tandem and, for birth and end, the machine's maker acting on a row — never the
+governor. The governor holds no key and opens no session; it writes. The
+parent public key reaches a child through the stamp recipe, as a file, never as
+a command built from the row.
 
 ### 3.3 The ledger
 
-The canon (Rule 37) defines it: **the table of desired state, one row per
-instance** — in the database of the governing universe. It is the only store
-of instances: a class has a git repository; an instance never does. An instance
-is a row, a vault and volumes.
+Rule 37 defines the ledger. **This contract amends its row and its automaton,
+and says so** (the amendments land in Rule 37 and Rule 27 in this release):
+
+- `tag` becomes `matrix` + `digest` — the artefact, not the repository tag;
+- `bucket` is derivable and not stored; `id`, `account`, `deadlineAt`,
+  `createdAt`, `updatedAt` and `params` are added;
+- a fifth, terminal state **REAPED** enters the automaton — the failure it
+  prevents: a reaped row still counted as living blocks its account forever
+  and pins its matrix;
+- a DEGRADED row leaves that state only by its account's new ask, and only for
+  the environments a robot may end (Rule 27 amended, §10); a PROD row leaves it
+  by human action alone;
+- `pkg-governor` carries the ledger table contract; `brick-forge` no longer
+  will.
+
+The ledger is **the table of desired state and of what was reported about it,
+one row per instance** — in the database of the governing universe. It is the
+only store of instances: a class has a git repository; an instance never does.
+An instance is a row, a vault and volumes.
 
 Four stores that must never be confused:
 
 | Store | Answers | Form |
 | :--- | :--- | :--- |
 | **git** | what a class IS | repositories, versions |
-| **`fleet.yml`** | what SHOULD exist, at which versions | the map — never instances |
+| **`fleet.yml`** | which classes and machines exist, at which tags | the map — never instances |
 | **the artefacts** | the bytes we deploy | matrices (sha256), brick images (digests) |
-| **the ledger** | what exists NOW | one row per instance |
+| **the ledger** | what SHOULD exist, instance by instance, and what each maker last reported about it | one row per instance: desired state + dated events |
 
-*The repository says what a thing is. The map says what should exist. The
-ledger says what exists. The gap between the last two is work.*
+*The repository says what a class is. The map says which classes and machines
+exist, at which tags. The ledger says which instances are desired and what was
+reported. Work is the gap between a row and the facts reported for it (§1).
+The gap between map and ledger is an audit, never maker work
+([`FLEET.md`](../docs/architecture/FLEET.md), law 3).*
 
-A row carries: `account`, `klass`, `matrix`, `digest`, `machine`, `env`,
-`state`, `deadlineAt`, `events[]`. States: `DESIRED → RECONCILING → PURRING |
-DEGRADED | REAPED`. Transitions are **a table, not branches** — a new event kind
-is one line.
+A row carries: `id`, `account`, `klass`, `matrix`, `digest`, `machine`, `env`,
+`params`, `state`, `deadlineAt`, `createdAt`, `updatedAt`, `events[]`. States:
+`DESIRED → RECONCILING → PURRING | DEGRADED | REAPED`. Transitions are **a
+table, not branches** — a new event kind is one line. `VALIDATING` keeps the
+row PURRING: a claim, not a verdict.
 
-Three properties of the ledger that are not obvious until one needs them:
+Four properties of the ledger that are not obvious until one needs them:
 
 - **Desired state is idempotent.** One live row per `(account, klass)`; asking
-  twice creates once. The double-click births one universe.
+  twice creates once. The double-click births one universe. A live row's
+  `params` are immutable like its digest: a re-ask with different `params` is
+  refused with the row id, never ignored in silence (§8.4, D1).
 - **Deadlines are desired state.** A row past its deadline yields reap work on
   the next poll. Destruction is scheduled and verified, never a timer inside a
-  robot (Rule 10).
-- **A degraded row is not a life to protect.** Asking again ends the broken one
-  and starts fresh, in the same poll. An account is never walled behind its own
-  failure.
+  robot (`pkg-governor/INTENT.md`, invariant 6). *The shipped code stamps a
+  DESIRED row that is already past its deadline, then reaps it — a birth for
+  nothing; the contract's intent is that a row past its deadline is never
+  stamped. TARGET, recorded with the gaps.*
+- **A degraded row whose env a robot may end (dev, test, demo) is not a life to
+  protect.** Asking again ends the broken one and starts fresh, in the same
+  poll. An account is never walled behind its own failure. **A degraded PROD
+  row is a life to protect**: asking again is refused with the row id; its end
+  is a human decision (Rule 27). A refusal is a fact, not a failure: the reap
+  recipe's exit 4 becomes the event `REAP_REFUSED`, the row rests in DEGRADED,
+  no twin is created, the reap is not offered again, and the alarm leaves out
+  of band. Repeated reap failures on one row back off and stop after
+  `maxHealingAttempts` (Rule 27) — a reconciliation loop that cannot give up
+  is a storm generator.
+- **A claim is not a life either.** `STAMPING` and `REAPING` are claims; the
+  shipped code offers a `validate` claim again once it has gone silent past
+  its budget, but a stamp or reap claim that went silent stays RECONCILING
+  and is counted as living. *TARGET: a claim budget for stamp and reap —
+  a STAMPING claim gone silent is re-offered.*
 
 ### 3.4 The two doors
 
@@ -118,14 +178,17 @@ A governor has exactly two doors and confuses them never:
 
 - **The maker door**: the contract's own HTTP server, one token per maker,
   bound to an address reachable only over the VPN (published by socat on the
-  mesh address — the house pattern). It answers `enrol`, `poll`, `events`.
-  Nothing else.
+  mesh address — the house pattern). It answers `enrol`, `poll`, and `events`
+  on `/api/work/<rowId>/events`. Nothing else.
 - **The human door**: the product's ordinary web surface. It calls the governor
   in-process and **never exposes the maker protocol**.
 
 The demo SaaS's SQL keeps only *who asked for what* (account → row id). The
-instance's *life* — states, events, deadlines — lives in the governor's journal
-alone. Two truths would be one too many.
+instance's *life* — states, events, deadlines — lives in the governor's ledger
+alone: its database. The JSONL journal in `pkg-governor` is the package's
+reference adapter and the demo's transitional storage, recorded as a gap in
+[`CONVERGENCE-STATE.md`](./CONVERGENCE-STATE.md) (Rule 26). Two truths would
+be one too many.
 
 ### 3.5 Enrolment is the tandem's act
 
@@ -151,24 +214,33 @@ never delivered.
 
 **The hand of a machine.** It asks its governor what should exist on its host,
 stamps universes from matrices, reports what happened, and goes back to asking.
-It is the only actor in the fractal that can make a universe that does not yet
-exist — *which is why it cannot live inside one, and why it holds root on its
-host.* It is a robot: it does not decide, it does not interpret, it does not
-improvise.
+It is the only actor that can make a universe that does not yet exist — *which
+is why it cannot live inside one it stamps, and why it holds the root power of
+its host in its vault.* It is a robot: it does not decide, it does not
+interpret, it does not improvise.
+
+**The maker is a universe (Rule 11), one instance per machine, the lowest floor
+of the fractal — not outside it. What is outside the fractal is the root power
+on the host that it holds in its vault.**
 
 ### 4.2 The nine invariants (the law of `_maker-template/INTENT.md`)
 
 1. **Nothing can open a connection to it.** No port, no certificate. It calls
-   outward. A stolen credential lets someone impersonate a worker, never
-   command a host.
+   outward. A stolen credential may lie about its own host's rows, never about
+   another's, and never command a host: the governor binds every report to the
+   machine the row names, as it already binds every poll.
 2. **It executes a frozen recipe with typed parameters.** Arguments are passed
-   as argv, never concatenated into a shell string. Pulling work is not
-   permission to interpret it.
+   as argv, never concatenated into a shell string; the row's `params` reach
+   the recipe as `SHAPER_PARAM_<KEY>` variables on a constructed environment
+   (§8.4, D1). Pulling work is not permission to interpret it.
 3. **It never chooses.** Which machine, which matrix, birth or move: the
    governor decides and writes it. The maker reconciles what it reads with what
    it observes.
 4. **Its lanes are the capacity of its host, set from above.** A child asking
-   whether it deserves more is judge and party (Rule 23).
+   whether it deserves more is judge and party (Rule 23). *TARGET: today the
+   maker announces its lanes and the governor records them. The from-above
+   assignment — lanes fixed at enrolment, echoed in the poll answer, never
+   more work handed than lanes — is not built.*
 5. **It declares itself by its hostname**, asked of the host, never by a
    configured label that can drift.
 6. **It declares what it holds** — the matrices it carries, by digest, at every
@@ -201,11 +273,16 @@ order of force:
 The day two projects require *different powers* (one touches DNS, the other
 WireGuard), one splits — **by capability, never by project.**
 
-### 4.4 The maker lives in an LXC
+*Proven today for one governor per machine. A maker serving N governors from
+one vault-held table `{governorUrl, token}` with one shared lane budget is
+TARGET; until it exists, reason 3 holds only because each machine has one
+governor.*
+
+### 4.4 The maker lives in an LXC — ruled, not yet built
 
 Ruled by the operator on 31 August: *"more practical, and the hosts become
-completely interchangeable."* The maker is an ordinary universe holding an SSH
-key to its own host (the `--gateway-ssh` pattern of `provision-lxc-univ.sh`).
+completely interchangeable."* The maker is a universe holding, in its vault,
+the power to act on its own host.
 
 This is an architectural property, not a convenience. If the maker is a
 universe, **the host no longer holds anything that matters**: it is merely a
@@ -215,6 +292,14 @@ secret included). Adding a machine needs no ceremony: the new maker starts
 asking and announces itself. The maker backs up, is watched and moves with the
 tools the house already has — instead of being a script somewhere whose state
 nobody knows.
+
+**Ruled 31 August, not yet built.** The shipped recipes act on the host
+directly and the poller asks under `os.hostname()`, which inside an LXC is the
+container's name — a chosen label, the opposite of invariant 5. The LXC form
+needs a hop whose arguments never cross a remote shell — the recipe travels to
+the host and reads its positions from stdin as one JSON line, never as an ssh
+command string — and an identity asked of the HOST (`ssh host hostname`),
+tested with the hostile account string before it ships. TARGET.
 
 **The maker does not belong to any project.** Naming it `univ-demo-maker` would
 tie it to the most ephemeral of three clients and rebuild it twice (the lesson
@@ -229,29 +314,56 @@ almost, even on a VPS."*
 
 | | brick-forge | the maker |
 | :--- | :--- | :--- |
-| Where it lives | **inside** a universe — it is a brick | **on the host**, outside every fractal |
+| Where it lives | **inside** a universe — it is a brick | in its own LXC, outside every universe it stamps |
 | What it touches | what already exists: restart, repair, redeploy | what does not yet exist: birth |
 | Its level | podman | LXC / bare metal |
 
 **One cannot be inside a universe that is not yet born.** That is the deep
-reason the maker is outside the fractal, and therefore holds root. The forge
-repairs what lives; the maker gives birth.
+reason the maker holds root on its host, from its own universe. The sharing,
+in one line each: **the forge repairs bricks inside a living universe** (podman
+level; drift at brick level); **the maker births and ends universes from
+matrices** (LXC level; gap at instance level). The forge repairs what lives;
+the maker gives birth. The lexicon's page test follows (§10): *who repairs?* —
+the forge, inside a universe; *who births?* — the maker, from a row.
 
 ---
 
 ## 5. The recipe
 
-A recipe is `<hostKind>-<workKind>.sh` — `lxd-stamp.sh`, `proxmox-reap.sh`,
-and for WMANAGER `lxc-stamp.sh` (plain LXC, a third host kind). It receives
-**typed positional arguments** — `rowId klass matrix digest account env` — and
-interpolates none of them into a composed command. The instance name comes from
-the **row id**, never from account text: the row is ours and its shape is
+A recipe is `<hostKind>-<workKind>.sh` — `lxd-*.sh` (shipped), `proxmox-*.sh`
+(not yet written), and a third host kind whose token must not read as the LXD
+CLI: `liblxc` (§8.4, D2). It receives **typed positional arguments** —
+`rowId klass matrix digest account env` — plus the row's `params` as
+`SHAPER_PARAM_<KEY>` variables on an environment the poller constructs (PATH
+and the allow-listed keys, never inherited from its own process), and
+interpolates none of them into a composed command. The instance name comes
+from the **row id**, never from account text: the row is ours and its shape is
 known; the account belongs to a stranger.
 
 Every recipe ends with **one JSON line of facts**. The governor derives work
 from facts, never from prose: the stamp says whether the child ships an
 acceptance spec (`checks:true`), and from that fact alone the governor derives
-`validate` work — learning nothing about what the class is.
+`validate` work — learning nothing about what the class is. A stamp whose
+output cannot be read as facts is `STAMP_FAILED`, never a success by default;
+a stamp becomes PURRING only when the fact it reports is a container
+`Running` — a stopped container never purrs.
+
+Four work kinds, each one line in the maker's event table and three in the
+governor's transition table, plus its recipe:
+
+| Kind | What it does | What it reports |
+| :--- | :--- | :--- |
+| `stamp` | births an instance from a matrix, idempotent by row id | `STAMPING` → `STAMPED` / `STAMP_FAILED` |
+| `reap` | ends an instance and proves the absence | `REAPING` → `REAPED` / `REAP_FAILED` / `REAP_REFUSED` |
+| `validate` | runs the child's own acceptance spec | `VALIDATING` → `VALIDATED` / `VALIDATION_FAILED` |
+| `adopt` | binds a row to a named existing container, looks, reports | `ADOPTING` → `ADOPTED` / `ADOPT_FAILED` |
+
+`adopt` exists because the shipped stamp cannot adopt: its idempotence is keyed
+by row id, and it would launch, then `exec` inside — the gesture forbidden on a
+frozen tenant. The adopt recipe receives the container name through the
+`params` slot (`SHAPER_PARAM_INSTANCE`), never `exec`s inside, reports the fact
+`legacy: true`, and is not gated by the matrix inventory: an adopted row may
+carry `digest: none`, and the contract says so.
 
 Three obligations, each paid for on terrain:
 
@@ -261,13 +373,18 @@ Three obligations, each paid for on terrain:
 - **The end is verified, not announced.** Reap destroys, then looks again, and
   only then reports. A GC that says "done" without looking is exactly the lie
   `proof.sh` was corrected for.
-- **A robot never ends a production universe.** `env=prod` → refused, exit 4.
-  Rule 10 keeps DEV and destroys TEST; a PROD instance ends by a human
-  decision, elsewhere.
+- **A robot never ends a production universe.** `env=prod` → refused, exit 4,
+  reported as `REAP_REFUSED`: a fact, not a failure. Rule 10 destroys TEST
+  after proof, Rule 36 destroys DEV after promotion; a PROD instance ends by a
+  human decision, elsewhere. Every `<kind>-reap.sh` carries this guard before
+  any prod row exists on its host kind.
 
 **No recipe ships before it has run on real terrain.** A snippet published
-untested has already cost a sealing run (F25). The proof table lives in
-`recipes/README.md`, with observed durations that are never promises.
+untested has already cost a sealing run (finding F25 of
+[`TESTING-REPORT.md`](../docs/TESTING-REPORT.md)). The proof table lives in
+`recipes/README.md`, one section per shipped recipe — `stamp`, `reap` and
+`validate` — with what was observed under which conditions, never a promise
+(Rule 10).
 
 ---
 
@@ -277,7 +394,9 @@ A **matrix** is the prefabricated universe image from which instances are
 stamped: system, application, agent, seed data — baked together, versioned,
 locked by fingerprint. Birth *instantiates*; it does not install.
 
-Three words that must not be confused (candidates for the lexicon, Rule 37):
+Three words that must not be confused — two are already in the lexicon
+([`LEXICON.md`](../docs/architecture/LEXICON.md)), the third is the candidate
+(§10):
 
 - a **class** is the definition (repository, manifest, INTENT);
 - a **matrix** is the locked artefact built from the class, ready to stamp;
@@ -285,13 +404,16 @@ Three words that must not be confused (candidates for the lexicon, Rule 37):
 
 Class : matrix :: source : binary.
 
-**Decision (c), ruled 31 August: a matrix is a content-addressed file** — a
-rootfs archive and its sha256. The identity is the content, so it survives
-copying: the same bytes on gbs-test and gbs-p2 carry the same identity, with no
-rebuild and no central store. An LXD import here, a Proxmox template there —
-one truth. This was the only path through blocker B1 (*five builds of one
-commit gave five fingerprints*; the podman registry is per machine and bakes
-its host into the locked identity).
+**Ruled 31 August: a matrix is a content-addressed file** — a rootfs archive
+and its sha256. The identity is the content, so it survives copying: the same
+bytes on two machines carry the same identity, with no rebuild and no central
+store. This was the only path through the blocker the demo met: *five builds of
+one commit gave five fingerprints*, because the podman registry is per machine
+and bakes its host into the locked identity. The sha256 names the stored file;
+whether one pivot serves three host kinds — a bare rootfs hashed, wrapped at
+import by each stamp — is decided by the second recipe, not by this page.
+*"One truth" across host kinds is TARGET until `proxmox-*` or the third kind
+exists and proves its matrix format in `recipes/README.md`.*
 
 **Who makes a matrix: the tandem — the vibe coder and their AI agent.** Never
 the maker, never the governor. The maker only stamps bytes it has been handed
@@ -305,10 +427,10 @@ what it stamps, and the fingerprint lock would guard nothing.
 
 Three cadences, never mixed:
 
-1. **Stamping** (seconds): an instance is born from a frozen matrix — the
-   maker's act.
-2. **Evolving a matrix** (days): build, lock, prove, publish a new version —
-   the tandem's act. Living instances do not move.
+1. **Stamping** (the fast clock): an instance is born from a frozen matrix —
+   the maker's act.
+2. **Evolving a matrix** (a build cycle): build, lock, prove, publish a new
+   version — the tandem's act. Living instances do not move.
 3. **Raising an instance** (a decision): carry it from one matrix version to
    the next — backup first, proof after.
 
@@ -316,7 +438,8 @@ Three cadences, never mixed:
 matrix touches no living instance. Without this rule, improving an image would
 silently break clients in production — exactly what the fingerprint lock exists
 to prevent. And **no fingerprint may be deleted while a living row references
-it**: the ledger is the reference counter.
+it**: the ledger answers which digests are held (`referencedDigests`); *the
+deletion gate that consults it is TARGET — today no GC of matrices asks.*
 
 Maturity is the house's usual ladder — DEV explores and breaks, TEST rebuilds
 from zero and proves then is destroyed, PROD — with one machine-checkable
@@ -324,12 +447,15 @@ invariant:
 
 > **`maturity(matrix) ≥ environment(instance)`**
 
-A DEV instance from a PROD matrix is normal. A PROD instance from a DEV matrix
-is refused: it is putting a client on the unproven. One promotes **a
-fingerprint, never a recipe**: TEST→PROD moves a label on the same bytes.
-Rebuilding is shipping something other than what was proven. Hence the
-maturity is *not in the name* — what varies goes in structured data, never in
-the identifier (ZEST).
+*TARGET: today the invariant binds by reading — the row has no maturity field
+and no store carries the label; the governor's `matrices` table
+`{digest, maturity, promotedAt}` and a refusal in `desire()` are a declared
+gesture of the base.* A DEV instance from a PROD matrix is normal. A PROD
+instance from a DEV matrix is refused: it is putting a client on the unproven.
+One promotes **a fingerprint, never a recipe**: TEST→PROD moves a label on the
+same bytes. Rebuilding is shipping something other than what was proven. Hence
+the maturity is *not in the name* — what varies goes in structured data, never
+in the identifier (Rule 37, the ZEST grammar).
 
 ---
 
@@ -346,212 +472,213 @@ What crosses a level boundary is **always and only**: desired state downward
 (rows), facts upward (events), and silence in both directions. Never a
 command, never a credential that commands, never a dialect.
 
-The operator's three clients are three verticals of one fractal:
+The operator's three projects are three verticals of one fractal:
 
 | | Demo SaaS | **WMANAGER** | CLINIC |
 | :--- | :--- | :--- | :--- |
-| Governor | the free SaaS | **the manager, two admins** | the paid SaaS |
-| Account | a visitor | **a practice (notary, doctor, dentist…)** | a clinic |
-| Instance | a 3-day CRM | **a WireGuard tenant universe** | a clinic's universe |
+| Governor | the free SaaS | **the fleet manager, two administrators** | the paid SaaS |
+| Account | a visitor | **a practice (a regulated profession)** | a clinic |
+| Instance | a CRM with a deadline | **a VPN tenant universe** | a clinic's universe |
 | Public face | sign-up, magic link, client space | **none** — the practices never log in | client space, back-office |
-| Lifetime | 3 days, reaped | **no deadline** | contractual |
+| Lifetime | a deadline, then reaped | **no deadline** | contractual |
 | Regime | produce with Shaper OS | **full production** | full production |
 
 The organs are identical. What changes is the content of the instance, its
 lifetime and its public. CLINIC is the demo's *twin* (real accounts, client
-space, near self-service onboarding — its §4.3 *"a new client is a row and a
-configuration, no provisioning, under 15 minutes"* is the ledger, the maker
-and the matrix word for word). WMANAGER is the *cousin*: two administrators, no
-client accounts, no public façade. It shares the machinery and the operator
-admin, not the shop.
+space, near self-service onboarding — its own specification's *"a new client is
+a row and a configuration, no provisioning"* is the ledger, the maker and the
+matrix word for word). WMANAGER is the *cousin*: two administrators, no client
+accounts, no public façade. It shares the machinery and the operator admin, not
+the shop.
 
 **Build order, ruled and kept**: demo first, WMANAGER second, CLINIC third —
 *"one learns the gesture where a mistake costs nothing, then applies it where
 it would cost dearly."* The condition for WMANAGER to start — *organs proven by
-a demo that works, even without charm* — was met on 1 September 2026:
-governor on gbs-p2 (CT 130, two podman bricks), maker and instance on gbs-test,
-visitor over the public internet, **17.3 s from the press to the four bars,
-the fourth being the governor's own verification in a real browser.**
+a demo that works, even without charm* — was met on 1 September 2026: governor
+on one machine, maker and instance on another, a visitor over the public
+internet, the fourth bar being the governor's own verification in a real
+browser — fast and structured (Rule 10); the measured run and its conditions
+live in the deployment note of that day, with the project's notes.
 
 ---
 
-## 8. The worked example: WMANAGER
+## 8. The worked example: a Windows fleet manager
 
 ### 8.1 What it is
 
-**W = Windows.** The fleet manager for Grégory (gbsinfo.org): notaries, but
-also doctors, dental practices, gynaecologists — *"a bit of everything"*,
-regulated liberal and health professions, all on Windows. Two administrators,
-Xavier and Grégory, one in Spain, one in France. Not a SaaS. The practices are
+**W = Windows.** A fleet manager for a few dozen regulated practices on
+Windows, two administrators in two countries, no client login; one VPS running
+plain LXC tenants, one in development, three frozen in pseudo-production;
+everything derives from a tenant number `N`. Not a SaaS. The practices are
 managed; they do not log in.
 
 The business doctrine behind it: Shaper OS is the factory, not the product.
-The product is *"a range of SME services pulled from the hat by sector"*.
-Xavier lays the base, proves it on one or two clients, then **hands the baby
-over** — to Grégory for the fleet — and returns only for infrastructure. What
+The product is *"a range of SME services pulled from the hat by sector"*. The
+operator lays the base, proves it on one or two clients, then **hands the
+fleet over** to its administrator and returns only for infrastructure. What
 makes the hand-over durable is not prevention but **reversibility**: regular
 backups of every system, with the restoration tested, not the backup. Three
 nets with no overlap: backup for the noisy and reversible; tests and `shaper
 verify` for the silent; the authority boundary (preflight, production halt,
 recorded human override) for the irreversible — a mail sent, an invoice
-issued, an intervention on a notary's workstation. None excuses the other two.
+issued, an intervention on a practice's workstation. None excuses the other
+two.
 
-### 8.2 What already exists on the terrain (surveyed 2 September, read-only)
+### 8.2 What the terrain already runs
 
-`gbs-vps` (Debian 12, **plain LXC** — not LXD, not Proxmox) already runs the
-pattern this doctrine generalises. The doctrine itself names it: *"WireGuard
-clients on gbs-vps: passive, no public address, they go fetch."*
+This section covers the **`liblxc` host family**: plain LXC on a Debian host —
+not LXD, not Proxmox (Rule 11 asks a document that covers one family to say
+which in its first paragraph; the family itself enters the law by D2, §8.4).
 
-Four tenants, each an unprivileged LXC with its own WireGuard server:
-
-| Tenant | Client | Status |
-| :--- | :--- | :--- |
-| T10 | — | **development** — the only one that may be touched |
-| T11 | Triollier | pseudo-production — **frozen** |
-| T12 | Perriat | pseudo-production — **frozen** |
-| T13 | Dr Giorgi | pseudo-production — **frozen** |
-
-*Pseudo*: born without Shaper OS inside (bare Debian + WireGuard). Real
-production is the one that carries the universe (Rule 11: LXC = universe,
-podman = brick). Standing prohibitions on the host: `/apps` (six production
-apps) and the root mesh `wg0` (`10.87.78.0/24`, UDP 20000).
+The host already runs the pattern this doctrine generalises —
+[`DIRECTION-IS-THE-BOUNDARY.md`](./DIRECTION-IS-THE-BOUNDARY.md) names it:
+*"WireGuard clients on `gbs-vps`: passive, no public address, they go fetch."*
+Four tenants, each an unprivileged LXC with its own WireGuard server: T10 in
+development — the only one that may be touched — and T11-T13 in
+pseudo-production, **frozen**. *Pseudo*: born without Shaper OS inside (bare
+Debian + WireGuard). Real production is the one that carries the universe
+(Rule 11: LXC = universe, podman = brick). The host also carries production
+applications and the root mesh, both under a standing prohibition.
 
 **Everything derives from the tenant number `N`** — the single real parameter:
+one overlay subnet, one host↔container subnet and bridge, one public UDP port
+translated to the tenant, one firewall tag. A compromised tenant reaches the
+internet and its own overlay, nothing else. A hand-written provisioning script
+creates a tenant in seven steps, four of which act on the host outside the
+container; its temporary name says everything: **these gestures have no
+home.** A boot unit already sweeps every autostart container, raises WireGuard
+in each and replays every firewall script — a reconciliation, but a blind one:
+at boot only, no ledger, no report. **It is the maker's ancestor, and the exact
+hole the maker fills.** One drift is already visible: a peer whose access was
+never revoked. The ledger does not know it, therefore it should not exist —
+the first proof to hand the administrator.
 
-```
-overlay          10.100.N.0/24   (server .1, gregory .11, xavier .12)
-host↔container   10.101.N.0/24   (host .1, CT .2)     bridge br-gbsN
-public port      UDP 201NN  →  DNAT  10.101.N.2:51820
-iptables tag     GBS-TN
-```
-
-The mechanism: one DNAT in `nat/PREROUTING`; permissions in **`DOCKER-USER`**
-(Docker runs RustDesk on the same host and would clobber `FORWARD`); three
-rings of isolation — allowed (VPN entry, established, egress), forbidden in
-traversal (mesh, Grégory's LAN, both Docker networks, `wg0` in both
-directions), forbidden toward the host itself in `filter INPUT`. A compromised
-tenant reaches the internet and its own overlay, nothing else. Inside: a
-split-tunnel with **no internet exit through the VPS** and `FORWARD DROP` —
-peers do not talk to each other until explicitly opened.
-
-The creation recipe exists: `/root/tmp-provision-t13.sh`, seven steps, T10
-cloned as the template, keys written through the rootfs with the unprivileged
-idmap. The `tmp-` prefix on a production recipe says everything: **these
-gestures have no home.** And a boot service, `gbs-tenant-lxc-boot.service`,
-already sweeps every autostart container, raises WireGuard in each and replays
-every firewall script — a reconciliation, but a blind one: at boot only, no
-ledger, no report. **It is the maker's ancestor, and the exact hole the maker
-fills.**
-
-A visible drift: a peer named `ordi-broken` whose access was never revoked. The
-ledger does not know it, therefore it should not exist. The first proof to hand
-Grégory.
+The tenants, the addressing plan, the script, the unit, the drift and the
+Windows-side audit are the field survey of 2 September, kept with the
+project's notes.
 
 ### 8.3 The mapping — what fits the contract unchanged
 
 | Contract | WMANAGER |
 | :--- | :--- |
-| governor | WMANAGER itself, `pkg-governor` vendored, storage bound to its base |
-| `account` | the CRM client id (`clients.id`) — never free text |
+| governor | WMANAGER itself, `pkg-governor` vendored WITH provenance recorded (the pinned exemption [`UNIVERSE-REPO-BIRTH.md`](../docs/agent/UNIVERSE-REPO-BIRTH.md) grants `pkg-verify`), replaced by the published package the day it exists; the storage adapter bound to WMANAGER's own database (Rule 26) |
+| `account` | the product's own client identifier — an opaque id the product assigns, never free text |
 | `klass` | `univ-wmanager-vpn` (to ratify, Rule 1 grammar) |
-| `matrix` / `digest` | the tenant rootfs archive, **baked from T10 by the tandem**, sha256 |
-| `machine` | `gbs-vps` (fleetName), bound at enrolment to the real hostname |
-| `env` | `prod` for T11-T13 → **the reap recipe already refuses them (exit 4)** |
+| `matrix` / `digest` | the tenant rootfs archive, baked by the tandem from the class repo `univ-wmanager-vpn` (born by [`UNIVERSE-REPO-BIRTH.md`](../docs/agent/UNIVERSE-REPO-BIRTH.md); T10 becomes its first DEV instance), proven TEST then promoted — never a snapshot of a hand-built container |
+| `params` | `{ n }` — the tenant number, typed, unique per live row of the class (D1) |
+| `machine` | `gbs-vps` (fleetName), bound at enrolment to the hostname asked of the host |
+| `env` | `prod` for the frozen tenants — `liblxc-reap.sh` MUST carry lxd-reap's exit-4 guard before any prod row exists |
 | `deadlineAt` | `null` — a practice has no expiry |
-| maker | an LXC universe on gbs-vps, SSH key to its host, token in its vault |
+| maker | an LXC universe on `gbs-vps`, the host's power in its vault, token in its vault |
 | silence | a tenant that stops reporting, a maker that stops calling → out of band |
 
-**Adopting the existing tenants is the natural first reconciliation**: write
-rows for T10-T13 with the right `env`, let the maker see them `DESIRED`, let
-`stamp` find them and report "already exists" — nothing recreated. The
-idempotence was designed for exactly this.
+**Adopting the existing tenants is the first reconciliation, and it needs the
+fourth work kind.** The shipped stamp cannot adopt: its idempotence is keyed by
+row id, and it would launch then `exec` inside — the gesture forbidden on a
+frozen tenant. T11-T13 are adopted as rows of `univ-wmanager-vpn` with
+`env: prod`, `digest: none` (allowed for an adopted row), and the fact
+`legacy: true` reported by `liblxc-adopt.sh`, which binds the row to the named
+container (`SHAPER_PARAM_INSTANCE`), looks, and reports without ever entering
+it — not gated by the matrix inventory, proven on T10 first, one line in each
+of the two tables. The class repo exists before adoption; T10 is its first
+instance carrying Shaper OS. Until `adopt` is proven on that host, no DESIRED
+row may name a machine holding a frozen tenant.
 
-The CRM feeds facts, never decisions. WMANAGER **pulls** a read-only inventory
-(`GET /api/external/v1/…`, dedicated key, no write route, no pagination for a
-few hundred kilobytes) and reads *its own copy* — slower to reflect a change,
-far more robust: WMANAGER keeps working when the CRM is down. The CRM already
-stores identifiers that third-party systems assign (`omada_site_id`,
-`rustdesk_group_name`); `wg_tenant` on `clients` has the same shape. **The
-governor assigns, the CRM learns.**
+The product's own records feed facts, never decisions. WMANAGER **pulls** a
+read-only inventory from them (a dedicated key, no write route) and reads
+*its own copy* — slower to reflect a change, far more robust: WMANAGER keeps
+working when the source is down. Identifiers that third-party systems assign
+already live in those records; the tenant number has the same shape. **The
+governor assigns, the records learn.**
 
-### 8.4 What does not fit — three decisions the base must take
+### 8.4 What does not fit — three decisions, taken
 
-**D1 — `N` has no place in the contract.** Six typed positions, no `params`
-slot (verified in `index.js` and `poller.mjs`). The recipe may not derive `N`
-from `account` (invariant 3: it does not decide; and `account` is a stranger's
-text). The matrix may not carry `N` (one archive per tenant would break "promote
-a fingerprint"). The only conforming path: **a typed `params` slot on the row,
-passed to the recipe** — in the base, with its test (Rule 29: what serves several
-projects lives in the generic path; CLINIC will need it too).
+**D1 — `N` has no place in the six positions: the `params` slot.** The recipe
+may not derive `N` from `account` (invariant 3: it does not decide; and
+`account` is a stranger's text). The matrix may not carry `N` (one archive per
+tenant would break "promote a fingerprint"). The only conforming path, in the
+base with its tests (Rule 29: what serves several projects lives in the generic
+path; CLINIC will need it too):
 
-**D2 — the WMANAGER stamp does more than `lxc launch`.** Four of T13's seven
-steps act on the *host* outside the container: netplan bridge, DNAT, fifteen
-isolation rules, a systemd unit. `lxc-stamp.sh` is a wider recipe than its
-sisters. It stays frozen, typed, idempotent, and **proven on T10 only** before
-it exists; its `reap` undoes the four host things and *proves the absence*. And
-`fleet.yml` admits only `kind: proxmox | lxd`: adding `lxc` is an amendment to
-[`FLEET.md`](../docs/architecture/FLEET.md), which is doctrine — light, real,
-by PR, never quietly.
+- **Form.** `params` is a flat object of scalars (string, number, boolean),
+  keys `^[a-z][a-z0-9_]{0,31}$`, validated by the governor against an
+  allow-list of keys the product declares at creation —
+  `createGovernor({ paramsSchema: { 'univ-wmanager-vpn': { n: { type: 'number', unique: true } } } })`.
+  `desire()` refuses an unknown key, a non-scalar value, and — for a key marked
+  `unique` — a value already held by a live row of the same `klass` (two DNAT
+  rules on one port are a collision, not a product detail). A live row's
+  `params` are immutable like its digest: a re-ask with different `params` is
+  refused with the row id, never ignored in silence.
+- **Transport.** Never a seventh argv carrying JSON (a blob, and `jq` inside a
+  frozen recipe); never a string. Environment variables `SHAPER_PARAM_<KEY>`
+  (key upper-cased), passed through the `env` option of `execFile` on a
+  CONSTRUCTED environment — PATH plus the allow-listed keys, never inherited
+  from the poller's own process. This is what closes the door a ledger row
+  carrying `LD_PRELOAD` or `BASH_ENV` would otherwise open into a root shell.
+  The `lxd-*` recipes are unchanged; `liblxc-stamp.sh` reads `$SHAPER_PARAM_N`.
+- **Assigning `N`** is the product's act, in process, before `desire()`,
+  reading `listRows()` — the contract does not allocate, it guarantees
+  uniqueness.
 
-**D3 — which floor for the Windows workstations?** "One live row per (account,
-klass)" — a practice has many workstations. Two readings:
+**D2 — a third host family, and its token is not `lxc`.** `lxd-stamp.sh` calls
+a binary named `lxc` (the LXD CLI), and Rule 11 names its second family "native
+LXC/LXD" with LXD commands: a kind called `lxc` would read as the family it is
+not. The token is **`liblxc`** — the library, unpronounceable as the CLI:
+`kind: proxmox | lxd | liblxc`, recipes `liblxc-stamp.sh`, `liblxc-reap.sh`,
+`liblxc-adopt.sh`. Adding the family amends three texts in **one** PR, before
+the first recipe exists: [`FLEET.md`](../docs/architecture/FLEET.md) (the
+`kind` enumeration), Rule 11 ("two host families" becomes three, with the
+nesting prerequisites of the liblxc family — `lxc.include`, an unprivileged
+idmap — and the same proof, *launch a throwaway nested container*), and
+`_maker-template/INTENT.md` (one recipe set per host kind) — amended in this
+release.
 
-- *Flat*: each workstation is a row of class `wm-poste`, account `<client>/<poste>`.
-  Simple; the manager then carries hundreds of rows of a different level.
-- *Fractal*: **the tenant is itself the governor of its workstations.** The
-  Rust agent on the workstation does what a maker does — it *calls out* to the
-  tenant (it already does: it POSTs telemetry, it listens on nothing),
-  receives its instructions, reports. WMANAGER sees practices; each practice
-  sees its workstations. No inbound door anywhere.
+The WMANAGER stamp does more than launch a container: four of the seven
+provisioning steps act on the *host* outside it — bridge, DNAT, isolation
+rules, a systemd unit. `liblxc-stamp.sh` is a wider recipe than its sisters.
+It stays frozen, typed, idempotent step by step, and **proven on T10 only**
+before it exists; its `reap` undoes the four host things and *proves the
+absence*. Three conditions: the four host gestures derive only from the typed
+`params` (`N`), never from `account`; `liblxc-reap.sh` carries lxd-reap's
+exit-4 guard BEFORE any prod row exists; and the matrix format it consumes
+(bare rootfs or unified tarball) is proven in `recipes/README.md` — §6's "one
+truth" stays TARGET until that proof.
 
-The fractal reading reclassifies `agent-rust`: not an installer, **a workstation
-maker** — whose contract should become the base's (poll, inventory, events),
-not an ad-hoc `pilot.toml`. Stated as a hypothesis, not a ruling; it makes the
-"fractal level above" free instead of invented.
+**D3 — which floor for the Windows workstations? Left open, bounded.** "One
+live row per (account, klass)" — a practice has many workstations. Neither a
+flat reading (one row per workstation) nor a fractal reading (the tenant
+governs its workstations) is compatible with the contract *as written today*:
+a workstation has neither matrix nor digest, so `desire()` refuses it and
+`poll()` would withhold every stamp; a Windows workstation is neither LXC nor
+podman (Rule 11); and a slug outside the Rule 1 grammar, or a position written
+into an identifier, is refused by the lexicon. Deciding today would invent the
+level that is still unruled — who launches the executable on a workstation,
+how it enrols.
 
-### 8.5 What the Windows side has already taught
+What is decided is the constraints any answer must satisfy: **a workstation is
+not an instance of this contract: it is not born from a matrix, it is not a
+container, it is a host.** What a tenant may hold for its workstations is a
+ledger of desired configuration with its own work-kind table (enrol,
+configure, revoke), spoken by an agent that calls out — the same DIRECTION and
+the same shape (poll, inventory, events), not the same rows. Its key is
+`(workstationId, klass)` where `workstationId` is assigned by the tenant, never
+composed from a client name and a workstation name. The fractal reading —
+the tenant is itself the governor of its workstations, and the workstation
+agent does what a maker does: it calls out, receives, reports, listens on
+nothing — stays the preferred hypothesis, because it makes the "fractal level
+above" free instead of invented; it is confirmed or refuted by the first real
+enrolment.
 
-The workstation agent (`gbs-agent-setup.exe`, Rust, zero `unsafe`, no shell
-concatenation, allow-listed remediation, snapshot rollback) passed 8/8 on the
-test VM — **for the old binary**. An independent read of the source on
-1 September found eight defects, one critical: the firewall rule opened SSH on
-every profile from any address, annulling the entire "reachable only through
-the tunnel" model with one line. Three more were of the same family: *a result
-thrown away and success asserted* (`service_running: true` hard-coded, `icacls`
-unchecked, `Spooler` hard-coded past its own allow-list). The validation report
-had been written by the agent that wrote the code.
-
-The lessons are doctrine, not anecdote:
-
-- **A proof signed by the author of the code is not a proof** (Rule 0G, and
-  `proof.sh` before it). Another pair of eyes, or none.
-- **Assertion is not observation.** `service_running` comes from `sc query`, or
-  it does not exist. The workstation agent obeys the same law as the reap
-  recipe: look, then say.
-- **Fleet operations are designed on day one.** Two keys in two countries means
-  revocation and addition must be fleet-wide acts with approval — never a
-  machine-by-machine tour.
-- **Choose the model by subject, not by phase.** The vocabulary of this domain —
-  a privileged component with no inbound door that fetches instructions and
-  acts on remote machines — is lexically indistinguishable from command-and-
-  control, and trips dual-use classifiers. Opus for maker, provisioning,
-  privilege and security; Fable for the site, the CRM interface, the copy.
-  Keep the heavy vocabulary **in files**, never in messages.
-
-### 8.6 What stays open, honestly
-
-- Where the WMANAGER governor lives: gbs-p2 or gbs-p3, a turbinebash app or a
-  stamped universe. The first gesture, still unruled.
-- Who runs the executable on a workstation — Grégory on site, a link, a GPO, a
-  USB key. It changes the whole enrolment design. The current proposal: the
-  operator clicks "enrol a workstation", the governor mints a single-use token
-  (30 min), shows a short URL typed by hand during a RustDesk session; one
-  binary, one SHA-256; **the operator is authenticated, not the URL.**
-- TeamViewer or RustDesk (RustDesk is self-hosted and already in the CRM).
-- What the client sees during enrolment — a word to say, and perhaps a trace
-  of consent to keep, in regulated professions.
-- HDS and GDPR: no longer theoretical, since the fleet holds health
-  practitioners today (T13 is a doctor). Reserved, not resolved.
+One lesson from the Windows side is doctrine already: the vocabulary of a
+privileged component with no inbound door — it fetches instructions and acts
+on remote machines — is lexically indistinguishable from command-and-control.
+Keep it in files, never in messages; the cognition class is declared by
+subject ([`COGNITION.md`](../docs/architecture/COGNITION.md), D-depth), never
+by engine name. And a proof signed by the author of the code is not a proof —
+a lesson, not yet a rule (see [`TESTING-REPORT.md`](../docs/TESTING-REPORT.md),
+counter-verified from outside the tester). Assertion is not observation: a
+service is running because a query said so, or the fact does not exist. The
+workstation agent obeys the same law as the reap recipe: look, then say.
 
 ---
 
@@ -561,20 +688,48 @@ Before shipping any governor, any maker, any recipe, answer three questions.
 Any answer other than the one given means the design is not finished.
 
 1. **Who can open a connection to the thing that holds root?** — *Nobody.*
+   The host's own SSH door is the tandem's, from underneath (Rule 36), and is
+   never the maker's.
 2. **Where is the decision taken?** — *In a ledger row, by the governor.*
-   Never in a recipe, never in a robot, never in a form.
+   Never in a recipe, never in a robot, never in a form. A recipe may REFUSE
+   (prod, unverified bytes, absence) — it never CHOOSES.
 3. **How do you know it happened?** — *The recipe looked, and reported a fact.*
-   Never because it said so.
+   Never because it said so: a stamp purrs only on a reported `Running`, an
+   unreadable stamp is a failure, and a report is accepted only from the
+   machine the row names.
 
 ---
 
-## 10. Lexicon candidates (Rule 37 — by amendment, never quietly)
+## 10. Lexicon amendments (Rule 37 — by amendment, never quietly)
+
+Four nouns enter the lexicon in this release, each with the failure it
+prevents written beside it (Rule 37, lexicon closure):
 
 - **governor** — the universe that holds a ledger and makes it respected.
+  *Prevents*: "the SaaS" and "the manager" naming two things — the product and
+  the organ — and the maker learning which one it serves.
 - **maker** — the hand of a machine: asks, stamps, reports, never decides.
-- **matrix** — the locked, content-addressed artefact from which instances are stamped; baked by the tandem, never by a robot.
-- **stamp / reap / validate** — the three work kinds; the table grows by one line.
+  *Prevents*: a script on a host whose state nobody knows, and a form field
+  reaching a shell.
+- **matrix** — the locked, content-addressed artefact from which instances are
+  stamped; baked by the tandem, never by a robot. *Prevents*: "image" meaning
+  both a podman image and a universe archive, and five builds of one commit
+  giving five fingerprints.
+- **REAPED** — the fifth, terminal state, by amendment of Rule 37's automaton.
+  *Prevents*: a reaped row still counted as living, blocking its account and
+  pinning its matrix. With it, Rule 27's clause is amended: *a DEGRADED row
+  leaves that state by its account's explicit new ask, for envs a robot may
+  end; a PROD row only by human action.*
 
-And one line of `LEXICON.md` to revisit: the forge is described as the organ
-that "deploys/destroys/repairs (LXC, podman)". The operator's ruling bounds it
-to podman and hands LXC to the maker.
+What does **not** enter: `stamp`, `reap`, `validate`, `adopt` — kinds of work,
+a table, not nouns of the language (as `brick-forge` is not a new noun); they
+live in `pkg-governor/INTENT.md`. `class` and `instance` — already there.
+
+Three lines move together, amended in this release: the lexicon's **forge**
+line becomes *"`brick-forge`: the organ that deploys/destroys/repairs BRICKS
+inside a living universe (podman level; escalation restart → rebuild →
+redeploy + R2). Universes are born and ended by the maker, from a ledger
+row."*; the lexicon's page test becomes *"who repairs? (the forge, on drift,
+inside a universe) — who births? (the maker, from a row)"*; and `FLEET.md`'s
+last paragraph becomes *"Not a deploy tool (that is the forge for bricks, the
+maker for universes)"*. Rule 37's page test follows them.
