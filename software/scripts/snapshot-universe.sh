@@ -18,9 +18,20 @@ SNAPSHOT_FILE="${UNIV_DIR}/sav/snapshots/${UNIV_NAME}_${SNAPSHOT_TAG}_${TIMESTAM
 
 mkdir -p "${UNIV_DIR}/sav/snapshots"
 
-# A snapshot that stopped half-way leaves no file that could pass for one.
+# A snapshot that stopped half-way leaves no file that could pass for one —
+# neither the archive nor the dump. The dump is written under a .part name
+# and renamed only once it has a size; whatever is still .part when the
+# script exits was never a dump. Until V1.13.3 the trap removed only the
+# archive: a client that died half-way left sav/db/dump_auto_<ts>.sql
+# truncated on disk, and the next snapshot — a SKIP one included — archived
+# it as the database; two runs in the same second even overwrote a good dump
+# with the partial one.
+DUMP_PART=""
 cleanup() {
   local rc=$?
+  if [[ -n "$DUMP_PART" ]]; then
+    rm -f "$DUMP_PART"
+  fi
   if [[ $rc -ne 0 ]]; then
     rm -f "$SNAPSHOT_FILE"
     echo "[snapshot] FAILED (exit ${rc}) — no snapshot was kept." >&2
@@ -63,14 +74,16 @@ else
   fi
   mkdir -p "${UNIV_DIR}/sav/db"
   DUMP_FILE="${UNIV_DIR}/sav/db/dump_auto_${TIMESTAMP}.sql"
+  DUMP_PART="${DUMP_FILE}.part"
   echo "[snapshot] Dumping ${DUMP_SCOPE[*]} with ${DUMP_CMD} from ${MYSQL_HOST}:${MYSQL_PORT}..."
   MYSQL_PWD="$MYSQL_PASSWORD" "$DUMP_CMD" -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" \
-    --single-transaction "${DUMP_SCOPE[@]}" > "$DUMP_FILE"
-  if [[ ! -s "$DUMP_FILE" ]]; then
-    rm -f "$DUMP_FILE"
+    --single-transaction "${DUMP_SCOPE[@]}" > "$DUMP_PART"
+  if [[ ! -s "$DUMP_PART" ]]; then
     echo "[snapshot] ${DUMP_CMD} exited 0 but wrote an empty dump — refusing to archive an empty database as a snapshot." >&2
     exit 1
   fi
+  mv "$DUMP_PART" "$DUMP_FILE"
+  DUMP_PART=""
   DB_STATUS="dumped"
   echo "[snapshot] Database dumped: ${DUMP_FILE}."
 fi

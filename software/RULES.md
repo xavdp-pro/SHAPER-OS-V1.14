@@ -576,6 +576,19 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
     ends in `|| true` followed by `{"status":"ok"}` is a report about a file
     nobody checked. The status line is printed after the archive exists, has a
     size and has a checksum, or it is not printed.
+  * **A failure after the archive is complete keeps the archive.** Cleanup
+    on exit removes a partial archive, never a complete one that has been
+    announced: a rotation that cannot run is a failure, reported over an
+    archive that stays — "Backup created" on the log and an empty directory
+    on disk is a data loss caused by housekeeping.
+  * **A dump that failed leaves nothing behind.** The dump is written under
+    a `.part` name and renamed only once it has a size; a client that dies
+    half-way leaves no `.sql` for the next snapshot to archive as the
+    database. A partial file left on disk is the empty-dump defect moved one
+    run later.
+  * **`.env` in every spelling.** `.env`, `.env.local`, `.env.<slug>`,
+    `deploy/env`, `<slug>.env` — Rule 0J propagates the same key under all of
+    them, and the exclusion is `.env*` and `*.env`, never the bare name.
 
 ---
 

@@ -19,12 +19,15 @@ export function scratch(prefix) {
  * A PATH holding only the tools the scripts need, plus whatever `extra` adds
  * as executables. Built from scratch so that a client installed on the host
  * (a real mariadb-dump, say) cannot be found by accident: the test decides
- * which client exists, the host does not.
+ * which client exists, the host does not. `omit` removes a tool the scripts
+ * normally rely on, to watch what they do when a step after the archive
+ * cannot run.
  */
-export function shimPath(tmp, name, extra = {}) {
+export function shimPath(tmp, name, extra = {}, { omit = [] } = {}) {
   const bin = path.join(tmp, `bin-${name}`);
   fs.mkdirSync(bin, { recursive: true });
-  for (const tool of ['bash', 'sh', 'tar', 'gzip', 'du', 'cut', 'sha256sum', 'awk', 'find', 'date', 'mkdir', 'rm', 'dirname', 'basename', 'ls', 'head', 'openssl', 'cat']) {
+  for (const tool of ['bash', 'sh', 'tar', 'gzip', 'du', 'cut', 'sha256sum', 'awk', 'find', 'date', 'mkdir', 'rm', 'mv', 'dirname', 'basename', 'ls', 'head', 'openssl', 'cat']) {
+    if (omit.includes(tool)) continue;
     const real = execFileSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).trim();
     fs.symlinkSync(real, path.join(bin, tool));
   }

@@ -20,12 +20,24 @@ DUMP_DIR="${SHAPER_DIR}/data/_staging_dump"
 
 # A backup that stopped half-way leaves nothing behind that could be mistaken
 # for a backup: the staging dump goes, and so does a partial archive.
+#
+# A backup that stopped AFTER the archive was complete keeps it. The trap
+# used to delete DEST_TAR on any non-zero exit, and the rotation step runs
+# after the archive has been written, checksummed and announced: a `find`
+# that could not run turned "Backup created" on the log into an empty
+# directory on disk. ARCHIVE_COMPLETE is raised the moment the checksum is
+# known, and from then on a failure is reported over an archive that stays.
+ARCHIVE_COMPLETE=0
 cleanup() {
   local rc=$?
   rm -rf "$DUMP_DIR"
   if [[ $rc -ne 0 ]]; then
-    rm -f "$DEST_TAR"
-    echo "[backup-local] FAILED (exit ${rc}) — no archive was kept." >&2
+    if [[ $ARCHIVE_COMPLETE -eq 1 && -f "$DEST_TAR" ]]; then
+      echo "[backup-local] FAILED (exit ${rc}) after the archive was complete — ${DEST_TAR} was kept; what failed came after it." >&2
+    else
+      rm -f "$DEST_TAR"
+      echo "[backup-local] FAILED (exit ${rc}) — no archive was kept." >&2
+    fi
   fi
   exit "$rc"
 }
@@ -33,7 +45,6 @@ trap cleanup EXIT
 
 mkdir -p "$BACKUP_DIR"
 rm -rf "$DUMP_DIR"
-mkdir -p "$DUMP_DIR"
 
 echo "[backup-local] Starting local backup: ${SNAPSHOT_NAME}..."
 
@@ -70,6 +81,9 @@ else
   fi
   MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
   MYSQL_PORT="${MYSQL_PORT:-3306}"
+  # The staging directory exists only when a dump is taken: created up front,
+  # it went into every archive as an empty data/_staging_dump/ member.
+  mkdir -p "$DUMP_DIR"
   DUMP_FILE="${DUMP_DIR}/${MYSQL_DATABASE:-all-databases}.sql"
   if [[ -n "${MYSQL_DATABASE:-}" ]]; then
     DUMP_SCOPE=("$MYSQL_DATABASE")
@@ -98,6 +112,12 @@ fi
 # from a backup. Until V1.13 this very command listed ${SHAPER_DIR}/.env as a
 # member.
 #
+# .env has more than one spelling. Rule 0J propagates it as deploy/env,
+# deploy/<slug>.env, and tooling adds .env.local, .env.production, .env.<slug>;
+# every copy holds the same key. The exclusion is `.env*` and `*.env` — the
+# first release excluded the bare `.env` and `*.env` only, and `.env.local`
+# under data/ travelled with vault.enc.
+#
 # And tar's failure is the backup's failure: the command used to end in
 # `2>/dev/null || true`, after which the script printed "Backup created" and
 # {"status":"ok"} over a file tar had abandoned half-way (Rule 0G).
@@ -107,18 +127,26 @@ tar -czf "$DEST_TAR" \
   --exclude="data/backups" \
   --exclude="*.tmp" \
   --exclude="node_modules" \
-  --exclude=".env" \
+  --exclude=".env*" \
   --exclude="*.env" \
   -C "$SHAPER_DIR" \
   "${MEMBERS[@]}"
 
 SIZE="$(du -h "$DEST_TAR" | cut -f1)"
 SHA256="$(sha256sum "$DEST_TAR" | awk '{print $1}')"
+ARCHIVE_COMPLETE=1
 echo "[backup-local] Backup created: ${DEST_TAR} (${SIZE}) SHA256: ${SHA256} — database: ${DB_STATUS}"
 
 # 3. Rotate backups keeping the last 7 days. A rotation that cannot delete is
-# a disk that fills up quietly, so it is not silenced either.
+# a disk that fills up quietly, so it is not silenced either — and because the
+# archive above is complete, its failure is reported over an archive that stays.
 find "$BACKUP_DIR" -name "backup_*.tar.gz" -mtime +7 -delete
 echo "[backup-local] Rotation completed (7-day retention)."
 
+# The status line describes a file that exists now, not one that existed a
+# moment ago: a rotation with a broken clock could have eaten today's archive.
+if [[ ! -f "$DEST_TAR" ]]; then
+  echo "[backup-local] ${DEST_TAR} is gone after rotation — check the host clock and the retention rule; no status is reported for a file that is not there." >&2
+  exit 1
+fi
 echo "{\"status\":\"ok\",\"snapshot\":\"${SNAPSHOT_NAME}\",\"path\":\"${DEST_TAR}\",\"size\":\"${SIZE}\",\"sha256\":\"${SHA256}\",\"database\":\"${DB_STATUS}\",\"timestamp\":\"$(date -Iseconds)\"}"
