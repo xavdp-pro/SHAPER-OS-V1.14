@@ -378,13 +378,13 @@ does not have to guess what you guessed.
    - Cloudflare tunnel → https://one.dash.cloudflare.com/ → Networks → Tunnels
 3. The human pastes the value into `.env`, `software/.env`, or
    `sav/tunnel/token`. Never into the chat, never into Git.
-4. Deploy tier-b (`manifest.tier-b.json`, `WITH_HELM=1`), then:
-
-```bash
-npm run test:live:helm
-# The closed-loop tests of whatever bricks this universe assembles.
-# For catalogue bricks they live in the catalogue, beside the brick.
-```
+4. Deploy tier-b — the `agent +web +public` manifest from the
+   [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13)
+   catalogue; this repository ships no tier-b manifest and no switch that
+   turns the cockpit on — then run the closed-loop tests of whatever bricks
+   this universe assembles. For catalogue bricks (`brick-helm` among them)
+   they live in the catalogue, beside the brick; `npm run test:live` here
+   proves the tier-a socle only.
 
 - **Any key empty or invalid → STOP and ask.** Never launch tier-b with empty
   keys.

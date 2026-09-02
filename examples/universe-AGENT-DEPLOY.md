@@ -10,7 +10,7 @@ Materialize this universe from generic `software/` bricks in the V1.6 monorepo. 
 ## You MAY
 
 1. Read `manifest.json` and brick `INTENT.md` files under `software/bricks/`
-2. Run `npm test` then, after the stack is up, `npm run test:live` — both must be green (tier-b: also `test:live:helm`)
+2. Run `npm test` then, after the stack is up, `npm run test:live` — both must be green (tier-b: also the catalogue's `brick-helm` live tests)
 3. Build images listed in the manifest (`prod`: tagged images only)
 4. Copy `software/universes/_template/deploy/podman-up.sh` — do not invent a parallel architecture
 5. Use `manifest.tier-a.json` from repo root as `manifest.json`

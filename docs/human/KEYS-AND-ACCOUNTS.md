@@ -93,7 +93,7 @@ Copy-paste intent for your agent: [`examples/agent-KEY-COLLECTION-INTENT.md`](..
 - [ ] [Deepgram](https://console.deepgram.com/) — API key → `DEEPGRAM_API_KEY` in `.env`
 - [ ] [Groq](https://console.groq.com/keys) — API key → `GROQ_API_KEY` in `.env`
 - [ ] [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) — tunnel token → `sav/tunnel/token`
-- [ ] Agent validates `.env`, propagates keys, sets `WITH_HELM=1`, deploys tier-b manifest, runs `npm run test:live:helm`
+- [ ] Agent validates `.env`, propagates keys, deploys the tier-b manifest from the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13) catalogue, runs the catalogue's `brick-helm` live tests
 
 ---
 
