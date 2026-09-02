@@ -223,7 +223,7 @@ interpret, it does not improvise.
 of the fractal — not outside it. What is outside the fractal is the root power
 on the host that it holds in its vault.**
 
-### 4.2 The nine invariants (the law of `_maker-template/INTENT.md`)
+### 4.2 The twelve invariants (the law of `_maker-template/INTENT.md`)
 
 1. **Nothing can open a connection to it.** No port, no certificate. It calls
    outward. A stolen credential may lie about its own host's rows, never about
@@ -245,13 +245,31 @@ on the host that it holds in its vault.**
    configured label that can drift.
 6. **It declares what it holds** — the matrices it carries, by digest, at every
    poll. A universe is never assigned to a machine that has not proven it holds
-   the bytes. *(The image lock held digests the registry had never heard of —
+   the bytes; a `DESIRED` row whose digest the maker does not hold is named in
+   the poll answer's `withheld` list, never skipped in silence. *(The image lock held digests the registry had never heard of —
    once. Never again.)*
 7. **It is created and enrolled by the tandem.**
 8. **Its silence is an event.**
 9. **Two credentials, never confused.** The one that speaks to the governor may
    only ask and report. The one that acts on the host is the machine's own
    power, in this universe's vault, reachable by no one.
+10. **A birth is reported from facts, never from an exit code.** A stamp ends
+    with one line of facts — what the host observed of the child — and a stamp
+    whose output holds none is a failure, not a birth. An end is proven by the
+    recipe's exit code (absence verified, or not); a birth only by what it
+    looked at.
+11. **A refusal is reported under its own name.** A recipe may refuse — an
+    unverified matrix, an absent one, a production universe asked to end — and
+    says so by its exit code. The reap's refusal has its own event
+    (`REAP_REFUSED`), because it is the one the governor would otherwise offer
+    again at every beat; a stamp's refusal degrades the row as `STAMP_FAILED`
+    and the row is never offered a stamp again, so it cannot storm.
+12. **It adopts what it did not make, without touching it.** An adoption binds
+    a ledger row to a container that already existed, named by the row's
+    `instance` param, and is proven like a birth: by the facts the recipe looked
+    at (the container runs, `legacy: true`), never by an exit code. The recipe
+    creates nothing, launches nothing, and never exec's inside: a frozen tenant
+    is frozen.
 
 ### 4.3 One maker per MACHINE, never per project
 
@@ -334,8 +352,10 @@ A recipe is `<hostKind>-<workKind>.sh` — `lxd-*.sh` (shipped), `proxmox-*.sh`
 (not yet written), and a third host kind whose token must not read as the LXD
 CLI: `liblxc` (§8.4, D2). It receives **typed positional arguments** —
 `rowId klass matrix digest account env` — plus the row's `params` as
-`SHAPER_PARAM_<KEY>` variables on an environment the poller constructs (PATH
-and the allow-listed keys, never inherited from its own process), and
+`SHAPER_PARAM_<KEY>` variables on an environment the poller constructs (PATH,
+HOME, LANG, LC_ALL and TMPDIR, the operator's `SHAPER_*` — never a
+`SHAPER_PARAM_*` of the poller's own — and the row's allow-listed keys; nothing
+else of its own process), and
 interpolates none of them into a composed command. The instance name comes
 from the **row id**, never from account text: the row is ours and its shape is
 known; the account belongs to a stranger.
@@ -364,7 +384,9 @@ by row id, and it would launch, then `exec` inside — the gesture forbidden on 
 frozen tenant. The adopt recipe receives the container name through the
 `params` slot (`SHAPER_PARAM_INSTANCE`), never `exec`s inside, reports the fact
 `legacy: true`, and is not gated by the matrix inventory: an adopted row may
-carry `digest: none`, and the contract says so.
+carry `digest: none`, and the contract says so. The class declares `instance`
+as a `unique` string in its `paramsSchema`, so two rows can never bind the same
+container.
 
 Three obligations, each paid for on terrain:
 
@@ -613,8 +635,10 @@ path; CLINIC will need it too):
 - **Transport.** Never a seventh argv carrying JSON (a blob, and `jq` inside a
   frozen recipe); never a string. Environment variables `SHAPER_PARAM_<KEY>`
   (key upper-cased), passed through the `env` option of `execFile` on a
-  CONSTRUCTED environment — PATH plus the allow-listed keys, never inherited
-  from the poller's own process. This is what closes the door a ledger row
+  CONSTRUCTED environment — PATH, HOME, LANG, LC_ALL and TMPDIR, the operator's
+  `SHAPER_*` (never a `SHAPER_PARAM_*` of the poller's own) and the row's
+  allow-listed keys; nothing else of the poller's own process. This is what
+  closes the door a ledger row
   carrying `LD_PRELOAD` or `BASH_ENV` would otherwise open into a root shell.
   The `lxd-*` recipes are unchanged; `liblxc-stamp.sh` reads `$SHAPER_PARAM_N`.
 - **Assigning `N`** is the product's act, in process, before `desire()`,
