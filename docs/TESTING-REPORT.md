@@ -224,8 +224,12 @@ sealer walked.** The claim at the top of this page — a cold agent can
 deploy from the repository alone — held for nine runs on the runbook's path
 and said nothing about the README's, the guide's, or the scripts nobody ran.
 A repository is read from every door, so every door gets its cold reader.
-Measured on 2 September 2026, on the branch that carried this page's own
-corrections alone (`fix/docs`, before the other September branches were
-merged): **330 tests, verify 8/8** on a naked clone. That number is bounded
-by that branch and that day; the merged count belongs to the next seal, not
-to this line.
+Measured on 2 September 2026, on a naked clone of the tree tagged
+**v1.13.35** — eleven branches merged that day (secrets, ports and tests,
+Rule 7, Rule 11, documented paths, two cleanup lots, the governor gestures,
+the maker-and-governor doctrine after its adversarial pass, the law
+amendments, the Rule 0 and single-copy residuals): **491 tests in 114 suites,
+0 failures, verify 8/8**, and `git status` clean after the run. The number is
+bounded by that tag and that clone; the next seal — a cold agent on the
+runbook, the README and the guide, each door with its own reader — is what
+turns it into a claim.
