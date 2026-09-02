@@ -45,6 +45,15 @@ const EVENT_FACTS = {
 };
 const UNMET_TRANSITION = 'DEGRADED';
 
+/** The shape of a row's `params`: a flat object of scalars under keys a shell
+ *  can carry as `SHAPER_PARAM_<KEY>`. The key grammar is the whole defence
+ *  on the maker's side too (poller.mjs builds the recipe's environment from
+ *  these keys and nothing else), so it is one regex, shared by name. A key
+ *  that could read as a loader or shell variable — LD_PRELOAD, BASH_ENV, a
+ *  key with a space — fails the grammar before any allow-list is consulted. */
+export const PARAM_KEY = /^[a-z][a-z0-9_]{0,31}$/;
+const PARAM_TYPES = new Set(['string', 'number', 'boolean']);
+
 /** A journal on disk: every change appended, the last word per id winning at
  *  boot. The ledger is not like the queue — a queue's durability is evidence
  *  and never resumption, but a ledger IS the desired state: a governor that
@@ -69,10 +78,17 @@ export function createFileStorage(file) {
  *  backs off (30s, 1m, 2m, 4m…) and stops after `maxHealingAttempts`; a claim
  *  (STAMPING, REAPING, VALIDATING) silent past `claimBudgetMs` is offered
  *  again. The numbers are options because a fleet's clock is its own; the
- *  bounds themselves are not optional. */
+ *  bounds themselves are not optional.
+ *
+ *  `paramsSchema` is the allow-list of what a row may carry to its recipe,
+ *  per class: `{ 'univ-x-y': { n: { type: 'number', unique: true } } }`. A
+ *  class that declares nothing carries nothing. The product declares it at
+ *  creation, because a param is a promise the recipe reads under root and
+ *  the governor must know every word of it before a row is written. */
 export function createGovernor({
   now = () => Date.now(), storage = null,
   maxHealingAttempts = 5, reapBackoffMs = 30 * 1000, claimBudgetMs = 10 * 60 * 1000,
+  paramsSchema = {},
 } = {}) {
   const rows = new Map();     // id -> ledger row
   const makers = new Map();   // host -> { token, version, lanes, inventory:Set<digest>, lastPollAt, enrolledAt }
@@ -135,12 +151,55 @@ export function createGovernor({
     return null;
   }
 
+  /** A row's params, held to the class's allow-list. Every refusal is a
+   *  typed fact naming the key: a param the governor did not understand used
+   *  to have nowhere to go, and one it passed along unread would reach a
+   *  recipe running as root. The result is the normalised object (only the
+   *  keys the schema names, in schema order) or `{ refused, reason }`. */
+  const checkParams = (klass, params) => {
+    if (params === undefined || params === null) return { params: {} };
+    if (typeof params !== 'object' || Array.isArray(params)) {
+      return { refused: true, reason: 'params must be a flat object of scalars' };
+    }
+    const schema = paramsSchema[klass] || {};
+    const clean = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (!PARAM_KEY.test(key)) {
+        return { refused: true, reason: `param key ${JSON.stringify(key)} is not a word a recipe may receive (${PARAM_KEY})` };
+      }
+      const rule = schema[key];
+      if (!rule) return { refused: true, reason: `param "${key}" is not declared for class "${klass}"` };
+      if (!PARAM_TYPES.has(typeof value) || (typeof value === 'number' && !Number.isFinite(value))) {
+        return { refused: true, reason: `param "${key}" must be a scalar (string, number or boolean)` };
+      }
+      if (typeof value !== rule.type) {
+        return { refused: true, reason: `param "${key}" must be a ${rule.type}, got a ${typeof value}` };
+      }
+      clean[key] = value;
+    }
+    return { params: clean };
+  };
+
+  const sameParams = (a = {}, b = {}) => {
+    const ka = Object.keys(a).sort(); const kb = Object.keys(b).sort();
+    return ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k]);
+  };
+
+  /** The live row of the same class carrying `key = value`, if any. Two rows
+   *  on one unique value are a collision on the host (two DNAT rules on one
+   *  port), never a product detail — so the ledger, not the recipe, refuses. */
+  const holderOf = (klass, key, value, except = new Set()) =>
+    [...rows.values()].find((r) =>
+      r.klass === klass && r.state !== 'REAPED' && !except.has(r.id) && r.params?.[key] === value) || null;
+
   /** Desired state is idempotent: one live row per (account, klass). */
-  function desire({ account, klass, matrix, digest, machine, env = 'demo', deadlineAt }) {
+  function desire({ account, klass, matrix, digest, machine, env = 'demo', deadlineAt, params }) {
     for (const field of ['account', 'klass', 'matrix', 'digest', 'machine']) {
       const v = { account, klass, matrix, digest, machine }[field];
       if (!v) throw new Error(`${field} is required`);
     }
+    const checked = checkParams(klass, params);
+    if (checked.refused) return { refused: true, created: false, reason: checked.reason };
     const open = [...rows.values()].filter((r) =>
       r.account === account && r.klass === klass && r.state !== 'REAPED');
     // The life to protect comes first, whatever the ledger's order. A re-ask
@@ -148,7 +207,19 @@ export function createGovernor({
     // insertion order), end it a second time and birth a second fresh row —
     // the twin invariant 4 exists to forbid.
     const living = open.find((r) => r.state !== 'DEGRADED');
-    if (living) return { row: living, created: false };
+    if (living) {
+      // The params of a living row are immutable, like its digest: the
+      // recipe already bound host resources to them. A re-ask carrying other
+      // params used to be answered with the old row and nothing said — the
+      // product believed N had changed, the host had not heard of it.
+      if (!sameParams(living.params, checked.params)) {
+        return {
+          refused: true, created: false, row: living,
+          reason: `row "${living.id}" is alive with other params — a living row's params are immutable; end it first`,
+        };
+      }
+      return { row: living, created: false };
+    }
     // What remains is broken. A DEGRADED row is not a life to protect — for
     // the environments a robot may end. A production universe is not one of
     // them: its reap is refused by the recipe (exit 4), so ending it here
@@ -162,6 +233,22 @@ export function createGovernor({
         reason: `row "${guarded.id}" is a degraded production universe — a robot does not end one, and no twin is born beside it (Rule 27)`,
       };
     }
+    // A unique value is carried by one live row of the class. The broken
+    // rows this very ask is ending are the exception: their value passes to
+    // the successor (a tenant keeps its number across a rebirth), and poll()
+    // withholds the successor's birth until the predecessor is REAPED — the
+    // host never carries two instances on one value.
+    const ending = new Set(open.map((r) => r.id));
+    for (const [key, rule] of Object.entries(paramsSchema[klass] || {})) {
+      if (!rule.unique || !(key in checked.params)) continue;
+      const holder = holderOf(klass, key, checked.params[key], ending);
+      if (holder) {
+        return {
+          refused: true, created: false, row: holder,
+          reason: `param "${key}" = ${JSON.stringify(checked.params[key])} is already held by live row "${holder.id}" — a unique value is carried by one live row of class "${klass}"`,
+        };
+      }
+    }
     // Asking again means: end the broken one (its deadline becomes now, and
     // a maker will reap whatever half-exists), start fresh.
     for (const broken of open) {
@@ -171,7 +258,7 @@ export function createGovernor({
     }
     const id = `inst-${now()}-${++seq}`;
     const row = {
-      id, account, klass, matrix, digest, machine, env,
+      id, account, klass, matrix, digest, machine, env, params: checked.params,
       state: 'DESIRED', deadlineAt: deadlineAt || null,
       createdAt: stamp(), updatedAt: stamp(), events: [],
     };
@@ -227,8 +314,21 @@ export function createGovernor({
       return ageOf(failures[failures.length - 1]) >= reapBackoffMs * 2 ** (failures.length - 1);
     };
 
+    /** The predecessor a successor waits on: a live row of the same class
+     *  still holding one of its unique values. desire() let the value pass
+     *  to the successor; the host must not see both. */
+    const predecessorOf = (row) => {
+      for (const [key, rule] of Object.entries(paramsSchema[row.klass] || {})) {
+        if (!rule.unique || !(key in (row.params || {}))) continue;
+        const holder = holderOf(row.klass, key, row.params[key], new Set([row.id]));
+        if (holder) return { rowId: row.id, key, on: holder.id };
+      }
+      return null;
+    };
+
     const work = [];
     const preload = new Set();
+    const withheld = [];
     for (const row of rows.values()) {
       // A row names the machine the way the fleet map does; the maker asks
       // under the name its kernel gives. Enrolment bound the two.
@@ -260,13 +360,24 @@ export function createGovernor({
         preload.add(row.digest);
         continue;
       }
+      // A birth on a unique value still held by a predecessor waits for
+      // that predecessor's REAPED — reported by the same beat's reap, or
+      // by a human when the reap rested (Rule 27). The wait is a typed
+      // fact in the answer, never a silent absence of work.
+      const waitingOn = kind === 'stamp' ? predecessorOf(row) : null;
+      if (waitingOn) {
+        withheld.push(waitingOn);
+        continue;
+      }
+      // The row's params ride the work as data: the maker lays them on the
+      // recipe's environment (SHAPER_PARAM_<KEY>), never on its argv.
       work.push({
         workId: `${kind}:${row.id}`, kind, rowId: row.id,
         klass: row.klass, matrix: row.matrix, digest: row.digest,
-        account: row.account, env: row.env,
+        account: row.account, env: row.env, params: { ...(row.params || {}) },
       });
     }
-    return { ok: true, work, preload: [...preload] };
+    return { ok: true, work, preload: [...preload], withheld };
   }
 
   /** A maker reports; the table decides what the event means. */

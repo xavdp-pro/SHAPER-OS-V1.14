@@ -25,10 +25,22 @@ it does not improvise.
    report to the machine the row names, it may lie about its own host's
    rows, never about another's. *(Doctrine: the direction of the link is
    the boundary.)*
-2. **It executes a frozen recipe with typed parameters.** Data that came from
-   a form never becomes part of a command: arguments are passed, never
-   concatenated into a shell string. Pulling work is not permission to
-   interpret it.
+2. <a id="typed-parameters"></a>**It executes a frozen recipe with typed
+   parameters.** Data that came from a form never becomes part of a
+   command: arguments are passed, never concatenated into a shell string.
+   Pulling work is not permission to interpret it. Two channels, and only
+   two: the six positions of argv (rowId, class, matrix, digest, account,
+   env), and the row's `params` as `SHAPER_PARAM_<KEY>` variables on an
+   environment the maker BUILDS for the run — the host's few words a CLI
+   needs (PATH, HOME, locale), the operator's own `SHAPER_*`
+   configuration, and the row's allow-listed keys, held here to the same
+   grammar the governor enforces (`^[a-z][a-z0-9_]{0,31}$`, scalars only)
+   because a maker holding root trusts no ledger it cannot read. Never
+   `process.env` handed down: an inherited environment is how a row
+   carrying `LD_PRELOAD` or `BASH_ENV` would have reached a shell running
+   as root. A work item carrying a key the grammar refuses is not run and
+   not quietly cleaned — the run is refused and the refusal, naming the
+   keys, rides the failure event into the ledger.
 3. **It never chooses.** Which machine, which matrix, birth or move: the
    governing SaaS decides and writes it in the ledger. The maker only
    reconciles what it reads with what it observes.

@@ -32,8 +32,9 @@ if ! lxc info "$INSTANCE" > /dev/null 2>&1; then
   exit 0
 fi
 
-# 2. A production universe is never reaped by a robot. Rule 10 keeps DEV and
-#    destroys TEST; a PROD instance ends by a human decision, elsewhere.
+# 2. A production universe is never reaped by a robot. Rule 10 destroys TEST
+#    after proof, Rule 36 destroys DEV after promotion; a PROD instance ends
+#    by a human decision, elsewhere.
 if [[ "$ENV" == "prod" ]]; then
   echo "[lxd-reap] $INSTANCE is a production universe — a robot does not end one" >&2
   exit 4

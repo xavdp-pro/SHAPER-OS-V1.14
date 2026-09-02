@@ -90,7 +90,10 @@ describe('the maker asks, stamps, reports — and listens on nothing', () => {
       runRecipe: async (work) => { received = work.account; return { state: 'RUNNING' }; },
       log: () => {},
     });
-    await waitFor(() => received !== null);
+    // Wait for the row to purr, not merely for the recipe to be called: the
+    // STAMPED report is still in flight at that moment, and asserting PURRING
+    // right after the call raced it — a loss under the full suite's load.
+    await waitFor(() => governor.getRow(row.id).state === 'PURRING');
     maker.stop();
     server.close();
     assert.equal(received, hostile,

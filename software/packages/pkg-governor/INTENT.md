@@ -86,6 +86,34 @@ contract, written once, so every governor speaks it and every maker reads it.
    names the fact that was missing. The recipe looked and reported; the
    governor never purrs because a maker said so. The HTTP door answers
    enrol, poll and `/api/work/<rowId>/events` exactly — nothing else.
+9. <a id="params-are-typed"></a>**A row's params are typed, allow-listed,
+   immutable and unique — and never a shell's word.** A recipe may need a
+   value the product assigned (a tenant's number, hence its bridge, its
+   port, its unit) and may derive nothing from `account`, a stranger's
+   text. So a row carries `params`: a flat object of scalars (string,
+   number, boolean) under keys `^[a-z][a-z0-9_]{0,31}$`, held to an
+   allow-list the product declares at creation (`paramsSchema`, per class:
+   `{ n: { type: 'number', unique: true } }`). `desire()` refuses, as a
+   typed fact naming the key, a key the grammar rejects, a key the class did
+   not declare, a value that is not a scalar of the declared type — a class
+   that declares nothing carries nothing. A living row's params are
+   immutable like its digest: a re-ask carrying other params is refused
+   with the row's id, never answered with the old row in silence. A
+   `unique` value is carried by one live row of the class (two DNAT rules on
+   one port are a collision, not a product detail): the ask is refused with
+   the holder's id, and a REAPED row releases its value. One handover is
+   allowed and bounded: the broken row a re-ask ends passes its value to
+   the successor, and `poll()` withholds the successor's birth — a typed
+   `withheld` entry naming the predecessor, never an empty answer — until
+   that predecessor is REAPED, by the reap offered in the same beat or by a
+   human when the reap rested (inv. 6). The params ride the work as data
+   beside the six positions and reach the recipe as `SHAPER_PARAM_<KEY>`
+   on an environment the maker BUILDS (maker template inv. 2): never a
+   seventh argv, never a string, never `process.env` inherited — that
+   inheritance is the door through which a ledger row would have carried
+   `LD_PRELOAD` or `BASH_ENV` to a shell running as root. Assigning the
+   value is the product's act, in process, before `desire()`, reading
+   `listRows()`: the contract does not allocate, it guarantees uniqueness.
 
 ## How to run
 

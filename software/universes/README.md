@@ -10,8 +10,9 @@
 | :--- | :--- |
 | [`_template/`](./_template/) | **The blueprint.** The shape every universe is derived from. Generic by construction: it names no domain, no account, no catalogue brick. |
 | [`univ-base/`](./univ-base/) | **The reference.** The six-brick base cell, deployable as it stands, and the manifest an agent should imitate. |
+| [`_maker-template/`](./_maker-template/) | **The maker.** The hand of a machine, one per host: it asks its governor what should exist, stamps universes from matrices with frozen recipes, and reports. Generic by construction — it belongs to no project, and it listens on nothing. |
 
-Two entries, and that is deliberate. Everything else that used to sit beside
+Three entries, and that is deliberate. Everything else that used to sit beside
 them — a demonstration cockpit that needed a catalogue brick, a `-test` universe
 kept past its verdict — left in V1.11, because each of them taught an agent
 something the base cannot honour on its own.
