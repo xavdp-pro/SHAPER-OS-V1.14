@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/shaper-os-mascot.png" alt="The SHAPER OS mascot: a geometric guardian between fox and owl, holding an S built from blocks, bricks assembled at its feet" width="380">
+  <img src="docs/shaper-os-mascot.png" alt="The SHAPER OS mascot: a geometric guardian between fox and owl, holding an S built from blocks, bricks assembled at its feet" width="640">
 </p>
 
 <p align="center"><em>Shape systems. Orchestrate intelligence.</em></p>
