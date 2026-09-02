@@ -75,5 +75,5 @@ npm run test:live
 ## Done when
 
 - Tier-a: all health curls OK + `npm run test:live` green.
-- Tier-b (if requested): `npm run test:live:helm` green.
+- Tier-b (if requested): the catalogue's `brick-helm` live tests green (they live in `SHAPER-OS-BRICKS`, beside the brick).
 - Point me to [`PROOF.md`](../docs/human/PROOF.md) for the operator loop.

@@ -11,7 +11,7 @@ Materialize and prove this universe using **generic bricks** in `software/`. Do 
 1. Read `manifest.json` and resolve all `ref` paths to `software/bricks/` (V1.6 monorepo) or `../../bricks/` (universe inside `software/universes/`)
 2. Run `npm run vault:bootstrap` from repo `software/` using `resources/vault-resources.local.json`
 3. Build brick images: `bash software/scripts/build-all-bricks.sh`
-4. Run `npm test` then `npm run test:live` after stack is up (tier-b: + `test:live:helm`)
+4. Run `npm test` then `npm run test:live` after stack is up (tier-b: + the catalogue's `brick-helm` live tests)
 5. Copy `deploy/podman-up.sh` from this template — specialize env only
 6. Ensure `tasks/task-schedule.json` exists (`MAIL_AGENT_STUB=1` in DEV)
 

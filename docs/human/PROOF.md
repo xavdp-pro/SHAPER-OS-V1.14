@@ -9,7 +9,7 @@ This proves **DEV**. TEST-from-scratch and PROD are [`LIFECYCLE.md`](./LIFECYCLE
 
 | Step | Check | Proof |
 | :--- | :--- | :--- |
-| 0 | `npm test` green; stack healthy; `npm run test:live` green (tier-b: + `test:live:helm`) | START-HERE steps 4 then 7–8 |
+| 0 | `npm test` green; stack healthy; `npm run test:live` green (tier-b: + the catalogue's `brick-helm` live tests) | START-HERE steps 4 then 7–8 |
 | 1 | “What’s running?” / “List jobs” / “Queue a test job” | True answers; job id in the log |
 | 2 | “Run a test task” / “What did you last do?” | Queue terminal state + persisted `job.result.answer` + correlated JSONL log + verified artefact |
 | 3 | “Top client last month?” on a **fixture file** | Matches the file (no invented numbers) |

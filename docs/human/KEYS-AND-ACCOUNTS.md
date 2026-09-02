@@ -23,7 +23,8 @@ Start with **tier-a**. Add tier-b only after `npm run test:live` is green.
 | :--- | :---: | :--- | :--- | :--- |
 | `VAULT_MASTER_KEY` | a | **Agent** (`openssl rand -hex 32`) | Nowhere — generated on your machine | `software/.env` + `software/resources/vault-resources.local.json` |
 | `VAULT_TOKEN` | a | **Agent** (`openssl rand -hex 24`) | Nowhere — generated on your machine | same |
-| OpenCode free model | a | **Nobody** | [OpenCode Zen free models](https://opencode.ai/docs/zen/) — no API key for default bridge | `OPENCODE_MODEL` in `.env` (default set) |
+| OpenCode free model | a | **Nobody** | [OpenCode Zen free models](https://opencode.ai/docs/zen/) — no API key for the OpenCode bridge | `OPENCODE_MODEL` in `.env` — measured at deploy, never written here (Rule 7, runbook Step 4.2b); no default is set anywhere |
+| Model of any other bridge this universe enables | a | **Agent** (by measurement) | Nowhere — the engines reachable from the target host, probed there | `CURSOR_MODEL` (bridge-cursor), `AGY_MODEL` or `ANTIGRAVITY_MODEL` (bridge-agy), `OLLAMA_MODEL` or `DEEPSEEK_MODEL` (bridge-deepseek) in `.env` — same standard, same halt without it |
 | `DEEPGRAM_API_KEY` | b | **You** (agent guides) | [Deepgram console](https://console.deepgram.com/signup) → **API Keys** → Create key | `software/.env` |
 | `GROQ_API_KEY` | b | **You** (agent guides) | [GroqCloud console](https://console.groq.com/keys) → Create API key | `software/.env` |
 | Cloudflare **tunnel token** | b | **You** (agent guides) | [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → **Networks** → **Tunnels** → Create tunnel → copy token | `<univ>-dev/sav/tunnel/token` (not git) |
@@ -37,6 +38,52 @@ Start with **tier-a**. Add tier-b only after `npm run test:live` is green.
 | Cloudflare **R2** (backups) | optional | **You** | [Cloudflare R2](https://dash.cloudflare.com/) → R2 → Manage API tokens | `software/.env` (`R2_*`) |
 
 Template file: [`.env.example`](../../.env.example) → copy to `.env` or `software/.env`.
+
+---
+
+## Backups and the registry — what the operator scripts read
+
+Four scripts under `software/scripts/` take their credentials from the
+**exported environment** and from nowhere else: none of them sources
+`software/.env` or a universe's `deploy/env` — by design, a backup script
+does not execute the operator's environment file. None carries a default: a
+required variable that is missing **halts the script, which names it**.
+
+| Variable | Read by | Required? | What it does |
+| :--- | :--- | :---: | :--- |
+| `REGISTRY_HOST` — or `SHAPER_REGISTRY` in its place | `push-images-to-registry.sh` | **Yes** | The private OCI registry, `host:port`. `SHAPER_REGISTRY` is the name the [registry contract](../architecture/ARTIFACT-BOUNDARY.md) uses; either works |
+| `REGISTRY_USER` | `push-images-to-registry.sh` | **Yes** | The registry account. No default — the one that shipped in V1.13 was the author's |
+| `REGISTRY_PASS` | `push-images-to-registry.sh` | **Yes** | The registry password; it reaches `podman login` on stdin, never on a command line |
+| `PRA_ENCRYPTION_KEY` | `backup-pra-sync.sh` | **Yes** | The key the off-site archive is encrypted with. Generated for backups only (`openssl rand -hex 32`); the script **refuses** a value equal to `VAULT_MASTER_KEY`, whether exported or found in a `.env` on disk |
+| `PRA_DEST_HOST` | `backup-pra-sync.sh` | No | Where the encrypted archive is `rsync`ed; unset, it stays in `data/backups/` and the script says so |
+| `MYSQL_USER` | `backup-local.sh`, `snapshot-universe.sh` | No | Set, it declares that this universe has a database to dump. Unset, both scripts print `SKIP` and report `"database":"skipped"` — never an empty dump passed off as one |
+| `MYSQL_PASSWORD` | `backup-local.sh`, `snapshot-universe.sh` | With `MYSQL_USER` | Travels in `MYSQL_PWD`, never on a command line |
+| `MYSQL_DATABASE` | `backup-local.sh`, `snapshot-universe.sh` | No | One schema to dump; unset, `--all-databases` |
+| `MYSQL_HOST`, `MYSQL_PORT` | `backup-local.sh`, `snapshot-universe.sh` | No | Default to `127.0.0.1` and `3306` inside the scripts |
+
+The example files are the record of the **names**, and declare every
+variable above **empty**:
+[`examples/universe.env.example`](../../examples/universe.env.example) for the
+universe's own database (Rule 26: one MariaDB per universe),
+[`software/.env.example`](../../software/.env.example) for the PRA key and
+the registry account. The **values** live in the shell — or the cron
+environment — that runs the script, never in a tracked file. From
+`software/`:
+
+```bash
+set -a && source ../<slug>-dev/deploy/env && set +a   # exports MYSQL_* into this shell
+bash scripts/backup-local.sh
+PRA_ENCRYPTION_KEY=<backup-only key> bash scripts/backup-pra-sync.sh
+export REGISTRY_HOST=<host:port> REGISTRY_USER=<account>
+read -rs REGISTRY_PASS && export REGISTRY_PASS      # typed, not written into a history
+bash scripts/push-images-to-registry.sh
+```
+
+A `MYSQL_USER` written into `deploy/env` and `backup-local.sh` run from a
+fresh shell gives `SKIP`; a `PRA_ENCRYPTION_KEY` written into `software/.env`
+gives the halt that names it — neither file is read as configuration.
+`backup-pra-sync.sh` opens the `.env` files line by line for one purpose
+only: to refuse a PRA key equal to the vault's.
 
 ---
 
@@ -93,7 +140,7 @@ Copy-paste intent for your agent: [`examples/agent-KEY-COLLECTION-INTENT.md`](..
 - [ ] [Deepgram](https://console.deepgram.com/) — API key → `DEEPGRAM_API_KEY` in `.env`
 - [ ] [Groq](https://console.groq.com/keys) — API key → `GROQ_API_KEY` in `.env`
 - [ ] [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) — tunnel token → `sav/tunnel/token`
-- [ ] Agent validates `.env`, propagates keys, sets `WITH_HELM=1`, deploys tier-b manifest, runs `npm run test:live:helm`
+- [ ] Agent validates `.env`, propagates keys, deploys the tier-b manifest from the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13) catalogue, runs the catalogue's `brick-helm` live tests
 
 ---
 

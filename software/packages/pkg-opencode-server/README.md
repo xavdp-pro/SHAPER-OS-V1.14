@@ -1,95 +1,103 @@
 # opencode-bridge
 
-Pont HTTP + SSE devant le CLI [OpenCode](https://opencode.ai), au **même contrat**
-que `cursor-agent-bridge`, `antigravity-bridge` et `claude-bridge`.
+HTTP + SSE bridge in front of the [OpenCode](https://opencode.ai) CLI, on the
+**same contract** as `cursor-agent-bridge`, `antigravity-bridge` and
+`claude-bridge`.
 
-Il permet à une console type KovZu / helm-v2 de piloter OpenCode comme n'importe
-quel autre CLI agent, sans code spécifique côté application.
+It lets an operator console (the catalogue's `brick-helm` cockpit, or any
+client of the shared bridge contract) drive OpenCode like any other CLI agent,
+with no application-side code specific to it.
 
-## Particularité par rapport aux autres bridges
+## What sets it apart from the other bridges
 
-Cursor et Antigravity lancent **un process par run** et lisent son stdout.
-OpenCode fournit un vrai serveur headless : le bridge lance **une seule fois**
-`opencode serve`, s'abonne à son flux d'événements et le traduit vers le contrat commun.
+Cursor and Antigravity launch **one process per run** and read its stdout.
+OpenCode ships a real headless server: the bridge launches `opencode serve`
+**once**, subscribes to its event stream and translates it into the shared
+contract.
 
-C'est ce qui donne le **streaming token par token** (`message.part.delta`), là où
-`opencode run --format json` ne renvoie le texte qu'en un seul bloc à la fin.
+That is what gives **token-by-token streaming** (`message.part.delta`), where
+`opencode run --format json` returns the text in a single block at the end.
 
 ```mermaid
 flowchart LR
     console["console"] -- HTTP --> bridge["opencode-bridge<br/>:4440"]
     bridge -- "HTTP / SSE" --> serve["opencode serve<br/>:4441"]
-    serve --> model["modèle"]
+    serve --> model["engine"]
 ```
 
 ## API
 
-| Route | Rôle |
-|-------|------|
-| `GET  /api/health` | Sonde publique (sans token) |
-| `GET  /api/status` | État + `ready` (le serve répond) + modèle |
-| `GET  /api/conversations` | Conversations enregistrées |
+| Route | Purpose |
+|-------|---------|
+| `GET  /api/health` | Public probe (no token) |
+| `GET  /api/status` | State + `ready` (the serve answers) + the model in use |
+| `GET  /api/conversations` | Registered conversations |
 | `POST /api/inject` | `{ conversation, message, model?, attachments? }` |
-| `GET  /api/events` | SSE, filtrable par `?conversation=` |
-| `POST /api/conversations/stop` | `{ conversation }` ou `{ all: true }` |
-| `POST /api/conversations/reset` | Oublie la session → prochain run repart à zéro |
-| `POST /api/conversations/delete` | Retire la conversation du registre |
-| `POST /api/upload` | Pièce jointe base64 dans le workspace |
-| `GET  /api/fs/list?path=` | Listing de dossiers (sélecteur de workspace) |
+| `GET  /api/events` | SSE, filterable with `?conversation=` |
+| `POST /api/conversations/stop` | `{ conversation }` or `{ all: true }` |
+| `POST /api/conversations/reset` | Forgets the session — the next run starts from zero |
+| `POST /api/conversations/delete` | Removes the conversation from the registry |
+| `POST /api/upload` | Base64 attachment into the workspace |
+| `GET  /api/fs/list?path=` | Directory listing (workspace picker) |
 
-Auth : `Authorization: Bearer <token>`, auto-créé dans
+Auth: `Authorization: Bearer <token>`, created on first start in
 `~/.config/opencode-bridge/token` (chmod 600).
 
-## Événements émis
+## Events emitted
 
-Contrat commun à tous les bridges :
+The contract shared by every bridge:
 
-| Type | Quand |
-|------|-------|
-| `connected` | Ouverture du SSE |
-| `inject` | Run accepté (porte `run_id`) |
-| `thinking` | Deltas de raisonnement ; `subtype: completed` à la fin |
-| `tool` | Outil démarré — `call_id`, `tool`, `input`, `command`, `cwd` |
-| `tool_complete` | Outil terminé — `call_id`, `result` |
-| `response` | Deltas de réponse — `delta` + `text` cumulatif |
-| `response_complete` | Texte final |
-| `run_complete` | Fin de run |
-| `run_aborted` | Interruption via `/stop` |
+| Type | When |
+|------|------|
+| `connected` | The SSE stream opens |
+| `inject` | A run was accepted (carries `run_id`) |
+| `thinking` | Reasoning deltas; `subtype: completed` at the end |
+| `tool` | A tool started — `call_id`, `tool`, `input`, `command`, `cwd` |
+| `tool_complete` | A tool finished — `call_id`, `result` |
+| `response` | Answer deltas — `delta` + cumulative `text` |
+| `response_complete` | Final text |
+| `run_complete` | End of run |
+| `run_aborted` | Interrupted through `/stop` |
 | `ping` | Keepalive (25 s) |
 
-Chaque événement d'un run porte `run_id` et un `seq` croissant.
+Every event of a run carries its `run_id` and an increasing `seq`.
 
-## Correspondance avec les événements OpenCode
+## Mapping from OpenCode events
 
 | OpenCode | Bridge |
 |----------|--------|
 | `message.part.delta` (part `reasoning`) | `thinking` |
-| `message.part.delta` (part `text`, message assistant) | `response` |
+| `message.part.delta` (part `text`, assistant message) | `response` |
 | `message.part.updated` (part `tool`) | `tool` / `tool_complete` |
 | `session.idle` | `response_complete` + `run_complete` |
 
-Le type d'une part n'est pas répété dans les deltas : le bridge mémorise
-`partID → type` depuis `message.part.updated` pour router chaque delta.
+A part's type is not repeated in its deltas: the bridge remembers
+`partID → type` from `message.part.updated` to route each delta.
 
-## Installation
+## Install
 
 ```bash
-cp .env.example .env && chmod 600 .env   # ajuster port / modèle / workspace
+cp .env.example .env && chmod 600 .env   # port / model / workspace
 ./start-bridge.sh
 ```
 
-Le CLI `opencode` n'est pas versionné ici : l'installer dans `bin/opencode`
-(ou pointer `OPENCODE_BIN` ailleurs).
+The `opencode` CLI is not versioned here: install it in `bin/opencode` (or
+point `OPENCODE_BIN` elsewhere).
 
-## Modèles
+## Models
 
-`opencode models` liste ce qui est disponible. Les modèles suffixés `-free`
-n'ont aucun coût et ne demandent pas de credentials.
+`opencode models` lists what is available. Models suffixed `-free` cost
+nothing and need no credentials.
 
-Défaut : `opencode/nemotron-3-ultra-free` — validé sur appel d'outil `bash`,
-tableau markdown et prose.
+The bridge names **no default model**. The model comes from `OPENCODE_MODEL`,
+measured at deployment from the target host — enumerate, probe on the shape of
+the work, keep what passed (Rule 7, runbook Step 4.2b). Empty means "not
+chosen": a run says so instead of guessing, and `podman-up.sh` halts before
+starting the brick. A model named in this file would be a default, and the
+last one named here had been withdrawn from its catalogue while still
+shipped.
 
-## Vérification
+## Checking
 
 ```bash
 curl -s localhost:4440/api/health
@@ -97,21 +105,21 @@ T=$(cat ~/.config/opencode-bridge/token)
 curl -s -H "Authorization: Bearer $T" localhost:4440/api/status
 ```
 
-`ready: true` signifie que le `opencode serve` interne répond.
+`ready: true` means the internal `opencode serve` answers.
 
 ## Tests
 
 ```bash
-npm test          # unitaires — traduction des événements, sans réseau ni modèle
-npm run test:cli  # bout en bout — exige le bridge démarré
+npm test          # unit — event translation, no network and no model
+npm run test:cli  # end to end — needs the bridge running
 ```
 
-Les tests unitaires portent sur `translate.mjs`, volontairement sans I/O : il
-reçoit un événement OpenCode et renvoie les événements canoniques à diffuser,
-ce qui permet de rejouer des séquences réelles sans lancer de CLI ni consommer
-de quota. Les formes d'événements utilisées viennent de captures réelles sur
-opencode 1.18.15.
+The unit tests cover `translate.mjs`, deliberately free of I/O: it receives an
+OpenCode event and returns the canonical events to broadcast, so real
+sequences can be replayed without launching a CLI or spending quota. The event
+shapes come from real captures against the OpenCode CLI version recorded in
+`test/translate.test.js`.
 
-`scripts/test-cli.sh` vérifie l'installation réelle : authentification, run
-complet avec appel d'outil, streaming effectif du texte, continuité de session
-entre deux tours, stop, reset et garde-fous de validation.
+`scripts/test-cli.sh` checks the real installation: authentication, a full
+run with a tool call, effective text streaming, session continuity across two
+turns, stop, reset and the validation guards.

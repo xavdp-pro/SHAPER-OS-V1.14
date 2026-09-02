@@ -153,11 +153,11 @@ An autonomous agent operating within the Shaper ecosystem must **NEVER confuse w
   1. **Phase 1 : Prototypage en Sandbox Isolé (Zero Pollution)** :
      L'agent lance un conteneur éphémère de calcul via `bash scripts/shaper-sandbox.sh` pour compiler, tester, exécuter des scripts lourds sans risque d'altérer KovZu.
   2. **Phase 2 : Échafaudage de Brique Pérenne Standardisée** :
-     L'agent génère une brique autonome via `node scripts/shaper-tool-scaffold.mjs <slug> --port <port> --title "<Nom>"` :
-     - Brique conteneurisée : `bricks/brick-<slug>/` et `packages/<slug>-engine/`
-     - Définition Quadlet Podman : `/etc/containers/systemd/<univ>-<slug>.container`
-     - Port dédié et volume persistant : `/data/<slug>/`
-     - Enregistrement de topologie : `topology.json`
+     The agent generates a standalone brick with `node scripts/shaper-tool-scaffold.mjs create --slug <slug> --name "<Name>" --desc "<what it does>" [--port <port>]`, run from the root of the universe class repository — never from the base, where the scaffold halts:
+     - Source package: `packages/pkg-<slug>/` (`@shaper/pkg-<slug>`, with a test that binds a real socket)
+     - Containerised brick: `bricks/brick-<slug>/` — `INTENT.md`, `brick.json`, a `Containerfile` that copies the package from the pinned source image, and the Quadlet unit `cfg-<slug>.container` in the base bricks' shape (`Image=@IMG@` from the lock, `ContainerName=%i-ctr-<slug>`)
+     - Its own port, and state in a volume the universe owns (`Volume=vol-%i-<slug>`, mounted at `/data/<slug>` inside the container — never a host path)
+     - Nothing written to the base's `topology.json`: the brick is declared in the universe's manifest
   3. **Phase 3 : Déploiement & Pérennité dans le Temps** :
      L'outil dispose de sa propre interface, son propre port, son propre cycle de vie, et perdure indépendamment de l'agent. Il peut être dupliqué d'un client à l'autre selon les lois de modularité fractale.
 

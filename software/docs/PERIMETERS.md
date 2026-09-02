@@ -29,7 +29,7 @@ flowchart TB
 
 1. **P1 never knows P3** — socle bricks have zero knowledge of verticals (Rule 1: brick isolation).
 2. **P2 is the organism, not the product** — Helm/KovZu, GED/RAG memory, Maestro tasks enrich the assistant; they do not replace client-facing ERPs (Rule 0F).
-3. **P3 is built via the Shaper Way** — sandbox → `shaper-tool-scaffold.mjs` → dedicated brick + volume `/data/<slug>/` + own port; never merged into KovZu’s belly.
+3. **P3 is built via the Shaper Way** — sandbox → `shaper-tool-scaffold.mjs` (run in the universe class repository, never in the base) → `packages/pkg-<slug>` + `bricks/brick-<slug>`, its own port, and state in a volume the universe owns (`vol-<universe>-<slug>`, mounted at `/data/<slug>` inside the container — never a host path); never merged into KovZu’s belly.
 4. **Perimeter means LAYER, never OWNER** *(V1.13, Rule 37)* — a brick that
    exists for a single client can still be P1: a fork's hardened SSO brick is
    socle-layer even though one owner demanded it. Who a brick belongs to is
@@ -103,8 +103,17 @@ Built only via:
 
 ```bash
 bash scripts/shaper-sandbox.sh          # ephemeral prototype
-node scripts/shaper-tool-scaffold.mjs <slug> --port <port> --title "<Name>"
+# from the root of the universe CLASS repository — the scaffold halts inside the base
+node scripts/shaper-tool-scaffold.mjs create --slug <slug> --name "<Name>" --desc "<what it does>" [--port <port>]
 ```
+
+The scaffold writes the layers the naming contract knows and nothing else:
+`packages/pkg-<slug>/` (the source package, with a test that binds a real
+socket) and `bricks/brick-<slug>/` (`INTENT.md`, `brick.json`, a
+`Containerfile` that copies the package from the pinned source image, and a
+`cfg-<slug>.container` unit in the base bricks' shape — `Image=@IMG@` from
+the lock, `Volume=vol-%i-<slug>`). It creates nothing on the host and does
+not touch the base's `topology.json`.
 
 | Planned package / universe | Purpose | Perimeter |
 | :--- | :--- | :--- |
@@ -152,7 +161,7 @@ Autonomous **business intelligence** tool: competitive scraping, price benchmark
 | `enterprise-chat` | not implemented | **P3** |
 | `market-intelligence` | not implemented | **P3** |
 | `ocr-engine`, `wikiuniv-v1` | not implemented | **P3** |
-| `apps/univ-*` verticals | `univ-factory` scaffolds only | **P3** |
+| `apps/univ-*` verticals | no generator — a vertical is a universe class repository, born by [`UNIVERSE-REPO-BIRTH.md`](../../docs/agent/UNIVERSE-REPO-BIRTH.md) (a procedure); the factory script that wrote `apps/` left on 2 September 2026 | **P3** |
 
 ---
 
