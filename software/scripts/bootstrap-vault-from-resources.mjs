@@ -7,6 +7,9 @@
  * Usage:
  *   node scripts/bootstrap-vault-from-resources.mjs
  *   VAULT_RESOURCES_FILE=./resources/vault-resources.local.json node scripts/bootstrap-vault-from-resources.mjs
+ *
+ * Inputs, in order of precedence: the shell environment, then software/.env
+ * (or VAULT_ENV_FILE), then the resources file. A key nobody chose halts.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,6 +21,51 @@ const ROOT = path.resolve(__dirname, '..');
 
 const RESOURCES_FILE = process.env.VAULT_RESOURCES_FILE
   || path.join(ROOT, 'resources/vault-resources.local.json');
+
+// The .env this script reads is the one it would write (below): software/.env,
+// or whatever VAULT_ENV_FILE points at.
+const ENV_FILE = process.env.VAULT_ENV_FILE || path.join(ROOT, '.env');
+
+// Rule 0J names software/.env as the place the operator's keys live, and every
+// quick start says `cp .env.example software/.env` then `npm run vault:bootstrap`.
+// Until the 2 September audit nothing between those two commands read that
+// file: this script took VAULT_MASTER_KEY from process.env only, the repository
+// carries no dotenv (zero dependencies, Rule 5), and the literal path halted on
+// "VAULT_MASTER_KEY is required" with the key sitting in the file the
+// documentation had just told the operator to create. So the file is read here
+// — as DEFAULTS. What the operator exported in the shell wins over it, the
+// same precedence deploy/podman-up.sh gives (V1.13.5) and the storage file was
+// given (V1.13.1): an explicit choice always beats a packaged default.
+//
+// The grammar is deliberately narrow: `KEY=value`, `# comment`, blank. A line
+// this parser cannot read is a halt naming the line, never a silent skip — a
+// skipped key surfaces an hour later as "missing key" with no cause attached.
+// Surrounding quotes are stripped; there are no inline comments and no
+// interpolation, because a value nobody can read back verbatim is a value
+// nobody can audit.
+function loadDotEnv(file) {
+  const fromFile = new Set();
+  if (!fs.existsSync(file)) return fromFile;
+  fs.readFileSync(file, 'utf8').split(/\r?\n/).forEach((raw, index) => {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) return;
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match) {
+      console.error(`[bootstrap-vault] HALT — ${file}:${index + 1} is not KEY=value: "${raw}"`);
+      console.error('[bootstrap-vault] A .env holds KEY=value lines, # comments and blank lines, nothing else. Nothing was written.');
+      process.exit(1);
+    }
+    const [, key, rawValue] = match;
+    const quoted = rawValue.trim().match(/^(["'])(.*)\1$/);
+    const value = quoted ? quoted[2] : rawValue.trim();
+    // The operator's export wins; the file only fills what the shell left unset.
+    if (process.env[key] !== undefined && process.env[key] !== '') return;
+    process.env[key] = value;
+    fromFile.add(key);
+  });
+  return fromFile;
+}
+const FROM_ENV_FILE = loadDotEnv(ENV_FILE);
 
 let vaultMasterKey = process.env.VAULT_MASTER_KEY;
 let vaultToken = process.env.VAULT_TOKEN;
@@ -40,8 +88,16 @@ if (fs.existsSync(RESOURCES_FILE)) {
   }
 }
 
+const FIX = [
+  'Generate real keys and mirror them — see docs/agent/RUNBOOK-EXPLICIT.md §4.1:',
+  '  sed -i "s|^VAULT_MASTER_KEY=.*|VAULT_MASTER_KEY=$(openssl rand -hex 32)|" software/.env',
+  '  sed -i "s|^VAULT_TOKEN=.*|VAULT_TOKEN=$(openssl rand -hex 24)|" software/.env',
+  '  then run the runbook\'s python3 block, which fills the resources file from software/.env.',
+];
+
 if (!vaultMasterKey || !String(vaultMasterKey).trim()) {
-  console.error('[bootstrap-vault] VAULT_MASTER_KEY in .env or vault.masterKey in resources file is required');
+  console.error(`[bootstrap-vault] HALT — VAULT_MASTER_KEY is missing: not exported in the shell, not in ${ENV_FILE}, and no vault.masterKey in ${RESOURCES_FILE}.`);
+  for (const line of FIX) console.error(`[bootstrap-vault] ${line}`);
   process.exit(1);
 }
 
@@ -65,13 +121,6 @@ const PLACEHOLDER = [
 ];
 const isPlaceholder = (value) => PLACEHOLDER.some((re) => re.test(String(value).trim()));
 
-const FIX = [
-  'Generate real keys and mirror them — see docs/agent/RUNBOOK-EXPLICIT.md §4.1:',
-  '  sed -i "s|^VAULT_MASTER_KEY=.*|VAULT_MASTER_KEY=$(openssl rand -hex 32)|" software/.env',
-  '  sed -i "s|^VAULT_TOKEN=.*|VAULT_TOKEN=$(openssl rand -hex 24)|" software/.env',
-  '  then run the runbook\'s python3 block, which fills the resources file from software/.env.',
-];
-
 function haltOnPlaceholder(field, value, origin) {
   if (value === undefined || value === null || !isPlaceholder(value)) return;
   console.error(`[bootstrap-vault] HALT — ${field} (${origin}) is still an example placeholder, not a value you chose.`);
@@ -80,16 +129,14 @@ function haltOnPlaceholder(field, value, origin) {
   process.exit(1);
 }
 
-haltOnPlaceholder(
-  'vault.masterKey',
-  vaultMasterKey,
-  process.env.VAULT_MASTER_KEY ? 'VAULT_MASTER_KEY in the environment' : RESOURCES_FILE,
-);
-haltOnPlaceholder(
-  'vault.token',
-  vaultToken,
-  process.env.VAULT_TOKEN ? 'VAULT_TOKEN in the environment' : RESOURCES_FILE,
-);
+// Name where the refused value came from: a halt that says "the environment"
+// about a key read from software/.env sends the operator to the wrong place.
+function originOf(key) {
+  if (FROM_ENV_FILE.has(key)) return `${key} in ${ENV_FILE}`;
+  return process.env[key] ? `${key} in the environment` : RESOURCES_FILE;
+}
+haltOnPlaceholder('vault.masterKey', vaultMasterKey, originOf('VAULT_MASTER_KEY'));
+haltOnPlaceholder('vault.token', vaultToken, originOf('VAULT_TOKEN'));
 
 fs.mkdirSync(path.dirname(storageFile), { recursive: true });
 
@@ -107,7 +154,7 @@ for (const [key, payload] of Object.entries(secrets || {})) {
 if (!fs.existsSync(storageFile)) store.persist();
 
 // Optional: write .env pointers (no secret values duplicated if already in resources)
-const envPath = process.env.VAULT_ENV_FILE || path.join(ROOT, '.env');
+const envPath = ENV_FILE;
 const envLines = [
   `VAULT_MASTER_KEY=${vaultMasterKey}`,
   `VAULT_TOKEN=${vaultToken || ''}`,
