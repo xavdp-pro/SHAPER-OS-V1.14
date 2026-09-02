@@ -1,7 +1,8 @@
 # TESTING REPORT — how V1.13 was proven, by whom, and what it cost
 
-> **Status**: dated snapshot — measurements of 29–31 August 2026. Model
-> names here are data from those runs, never recommendations (Rule 7).
+> **Status**: dated snapshot — measurements of 29–31 August 2026 (§1–5) and
+> of 2 September 2026 (§6–7). Model names here are data from those runs,
+> never recommendations (Rule 7).
 
 > **The claim under test.** SHAPER OS says a cold agent — any engine, any
 > model, no prior context — can deploy a universe by reading this repository
@@ -135,3 +136,96 @@ became a mechanical gate, a halt learned to speak, Rule 7 grew two cursors
 and its probe became the contract — and when the referee published an
 untested probe, the next seal caught the referee. The claim at the top of
 this page survived its adversaries, the referee included.
+
+<a id="after-the-seal"></a>
+## 6. After the seal — v1.13.20 to v1.13.34
+
+**No sealing run took place after v1.13.19.** Everything below was proven by
+the unit suite and `shaper verify` on the author's machine, and — for the
+maker's recipes — by terrain runs the commit messages describe. None of it
+was proven by a cold agent following the runbook literally. The suite counts
+are measured on 2 September, on a checkout of each tag with its history
+(the history-reading guards fail on a bare export); `shaper verify` was 8/8
+at every tag.
+
+| Date | Tag | What it brought | How it is proven |
+| :--- | :--- | :--- | :--- |
+| 31 Aug | v1.13.20 | This page's §2 and §5: seals 7–9, sealed at v1.13.19 | prose · 274 tests |
+| 31 Aug | v1.13.21 | Doctrine n°9, *Direction is the boundary*: what holds power has no inbound door; what is reachable holds no power | prose; no code |
+| 31 Aug | v1.13.22 | Doctrine n°10, *The system learns no dialect*: a component serving several variants reads a table, never branches on the variant | prose · 274 tests |
+| 31 Aug | v1.13.23 | **The governor and the maker** — `pkg-governor` (the ledger contract: enrolment, desired state, idempotence, the poll as heartbeat) and `universes/_maker-template` (a poller that listens on nothing, frozen recipes, argv-only parameters); the naming guard learns that `_maker-template` is a mold | 288 tests (+14 in pkg-governor, 2 files) |
+| 31 Aug | v1.13.24 | A machine has two names; enrolment binds host and fleet name. First recipe, `lxd-stamp` | governor-contract test; stamp terrain-proven per the commit |
+| 31 Aug | v1.13.25 | `lxd-reap`: an end that is verified, not announced | recipe README; terrain-proven per the commit |
+| 31 Aug | v1.13.26 | The governor's storage is injectable, as its intent already claimed (`createFileStorage`) | governor-contract test: restart and read back |
+| 31 Aug | v1.13.27 | Two stamps of one digest raced on the import; per-digest lock | `stamp-recipe-lock` runs the real recipe twice against a shim `lxc` |
+| 31 Aug | v1.13.28 | The HTTP door carries both names | `http-door-fleetname` speaks HTTP end to end |
+| 31 Aug | v1.13.29 | A governor validates its child from facts, through the maker's hands: `lxd-validate`, the recipe's last JSON line as the event's facts | 302 tests (28 in pkg-governor, 6 files) |
+| 31 Aug | v1.13.30 | A newborn is given time to open its eyes: validate waits for the child's first HTTP answer, bounded | `validate-recipe-waits`, shim-driven |
+| 31 Aug | v1.13.31 | A degraded demo is not a wall: asking again reaps the broken row and births a fresh one | `validation` test |
+| 31 Aug | v1.13.32 | The observation surface: `listMakers()` — presence, never power | 306 tests (32 in pkg-governor, 7 files) |
+| 1–2 Sep | v1.13.33, v1.13.34 | The identity: the mascot opens the README, then fills the frame | no code · 306 tests |
+| 2 Sep | *(untagged, on main)* | Doctrine n°11, *The maker and the governor* — the philosophy behind the contract, written after the contract was proven; then the operator's precision: a matrix is baked by the tandem, never by a robot | prose · 306 tests |
+
+**What the governor arc is proven by.** 32 tests in seven files under
+`software/packages/pkg-governor/test/`: `governor-contract` (16),
+`validation` (6), `maker-poller` (4), `recipe-facts` (2),
+`validate-recipe-waits` (2), `http-door-fleetname` (1), `stamp-recipe-lock`
+(1). The recipe tests run the real `lxd-*.sh` against a shim `lxc` on `PATH`;
+nothing is mocked inside the governor. One observation to carry forward: in
+eight consecutive runs of the full suite on 2 September, `maker-poller`'s
+*"form data reaches the recipe as argv, byte for byte"* went red once —
+`RECONCILING` where `PURRING` was expected — because the test releases its
+wait the moment the recipe was called, before the maker's report has reached
+the governor. The code under test did nothing wrong; the test's clock is
+ahead of the maker's. It is recorded here so that the next red is not
+mistaken for a regression, and so that it gets fixed as a test defect.
+
+<a id="the-2-september-audit"></a>
+## 7. The 2 September audit
+
+A cold reading of the repository at v1.13.34, by an agent with no memory of
+the campaign, against the law it claims to obey. It found what the sealing
+runs could not: the seals proved the runbook's path, and these defects sit
+beside it. Listed soberly, without the fix; **every one of them is corrected,
+each with a guard that fails on the unpatched tree (Rule 29), in the version
+that follows this page.**
+
+1. **A registry password tracked in a file the verifier never reads.** The
+   check "no credential in tracked files" was green while a credential was
+   tracked — invisible to `shaper verify` by the shape of its own scan.
+2. **The master key archived beside the vault it encrypts.** A backup that
+   carries both the ciphertext and its key is a plaintext with extra steps.
+3. **Two families of ports.** The guide, the scripts and the bricks did not
+   agree on which port a brick answers on; a reader could follow either and
+   be right in one file and wrong in the next.
+4. **Three tests never launched.** Guards that `npm test` did not look at —
+   the same defect §4 records for `test-scripts-portability`, met again.
+5. **Models named in the tree where Rule 7 says measured.** An engine pinned
+   in a file is a recommendation the law forbids the repository to make.
+6. **A Quick start that fails as written.** `cp .env.example software/.env`
+   then `npm run vault:bootstrap` halted on the key the first command had
+   just written, because nothing read the file; the build then halted on two
+   variables no step had named. The one-click LXC guide could not run its own
+   command (`scripts/` is `software/scripts/`, and `UNIV_SLUG` was never
+   mentioned), and told the reader the opposite of what its script did on
+   the host. The registry probe chose its scheme by the *presence* of
+   `SHAPER_TLS_VERIFY`, so the runbook's own `false` meant `https`.
+7. **Scripts that served no frame** (INTENT.md §16): two vault helpers still
+   opened the shared storage path removed in V1.13.1; a universe factory
+   wrote `apps/` and `quadlet/` for a grammar that no longer exists; the
+   tool scaffold wrote a layer NAMING.md does not declare, a host state
+   directory, and a test that asserted `true === true`.
+8. **Nine field lessons absent from the tree.** Constraints learnt on
+   terrain that lived in a commit message, a report, or an agent's context —
+   and nowhere a future universe is built from (Rule 35).
+
+What this audit adds to the method of §4: **a seal proves the path the
+sealer walked.** The claim at the top of this page — a cold agent can
+deploy from the repository alone — held for nine runs on the runbook's path
+and said nothing about the README's, the guide's, or the scripts nobody ran.
+A repository is read from every door, so every door gets its cold reader.
+Measured on 2 September 2026, on the branch that carried this page's own
+corrections alone (`fix/docs`, before the other September branches were
+merged): **330 tests, verify 8/8** on a naked clone. That number is bounded
+by that branch and that day; the merged count belongs to the next seal, not
+to this line.

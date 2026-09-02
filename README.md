@@ -426,34 +426,78 @@ Full scales and declaration format: [`docs/architecture/COGNITION.md`](./docs/ar
 
 ## 🚀 Quick Start
 
+Every command below runs **as written** from a naked clone: nothing is loaded
+for you, nothing is guessed. Two things are asked of you on the way — fresh
+vault keys (generated, never typed) and **this machine's registry** (asked,
+never invented). Until the 2 September audit the second step here ran
+`npm run vault:bootstrap`, which halted on `VAULT_MASTER_KEY is required` with
+the key sitting in the file the first step had just created — and whose vault,
+once it did run, nothing on this path read; the build then halted on two
+variables no step had named. This section is now proven by executing it, not
+by reading it.
+
 ### 1. Clone the repository
 ```bash
 git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git
 cd SHAPER-OS-V1.13
 ```
 
-### 2. Bootstrap the Local Foundation (Tier-a)
+### 2. Keys, units, images
 ```bash
 cp .env.example software/.env
+sed -i "s|^VAULT_MASTER_KEY=.*|VAULT_MASTER_KEY=$(openssl rand -hex 32)|" software/.env
+sed -i "s|^VAULT_TOKEN=.*|VAULT_TOKEN=$(openssl rand -hex 24)|" software/.env
+
 cd software
-npm run vault:bootstrap
-npm test
+npm test                    # must be green on a naked clone (LAW.md)
+
+export SHAPER_REGISTRY=<host:port>   # THIS machine's podman registry — ask the operator, never invent one
+export SHAPER_IMAGE_TAG=<tag>        # e.g. dev-$(git rev-parse --short HEAD); never latest
+# export SHAPER_TLS_VERIFY=false     # only if the operator said the registry is plain HTTP
 bash scripts/build-all-bricks.sh
+cd ..
 ```
+
+`software/.env` carries **defaults**. Every script that reads it —
+`deploy/podman-up.sh`, `npm run vault:bootstrap`, the vault operator scripts —
+gives it the same precedence: a variable already exported in your shell beats
+the file. A line that is not `KEY=value`, a `# comment` or blank halts those
+scripts naming the line: a silently skipped key would surface an hour later as
+"missing key" with no cause attached. There is deliberately **no**
+`npm run vault:bootstrap` on this path: the vault of `univ-base` is materialised
+by its own deploy (step 3), inside the vault image, in a volume the universe
+owns — a vault bootstrapped under `software/` would be one that nothing here
+reads. The command still exists for the local foundation
+([`START-HERE.md`](./docs/human/START-HERE.md)); when you run it, it reads
+`software/.env` and prints where it wrote. `npm test` itself writes nothing
+into `software/.env`: a test that spawns the bootstrap points it at a
+throwaway file, and a guard reads the suite for one that does not.
+`SHAPER_REGISTRY` and
+`SHAPER_IMAGE_TAG` are deliberately **not** in `.env`: they are exported in your
+shell and die with it ([`docs/PREREQUISITES.md`](./docs/PREREQUISITES.md)), and
+`build-all-bricks.sh` halts by name if either is missing. Which registry, and
+whether it is TLS-verified, is the one question you ask a human
+([`docs/agent/RUNBOOK-EXPLICIT.md`](./docs/agent/RUNBOOK-EXPLICIT.md), step 0).
 
 ### 3. Deploy the Base Cell
 ```bash
-bash software/universes/univ-base/deploy/podman-up.sh
+cd software/universes/univ-base
+cp cfg-univ-base.env.example cfg-univ-base.env
+sed -i "s|^VAULT_MASTER_KEY=.*|VAULT_MASTER_KEY=$(grep '^VAULT_MASTER_KEY=' ../../.env | cut -d= -f2-)|" cfg-univ-base.env
+sed -i "s|^VAULT_TOKEN=.*|VAULT_TOKEN=$(grep '^VAULT_TOKEN=' ../../.env | cut -d= -f2-)|" cfg-univ-base.env
+bash deploy/podman-up.sh    # SHAPER_REGISTRY and SHAPER_IMAGE_TAG must still be exported: it pulls what step 2 published
 ```
 
 `univ-base` is the canonical universe of this repository: vault, logger, queue,
 maestro, agent-runtime and one bridge — the six bricks every other universe
 starts from. It runs on `127.0.0.1` and needs no domain, no account and no
-catalogue brick.
+catalogue brick. It reads **its own** `cfg-univ-base.env`, never `software/.env`:
+a universe's configuration lives with the universe.
 
 ### 4. Prove It Is Alive
 ```bash
-bash software/universes/univ-base/deploy/proof.sh
+bash deploy/proof.sh
+cd ../../..
 ```
 
 Every brick answers `/api/vitals`, the maestro holds the declared task, and the

@@ -30,10 +30,11 @@ cd "$ROOT"
 # The proof of an ex nihilo build is factual, never a stopwatch: the tag was
 # absent from the registry before, present after, and every digest in
 # .release/ is servable back.
+source "$ROOT/scripts/deploy-image-resolve.sh"   # shaper_registry_url: the scheme follows SHAPER_TLS_VERIFY's value
 published() {
   local repo="$1"
   curl -sf --max-time 10 \
-    "http${SHAPER_TLS_VERIFY:+s}://${SHAPER_REGISTRY}/v2/shaper/${repo}/manifests/${SHAPER_IMAGE_TAG}" \
+    "$(shaper_registry_url)/v2/shaper/${repo}/manifests/${SHAPER_IMAGE_TAG}" \
     -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
     -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' >/dev/null 2>&1
 }

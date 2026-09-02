@@ -79,6 +79,7 @@ systemctl enable --now ssh
 
 ---
 
+<a id="no-host-data-tree"></a>
 ### Étape 3 — L'état persistant vit dans l'univers, pas dans `/data/`
 
 **Rien à créer à la main ici.** Cette étape demandait autrefois de créer une
@@ -101,6 +102,17 @@ monter — un test le vérifie désormais pour chaque point de montage.
 
 Il n'y a par conséquent **aucun `chmod 777` à passer** : la ligne qui figurait
 ici ouvrait en écriture universelle des répertoires que personne n'utilisait.
+
+> **The one-click script obeys this step too.** Until the 2 September audit
+> `scripts/shaper-lxc-bootstrap.sh` still ran `mkdir -p /data/{…}` and
+> `chmod -R 777 /data/ged /data/workspaces /data/timelines` on the host while
+> this page said the opposite, and it seeded a journal under
+> `/data/workspaces/<author>/_kovzu/` that nothing in this repository reads.
+> The script now creates nothing on the host: the deploy script of the universe
+> creates what it mounts, under the universe, before it mounts it
+> ([`universes/README.md` §5](./universes/README.md#materialise-before-mount)).
+> A guard reads the script for any host `/data` creation, any `chmod 777`, and
+> any unquoted slug (`pkg-universe/test/lxc-bootstrap-script.test.js`).
 
 ---
 
@@ -187,21 +199,21 @@ rm -f /tmp/podman-wrapper.sh
 
 ---
 
-### Étape 6 — Initialisation de la Mémoire de Bord (`_kovzu/`)
-Création du journal persistant qui survit à tous les reboots :
-```bash
-for WS in /data/workspaces/Administrateur /data/workspaces/Xavier; do
-  mkdir -p "$WS/_kovzu"
-  cat << 'EOF_J' > "$WS/_kovzu/JOURNAL.md"
-# Journal des Opérations — Shaper OS / KovZu
+### Étape 6 — The logbook belongs to the universe, not to the host
 
-## Initialisation — Déploiement Clean-Sheet
-- **Socle Opérationnel** : Podman 5.4, Python 3.11, Pip, Git, JQ, Ripgrep, Node 20.
-- **Cluster Shaper OS Actif** : Vault (:8610), Logger (:8620), Queue (:8640), Maestro (:8630), GED (:8660), Qdrant (:6333), Helm (:8650).
-- **Prise de Relais** : Agent souverain initialisé et prêt pour les commandes utilisateur.
-EOF_J
-done
-```
+**Nothing to do on the host here.** Until the 2 September audit this step
+created `/data/workspaces/<first name>/_kovzu/JOURNAL.md` on the host — a
+journal seeded with a port list and an operator's first name, in the very host
+tree Étape 3 says nothing creates, and that nothing in this repository reads.
+An operator's name in a tracked file is exactly what the Boot Contract forbids
+(10b), and a host path the containers do not mount is state that survives no
+rebuild.
+
+If a universe keeps a logbook, that is the universe's decision: it is declared
+in that universe's `INTENT.md`, it lives in a volume that universe owns, and
+the deploy script that mounts the volume creates it first
+([`universes/README.md` §5](./universes/README.md#materialise-before-mount)).
+This guide names no path for it and no author.
 
 ---
 
@@ -209,7 +221,7 @@ done
 L'agent exécute automatiquement son cycle de vérification :
 1. Test de son accès Podman : `podman ps -a`
 2. Test des APIs MCP : `curl http://127.0.0.1:8610/api/health`, `curl http://127.0.0.1:8660/api/health`
-3. Vérification de la mémoire persistante : lecture de `_kovzu/JOURNAL.md`.
+3. Persistent memory: the logbook the universe's `INTENT.md` declares, read from the universe's own volume — nothing on the host (Étape 6).
 
 ---
 
@@ -224,14 +236,28 @@ L'agent est opérationnel sur le port 8650 (Cockpit Helm) et par voix/chat. Il e
 
 ## ⚡ Script de Bootstrap 1-Click (`scripts/shaper-lxc-bootstrap.sh`)
 
-L'intégralité des étapes 1 à 7 est condensée dans le script exécutable `scripts/shaper-lxc-bootstrap.sh`.  
-Sur un conteneur LXC neuf, il suffit de taper :
+Steps 1, 2, 4, 5 and 7 are condensed in the executable script
+`software/scripts/shaper-lxc-bootstrap.sh`. Step 3 creates nothing, and step 6
+is no longer a host gesture: the script seeds no journal, because a logbook is
+the universe's own (see Étape 6 above). The script needs two things the
+command names: the universe slug, and a universe already derived from
+`software/universes/_template/` under `software/universes/<univ_slug>/`.
+On a fresh LXC container:
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git /root/SHAPER-OS
-cd /root/SHAPER-OS
-bash scripts/shaper-lxc-bootstrap.sh
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git /root/SHAPER-OS-V1.13
+cd /root/SHAPER-OS-V1.13
+UNIV_SLUG=<univ_slug> bash software/scripts/shaper-lxc-bootstrap.sh
 ```
+
+> Until the 2 September audit this block read `cd /root/SHAPER-OS` then
+> `bash scripts/shaper-lxc-bootstrap.sh`: there is no `scripts/` at the
+> repository root (it is `software/scripts/`), and the script halts without
+> `UNIV_SLUG`, which no line here named. The script now resolves `software/`
+> from its own location, so it runs from any directory; the universe it starts
+> is `software/universes/$UNIV_SLUG`, and a slug that names no universe is a
+> halt that says so, not a warning that scrolls by.
+
 **Durée d'exécution constatée dans ce contexte précis** : images déjà présentes en cache local, univers vide sans données à restaurer, provisionnement LXC et `apt` **non inclus**.
 Cette valeur est une mesure d'observation, **pas un engagement** : elle ne vaut que pour ce contexte exact. Voir Rule 10 (trois horloges) avant de la citer où que ce soit.  
 **Résultat** : Univers opérationnel, agent prêt au service.
