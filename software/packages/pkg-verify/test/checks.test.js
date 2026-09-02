@@ -9,6 +9,8 @@ import * as versionCoherence from '../checks/version-coherence.mjs';
 import * as committedIdentity from '../checks/committed-identity.mjs';
 import * as profileBootorder from '../checks/profile-bootorder.mjs';
 
+// Intent: software/packages/pkg-verify/INTENT.md#what-it-checks-today
+//
 // Each check was born from an incident. Each test rebuilds that incident in a
 // fixture and proves the check catches it — and stays quiet on a clean tree.
 
@@ -71,10 +73,37 @@ describe('version-coherence — the release names itself once', () => {
     const ok = repo('SHAPER-OS-V1.12', {
       'package.json': '{"version": "1.12.0"}',
       'manifest.tier-a.json': '{"intent": "SHAPER-OS-V1.12/software/INTENT.md"}',
+      'software/packages/pkg-a/package.json': '{"version": "1.12.0"}',
+      'software/universes/_template/manifest.json': '{"version": "1.12.0", "universe": "univ-example"}',
+      'software/node_modules/dep/package.json': '{"version": "0.0.1"}',
     });
     assert.deepEqual(versionCoherence.run(ok), []);
     const univ = repo('univ-client-acme', { 'manifest.json': '{"intent": "SHAPER-OS-V1.11/x"}' });
     assert.deepEqual(versionCoherence.run(univ), []);
+  });
+
+  // Non-regression (Rule 29): the check read the root package.json alone, and
+  // accepted any version under the folder's prefix. Sixteen other package.json
+  // and the template's were never opened, so one package could say 1.13.23
+  // beside the root's 1.13.2, and the template's package.json could still say
+  // 1.7.0 in a V1.13 tree, while verify reported the release named itself once.
+  it('catches a package or a manifest whose version differs from the root', () => {
+    const r = repo('SHAPER-OS-V1.13', {
+      'package.json': '{"version": "1.13.2"}',
+      'software/package.json': '{"version": "1.13.2"}',
+      'software/packages/pkg-a/package.json': '{"version": "1.13.23"}',
+      'software/universes/_template/package.json': '{"version": "1.7.0"}',
+      'software/universes/_template/manifest.json': '{"version": "1.12.0", "universe": "univ-example"}',
+      'software/universes/univ-x/manifest.json': '{"universe": "univ-x"}',
+      'software/node_modules/dep/package.json': '{"version": "0.0.1"}',
+    });
+    const findings = versionCoherence.run(r);
+    assert.equal(findings.length, 3, findings.join('\n'));
+    const text = findings.join('\n');
+    assert.match(text, /software\/packages\/pkg-a\/package\.json declares 1\.13\.23, the root package\.json declares 1\.13\.2/);
+    assert.match(text, /software\/universes\/_template\/package\.json declares 1\.7\.0/);
+    assert.match(text, /software\/universes\/_template\/manifest\.json declares 1\.12\.0/);
+    assert.doesNotMatch(text, /node_modules/, 'a dependency is not the release');
   });
 });
 
