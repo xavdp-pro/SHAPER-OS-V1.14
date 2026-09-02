@@ -133,6 +133,22 @@ describe('version-coherence — the release names itself once', () => {
     assert.equal(findings.length, 1, findings.join('\n'));
     assert.match(findings[0], /software\/packages\/pkg-b\/package\.json declares 1\.13\.23, the root package\.json declares 1\.13\.2/);
   });
+
+  // Non-regression (Rule 29): a package.json that does not parse used to end
+  // verify on a stack trace (verify.mjs runs each check without a net) instead
+  // of a finding that names the file — an exit, but not a halt that speaks (0J).
+  it('names a package.json or a manifest that is not valid JSON, instead of throwing', () => {
+    const r = repo('badjson/SHAPER-OS-V1.13', {
+      'package.json': '{"version": "1.13.2"}',
+      'software/universes/univ-bad-dev/package.json': '{ not json',
+      'software/universes/univ-bad-dev/manifest.json': '{ "version": ',
+    });
+    let findings;
+    assert.doesNotThrow(() => { findings = versionCoherence.run(r); });
+    assert.equal(findings.length, 2, findings.join('\n'));
+    assert.match(findings[0], /software\/universes\/univ-bad-dev\/package\.json is not valid JSON/);
+    assert.match(findings[1], /software\/universes\/univ-bad-dev\/manifest\.json is not valid JSON/);
+  });
 });
 
 describe('committed-identity — never commit what is yours alone', () => {

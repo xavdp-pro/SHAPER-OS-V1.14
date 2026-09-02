@@ -71,7 +71,10 @@ export function run(root) {
 
   for (const file of tracked) {
     if (path.basename(file) !== 'package.json' || file === rootPkg) continue;
-    const declared = versionOf(file);
+    // A package.json that does not parse is a finding that names the file,
+    // not a stack trace that ends verify (Rule 0J): the halt must speak.
+    let declared;
+    try { declared = versionOf(file); } catch (err) { findings.push(`${rel(root, file)} is not valid JSON: ${err.message}`); continue; }
     if (!declared) continue;
     if (!declared.startsWith(version + '.')) {
       findings.push(`${rel(root, file)} declares ${declared}, the repository is V${version}`);
@@ -90,9 +93,10 @@ export function run(root) {
     }
     // A manifest that carries a version carries the release's: the template
     // is copied into every universe, and a version there is a promise about
-    // which base the copy was made from.
+    // which base the copy was made from. An unparsable manifest is reported
+    // under the same words as an unparsable package.json.
     let declared;
-    try { declared = versionOf(file); } catch { continue; } // an unparsable manifest is another check's finding
+    try { declared = versionOf(file); } catch (err) { findings.push(`${rel(root, file)} is not valid JSON: ${err.message}`); continue; }
     if (declared && reference && declared !== reference) {
       findings.push(`${rel(root, file)} declares ${declared}, the root package.json declares ${reference}`);
     }
