@@ -35,6 +35,23 @@ test('the README names no model and no default — the engine is measured at dep
   assert.doesNotMatch(envExample, VERSIONED_MODEL, '.env.example names a versioned model');
 });
 
+/**
+ * The same review found .env.example shipping one operator's host layout as
+ * its example values (/apps/helm-v2/ws/opencode): not a model, but a value
+ * that is somebody's alone, exactly what Boot Contract 10b keeps out of a
+ * tracked file. The code's own fallbacks (/opt/bridge, $HOME/ws/opencode)
+ * belong in a comment; the example names nobody's host.
+ */
+const OPERATOR_LAYOUT = /helm-v2|\/apps\//;
+
+test('.env.example ships no operator host layout as a value (Boot Contract 10b)', () => {
+  const own = envExample.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => !l.startsWith('#') && OPERATOR_LAYOUT.test(l));
+  assert.deepEqual(own, [], `an operator's host layout shipped as an example value:\n  ${own.map(([n, l]) => `${n}: ${l}`).join('\n  ')}`);
+  for (const name of ['OPENCODE_BIN', 'OPENCODE_WS_BASE']) {
+    assert.match(envExample, new RegExp(`^${name}=\\s*$`, 'm'), `${name} must be declared empty — the code's fallback is documented in a comment, not written as a value`);
+  }
+});
+
 test('the README is written in English (Rule 0)', () => {
   const m = FRENCH.exec(readme);
   assert.equal(m, null, `French in a technical text: "${m && m[2]}" — Rule 0 keeps the corpus readable by every agent that follows`);
