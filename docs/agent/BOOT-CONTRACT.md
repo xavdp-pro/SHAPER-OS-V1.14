@@ -136,7 +136,11 @@ changing environment values only?
 A domain, a credential, an account or zone identifier, a mailbox, a public
 hostname — none of these belong in a tracked file, not even as a convenience
 fallback. `process.env.X || '<my real value>'` is a committed value with extra
-steps: the fallback is what runs on everyone else's machine.
+steps: the fallback is what runs on everyone else's machine. A shell script
+spells the same thing `${X:-<my real value>}`, and it is the same violation —
+V1.13 shipped a registry address, an account and its real password that way,
+under a verifier that only knew the JavaScript spelling. A missing value halts
+and names what to supply; it never defaults to what the author had.
 
 When a deployment genuinely needs a public name, **ask the human operator** for
 it — the zone must already be managed in Cloudflare — and halt until they answer.

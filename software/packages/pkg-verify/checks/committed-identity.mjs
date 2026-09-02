@@ -13,10 +13,20 @@ const SAFE_VALUE = /localhost|127\.0\.0\.1|0\.0\.0\.0|example|placeholder|change
 // Only a fallback on a variable that names an identity or a secret is a 10b
 // violation. A default port or model name is configuration; a default user,
 // password or domain is *someone's*, and it runs on everyone else's machine.
-const IDENTITY = /(USER|PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|EMAIL|MAILBOX|DOMAIN|HOST|ADMIN|CREDENTIAL|ACCOUNT)/;
+// PASS and PWD are matched as whole segments: REGISTRY_PASS and DB_PWD are
+// passwords, BYPASS_CACHE is not.
+const IDENTITY = /(USER|PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|EMAIL|MAILBOX|DOMAIN|HOST|ADMIN|CREDENTIAL|ACCOUNT)|(?:^|_)(?:PASS|PWD)(?:_|$)/;
 const ENV_FALLBACK = /process\.env\.(\w+)\s*(?:\|\||\?\?)\s*['"`](\S{4,})['"`]/g;
+// The same construct, spelled the way a shell spells it: ${VAR:-value} and
+// ${VAR-value}. Until V1.13 this check knew only the JavaScript spelling, and
+// push-images-to-registry.sh shipped a registry IP, an account and a real
+// password as shell fallbacks for a whole release while the check stayed
+// green. A value that starts with `$` is a fallback to another variable, not
+// a committed value, and is left alone.
+const SHELL_FALLBACK = /\$\{(\w+):?-([^}$]{4,})\}/g;
 // An assigned secret: spaceless (an i18n label has spaces, a password rarely does).
-const SECRET = /(?:password|passwd|api[_-]?key|secret|token)['"]?\s*[:=]\s*['"]([^'"$<{\s]{7,})['"]/gi;
+// `_pass` and `_pwd` are the shell's usual suffixes for the same thing.
+const SECRET = /(?:password|passwd|_pass|_pwd|api[_-]?key|secret|token)['"]?\s*[:=]\s*['"]([^'"$<{\s]{7,})['"]/gi;
 const SECRET_SAFE = /example|placeholder|changeme|change-me|your[-_]|dummy|redacted|xxx|\*\*\*|process\.env|vault/i;
 
 /** In a git repo, "committed" means tracked — the working tree is not the crime scene. */
@@ -45,9 +55,11 @@ export function run(root) {
     if (/(^|\/)(test|tests|e2e)\//.test(rel(root, file)) || /\.(test|spec)\./.test(base)) continue;
     if (/locale|i18n|translation/i.test(base)) continue; // a dictionary of the word "password" is not a password
     const text = fs.readFileSync(file, 'utf8');
-    for (const m of text.matchAll(ENV_FALLBACK)) {
-      if (IDENTITY.test(m[1]) && !SAFE_VALUE.test(m[2])) {
-        findings.push(`${rel(root, file)} — identity fallback: ${m[0].slice(0, 70)}`);
+    for (const re of [ENV_FALLBACK, SHELL_FALLBACK]) {
+      for (const m of text.matchAll(re)) {
+        if (IDENTITY.test(m[1]) && !SAFE_VALUE.test(m[2])) {
+          findings.push(`${rel(root, file)} — identity fallback: ${m[0].slice(0, 70)}`);
+        }
       }
     }
     for (const m of text.matchAll(SECRET)) {
