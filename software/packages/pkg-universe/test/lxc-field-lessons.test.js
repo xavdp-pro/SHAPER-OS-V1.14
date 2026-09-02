@@ -133,6 +133,37 @@ test("the clean-sheet guide's literal install line inside the LXC names nftables
   assert.deepEqual(without, [], 'a literal agent runs this line and never learns why podman networking fails');
 });
 
+/**
+ * Every line of the guide that installs podman, not the one block a first
+ * guard happened to read. The guide carries two install lines — Step 1 of the
+ * eight-step walk, and the "Inside it" record — and the guard above read the
+ * second only: the first still installed podman without nftables, and Step 1
+ * is the line an agent following the numbered steps runs.
+ */
+export function podmanInstallLines(text) {
+  return text.split('\n')
+    .map((line, i) => [i + 1, line])
+    .filter(([, line]) => !/^\s*#/.test(line) && /apt(-get)?\s+install/.test(line) && /\bpodman\b/.test(line));
+}
+
+test('the detector reads every apt-get line that installs podman', () => {
+  const text = [
+    'apt-get update && apt-get install -y   podman   git   curl',
+    'apt-get install -y podman nftables git',
+    'apt-get install -y curl jq',
+    '# apt-get install is explained above, podman too',
+  ].join('\n');
+  assert.deepEqual(podmanInstallLines(text).map(([n]) => n), [1, 2]);
+});
+
+test('every apt-get line of the clean-sheet guide that installs podman names nftables', () => {
+  const guide = read('software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md');
+  const lines = podmanInstallLines(guide);
+  assert.ok(lines.length >= 2, 'the guide installs podman in Step 1 and in the "Inside it" record');
+  const without = lines.filter(([, line]) => !/\bnftables\b/.test(line)).map(([n, line]) => `line ${n}: ${line.trim()}`);
+  assert.deepEqual(without, [], `podman's nested network dies without nftables, and the guide installs podman without it:\n  ${without.join('\n  ')}`);
+});
+
 function shippedShell() {
   const found = [];
   const collect = (dir, prefix) => {

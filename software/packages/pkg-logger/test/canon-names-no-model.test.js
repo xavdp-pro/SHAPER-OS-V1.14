@@ -122,6 +122,35 @@ describe('the canon names no model', () => {
     );
   });
 
+  /**
+   * An example env file is a default with the operator's name on it: whatever
+   * value it ships is what every deployment starts from. The versioned-name
+   * pattern above let one through — `GROQ_ACK_MODEL=groq/compound-mini`, the
+   * voice acknowledgement engine, shipped in both .env.example files with no
+   * digit in its name — so the rule for these files is the variable's shape,
+   * not the vendor's spelling: a variable named `*_MODEL` carries no value.
+   * It is measured at deploy, never written here (Rule 7).
+   */
+  it('no tracked .env.example gives a *_MODEL variable a value', () => {
+    const shipped = [];
+    const out = execFileSync('git', ['-C', REPO, 'ls-files', '-z'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const examples = out.split('\0').filter((rel) => /\.env\.example$/.test(rel) && fs.existsSync(path.join(REPO, rel)));
+    assert.ok(examples.length > 0, 'the tree ships at least one .env.example');
+    for (const rel of examples) {
+      fs.readFileSync(path.join(REPO, rel), 'utf8').split('\n').forEach((line, i) => {
+        const m = /^\s*#?\s*([A-Z][A-Z0-9_]*_MODEL)=(.+)$/.exec(line);
+        if (m && m[2].trim()) shipped.push(`${rel}:${i + 1}  ${m[1]}=${m[2].trim()}`);
+      });
+    }
+    assert.deepEqual(
+      shipped,
+      [],
+      'A model shipped as a value in an example env file is a default, and a default '
+      + 'that must be edited when a vendor ships a successor is a cache, not a rule '
+      + `(Rule 7). Declare the variable empty and measure it at deploy:\n  ${shipped.join('\n  ')}\n`,
+    );
+  });
+
   it('still lets proofs and verdicts record what actually answered', () => {
     // A verdict that could not name the engine it measured would prove nothing.
     const rels = canonFiles().map(([rel]) => rel);

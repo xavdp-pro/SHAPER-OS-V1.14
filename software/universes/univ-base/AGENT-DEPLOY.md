@@ -30,6 +30,15 @@ Generate a master key and write it into that file. **Ask the human** for anythin
 the file leaves blank. Do not reuse a value found elsewhere in the repository —
 there are none to find, and a guard test fails the build if one ever appears.
 
+**The file holds only variables.** `podman-up.sh` reads it before sourcing it
+and admits three kinds of line: blank, `# comment`, and `KEY=value` (the key
+`[A-Z][A-Z0-9_]*`; the value `"double-quoted"` with no `$(…)` and no backtick,
+`'single-quoted'`, or a bare word with no whitespace and no shell operator).
+Any other line — a note for a human, a value with a trailing `; command` —
+stops the deployment before anything starts, and the halt quotes the line
+with its number. Put a note behind `#`. The grammar and its reason are in
+[`INTENT.md`](./INTENT.md#variables-file).
+
 ### 2. Build and pin the images
 
 ```bash

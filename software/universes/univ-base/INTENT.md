@@ -77,6 +77,30 @@ release — it surfaced the first time one was performed, on `gbs-test`. A
 declaration that cannot be satisfied is worse than a missing one, because it
 looks like work remaining rather than a mistake.
 
+<a id="variables-file"></a>
+## The configuration file holds only variables
+
+`cfg-univ-base.env` (or the file `ENV_FILE` names) is read by
+`deploy/podman-up.sh` before it is sourced, and `source` executes every line
+that is not a variable. Three kinds of line are admitted: a blank line, a `#`
+comment, and `KEY=value` where `KEY` matches `[A-Z][A-Z0-9_]*` and the value
+is one bash exports as written — a double-quoted string carrying no `$(…)`
+and no backtick, a single-quoted string, or a bare word with no whitespace
+and no shell operator (`; & | ( ) < >` and quotes). Any other line stops the
+deployment before anything starts: the script prints the line, with its
+number, and says that `source` would have executed it. A note for a human
+goes behind `#`. A file the script cannot read is a halt of its own, never a
+pass.
+
+*Why this is written here.* On the first night Rule 11 ran in production a
+human note slipped into a variables file was run as a command, and the deploy
+died before it could print its own halt
+([`proof-rule-11-in-production.md`](../../../docs/proof/proof-rule-11-in-production.md),
+lesson 7). The template and the preflight learned the grammar; this script,
+the one an agent copies, kept sourcing its file unread until the 2 September
+correction. The two functions are the template's, verbatim, and a test feeds
+both scripts the same lines.
+
 <a id="proof"></a>
 ## Proof
 

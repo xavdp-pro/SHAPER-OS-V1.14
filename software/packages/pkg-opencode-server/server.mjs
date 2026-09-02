@@ -96,7 +96,30 @@ if (!IS_STUB && !MODEL) {
   process.exit(2);
 }
 
+// The token and the session registry live under CFG_DIR, which nothing
+// created: on a HOME the bridge had never seen, the first token write threw
+// ENOENT out of its own catch block and the process died before listening
+// (two reviewers read it; every test named TOKEN_FILE in a directory it had
+// made). The directory is made before either file is written, whichever of
+// the two the operator relocated. A directory that cannot be made (a HOME
+// that is read-only, a parent the process may not enter) is the same halt as
+// a missing model: exit 2 naming the path and the variable to relocate it —
+// not an uncaught EACCES before the first log line (Rule 0J).
+function ensureStateDirs() {
+  for (const [file, variable] of [[TOKEN_FILE, 'TOKEN_FILE'], [SESSIONS_FILE, 'SESSIONS_FILE']]) {
+    const dir = path.dirname(file);
+    try {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    } catch (err) {
+      console.error(`[opencode-bridge] HALT: cannot create ${dir} for ${variable}=${file} (${err.code || err.message}).`);
+      console.error(`[opencode-bridge] Point ${variable} at a writable path, or mount a writable volume on ${dir}.`);
+      process.exit(2);
+    }
+  }
+}
+
 function token() {
+  ensureStateDirs();
   if (process.env.OPENCODE_BRIDGE_TOKEN || process.env.BRIDGE_AUTH_TOKEN) {
     const t = String(process.env.OPENCODE_BRIDGE_TOKEN || process.env.BRIDGE_AUTH_TOKEN).trim();
     try { fs.writeFileSync(TOKEN_FILE, t + '\n', { mode: 0o600 }); } catch {}
@@ -285,6 +308,17 @@ function startServe() {
     ['serve', '--port', String(SERVE_PORT), '--hostname', '127.0.0.1'],
     { cwd: WS_BASE, env: AGENT_ENV, stdio: ['ignore', 'pipe', 'pipe'] },
   );
+  // Rule 0J: a CLI that cannot be started is a halt that names what to
+  // supply. Without this listener an absent OPENCODE_BIN was an uncaught
+  // 'error' event — a stack trace after /api/health had already answered —
+  // and the 'close' that follows it would have retried the same absent
+  // binary every three seconds. Nothing a retry can fix: the process exits
+  // with the same code as the missing-model halt, before 'close' runs.
+  serveChild.on('error', (err) => {
+    console.error(`[opencode-bridge] HALT: cannot start the OpenCode CLI at ${AGENT_BIN} (${err.code || err.message}).`);
+    console.error('[opencode-bridge] Set OPENCODE_BIN to the CLI the image carries (or OPT_BRIDGE_ROOT to its root) — or set BRIDGE_OPENCODE_STUB=1 for the simulated bridge.');
+    process.exit(2);
+  });
   serveChild.stdout.on('data', (d) => {
     const s = d.toString().trim();
     if (s) console.log(`[opencode serve] ${s.slice(0, 300)}`);

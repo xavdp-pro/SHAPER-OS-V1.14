@@ -49,9 +49,9 @@ blocker for tier-a. See `docs/human/KEYS-AND-ACCOUNTS.md`. No bridge model varia
 (`OPENCODE_MODEL`, `CURSOR_MODEL`, `AGY_MODEL`, `OLLAMA_MODEL`, …) carries a
 value in `.env.example`: a model written there is a default, and a default
 that must be edited when a vendor ships a successor is a cache, not a rule
-(Rule 7). One model value does still ship there — `GROQ_ACK_MODEL`, the
-tier-b voice acknowledgement's engine — a question for the voice perimeter,
-not a bridge.
+(Rule 7). `GROQ_ACK_MODEL`, the tier-b voice acknowledgement engine, is
+declared empty under the same standard — measured at deploy; nothing in this
+repository reads it, the voice brick that does lives in the catalogue.
 
 **The file holds only variables.** Three kinds of line are admitted: blank,
 `#` comment, and `KEY=value` where `KEY` matches `[A-Z][A-Z0-9_]*` (digits

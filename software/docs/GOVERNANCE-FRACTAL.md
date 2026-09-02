@@ -1,69 +1,69 @@
-# Gouvernance Fractale & Conventions SHAPER-OS
+# Fractal Governance & SHAPER-OS Conventions
 
-Ce document formalise les règles d'architecture, les 4 niveaux fractals, les conventions de nommage et la pyramide de tests pour assurer la cohérence et la pérennité de l'écosystème **SHAPER-OS**.
+This document formalises the architecture rules, the 4 fractal levels, the naming conventions and the test pyramid that keep the **SHAPER-OS** ecosystem coherent and durable.
 
 ---
 
-## 1. Les 4 Niveaux d'Abstraction Fractals
+## 1. The 4 Fractal Abstraction Levels
 
-> **Complément** : la loi produit **P1 / P2 / P3** est dans [`PERIMETERS.md`](./PERIMETERS.md). Les niveaux ci-dessous décrivent le **déploiement** (package → univers → hôte → flotte), pas le métier client.
+> **Complement**: the **P1 / P2 / P3** product law is in [`PERIMETERS.md`](./PERIMETERS.md). The levels below describe the **deployment** (package → universe → host → fleet), not the client business.
 
-Pour éviter toute confusion lors de l'évolution du système, chaque action, brique ou test doit être rattaché explicitement à son niveau :
+To avoid any confusion as the system evolves, every action, brick or test must be explicitly attached to its level:
 
-| Niveau | Désignation | Périmètre | Périmètre & Responsabilité | Exemples |
+| Level | Designation | Perimeter | Scope & Responsibility | Examples |
 | :---: | :--- | :---: | :--- | :--- |
-| **0** | **Brique & Package** | P1/P2 | Composant atomique, testé unitairement (`node:test`). | `@shaper/pkg-vault` (P1), `@shaper/pkg-maestro` (P2), `brick-helm` (P2) |
-| **1** | **Univers / Cellule** | P1+P2 | Stack Podman autonome (socle + agentique). **Pas** un vertical P3. | `UNIV8`, `UNIV9` |
-| **2** | **Nœud Hôte** | infra | LXC / bare-metal portant les univers. | `<host>-<univ_slug>` |
-| **3** | **Flotte / Réseau** | infra | Mesh, tunnels, domaines publics. | `ia.example.com` |
+| **0** | **Brick & Package** | P1/P2 | Atomic component, unit-tested (`node:test`). | `@shaper/pkg-vault` (P1), `@shaper/pkg-maestro` (P2), `brick-helm` (P2) |
+| **1** | **Universe / Cell** | P1+P2 | Autonomous Podman stack (socle + agentic). **Not** a P3 vertical. | `UNIV8`, `UNIV9` |
+| **2** | **Host Node** | infra | LXC / bare-metal carrying the universes. | `<host>-<univ_slug>` |
+| **3** | **Fleet / Network** | infra | Mesh, tunnels, public domains. | `ia.example.com` |
 
-### Mapping P1 / P2 / P3 (loi produit)
+### P1 / P2 / P3 mapping (product law)
 
-| Périmètre | Contenu | Exemples |
+| Perimeter | Content | Examples |
 | :--- | :--- | :--- |
-| **P1** | Socle minimal | vault, logger, auth, queue, db |
-| **P2** | Agentique + KovZu | maestro, bridges, helm, ged, rag |
-| **P3** | Outils métier clients | market-intelligence, enterprise-chat, univ-sinistre |
+| **P1** | Minimal socle | vault, logger, auth, queue, db |
+| **P2** | Agentic + KovZu | maestro, bridges, helm, ged, rag |
+| **P3** | Client business tools | market-intelligence, enterprise-chat, univ-sinistre |
 
 ---
 
-## 2. Convention de Nommage Immuable
+## 2. Immutable Naming Convention
 
-Pour assurer la traçabilité dans Git, Podman, les fichiers de logs et les bases de données :
+To keep traceability across Git, Podman, log files and databases:
 
-| Élément | Règle de Nommage | Exemple Valide |
+| Element | Naming rule | Valid example |
 |---|---|---|
-| **Univers** | `UNIV<N>` (Majuscules) | `UNIV8`, `UNIV9` |
-| **Dossier Univers** | `SHAPER-OS/universes/<univ_slug>/` | `universes/_template/` |
-| **Brique Modèle** | `brick-<nom>` | `brick-helm`, `brick-mariadb`, `brick-vault` |
-| **Package NPM Socle** | `@shaper/<nom>` | `@shaper/pkg-queue`, `@shaper/pkg-maestro`, `@shaper/pkg-db` |
-| **Image Podman** | `localhost/shaper-<nom>:latest` | `localhost/shaper-helm:latest` |
-| **Conteneur Podman Actif** | `<univ_slug>-<brique>` | `<univ_slug>-helm`, `<univ_slug>-mariadb`, `<univ_slug>-vault` |
-| **Ports Standardisés** | `:8610` Vault<br>`:8620` Logger<br>`:8630` Maestro<br>`:8640` Queue<br>`:8650` Helm<br>`:4440` Bridge OpenCode<br>`:3306` MariaDB | Port fixe par univers ou bind localhost |
+| **Universe** | `UNIV<N>` (uppercase) | `UNIV8`, `UNIV9` |
+| **Universe folder** | `SHAPER-OS/universes/<univ_slug>/` | `universes/_template/` |
+| **Model brick** | `brick-<name>` | `brick-helm`, `brick-mariadb`, `brick-vault` |
+| **Socle NPM package** | `@shaper/<name>` | `@shaper/pkg-queue`, `@shaper/pkg-maestro`, `@shaper/pkg-db` |
+| **Podman image** | `localhost/shaper-<name>:latest` | `localhost/shaper-helm:latest` |
+| **Active Podman container** | `<univ_slug>-<brick>` | `<univ_slug>-helm`, `<univ_slug>-mariadb`, `<univ_slug>-vault` |
+| **Standardised ports** | `:8610` Vault<br>`:8620` Logger<br>`:8630` Maestro<br>`:8640` Queue<br>`:8650` Helm<br>`:4440` Bridge OpenCode<br>`:3306` MariaDB | Fixed port per universe or localhost bind |
 
 ---
 
-## 3. Pyramide de Tests Obligatoire
+## 3. Mandatory Test Pyramid
 
-Aucun composant ne peut être intégré sans validation à 100% sur sa pyramide :
+No component can be integrated without 100% validation on its pyramid:
 
-1. **Niveau 1 — Tests Unitaires Packages** (`node --test test/*.test.js`) :
-   - Exécution ultra-rapide (< 1s), zéro dépendance externe, validation des fonctions pures.
-2. **Niveau 2 — Tests d'Intégration & Scénarios PRA** :
-   - Cold boot complet : Vault ➔ Logger ➔ MariaDB ➔ Queue ➔ Maestro ➔ Bridge ➔ Helm.
-3. **Niveau 3 — Tests E2E Live Stack Conteneurisée** :
-   - Validation en direct des conteneurs Podman, des routes HTTP/SSE, des tokens et de l'injection d'agent.
+1. **Level 1 — Package unit tests** (`node --test test/*.test.js`):
+   - Ultra-fast execution (< 1s), zero external dependency, validation of pure functions.
+2. **Level 2 — Integration tests & PRA scenarios**:
+   - Full cold boot: Vault ➔ Logger ➔ MariaDB ➔ Queue ➔ Maestro ➔ Bridge ➔ Helm.
+3. **Level 3 — E2E tests on the live containerised stack**:
+   - Live validation of the Podman containers, the HTTP/SSE routes, the tokens and the agent injection.
 
 ---
 
-## 4. Politique de Sauvegarde Multi-Niveaux (conteneur → fichiers → DB → git → S3)
+## 4. Multi-Level Backup Policy (container → files → DB → git → S3)
 
-Avec **les cinq**, on est couvert. Un niveau manquant = un trou. Esprit turbinobash-web (`tb app sudo/backup`), adapté **Podman / Shaper OS**.
+With **all five**, we are covered. A missing level = a hole. The turbinobash-web spirit (`tb app sudo/backup`), adapted to **Podman / Shaper OS**.
 
-1. **Infra — conteneur entier** : snapshot LXC/CT (Proxmox / ZFS / vzdump). Filet externe.
-2. **Fichiers — volumes persistants en `tar.bz2`** : uniquement les bind-mounts Podman (`<univ>/sav/*`, pas l’overlay, pas `nosav/`, pas le cache d’images). Même geste que le backup app turbinobash.
-3. **Database** : dump MariaDB (et snapshot Qdrant si besoin) — pas seulement un tar à chaud du datadir.
-4. **Git** : tags immuables du code. Git n’est pas une sauvegarde de données métier.
-5. **S3 / R2** : copie hors site chiffrée des `tar.bz2` et des dumps.
+1. **Infra — whole container**: LXC/CT snapshot (Proxmox / ZFS / vzdump). External safety net.
+2. **Files — persistent volumes as `tar.bz2`**: only the Podman bind-mounts (`<univ>/sav/*`, not the overlay, not `nosav/`, not the image cache). Same gesture as the turbinobash app backup.
+3. **Database**: MariaDB dump (and a Qdrant snapshot if needed) — not just a hot tar of the datadir.
+4. **Git**: immutable tags of the code. Git is not a backup of business data.
+5. **S3 / R2**: encrypted off-site copy of the `tar.bz2` archives and the dumps.
 
-**Rollback** : image taggée + extract `tar.bz2` des volumes + restore dump — puis TEST from scratch pour prouver, pas « ça marchait sur la machine chaude ».
+**Rollback**: tagged image + `tar.bz2` extract of the volumes + dump restore — then a TEST from scratch to prove it, not "it worked on the hot machine".
