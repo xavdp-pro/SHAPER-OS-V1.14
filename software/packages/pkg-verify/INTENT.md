@@ -35,8 +35,8 @@ is the Boot Contract's point 8 applied to the law itself.
 | Check | Rule made active | The incident it was born from |
 | :--- | :--- | :--- |
 | `map-links` | AGENTS.md — documentation is a map | `docs/pkg-agent-runtime/` linked but never existed |
-| `version-coherence` | Rule 0D — dual intent & topology manifests | Four manifests still named V1.11 in a V1.12 release |
-| `committed-identity` | Boot Contract 10b — never commit what is yours alone | Accounts and passwords shipped in a public repo |
+| `version-coherence` | Rule 0D — dual intent & topology manifests | Four manifests still named V1.11 in a V1.12 release. Extended in this release: every tracked `package.json` carries the root version — the first version read the root manifest only, and a package could lag a release unseen |
+| `committed-identity` | Boot Contract 10b — never commit what is yours alone | Accounts and passwords shipped in a public repo. Then a registry address, an account and its real password shipped as shell fallbacks `${VAR:-value}` for a whole release, under a check that knew only the JavaScript spelling `process.env.X \|\| 'value'` (V1.13.2) — the check now reads both spellings, and matches `PASS`/`PWD` as whole segments so that `REGISTRY_PASS` is a password and `BYPASS_CACHE` is not |
 | `profile-bootorder` | AGENTS.md §4b + Boot Contract 6 | Two agents, the same words, two different systems |
 | `fix-ships-test` | Rule 29 — every fixed bug ships its test | Bugs closed on "it works now", met again in v1.8 |
 | `manifest-lineage` | Rule 37 — perimeter, source, forkedFrom | Perimeters inferred from a fixed table; forks with unstated origins (V1.13) |
