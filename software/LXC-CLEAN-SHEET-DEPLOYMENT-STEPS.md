@@ -60,7 +60,7 @@ Pour permettre à Podman de tourner sans restriction dans le conteneur LXC :
 ### Étape 1 — Provisioning OS & Outils d'Ingénierie
 Exécuté sur le système Debian 13 vierge :
 ```bash
-apt-get update && apt-get install -y   podman   git   curl   wget   jq   ripgrep   openssh-server   openssh-client   python3   python3-pip   rsync   unzip   ca-certificates   nodejs   npm
+apt-get update && apt-get install -y   podman   nftables   git   curl   wget   jq   ripgrep   openssh-server   openssh-client   python3   python3-pip   rsync   unzip   ca-certificates   nodejs   npm
 ```
 
 ---
