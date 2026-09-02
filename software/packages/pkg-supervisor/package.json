@@ -1,6 +1,6 @@
 {
   "name": "@shaper/pkg-supervisor",
-  "version": "1.13.2",
+  "version": "1.13.35",
   "description": "Parent Supervisor and Sovereign External Healing for Shaper OS (Rule 23 & Rule 27)",
   "main": "index.js",
   "type": "module"
