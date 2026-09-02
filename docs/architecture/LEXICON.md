@@ -3,7 +3,11 @@
 > **Status**: sealed by [Rule 37](../../software/RULES.md#rule-37). A new noun
 > enters only by amending that rule, with the failure it prevents written
 > beside it. Born in V1.13 from the ZEST convergence: five archetype designs,
-> three adversarial critiques, every synonym killed.
+> three adversarial critiques, every synonym killed. Amended 2 September 2026
+> by the maker-and-governor verdict: four words entered (governor, maker,
+> matrix, REAPED), the ledger row and the forge's line were bounded, and a
+> test (`lexicon-and-code-agree.test.js`) now holds this page, Rule 37 and
+> `pkg-governor`'s states to one set of names.
 
 ## The three grammar rules (they held at every scale)
 
@@ -21,22 +25,26 @@
 — a new brick is **not** a new noun: `brick-forge`, `brick-scraper`,
 `brick-sso` are the prefix system doing its job.
 
-## The twelve words
+## The sixteen words
 
 | Word | One sentence |
 | :--- | :--- |
 | **class** | A universe model: one git repo, versioned, tagged (`univ-boutik-shop`) |
 | **instance** | One materialisation of a class: ledger row + vault + volumes — never a repo |
-| **ledger** | THE desired-state table: one row per instance (class, tag, machine, env, state, bucket) in the governing universe's database. *The only allowed name — "placement" survives only as the machine column* |
+| **ledger** | THE desired-state table: one row per instance (`id`, `account`, `klass`, `matrix`, `digest`, `machine`, `env`, `state`, `params`, `deadlineAt`, `createdAt`, `updatedAt`, `events[]`) in the governing universe's database; the R2 bucket is derivable (`r2://<id>`), never a column. The contract ships with `pkg-governor` (BINDING). *The only allowed name — "placement" survives only as the machine column* |
 | **drift** | Any gap between the ledger and what actually runs — the sole repair trigger (Rule 27 governs the ladder) |
-| **PURRING** | The **dated** healthy state written on every on-time beat when observed == desired. One state machine everywhere: `DESIRED → RECONCILING → PURRING → DEGRADED` (DEGRADED is terminal, never self-clears) |
+| **PURRING** | The **dated** healthy state written on every on-time beat when observed == desired. One state machine everywhere: `DESIRED → RECONCILING → PURRING → DEGRADED`, plus the terminal `REAPED`. DEGRADED rests and never self-clears: it is left by its account's new ask where a robot may end (dev, test, demo), by human action alone in prod (Rule 27) |
+| **REAPED** | The terminal end of a row: a maker ended the universe on the row's deadline and looked, or a human did. *Prevents*: a reaped row still counted as living, blocking its account and pinning its matrix |
 | **status.json** | The canonical per-instance surface (state + lastPurr + lastBackup). Every board, tile or STATE file is a rendering of it, never a rival |
 | **board** | THE fleet view: one line per ledger row, all machines. Terminal twin `shaper board`. Offline, `cat fleet.yml` tells you what SHOULD exist — health only ever comes from status.json |
 | **fleet map** | The `fleet.yml` in a `<scope>-fleet` repo: base, catalogue, classes pinned to immutable tags, plus machines. Never instances. `-dev` bypasses it; `-test`/`-prod` are guarded by it |
-| **forge** | `brick-forge`: the single organ that deploys/destroys/repairs (LXC, podman, escalation restart → rebuild → redeploy + R2) |
+| **forge** | `brick-forge`: the organ that deploys/destroys/repairs BRICKS inside a living universe (podman level; escalation restart → rebuild → redeploy + R2). Universes are born and ended by the maker, from a ledger row |
 | **forkedFrom** | The lineage proof, at both levels: brick `{package, atVersion}`, repo `{repo, atTag}` — machine-checkable |
 | **mirror rule** | A Rule 33 fork swaps the projet word and NOTHING else: `univ-boutik-shop → univ-fortex-shop`. A fork costs zero vocabulary |
 | **source / perimeter** | Brick fields: `source ∈ {base, catalogue, fork, native}`; `perimeter ∈ {P1, P2, P3}` = **LAYER, never OWNER** |
+| **governor** | The universe that holds a ledger and makes it respected: writes what should exist, dates what makers report, never dials out. *Prevents*: "the SaaS" and "the manager" naming two things — the product and the organ — and the maker learning which one it serves |
+| **maker** | The hand of a machine, one per machine: asks its governor what should exist on its host, runs a frozen recipe (`<kind>-<work>.sh`) with typed positions, reports a fact, never decides. *Prevents*: a script on a host whose state nobody knows, and a form field reaching a shell |
+| **matrix** | The locked, content-addressed artefact (sha256) from which instances are stamped; baked by the tandem from a class, never by a robot. *Prevents*: "image" meaning both a podman image and a universe archive, and five builds of one commit giving five fingerprints |
 
 ## The six verbs (one dialect, one target grammar)
 
@@ -61,6 +69,7 @@ Killed in critique: `subscribe` (a P3 app action, not a fleet verb),
 
 A human juggling four vibecoded projects, or an agent landing cold, must
 answer from THIS page alone: *where is the truth?* (the ledger) — *who
-repairs?* (the forge, on drift) — *is everything fine?* (the board, rendering
+repairs?* (the forge, on drift, inside a universe) — *who births?* (the
+maker, from a row) — *is everything fine?* (the board, rendering
 status.json) — *how is it all recreated?* (`shaper pra`: fleet map + R2,
 Rule 16). A proposal that does not fit this page does not enter the language.

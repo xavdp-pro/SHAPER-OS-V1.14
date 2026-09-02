@@ -71,6 +71,6 @@ machines:
 
 ## What this file is not
 
-Not a deploy tool (that is the forge), not a status surface (that is the
-board rendering status.json), not a place for secrets, buckets, ports or
-credentials. One question, one file.
+Not a deploy tool (that is the forge for bricks, the maker for universes),
+not a status surface (that is the board rendering status.json), not a place
+for secrets, buckets, ports or credentials. One question, one file.
