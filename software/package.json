@@ -9,7 +9,6 @@
     "test": "node --test packages/*/test/*.test.js",
     "verify": "node packages/pkg-verify/verify.mjs --root ..",
     "test:live": "node --test universes/_template/test/socle-live.test.js",
-    "test:live:helm": "node --test universes/_template/test/helm-live.test.js",
     "test:all": "npm test && npm run test:live",
     "preflight": "node scripts/preflight.mjs",
     "vault:bootstrap": "node scripts/bootstrap-vault-from-resources.mjs",
