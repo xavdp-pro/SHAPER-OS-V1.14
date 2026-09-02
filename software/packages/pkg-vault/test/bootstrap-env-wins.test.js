@@ -35,6 +35,10 @@ describe('vault bootstrap precedence', () => {
         VAULT_MASTER_KEY: 'a'.repeat(64),
         VAULT_RESOURCES_FILE: resources,
         VAULT_STORAGE_FILE: chosenStore,
+        // Without this the bootstrap creates software/.env in the source tree
+        // with this test's dummy master key — the file deploy/podman-up.sh
+        // sources as defaults. A test writes only into its own temp dir.
+        VAULT_ENV_FILE: path.join(tmp, '.env'),
       },
       stdio: 'pipe',
     });

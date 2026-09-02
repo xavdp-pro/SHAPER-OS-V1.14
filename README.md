@@ -429,10 +429,12 @@ Full scales and declaration format: [`docs/architecture/COGNITION.md`](./docs/ar
 Every command below runs **as written** from a naked clone: nothing is loaded
 for you, nothing is guessed. Two things are asked of you on the way — fresh
 vault keys (generated, never typed) and **this machine's registry** (asked,
-never invented). Until the 2 September audit the second step here halted on
-`VAULT_MASTER_KEY is required` with the key sitting in the file the first step
-had just created, and the build halted on two variables no step had named;
-this section is now proven by executing it, not by reading it.
+never invented). Until the 2 September audit the second step here ran
+`npm run vault:bootstrap`, which halted on `VAULT_MASTER_KEY is required` with
+the key sitting in the file the first step had just created — and whose vault,
+once it did run, nothing on this path read; the build then halted on two
+variables no step had named. This section is now proven by executing it, not
+by reading it.
 
 ### 1. Clone the repository
 ```bash
@@ -447,7 +449,6 @@ sed -i "s|^VAULT_MASTER_KEY=.*|VAULT_MASTER_KEY=$(openssl rand -hex 32)|" softwa
 sed -i "s|^VAULT_TOKEN=.*|VAULT_TOKEN=$(openssl rand -hex 24)|" software/.env
 
 cd software
-npm run vault:bootstrap     # reads software/.env — what you export in your shell wins over the file
 npm test                    # must be green on a naked clone (LAW.md)
 
 export SHAPER_REGISTRY=<host:port>   # THIS machine's podman registry — ask the operator, never invent one
@@ -457,11 +458,21 @@ bash scripts/build-all-bricks.sh
 cd ..
 ```
 
-`software/.env` carries **defaults**. `npm run vault:bootstrap` reads it, and any
-variable already exported in your shell beats the file — the same precedence
-`deploy/podman-up.sh` gives. A line that is not `KEY=value`, a `# comment` or
-blank halts the bootstrap naming the line: a silently skipped key would surface
-an hour later as "missing key" with no cause attached. `SHAPER_REGISTRY` and
+`software/.env` carries **defaults**. Every script that reads it —
+`deploy/podman-up.sh`, `npm run vault:bootstrap`, the vault operator scripts —
+gives it the same precedence: a variable already exported in your shell beats
+the file. A line that is not `KEY=value`, a `# comment` or blank halts those
+scripts naming the line: a silently skipped key would surface an hour later as
+"missing key" with no cause attached. There is deliberately **no**
+`npm run vault:bootstrap` on this path: the vault of `univ-base` is materialised
+by its own deploy (step 3), inside the vault image, in a volume the universe
+owns — a vault bootstrapped under `software/` would be one that nothing here
+reads. The command still exists for the local foundation
+([`START-HERE.md`](./docs/human/START-HERE.md)); when you run it, it reads
+`software/.env` and prints where it wrote. `npm test` itself writes nothing
+into `software/.env`: a test that spawns the bootstrap points it at a
+throwaway file, and a guard reads the suite for one that does not.
+`SHAPER_REGISTRY` and
 `SHAPER_IMAGE_TAG` are deliberately **not** in `.env`: they are exported in your
 shell and die with it ([`docs/PREREQUISITES.md`](./docs/PREREQUISITES.md)), and
 `build-all-bricks.sh` halts by name if either is missing. Which registry, and

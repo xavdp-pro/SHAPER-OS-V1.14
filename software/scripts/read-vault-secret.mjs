@@ -10,18 +10,22 @@
  * Exit codes: 0 printed · 1 halt (missing input, no such vault) · 2 no such secret.
  *
  * The vault is one per universe (brick-vault invariant 4; V1.13.1, F9), so
- * there is NO default storage path: until the 2 September audit this script
+ * THIS script has no default storage path: until the 2 September audit it
  * read data/vault/vault.enc — the shared path every universe on a host once
  * wrote into — and answered "no such secret" about a vault nobody was using.
- * VAULT_STORAGE_FILE and VAULT_MASTER_KEY come from the shell first, then from
- * software/.env (or VAULT_ENV_FILE). What the operator exported wins over the
- * file. `npm run vault:bootstrap` prints the storage path it materialised; it
- * writes that pointer into software/.env only when it creates the file.
+ * A reader that guesses answers about the wrong vault; only the bootstrap,
+ * which CREATES a vault, may choose a place when none is given, and it prints
+ * the place it chose. VAULT_STORAGE_FILE and VAULT_MASTER_KEY come from the
+ * shell first, then from software/.env (or VAULT_ENV_FILE), through the one
+ * parser the vault scripts share (lib/dotenv.mjs). What the operator exported
+ * wins over the file. Point VAULT_STORAGE_FILE at the vault the universe's
+ * deploy mounts, or at the path `npm run vault:bootstrap` printed.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VaultStore } from '../packages/pkg-vault/index.js';
+import { loadDotEnv } from './lib/dotenv.mjs';
 
 const TAG = '[read-vault-secret]';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -33,26 +37,7 @@ if (!secretKey) {
   process.exit(1);
 }
 
-// The same narrow grammar the bootstrap reads: KEY=value, # comment, blank.
-// Anything else halts naming the line — a skipped key surfaces later as
-// "missing key" with no cause attached. The file only fills what the shell
-// left unset.
-function loadDotEnv(file) {
-  if (!fs.existsSync(file)) return;
-  fs.readFileSync(file, 'utf8').split(/\r?\n/).forEach((raw, index) => {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) return;
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!match) {
-      console.error(`${TAG} HALT — ${file}:${index + 1} is not KEY=value: "${raw}"`);
-      process.exit(1);
-    }
-    const [, key, rawValue] = match;
-    const quoted = rawValue.trim().match(/^(["'])(.*)\1$/);
-    if (process.env[key] === undefined || process.env[key] === '') process.env[key] = quoted ? quoted[2] : rawValue.trim();
-  });
-}
-loadDotEnv(ENV_FILE);
+loadDotEnv(ENV_FILE, TAG);
 
 function demand(name, hint) {
   const value = (process.env[name] || '').trim();

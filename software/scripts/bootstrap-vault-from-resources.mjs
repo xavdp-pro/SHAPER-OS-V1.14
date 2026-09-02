@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VaultStore } from '../packages/pkg-vault/index.js';
+import { loadDotEnv } from './lib/dotenv.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -27,49 +28,30 @@ const RESOURCES_FILE = process.env.VAULT_RESOURCES_FILE
 const ENV_FILE = process.env.VAULT_ENV_FILE || path.join(ROOT, '.env');
 
 // Rule 0J names software/.env as the place the operator's keys live, and every
-// quick start says `cp .env.example software/.env` then `npm run vault:bootstrap`.
-// Until the 2 September audit nothing between those two commands read that
-// file: this script took VAULT_MASTER_KEY from process.env only, the repository
-// carries no dotenv (zero dependencies, Rule 5), and the literal path halted on
-// "VAULT_MASTER_KEY is required" with the key sitting in the file the
-// documentation had just told the operator to create. So the file is read here
-// — as DEFAULTS. What the operator exported in the shell wins over it, the
-// same precedence deploy/podman-up.sh gives (V1.13.5) and the storage file was
-// given (V1.13.1): an explicit choice always beats a packaged default.
-//
-// The grammar is deliberately narrow: `KEY=value`, `# comment`, blank. A line
-// this parser cannot read is a halt naming the line, never a silent skip — a
-// skipped key surfaces an hour later as "missing key" with no cause attached.
-// Surrounding quotes are stripped; there are no inline comments and no
-// interpolation, because a value nobody can read back verbatim is a value
-// nobody can audit.
-function loadDotEnv(file) {
-  const fromFile = new Set();
-  if (!fs.existsSync(file)) return fromFile;
-  fs.readFileSync(file, 'utf8').split(/\r?\n/).forEach((raw, index) => {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) return;
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!match) {
-      console.error(`[bootstrap-vault] HALT — ${file}:${index + 1} is not KEY=value: "${raw}"`);
-      console.error('[bootstrap-vault] A .env holds KEY=value lines, # comments and blank lines, nothing else. Nothing was written.');
-      process.exit(1);
-    }
-    const [, key, rawValue] = match;
-    const quoted = rawValue.trim().match(/^(["'])(.*)\1$/);
-    const value = quoted ? quoted[2] : rawValue.trim();
-    // The operator's export wins; the file only fills what the shell left unset.
-    if (process.env[key] !== undefined && process.env[key] !== '') return;
-    process.env[key] = value;
-    fromFile.add(key);
-  });
-  return fromFile;
-}
-const FROM_ENV_FILE = loadDotEnv(ENV_FILE);
+// quick start says `cp .env.example software/.env` before anything else. Until
+// the 2 September audit nothing between that copy and this script read the
+// file: it took VAULT_MASTER_KEY from process.env only, and the literal path
+// halted on "VAULT_MASTER_KEY is required" with the key sitting in the file
+// the documentation had just told the operator to create. So the file is read
+// here — as DEFAULTS, through the one parser the vault scripts share
+// (lib/dotenv.mjs): the shell wins over the file, and a line that is not
+// KEY=value halts naming the line.
+const FROM_ENV_FILE = loadDotEnv(ENV_FILE, '[bootstrap-vault]');
 
 let vaultMasterKey = process.env.VAULT_MASTER_KEY;
 let vaultToken = process.env.VAULT_TOKEN;
-let storageFile = path.resolve(ROOT, process.env.VAULT_STORAGE_FILE || 'data/vault/vault.enc');
+// Where the vault goes. Every universe deploy names it (`-e VAULT_STORAGE_FILE=
+// /data/vault/vault.enc` into the universe's own volume — one vault per
+// universe, V1.13.1, F9), and the two operator scripts beside this one
+// (read-vault-secret, patch-vault-secret) refuse to guess it. This script is
+// the one that CREATES a vault, and `npm run vault:bootstrap` with nothing
+// exported is a documented gesture (START-HERE step 4, the universe manifests'
+// `bootstrap` hook): it materialises the LOCAL foundation vault under
+// software/data/vault/ — gitignored, read by no universe — and says so below.
+// The fallback is printed, never silent (Rule 0J), so nobody mistakes it for
+// a universe's vault.
+const LOCAL_FOUNDATION_VAULT = 'data/vault/vault.enc';
+let storageFile = path.resolve(ROOT, process.env.VAULT_STORAGE_FILE || LOCAL_FOUNDATION_VAULT);
 let secrets = {};
 
 if (fs.existsSync(RESOURCES_FILE)) {
@@ -137,6 +119,10 @@ function originOf(key) {
 }
 haltOnPlaceholder('vault.masterKey', vaultMasterKey, originOf('VAULT_MASTER_KEY'));
 haltOnPlaceholder('vault.token', vaultToken, originOf('VAULT_TOKEN'));
+
+if (!process.env.VAULT_STORAGE_FILE && storageFile === path.resolve(ROOT, LOCAL_FOUNDATION_VAULT)) {
+  console.log(`[bootstrap-vault] VAULT_STORAGE_FILE not set — writing the local foundation vault at ${storageFile} (no universe reads it; each universe's deploy names its own).`);
+}
 
 fs.mkdirSync(path.dirname(storageFile), { recursive: true });
 

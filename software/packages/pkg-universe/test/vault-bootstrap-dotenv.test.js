@@ -15,7 +15,10 @@ import { fileURLToPath } from 'node:url';
 // process.env only, and the repository ships no dotenv (Rule 5). Found by the
 // 2 September cold audit. The bootstrap now reads the file as DEFAULTS, with a
 // grammar narrow enough to refuse prose, and the operator's export wins over
-// it (V1.13.5 precedence). Two of these tests fail on the unpatched script.
+// it (V1.13.5 precedence). Three of the four bootstrap cases fail on the
+// unpatched script; the shell-wins case is the invariant and passes on both.
+// The fifth case reads the suite itself: it fails while any test lets the
+// bootstrap write software/.env.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOFTWARE = path.resolve(HERE, '../../..');
@@ -79,6 +82,28 @@ describe('the vault bootstrap reads software/.env, and the shell wins over it', 
     assert.match(run.stderr, /\.env:2\b/, 'the halt must name the line number');
     assert.match(run.stderr, /please paste the token below/, 'the halt must quote the line');
     assert.equal(fs.existsSync(run.storageFile), false, 'nothing may be written from a file that was not fully read');
+  });
+
+  it('is never spawned by a test without VAULT_ENV_FILE — npm test must not write software/.env', () => {
+    // The bootstrap creates software/.env when it is absent (vault pointers).
+    // A test that spawns it without pointing VAULT_ENV_FILE elsewhere leaves a
+    // .env in the source tree carrying that test's dummy master key — which
+    // deploy/podman-up.sh then sources as the operator's defaults. Found on
+    // 2 September as "residue after npm test"; the residue was the suite's own.
+    const offenders = [];
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'node_modules') continue;
+        const absolute = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(absolute);
+        else if (entry.name.endsWith('.test.js') && absolute !== fileURLToPath(import.meta.url)) {
+          const text = fs.readFileSync(absolute, 'utf8');
+          if (text.includes('bootstrap-vault-from-resources') && !text.includes('VAULT_ENV_FILE')) offenders.push(path.relative(SOFTWARE, absolute));
+        }
+      }
+    };
+    walk(path.join(SOFTWARE, 'packages'));
+    assert.deepEqual(offenders, [], `tests that let the bootstrap write software/.env:\n  ${offenders.join('\n  ')}`);
   });
 
   it('says where a refused placeholder came from when it came from the file', () => {
