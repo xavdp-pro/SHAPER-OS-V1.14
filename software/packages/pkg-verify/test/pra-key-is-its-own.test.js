@@ -38,6 +38,23 @@ describe('backup-pra-sync.sh — the backup key is its own key', () => {
     assert.match(same.out, /must not be the vault master key/);
   });
 
+  it('refuses the vault master key read from .env on disk, when nobody exported it', () => {
+    // A cron job never sources .env. Until V1.13.3 the refusal compared the PRA
+    // key with VAULT_MASTER_KEY only when that variable was exported, so an
+    // operator who reused the vault key ran through unseen whenever the vault
+    // key lived only in the .env beside the script — where Rule 0J puts it.
+    const dir = shaperDir(tmp, 'pra-disk', 'backup-pra-sync.sh');
+    fs.writeFileSync(path.join(dir, '.env'), '# keys\nexport VAULT_MASTER_KEY="the-key-that-opens-the-coffer"\nJWT_SECRET=other\n');
+    fs.mkdirSync(path.join(dir, 'data/backups'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'data/backups/backup_20250101_000000.tar.gz'), 'bytes');
+    const env = { PATH: shimPath(tmp, 'pra-disk'), HOME: tmp, PRA_ENCRYPTION_KEY: 'the-key-that-opens-the-coffer' };
+    const r = run(path.join(dir, 'scripts/backup-pra-sync.sh'), [], env, dir);
+    assert.equal(r.status, 1, r.out);
+    assert.match(r.out, /must not be the vault master key/);
+    assert.match(r.out, /\.env/, 'the refusal says where the vault key was found');
+    assert.ok(!fs.existsSync(path.join(dir, 'data/backups/backup_20250101_000000.tar.gz.enc')), 'nothing was encrypted with the vault key');
+  });
+
   it('encrypts the latest backup with the key from the environment, and the archive decrypts with it', () => {
     const dir = shaperDir(tmp, 'pra-run', 'backup-pra-sync.sh');
     fs.mkdirSync(path.join(dir, 'data/backups'), { recursive: true });
