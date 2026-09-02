@@ -37,7 +37,7 @@ Start with **tier-a**. Add tier-b only after `npm run test:live` is green.
 | `OPENROUTER_API_KEY` | optional | **You** | [OpenRouter keys](https://openrouter.ai/keys) | `software/.env` |
 | Cloudflare **R2** (backups) | optional | **You** | [Cloudflare R2](https://dash.cloudflare.com/) → R2 → Manage API tokens | `software/.env` (`R2_*`) |
 
-Template file: [`.env.example`](../../.env.example) → copy to `.env` or `software/.env`.
+Template file: [`software/.env.example`](../../software/.env.example) → copy to `software/.env`. It is the one canonical copy; the root `.env.example` is a symlink to it.
 
 ---
 
