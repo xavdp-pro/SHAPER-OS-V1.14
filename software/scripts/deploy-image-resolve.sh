@@ -45,3 +45,17 @@ shaper_pull() {
   fi
   podman pull --tls-verify="${SHAPER_TLS_VERIFY:-true}" "$ref"
 }
+
+# The registry's HTTP scheme, from the VALUE of SHAPER_TLS_VERIFY — the same
+# posture podman is given above. Until the 2 September audit the build's
+# "already published?" probe wrote `http${SHAPER_TLS_VERIFY:+s}://`, which
+# tests whether the variable is SET, not what it says: the runbook's own
+# `export SHAPER_TLS_VERIFY=false` (the plain-HTTP case) produced https, and a
+# TLS registry with the variable unset was probed over http. Both probes
+# failed silently and every brick was rebuilt every time — the reuse clock of
+# Rule 10 never ran. Only the string `false` means plain HTTP.
+shaper_registry_url() {
+  local scheme=https
+  if [[ "${SHAPER_TLS_VERIFY:-true}" == "false" ]]; then scheme=http; fi
+  echo "${scheme}://${SHAPER_REGISTRY}"
+}
