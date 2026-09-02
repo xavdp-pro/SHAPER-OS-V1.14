@@ -49,8 +49,9 @@ const OPT_BRIDGE_ROOT = process.env.OPT_BRIDGE_ROOT || '/opt/bridge';
 const AGENT_BIN = process.env.OPENCODE_BIN || `${OPT_BRIDGE_ROOT}/opencode/bin/opencode`;
 // Measured at deployment, never named here: the model pinned in this line had
 // been withdrawn from the catalogue before a clean-sheet deployment reached it
-// (Rule 7). Empty means not chosen; the run says so instead of guessing.
-const MODEL = process.env.OPENCODE_MODEL || '';
+// (Rule 7). Empty means not chosen — and, for the real bridge, a halt below.
+const MODEL_ENV = 'OPENCODE_MODEL';
+const MODEL = process.env[MODEL_ENV] || '';
 /** Internal port of the headless `opencode serve` child (never exposed). */
 const SERVE_PORT = Number(process.env.OPENCODE_SERVE_PORT || 4441);
 const SERVE_URL = `http://127.0.0.1:${SERVE_PORT}`;
@@ -80,6 +81,20 @@ const NONINTERACTIVE_ENV = {
 const AGENT_ENV = { ...process.env, ...NONINTERACTIVE_ENV };
 
 const IS_STUB = process.env.BRIDGE_OPENCODE_STUB === '1';
+
+// Rule 0J: a missing configuration halts and says what to provide. The brick
+// image runs this file, and it used to start with an empty model — logging
+// `model=` and handing every run to `opencode serve` with nothing to run it
+// on — which is a warning where the law asks for a halt. The twin package
+// pkg-bridge-opencode already refuses this way; the review of the Rule 7
+// sweep found this server still starting. The halt fires before the token
+// file is touched, so a refused start leaves nothing behind. Only the
+// simulated bridge, which never spawns the CLI, runs without a model.
+if (!IS_STUB && !MODEL) {
+  console.error(`[opencode-bridge] HALT: ${MODEL_ENV} is not set and this bridge names no default model (Rule 7).`);
+  console.error(`[opencode-bridge] Measure the engines reachable from this host, pick one, and export ${MODEL_ENV}=<model id> — or set BRIDGE_OPENCODE_STUB=1 for the simulated bridge.`);
+  process.exit(2);
+}
 
 function token() {
   if (process.env.OPENCODE_BRIDGE_TOKEN || process.env.BRIDGE_AUTH_TOKEN) {
