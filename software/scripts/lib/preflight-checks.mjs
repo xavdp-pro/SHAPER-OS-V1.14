@@ -28,10 +28,26 @@
 export const ENV_KEY = /^[A-Z][A-Z0-9_]*$/;
 
 /**
+ * A value `source` exports as written, without running anything. Three
+ * shapes: a double-quoted string (bash still expands `$(…)` and backticks
+ * inside it, so those two are refused), a single-quoted string (nothing is
+ * expanded), or a bare word. A bare word may not carry whitespace or a shell
+ * operator: `KEY=1; rm -rf x` exports KEY=1 and RUNS the rest, `KEY=a b`
+ * runs `b` with KEY=a in its environment, `KEY=a>b` creates a file. The
+ * first grammar admitted every `KEY=value` line and so let a value that is
+ * itself a command through both guards — the reviewer of the first fix
+ * proved it with `KEY=1; echo INJECTED`. The bash side of this grammar is
+ * the grep in universes/_template/deploy/podman-up.sh; the two are kept
+ * identical by the test that feeds both the same lines.
+ */
+export const ENV_VALUE = /^("([^"`$]|\$[^(])*\$?"|'[^']*'|[^ \t;&|()<>`'"]*)$/;
+
+/**
  * Reads an environment file line by line. Admitted: blank lines, `#`
- * comments, and `KEY=value`. Anything else is reported with its line number
- * and its text, so the halt can quote it — a halt that names nothing sends
- * the human hunting through the file the way the script did on terrain.
+ * comments, and `KEY=value` with a value bash exports as written. Anything
+ * else is reported with its line number and its text, so the halt can quote
+ * it — a halt that names nothing sends the human hunting through the file
+ * the way the script did on terrain.
  *
  * @param {string} text
  * @returns {{ entries: Record<string,string>, errors: Array<{line:number, text:string, reason:string}> }}
@@ -56,7 +72,19 @@ export function parseEnvFile(text) {
       errors.push({ line: i + 1, text: line, reason });
       return;
     }
-    entries[key] = line.slice(eq + 1);
+    const value = line.slice(eq + 1);
+    if (!ENV_VALUE.test(value)) {
+      errors.push({
+        line: i + 1,
+        text: line,
+        reason: 'the value would be RUN or reshaped by source, not exported as written — quote it, and keep $(…) and backticks out of it',
+      });
+    }
+    // The entry is kept even when its value is refused: a placeholder such
+    // as `<same as .env VAULT_MASTER_KEY>` is both unexportable and still
+    // the documentation, and the gate owes the second verdict too — it is
+    // the one that tells an agent who copied the example what to do.
+    entries[key] = value;
   });
   return { entries, errors };
 }
@@ -144,4 +172,41 @@ export function collisions(declared, inUse) {
   return declared
     .filter(({ port }) => inUse.has(port))
     .map(({ brick, port }) => ({ brick, port, process: inUse.get(port).process }));
+}
+
+/**
+ * The container the template runs a brick in: `<slug>-<brick minus "brick-">`
+ * — `univ-x-dev/manifest.json` declaring `brick-vault` runs as
+ * `univ-x-dev-vault` (podman-up.sh: `podman run --name "${SLUG}-vault"`).
+ */
+export function ownContainerName(slug, brick) {
+  return `${slug}-${brick.replace(/^brick-/, '')}`;
+}
+
+/**
+ * Splits the collisions into the two cases the gate must tell apart. A port
+ * held by THIS universe's own brick, left running by a previous podman-up.sh,
+ * is not a defect: the deploy is idempotent by design (`--replace` on every
+ * `podman run`) and replaces that container. A port held by anything else is
+ * the lesson-8 halt. The first fix could not tell them apart — with
+ * `--network host`, `ss -p` shows the brick's own `node` or `mariadbd`
+ * exactly like a foreign one — so the second deploy of a stack (a retry after
+ * a red health, an update) halted on its own vault and told the human to
+ * disable "a service installed before Rule 11". The running containers,
+ * as `podman ps --format '{{.Names}}'` lists them, are the missing witness.
+ *
+ * @param {Array<{brick:string, port:number, process:string|null}>} held
+ * @param {string} slug             the universe directory's basename (or UNIV_SLUG)
+ * @param {Iterable<string>} running  names of the containers podman reports running
+ */
+export function classifyCollisions(held, slug, running) {
+  const names = new Set(running);
+  const own = [];
+  const foreign = [];
+  for (const c of held) {
+    const container = ownContainerName(slug, c.brick);
+    if (names.has(container)) own.push({ ...c, container });
+    else foreign.push(c);
+  }
+  return { own, foreign };
 }

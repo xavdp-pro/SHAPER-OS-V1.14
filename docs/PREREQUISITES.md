@@ -48,10 +48,13 @@ blocker for tier-a. See `docs/human/KEYS-AND-ACCOUNTS.md`.
 
 **The file holds only variables.** Three kinds of line are admitted: blank,
 `#` comment, and `KEY=value` where `KEY` matches `[A-Z][A-Z0-9_]*` (digits
-allowed — `R2_BUCKET_NAME` is a variable). The deploy script `source`s the
-file, so any other line is executed by bash; a human note written into it
-killed a deploy silently. Both gates halt on such a line and quote it. A
-note for a human goes behind `#`
+allowed — `R2_BUCKET_NAME` is a variable) and the value is one bash exports
+as written: `"double-quoted"` (no `$(…)`, no backticks), `'single-quoted'`,
+or a bare word with no whitespace and no shell operator (`; & | ( ) < >`,
+quotes). The deploy script `source`s the file, so any other line is executed
+by bash: a human note written into it killed a deploy silently, and
+`KEY=1; echo INJECTED` runs its tail. Both gates halt on such a line and
+quote it. A note for a human goes behind `#`
 ([proof, lesson 7](./proof/proof-rule-11-in-production.md#a-variables-file-holds-only-variables)).
 
 ## 5. The two gates, in order
@@ -65,7 +68,11 @@ note for a human goes behind `#`
    4.4): the ports its manifest declares must be free in this LXC — bricks run
    with `--network host`, and a service the container already runs holds the
    port first ([Rule 11](../software/RULES.md#rule-11-declared-ports-are-free)).
-   Without `--universe` the port check is skipped out loud, never silently.
+   A port held by this universe's **own** container from a previous run
+   (`<slug>-dev-vault`, …, as `podman ps` names it) is reported OK, because
+   `podman-up.sh` replaces it — the check is right on a first deploy and on a
+   retry alike. Without `--universe` the port check is skipped out loud,
+   never silently.
 2. **`podman-up.sh`** — at deploy: refuses to run without `OPENCODE_MODEL`,
    without real vault material, and on an env file carrying a line that is
    not a variable. Its halts are by design; they name the variable, or quote

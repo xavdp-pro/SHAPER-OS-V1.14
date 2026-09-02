@@ -578,7 +578,10 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
     the manifest's ports are compared with the sockets already listening
     (`ss -ltn`, or `/proc/net/tcp`), and a held port is a halt that names the
     port and its holder. What holds it is stopped and disabled by the human,
-    never worked around with a second port.
+    never worked around with a second port. The one holder that is not a
+    defect is the universe's own brick left running by a previous deploy —
+    `podman-up.sh` replaces it by design — and the gate tells the two apart
+    by the running containers' names, never by the process alone.
 
 * **What is restored, and what is merely rebuilt.** A universe's restorable
   identity is its `manifest.json`, its `cfg-image-lock.json` and its volumes.

@@ -59,13 +59,22 @@ for v in "${KEEP_VARS[@]}"; do declare -g "__KEEP_$v=${!v:-}"; done
 # file is read before it is sourced, and the first line that is not a
 # variable stops the deploy, quoted, with its number. Keys may carry digits
 # (R2_BUCKET_NAME is a variable); a note for a human goes behind #.
+#
+# The value is held to the same standard as the key. A first version admitted
+# any `KEY=value`, and its reviewer showed that `KEY=1; echo INJECTED` passed
+# and was then run by source. A value is a double-quoted string (no `$(…)`,
+# no backtick — bash expands those inside double quotes), a single-quoted
+# string, or a bare word carrying no whitespace and no shell operator
+# (`; & | ( ) < >` and quotes): `KEY=a b` runs `b`, `KEY=a>b` writes a file.
+# This grep and ENV_VALUE in scripts/lib/preflight-checks.mjs are the same
+# grammar; a test feeds both the same lines.
 shaper_env_file_is_variables_only() {
   local file="$1" bad status=0
   # grep -v selects the lines that are NOT admitted. Its exit code is read
   # explicitly rather than hidden behind `|| true`: 1 means no line was
   # selected — the file is clean, the good outcome — and 2 means grep could
   # not read the file, which is a halt of its own, never a pass.
-  bad="$(grep -nvE '^[[:space:]]*(#|$)|^[A-Z][A-Z0-9_]*=' "$file")" || status=$?
+  bad="$(grep -nvE '^[[:space:]]*(#|$)|^[A-Z][A-Z0-9_]*=("([^"`$]|\$[^(])*\$?"|'"'"'[^'"'"']*'"'"'|[^[:blank:];&|()<>`'"'"'"]*)$' "$file")" || status=$?
   if (( status == 1 )); then
     return 0
   elif (( status == 2 )); then
@@ -74,7 +83,7 @@ shaper_env_file_is_variables_only() {
   fi
   echo "[podman-up] $file is not a variables file — these lines would be EXECUTED by source, not exported:" >&2
   echo "$bad" | sed 's/^/[podman-up]   line /' >&2
-  echo "[podman-up] only blank lines, # comments and KEY=value are allowed; put a note for a human behind #" >&2
+  echo "[podman-up] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
   return 1
 }
 shaper_source_env() {

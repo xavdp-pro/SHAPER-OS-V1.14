@@ -19,18 +19,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
-  parseEnvFile, portsInUse, portsInUseFromProc, manifestPorts, collisions,
+  parseEnvFile, portsInUse, portsInUseFromProc, manifestPorts, collisions, classifyCollisions,
 } from './lib/preflight-checks.mjs';
-
-const argv = process.argv.slice(2);
-const rootIdx = argv.indexOf('--root');
-const ROOT = rootIdx !== -1
-  ? path.resolve(argv[rootIdx + 1])
-  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const univIdx = argv.indexOf('--universe');
-const UNIVERSE = univIdx !== -1
-  ? path.resolve(argv[univIdx + 1])
-  : (process.env.SHAPER_UNIVERSE_DIR ? path.resolve(process.env.SHAPER_UNIVERSE_DIR) : '');
 
 const OVERRIDE = process.env.SHAPER_HUMAN_OVERRIDE === '1';
 const failures = [];
@@ -38,6 +28,27 @@ const say = (verdict, name, detail) =>
   console.log(`  ${verdict.padEnd(10)} ${name.padEnd(18)} ${detail}`);
 const fail = (name, detail) => { failures.push(name); say('FAIL', name, detail); };
 const ok = (name, detail) => say('OK', name, detail);
+
+// A flag given without its value is a halt that says what to provide, not a
+// stack trace: `--universe` alone used to reach path.resolve(undefined) and
+// die with a TypeError, no DO NOT START line, no name of the missing path
+// (Rule 0J). The flag's value is the next argument, unless that is itself a
+// flag.
+const argv = process.argv.slice(2);
+function flagValue(flag, what) {
+  const idx = argv.indexOf(flag);
+  if (idx === -1) return null;
+  const value = argv[idx + 1];
+  if (value === undefined || value.startsWith('--')) {
+    fail(flag, `${flag} needs ${what} — given without a value`);
+    return null;
+  }
+  return path.resolve(value);
+}
+const ROOT = flagValue('--root', 'the path to software/')
+  || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const UNIVERSE = flagValue('--universe', 'the path to <slug>-dev')
+  || (process.env.SHAPER_UNIVERSE_DIR ? path.resolve(process.env.SHAPER_UNIVERSE_DIR) : '');
 
 // 1 — tools. The deploy path uses each of these by name.
 for (const tool of ['git', 'podman', 'curl', 'python3', 'openssl']) {
@@ -93,6 +104,15 @@ if (!fs.existsSync(envPath)) {
 // podman brick crash-looped and nothing outside its own journal said why.
 // The listening sockets are read with `ss`, or from /proc/net/tcp when ss is
 // not on the machine; neither being readable is a halt, not a pass.
+//
+// One holder is not a defect: this universe's OWN brick, left running by a
+// previous podman-up.sh. The deploy is idempotent (`--replace` on every
+// `podman run`), so the second deploy of a stack — a retry after a red
+// health, an update — meets its own vault on its own port. `ss -p` cannot
+// tell that node from a foreign one; `podman ps` can, by the container's
+// name (`<slug>-<brick minus "brick-">`). The first version of this gate
+// halted there and told the human to disable a service installed before
+// Rule 11 — a false red on a documented path.
 if (!UNIVERSE) {
   say('SKIP', 'ports', 'no universe named — re-run with --universe <slug>-dev before deploying (runbook Step 4.4); a declared port must be free on this machine');
 } else {
@@ -124,8 +144,24 @@ if (!UNIVERSE) {
       fail('ports', 'cannot observe the listening sockets: neither `ss` (iproute2) nor /proc/net/tcp is readable here — install iproute2; a port check that cannot look is not a pass');
     } else {
       const held = collisions(declared, inUse);
-      for (const c of held) {
-        fail('ports', `port ${c.port} declared by ${c.brick} is already held by ${c.process || 'a process ss could not name (run as root to see it)'} — with --network host the brick cannot bind it; stop and disable what holds it (a service installed before Rule 11?) before deploying`);
+      // The running containers are read only when a port is held: on a first
+      // deploy nothing is running and podman need not be asked. When podman
+      // cannot answer (not installed, rootless storage not initialised) every
+      // holder counts as foreign, and the halt says that podman was not heard.
+      let running = [];
+      let podmanNote = '';
+      if (held.length > 0) {
+        const ps = spawnSync('podman', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
+        if (!ps.error && ps.status === 0) running = ps.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+        else podmanNote = ' (podman ps could not list the running containers here, so no holder could be recognised as this universe\'s own brick)';
+      }
+      const slug = process.env.UNIV_SLUG || path.basename(UNIVERSE);
+      const { own, foreign } = classifyCollisions(held, slug, running);
+      for (const c of own) {
+        ok('ports', `port ${c.port} declared by ${c.brick} is held by this universe's own container ${c.container}, left by a previous run — podman-up.sh replaces it`);
+      }
+      for (const c of foreign) {
+        fail('ports', `port ${c.port} declared by ${c.brick} is already held by ${c.process || 'a process ss could not name (run as root to see it)'}, and no running container of this universe (${slug}-*) holds it${podmanNote} — with --network host the brick cannot bind it; stop and disable what holds it (a service installed before Rule 11?) before deploying`);
       }
       if (held.length === 0) ok('ports', `${declared.length} declared port(s) free (${source})`);
     }

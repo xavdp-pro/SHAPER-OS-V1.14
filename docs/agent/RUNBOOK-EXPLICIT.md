@@ -245,10 +245,12 @@ json.dump(d, open(p, 'w'), indent=2)
 print('vault-resources.local.json filled from software/.env')
 FILL
 # Trap — a variables file holds ONLY variables: blank lines, # comments and
-# KEY=value (keys may carry digits). podman-up.sh `source`s the file, so any
+# KEY=value (keys may carry digits; the value quoted, or a bare word with no
+# whitespace and no shell operator). podman-up.sh `source`s the file, so any
 # other line is EXECUTED by bash: a human note (`BACKOFFICE_ADMIN = email /
-# password`) killed a deploy before it could print its own halt. preflight
-# and podman-up.sh now stop on such a line and quote it; a note goes behind #.
+# password`) killed a deploy before it could print its own halt, and a value
+# such as `KEY=1; echo INJECTED` runs its tail. preflight and podman-up.sh
+# stop on such a line and quote it; a note goes behind #.
 # (docs/proof/proof-rule-11-in-production.md#a-variables-file-holds-only-variables)
 
 # 4.2 — build and verify the software
@@ -329,7 +331,10 @@ python3 software/scripts/record-image-lock.py <univ_slug>-dev \
 # MariaDB on 3306 in a CT born before Rule 11) holds the port first, and the
 # brick crash-loops with the cause visible only in its own journal. The gate
 # names the port and its holder; stop and disable the holder, never pick a
-# second port (software/RULES.md#rule-11-declared-ports-are-free):
+# second port (software/RULES.md#rule-11-declared-ports-are-free). A port held
+# by this universe's OWN container from a previous run (<univ_slug>-dev-vault,
+# …) is reported OK, not FAIL: podman-up.sh replaces it — so this line is
+# also right on a retry after a red health or on an update.
 node software/scripts/preflight.mjs --universe <univ_slug>-dev   # exit 0, or STOP
 bash <univ_slug>-dev/deploy/podman-up.sh     # health must exit 0
 # Trap — a wait loop must test a condition that CAN become true. A readiness

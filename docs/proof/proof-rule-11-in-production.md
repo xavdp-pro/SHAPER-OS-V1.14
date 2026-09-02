@@ -183,7 +183,13 @@ next universe meets again (Boot Contract 8, Rule 29, Rule 35).
   it does not understand hides the note, and that pattern also dropped every
   honest key with a digit in its name (`R2_BUCKET_NAME`).
 * **Constraint**: an environment file admits exactly three kinds of line —
-  blank, `#` comment, `KEY=value` with `KEY` matching `[A-Z][A-Z0-9_]*`. Any
+  blank, `#` comment, `KEY=value` with `KEY` matching `[A-Z][A-Z0-9_]*` and
+  a value bash exports **as written**: a double-quoted string without `$(…)`
+  or backticks, a single-quoted string, or a bare word carrying no whitespace
+  and no shell operator (`; & | ( ) < >`, quotes). The value matters as much
+  as the key: the first version of the guard admitted any `KEY=value`, and
+  its review showed that `KEY=1; echo INJECTED` passed and was then run by
+  `source` — the note was caught, a hostile or careless value was not. Any
   other line is a halt that quotes the line and its number. A note for a
   human goes behind `#`. This concerns the env contract (Rule 0J) more than
   containment, so it is written here rather than in Rule 11; the mechanical
@@ -209,7 +215,13 @@ next universe meets again (Boot Contract 8, Rule 29, Rule 35).
   checked against the listening sockets (`ss -ltn`, or `/proc/net/tcp`), and
   a held port is a halt that names the port, the brick and — when visible —
   the process. The holder is stopped and disabled by the human; a universe is
-  never worked around with a second port.
+  never worked around with a second port. One holder is not a defect: the
+  universe's **own** brick, left running by a previous `podman-up.sh`, which
+  the deploy `--replace`s by design. The first version of the gate could not
+  tell it from a foreign one (with `--network host`, `ss -p` shows the
+  brick's own `node` exactly like the CT's old `mariadbd`) and halted on the
+  second deploy of every stack; the running containers, read from
+  `podman ps`, are the witness that separates the two cases.
 * **Lives in**: [`RULES.md` Rule 11 — *A declared port is a claim on the
   whole universe*](../../software/RULES.md#rule-11-declared-ports-are-free);
   `scripts/preflight.mjs` §5 (`--universe <dir>`, or `SHAPER_UNIVERSE_DIR`)
