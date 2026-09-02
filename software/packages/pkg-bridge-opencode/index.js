@@ -78,7 +78,12 @@ export class OpencodeBridgeServer {
     this.bind = bind;
     this.opencodeBin = opencodeBin;
     this.stubMode = stubMode;
-    this.defaultModel = String(defaultModel || '').trim();
+    // An empty model is reported as absent, never carried as '' into a CLI
+    // argument where it would fail with a message about the wrong thing. The
+    // same shape as the three other bridges: the first sweep left this one
+    // reporting '' while they reported null, and a health check comparing
+    // bridges had to know which one it was reading.
+    this.defaultModel = String(defaultModel || '').trim() || null;
     if (!this.stubMode && !this.defaultModel) throw new ModelUnsetError();
     this.workspaceBase = workspaceBase;
     this.authToken = authToken;

@@ -78,8 +78,16 @@ describe('bridge-opencode', () => {
     assert.equal(env.OPENCODE_MODEL, 'engine/measured-at-deploy');
   });
 
+  // The simulated bridge says it has no model the same way the three other
+  // bridges do: null, never ''. The model is passed explicitly so that the
+  // assertion does not depend on whatever OPENCODE_MODEL the shell exported.
+  it('the simulated bridge runs without a model and says it has none', () => {
+    const bridge = new OpencodeBridgeServer({ port: 0, stubMode: true, defaultModel: '', workspaceBase: os.tmpdir() });
+    assert.equal(bridge.defaultModel, null);
+  });
+
   it('health reports freeTier in stub mode', async () => {
-    const bridge = new OpencodeBridgeServer({ port: 0, stubMode: true });
+    const bridge = new OpencodeBridgeServer({ port: 0, stubMode: true, defaultModel: '', workspaceBase: os.tmpdir() });
     const server = bridge.createServer();
     await new Promise((r) => server.listen(0, '127.0.0.1', r));
     const { port } = server.address();
@@ -88,7 +96,7 @@ describe('bridge-opencode', () => {
     assert.equal(body.ok, true);
     assert.equal(body.stubMode, true);
     assert.equal(body.freeTier, true);
-    assert.equal(body.model, FREE_MODEL);
+    assert.equal(body.model, null);
     await new Promise((r) => server.close(r));
   });
 

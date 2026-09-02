@@ -49,6 +49,11 @@ function canonFiles() {
     // default the guard was written to refuse, sitting one directory over.
     // The universe template's deploy script is read for the same reason: it
     // pinned a second, different version of the model a package pinned.
+    //
+    // A package manifest is read too. The review of that sweep found two
+    // `description` fields still naming a Composer version and a DeepSeek
+    // generation: a manifest is what a registry and a reader see first, so a
+    // version there is a promise about the engine exactly like one in code.
     out.split('\0').filter(Boolean).filter((rel) => {
       if (rel.startsWith('software/bricks/brick-helm/app/')) return false;
       // A parser test needs realistic input, and a test ships no default to
@@ -59,6 +64,7 @@ function canonFiles() {
         || /(^|\/)Containerfile$/.test(rel)
         || /^examples\/deploy\/.*\.sh$/.test(rel)
         || /^software\/universes\/_template\/deploy\/podman-up\.sh$/.test(rel)
+        || /^software\/packages\/[^/]+\/package\.json$/.test(rel)
         || /^software\/packages\/[^/]+\/.*\.(js|mjs|cjs)$/.test(rel);
     }),
   ).filter((rel) => {

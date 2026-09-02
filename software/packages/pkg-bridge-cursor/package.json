@@ -2,6 +2,6 @@
   "name": "@shaper/pkg-bridge-cursor",
   "version": "1.13.2",
   "type": "module",
-  "description": "HTTP/SSE bridge for Cursor Composer 2.5 Fast",
+  "description": "HTTP/SSE bridge for the Cursor agent CLI — Rule 8 agent contract",
   "main": "index.js"
 }
