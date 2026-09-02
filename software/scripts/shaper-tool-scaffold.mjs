@@ -14,8 +14,10 @@
  *   packages/pkg-<slug>/          the source package (@shaper/pkg-<slug>), with a real test
  *   bricks/brick-<slug>/          INTENT.md, brick.json, Containerfile, cfg-<slug>.container
  *
- * Until the 2 September audit this script wrote packages/<slug>-engine (a
- * name no layer of NAMING.md declares), created data/<slug> on the host and
+ * Until the 2 September audit this script wrote the source package under an
+ * `-engine` suffix — a layer no line of NAMING.md declares, so the artefact
+ * it produced was refused by the guards it was meant to satisfy — created
+ * data/<slug> on the host and
  * bind-mounted it — the shared host tree V1.13.1 abandoned when state moved
  * under the universe (F9) — pinned `localhost/shaper-<slug>:latest` in the
  * unit, copied the package from the build context, appended itself to the
