@@ -16,6 +16,13 @@ Default active model: the free model verified and measured at deployment (Rule 7
    what to provide, never a warning (Rule 0J). Only the simulated bridge
    (`BRIDGE_OPENCODE_STUB=1`), which never spawns the CLI, runs without a
    model.
+   <a id="fresh-home"></a>
+2. **A clean sheet is the normal start.** The bridge keeps its token and its
+   session registry under `~/.config/opencode-bridge/` (or wherever
+   `TOKEN_FILE` and `SESSIONS_FILE` point) and creates that directory itself
+   before writing either file. A HOME the bridge has never seen is the case a
+   clean-sheet deployment produces; it is not allowed to be the case that
+   crashes.
 
 ## What experience corrected
 
@@ -31,3 +38,7 @@ Default active model: the free model verified and measured at deployment (Rule 7
   on — while the twin package `pkg-bridge-opencode` already refused. The
   review of the Rule 7 sweep found it; invariant 1 is the correction, and
   `test/no-default-model.test.js` holds it.
+* **The first start on a blank HOME died on its own directory.** The token
+  write threw `ENOENT` out of its own catch block; two reviewers read it and
+  the suite could not see it, because every test named `TOKEN_FILE` inside a
+  directory it had created. Invariant 2; `test/fresh-home.test.js`.

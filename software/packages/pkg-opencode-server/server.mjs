@@ -96,7 +96,20 @@ if (!IS_STUB && !MODEL) {
   process.exit(2);
 }
 
+// The token and the session registry live under CFG_DIR, which nothing
+// created: on a HOME the bridge had never seen, the first token write threw
+// ENOENT out of its own catch block and the process died before listening
+// (two reviewers read it; every test named TOKEN_FILE in a directory it had
+// made). The directory is made before either file is written, whichever of
+// the two the operator relocated.
+function ensureStateDirs() {
+  for (const file of [TOKEN_FILE, SESSIONS_FILE]) {
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  }
+}
+
 function token() {
+  ensureStateDirs();
   if (process.env.OPENCODE_BRIDGE_TOKEN || process.env.BRIDGE_AUTH_TOKEN) {
     const t = String(process.env.OPENCODE_BRIDGE_TOKEN || process.env.BRIDGE_AUTH_TOKEN).trim();
     try { fs.writeFileSync(TOKEN_FILE, t + '\n', { mode: 0o600 }); } catch {}
