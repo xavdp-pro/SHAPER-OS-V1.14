@@ -348,8 +348,9 @@ output cannot be read as facts is `STAMP_FAILED`, never a success by default;
 a stamp becomes PURRING only when the fact it reports is a container
 `Running` — a stopped container never purrs.
 
-Four work kinds, each one line in the maker's event table and three in the
-governor's transition table, plus its recipe:
+Four work kinds, each one line in the maker's event table and one line per
+outcome in the governor's transition table (three, four for `reap` with its
+refusal), plus its recipe:
 
 | Kind | What it does | What it reports |
 | :--- | :--- | :--- |
@@ -569,7 +570,7 @@ project's notes.
 | `machine` | `gbs-vps` (fleetName), bound at enrolment to the hostname asked of the host |
 | `env` | `prod` for the frozen tenants — `liblxc-reap.sh` MUST carry lxd-reap's exit-4 guard before any prod row exists |
 | `deadlineAt` | `null` — a practice has no expiry |
-| maker | an LXC universe on `gbs-vps`, the host's power in its vault, token in its vault |
+| maker | an LXC universe on `gbs-vps` (§4.4 — TARGET until the LXC form ships; until then the maker runs on the host), the host's power in its vault, token in its vault |
 | silence | a tenant that stops reporting, a maker that stops calling → out of band |
 
 **Adopting the existing tenants is the first reconciliation, and it needs the
