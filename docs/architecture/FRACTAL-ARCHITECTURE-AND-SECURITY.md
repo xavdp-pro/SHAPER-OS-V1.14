@@ -1,29 +1,29 @@
-# 🌌 SHAPER OS — Architecture Fractale & Modèle de Sécurité Souverain
+# 🌌 SHAPER OS — Fractal Architecture & Sovereign Security Model
 
-> **Statut de Référence :** Document d’Architecture & de Sécurité Normative  
-> **Conformité :** Règles 23 (Vitals/Sondes), 27 (Alerting), 36 (Autorité & Isolation)
+> **Reference status:** Normative Architecture & Security Document  
+> **Compliance:** Rules 23 (Vitals/Probes), 27 (Alerting), 36 (Authority & Isolation)
 
 ---
 
-## 1. Vision & Principe Fondamental de la Fractalité
+## 1. Vision & Fundamental Principle of Fractality
 
-Dans **SHAPER OS**, chaque niveau de l'organisation est un univers autonome et auto-similaire.  
-Un univers à un niveau donné ne connaît que ses enfants directs et son parent immédiat. Il n'a aucun pouvoir arbitraire sur le système d'exploitation global.
+In **SHAPER OS**, every level of the organisation is an autonomous, self-similar universe.  
+A universe at a given level knows only its direct children and its immediate parent. It has no arbitrary power over the global operating system.
 
 ```mermaid
 flowchart TD
-    N0["🏢 <b>NIVEAU 0 — SaaS global</b><br/>comptes, forfaits, quotas signés<br/>file d'ordres de déploiement"]
-    N1A["🚀 <b>NIVEAU 1A — Host spawner</b><br/>bare-metal A<br/>podman rootless + connecteur DNS"]
-    N1B["🚀 <b>NIVEAU 1B — Host spawner</b><br/>VPS B<br/>podman rootless + connecteur DNS"]
-    N2A["🎛️ <b>NIVEAU 2A — Manager de flotte</b><br/>2 enfants actifs sur 5"]
-    N2B["🎛️ <b>NIVEAU 2B — Manager de flotte</b><br/>4 enfants actifs sur 10"]
-    C1["NIVEAU 3 — enfant 01"]
-    C2["NIVEAU 3 — enfant 02"]
-    C3["NIVEAU 3 — enfant 03"]
-    C4["NIVEAU 3 — enfant 04"]
+    N0["🏢 <b>LEVEL 0 — Global SaaS</b><br/>accounts, plans, signed quotas<br/>deployment order queue"]
+    N1A["🚀 <b>LEVEL 1A — Host spawner</b><br/>bare-metal A<br/>rootless podman + DNS connector"]
+    N1B["🚀 <b>LEVEL 1B — Host spawner</b><br/>VPS B<br/>rootless podman + DNS connector"]
+    N2A["🎛️ <b>LEVEL 2A — Fleet manager</b><br/>2 active children out of 5"]
+    N2B["🎛️ <b>LEVEL 2B — Fleet manager</b><br/>4 active children out of 10"]
+    C1["LEVEL 3 — child 01"]
+    C2["LEVEL 3 — child 02"]
+    C3["LEVEL 3 — child 03"]
+    C4["LEVEL 3 — child 04"]
 
-    N0 -- "🔄 flux PULL · zéro port ouvert" --> N1A
-    N0 -- "🔄 flux PULL · zéro port ouvert" --> N1B
+    N0 -- "🔄 PULL flow · zero open port" --> N1A
+    N0 -- "🔄 PULL flow · zero open port" --> N1B
     N1A --> N2A
     N1B --> N2B
     N2A --> C1
@@ -37,24 +37,24 @@ flowchart TD
     class C1,C2,C3,C4 c
 ```
 
-> Chaque nom au niveau 3 est fourni par l'opérateur. Ce dépôt n'en livre aucun.
+> Every name at level 3 is supplied by the operator. This repository ships none.
 
 ---
 
-## 2. Le Modèle de Sécurité Souverain : Le Modèle « PULL Worker »
+## 2. The Sovereign Security Model: The "PULL Worker" Model
 
-La sécurité de SHAPER OS repose sur un refus catégorique des accès root et des ports ouverts.
+SHAPER OS security rests on a categorical refusal of root access and open ports.
 
 ```mermaid
 flowchart LR
-    subgraph mauvais["❌ Méthode courante — vulnérabilité majeure"]
+    subgraph common["❌ Common method — major vulnerability"]
         direction LR
-        W1["Manager web cloud"] -- "SSH root · port 22 ouvert" --> H1["Serveur hôte"]
+        W1["Cloud web manager"] -- "root SSH · port 22 open" --> H1["Host server"]
     end
 
-    subgraph shaper["✅ Méthode SHAPER OS — Zero Trust"]
+    subgraph shaper["✅ SHAPER OS method — Zero Trust"]
         direction LR
-        H2["Serveur hôte<br/><i>100% fermé</i>"] -- "connexion SORTANTE<br/>polling / SSE" --> W2["Manager web cloud"]
+        H2["Host server<br/><i>100% closed</i>"] -- "OUTBOUND connection<br/>polling / SSE" --> W2["Cloud web manager"]
     end
 
     classDef bad fill:#161b22,stroke:#f85149,color:#e6edf3
@@ -63,53 +63,53 @@ flowchart LR
     class W2,H2 good
 ```
 
-Dans le premier cas, un web compromis donne le contrôle total du serveur. Dans
-le second, l'hôte interroge la file de tâches et n'expose aucun port entrant.
+In the first case, a compromised web tier gives total control of the server. In
+the second, the host polls the task queue and exposes no inbound port.
 
-### Pourquoi ce modèle est inviolable :
-1. **Zéro port d'écoute ouvert sur Internet :** Le serveur VPS / Hôte ne possède aucun port SSH ou API d'administration exposé au public.
-2. **Initiative toujours locale :** C'est le moteur de l'Hôte qui va chercher ses ordres auprès du SaaS (requête sortante HTTPS).
-3. **Impossibilité d'injection de code système :** Le serveur hôte n'accepte que des ordres de mission stricts et typés (`SPAWN_STORE`, `STOP_STORE`, `BACKUP_STORE`).
+### Why this model is inviolable:
+1. **Zero listening port open to the Internet:** The VPS / host server has no SSH port or administration API exposed to the public.
+2. **Initiative always local:** It is the host's engine that fetches its orders from the SaaS (outbound HTTPS request).
+3. **No system code injection possible:** The host server accepts only strict, typed mission orders (`SPAWN_STORE`, `STOP_STORE`, `BACKUP_STORE`).
 
 ---
 
-## 3. L'Univers SHAPER OS de l'Hôte (Host Spawner Engine)
+## 3. The Host's SHAPER OS Universe (Host Spawner Engine)
 
-Pour exécuter les ordres de création de conteneurs, le serveur Hôte possède **son propre Univers SHAPER OS** composé des briques natives :
+To execute container creation orders, the host server has **its own SHAPER OS universe** made of the native bricks:
 
-| Brique SHAPER | Rôle dans l'Hôte Spawner |
+| SHAPER brick | Role in the Host Spawner |
 | :--- | :--- |
-| **`@shaper/pkg-queue`** | Ordonnance les créations et destructions de boutiques dans une file priorisée avec gestion de charge. |
-| **`@shaper/pkg-logger`** | Enregistre chaque événement d'infrastructure dans un journal immuable JSONL (`log/events.jsonl`). |
-| **`@shaper/pkg-maestro`** | Chef d'orchestre local qui dépile la Queue, exécute les scripts Podman et vérifie la conformité. |
-| **`@shaper/pkg-vault`** | Chiffre et isole les clés API Cloudflare, les mots de passe MariaDB et les certificats de licence. |
-| **`@shaper/pkg-supervisor`** | Surveille l'utilisation RAM, CPU et disque de l'ensemble de la flotte de conteneurs. |
+| **`@shaper/pkg-queue`** | Schedules store creations and destructions in a prioritised queue with load management. |
+| **`@shaper/pkg-logger`** | Records every infrastructure event in an immutable JSONL journal (`log/events.jsonl`). |
+| **`@shaper/pkg-maestro`** | Local conductor that dequeues the Queue, runs the Podman scripts and checks compliance. |
+| **`@shaper/pkg-vault`** | Encrypts and isolates the Cloudflare API keys, the MariaDB passwords and the licence certificates. |
+| **`@shaper/pkg-supervisor`** | Watches the RAM, CPU and disk usage of the whole container fleet. |
 
 ---
 
-## 4. Le Principe du Moindre Privilège & Podman Rootless
+## 4. The Principle of Least Privilege & Rootless Podman
 
-1. **Podman Rootless (Zéro Root) :**
-   * Tous les conteneurs, quels qu'ils soient, s'exécutent sous un utilisateur non privilégié dédié.
-   * Même en cas de faille zero-day critique dans l'application hébergée, l'attaquant reste confiné dans le conteneur sans aucun droit sur le système hôte.
-2. **Isolation Réseau Multi-Tenancy :**
-   * Chaque univers fils possède son propre sous-réseau conteneurisé.
-   * L'univers fils `01` ne peut ni lire, ni écrire dans la base de données de l'univers fils `02`.
+1. **Rootless Podman (Zero Root):**
+   * All containers, whatever they are, run under a dedicated unprivileged user.
+   * Even with a critical zero-day flaw in the hosted application, the attacker stays confined to the container with no rights on the host system.
+2. **Multi-Tenancy Network Isolation:**
+   * Every child universe has its own containerised subnet.
+   * Child universe `01` can neither read nor write the database of child universe `02`.
 
 ---
 
-## 5. Le Cycle de Vie Automatisé (Zero-Touch Provisioning)
+## 5. The Automated Lifecycle (Zero-Touch Provisioning)
 
-Lorsqu'un ordre `SPAWN_CHILD` est validé par la Queue de l'Hôte :
+When a `SPAWN_CHILD` order is validated by the host's Queue:
 
 ```mermaid
 flowchart LR
-    A["1 · Allocation<br/><i>ports libres, volumes vol-*</i>"]
-    B["2 · Données<br/><i>conteneur de persistance</i>"]
-    C["3 · Application<br/><i>conteneur de restitution</i>"]
-    D["4 · Amorçage<br/><i>configuration sans humain</i>"]
-    E["5 · Ingress<br/><i>DNS et tunnel Zero Trust</i>"]
-    F["6 · Prêt<br/><i>univers fils en ligne</i>"]
+    A["1 · Allocation<br/><i>free ports, vol-* volumes</i>"]
+    B["2 · Data<br/><i>persistence container</i>"]
+    C["3 · Application<br/><i>rendering container</i>"]
+    D["4 · Bootstrap<br/><i>configuration without a human</i>"]
+    E["5 · Ingress<br/><i>DNS and Zero Trust tunnel</i>"]
+    F["6 · Ready<br/><i>child universe online</i>"]
 
     A --> B --> C --> D --> E --> F
 
@@ -117,18 +117,18 @@ flowchart LR
     class A,B,C,D,E,F s
 ```
 
-1. **Amorçage automatique :** l'application du fils est installée et configurée sans intervention humaine.
-2. **Spécialisation :** la brique métier du catalogue est activée et paramétrée depuis le manifeste du fils.
-3. **Câblage edge :** l'API du fournisseur DNS associe le nom public au tunnel Zero Trust sans redémarrage de service.
+1. **Automatic bootstrap:** the child's application is installed and configured without human intervention.
+2. **Specialisation:** the catalogue's business brick is enabled and parameterised from the child's manifest.
+3. **Edge wiring:** the DNS provider's API binds the public name to the Zero Trust tunnel without a service restart.
 
 ---
 
-## 6. Gestion des Quotas & Modèle Économique (5, 10, 20 Boutiques)
+## 6. Quota Management & Economic Model (5, 10, 20 Stores)
 
-* Le SaaS Grand-Père injecte dans le Vault du Manager Père un jeton de quota cryptographique (`max_stores: 5`).
-* Le Manager Père refuse toute création supplémentaire si `nombre_boutiques >= max_stores`.
-* Lors d'une mise à niveau de forfait, le SaaS émet un jeton mis à jour qui débloque instantanément les nouveaux emplacements dans l'interface commerçant.
+* The Grandfather SaaS injects into the Father Manager's Vault a cryptographic quota token (`max_stores: 5`).
+* The Father Manager refuses any further creation if `store_count >= max_stores`.
+* On a plan upgrade, the SaaS issues an updated token that instantly unlocks the new slots in the merchant interface.
 
 ---
 
-*Document de référence SHAPER OS V1.8 — Architecture Fractale & Sécurité Souveraine.*
+*SHAPER OS V1.8 reference document — Fractal Architecture & Sovereign Security.*
