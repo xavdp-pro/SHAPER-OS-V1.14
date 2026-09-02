@@ -507,28 +507,52 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   largest state — the image store — into the one layer podman cannot back up as
   a whole. Depth comes from nesting **universes**, never from nesting runtimes.
 
-* **Two host families, one contract.** The host provides a nesting-capable
+* **Three host families, one contract.** The host provides a nesting-capable
   container; how it is created is the host's business, and a document that
-  covers only one family MUST say which in its first paragraph.
-  * **Proxmox node** — `pct create`, and `features: nesting=1,keyctl=1` in
+  covers only one family MUST say which in its first paragraph. Each family
+  has ONE token: it is the `kind` of a machine in the fleet map
+  (`docs/architecture/FLEET.md`) and the prefix of the maker's frozen recipes
+  (`<kind>-<work>.sh`, `software/universes/_maker-template/`). The token is
+  the only spelling of the family, everywhere.
+  * **`proxmox` — a Proxmox node** — `pct create`, and `features: nesting=1,keyctl=1` in
     `/etc/pve/lxc/<ID>.conf`. Verify the Debian 13 template is present
     (`pveam list local`) before creating anything.
-  * **Debian/Ubuntu with native LXC/LXD** — `lxc launch`, profile `podman-univ`:
+  * **`lxd` — Debian/Ubuntu with native LXC/LXD** — `lxc launch`, profile `podman-univ`:
     `security.nesting`, `security.privileged`,
     `linux.kernel_modules: overlay,nf_nat,ip_tables,ip6_tables,fuse,tun`.
-  * **A bare host with neither** — the agent halts and asks. Installing a
+  * **`liblxc` — Debian with plain LXC** (the `lxc-*` tools over the library,
+    no LXD daemon; amended 2 September 2026, maker-and-governor verdict, D2).
+    The same three concerns as the `lxd` family — nesting, the privilege
+    model, the host modules — spelled in the container's `config` instead of
+    a profile, and with an unprivileged idmap where the `lxd` profile runs
+    privileged: nesting
+    (`lxc.include = /usr/share/lxc/config/nesting.conf`, and the AppArmor
+    profile that allows it), an **unprivileged idmap** (`lxc.idmap = u 0
+    <subuid> 65536` / `g …`, the ranges granted in `/etc/subuid` and
+    `/etc/subgid`), and the same host modules loaded
+    (`overlay,nf_nat,ip_tables,ip6_tables,fuse,tun`). The exact lines are
+    fixed by the first `liblxc-stamp.sh`, proven on terrain before it ships
+    (`recipes/README.md`): this rule names the family's contract, not the
+    recipe. **The token is `liblxc`, never `lxc`**: `lxc` is the name of LXD's
+    client binary, the very command the `lxd` recipes call — a family named
+    `lxc` would read as the other family's command, on every page and in
+    every recipe name.
+  * **A bare host with none of the three** — the agent halts and asks. Installing a
     hypervisor is an architecture decision (storage backend, pool size, bridge,
     firewall), not a package install, and a host may be bare on purpose. The
     agent states exactly which commands the human should run, and stops.
 
 * **Presence of a tool is not proof of a capability.** An agent declares a host
   fit to carry a universe only after launching a throwaway nested container and
-  running a container inside it. `lxc` being installed says nothing about whether
-  podman runs inside it; podman being installed says nothing about whether a
-  `RUN` step will execute — on one workstation every build failed at `RUN`
-  because the session bus carried no systemd, which no inventory of binaries
-  would ever have revealed. An agent that lists binaries manufactures confidence;
-  an agent that launches and observes produces a verdict.
+  running a container inside it — the same proof for the three families:
+  `lxc launch`, `pct create` or `lxc-create`/`lxc-start` for the throwaway,
+  and a podman container born inside it, observed. `lxc` being installed
+  says nothing about whether podman runs inside it; podman being installed
+  says nothing about whether a `RUN` step will execute — on one workstation
+  every build failed at `RUN` because the session bus carried no systemd,
+  which no inventory of binaries would ever have revealed. An agent that
+  lists binaries manufactures confidence; an agent that launches and
+  observes produces a verdict.
 
 * **First boot, inside the container**: `apt-get update && apt-get dist-upgrade
   -y && apt-get clean`, then inject `skel/etc/{bash.bashrc,inputrc}`. Host kernel
@@ -799,7 +823,8 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
 * **A Reconciliation Loop That Cannot Give Up Is a Storm Generator**: The Maestro reconciliation engine (desired `manifest.json` ↔ observed `sav/state/observed-state.json`) MUST bound its own corrective action.
   * **Exponential Backoff**: Repair attempts on the same drift signature back off (e.g. 30s → 1m → 2m → 4m), never retry at fixed beat cadence.
   * **Bounded Attempts**: After `maxHealingAttempts` (default 5) on the same drift signature, the supervisor STOPS attempting repair.
-  * **Terminal `DEGRADED` State**: The child universe is marked `DEGRADED` in the parent registry, its drift signature and last diagnostic are recorded, and the human operator is alerted. `DEGRADED` is a resting state, not a retry state — it never self-clears; only an explicit human or Root Guardian action returns it to `RECONCILING`.
+  * **Terminal `DEGRADED` State**: The child universe is marked `DEGRADED` in the parent registry, its drift signature and last diagnostic are recorded, and the human operator is alerted. `DEGRADED` is a resting state, not a retry state — it never self-clears.
+  * **How a `DEGRADED` row is left** (amended 2 September 2026, maker-and-governor verdict, with Rule 37's ledger): a DEGRADED row leaves that state by its account's explicit new ask, for the environments a robot may end (`dev`, `test`, `demo`) — the broken row's deadline becomes now, a maker reaps whatever half-exists and reports `REAPED`, and a fresh row is born beside it; the broken one was a failure the account was stuck behind, not a life to protect. A **`prod`** row leaves it only by human or Root Guardian action: a robot's re-ask is refused as a typed fact carrying the row id, no twin is born, and the reap recipe refuses to end a production universe (exit 4, reported `REAP_REFUSED` — a fact, not a failure) so that the row rests and the alarm leaves out of band. The same bounds apply to the governor's own offers: a reap that failed is offered again under exponential backoff and never beyond `maxHealingAttempts`; a reap that was refused is never offered again.
   * **Fleet-Wide Circuit Breaker**: If more than 20% of a fleet enters `DEGRADED` within one bake window, the parent suspends ALL reconciliation and rollout activity on that fleet and escalates. A systemic fault must never be amplified N times.
 * **The Escalation Channel Is Declared, Never Assumed**: "Alert the operator" is meaningless until the channel exists. Each universe declares its `alerting` channel in `manifest.json` — mobile push, mail, Telegram, or an existing prod-alerting relay. The channel depends on what is being watched and is decided case by case; the doctrine imposes only the contract:
   * It reaches a **human out-of-band** — never a UI nobody is looking at.
@@ -934,6 +959,7 @@ Rule 29 requires that every bug resolved gives birth to a regression test. That 
 * **Canary Promotion & Garbage Collection**:
   * Once the clean-sheet `-test` container passes 100% green, the git commit/tag is promoted to production via the canary protocol (Rule 25).
   * Immediately after promotion, the Parent executes complete destruction (`podman rm -f` / `lxc delete`) of the `-dev` and `-test` containers, releasing all ports, memory, and scratch volumes (Universe Garbage Collector).
+* **The maker is the Parent's hand** (amended 2 September 2026, maker-and-governor verdict): in the fractal of Rule 11, the level $K+1$ of an instance is its **governor and the makers that governor enrolled** — the tandem, root from underneath, brought each maker into being and declared it (the maker template's invariant 7). The authority this rule grants — to instantiate, access and destroy a child — is held by the **maker organ of that level**, in its vault, on the one machine it acts on: never by the governor, which writes rows and holds no key to any host, and **it never leaves the level** — no private key crosses down into a child, none climbs up into a ledger. The Parent's public key reaches a child through the stamp recipe, as a file, never as a command built from the row. Birth and end (`lxc launch` / `lxc delete`, `pct create` / `pct destroy`) are the maker's gestures on a ledger row; the garbage collection above is the same gesture, driven by the row's deadline. The host's own SSH door is the tandem's, from underneath; it is not the maker's, and the maker holds no inbound door of its own.
 
 
 ---
@@ -959,24 +985,61 @@ rule is what killed the synonyms, and it keeps them dead.*
     `"forkedFrom": { "repo": "<upstream>", "atTag": "vX.Y.Z" }` — this is what
     lets `shaper verify` enforce the mirror rule by machine.
 * **One state machine, one set of names, everywhere**:
-  `DESIRED → RECONCILING → PURRING → DEGRADED`.
+  `DESIRED → RECONCILING → PURRING → DEGRADED`, plus the terminal `REAPED`
+  (amended 2 September 2026, maker-and-governor verdict: five states, the
+  ones `pkg-governor` has always held).
   * **PURRING** is the healthy state, and it is **dated**: the universe writes
     it to its `status.json` on every on-time beat when observed == desired.
     Silence is ambiguous between "fine" and "dead and unable to say so"; a
     stale `lastPurr` timestamp is the alarm. `running`, `green`, `OK` and
     every other synonym are forbidden as state words.
   * **drift** is the ONLY word for observed != desired, and the only repair
-    trigger. Rule 27 governs the repair ladder and the terminal `DEGRADED`.
+    trigger. Rule 27 governs the repair ladder and the resting `DEGRADED`.
+  * **DEGRADED** rests; it never self-clears. It is left in two ways only
+    (Rule 27): by its account's explicit new ask, for the environments a
+    robot may end (`dev`, `test`, `demo`) — the broken row's deadline
+    becomes now, a maker reaps whatever half-exists, a fresh row is born —
+    or, for a `prod` row, by human or Root Guardian action alone.
+  * **REAPED** is the end: a maker ended the universe on the row's deadline
+    and looked (the reap recipe verifies the absence, it does not assume
+    it), or a human ended it. Terminal, and dated by its event. *Prevents*:
+    a reaped row still counted as living — its account blocked forever
+    behind a slot nothing frees, its matrix pinned by a reference no
+    instance holds. A state word for "ended" that did not exist was read
+    as "still there".
   * `status.json` (per instance: state, lastPurr, lastBackup) is the canonical
     surface; every board, cockpit tile or STATE file is a rendering of it,
     never a rival.
-* **The ledger is the only instance store**: one row per instance (class, tag,
-  machine, env, state, bucket) in the governing universe's database (Rule 26).
-  A standalone universe governs itself: its ledger lives in its own database —
-  which means a standalone class that will hold its own ledger takes the
-  `+data` profile option (the default `agent` profile carries no database
-  brick). The canonical ledger table contract ships with `brick-forge`
-  (TARGET); until then the ledger binds by this rule's reading.
+* **The ledger is the only instance store**: one row per instance, in the
+  governing universe's database (Rule 26). The row (amended 2 September
+  2026, maker-and-governor verdict): `id`, `account`, `klass`, `matrix`,
+  `digest`, `machine`, `env`, `state`, `params`, `deadlineAt`, `createdAt`,
+  `updatedAt`, `events[]`. What changed from the first reading (class, tag,
+  machine, env, state, bucket), and why: `tag` became `matrix` + `digest`,
+  because an instance is born from an artefact, not from a repo tag — five
+  builds of one commit are five fingerprints, and the digest is what the
+  maker proves it holds; `bucket` is derivable (`r2://<id>`) and never
+  stored; `id` was missing while the instance's name derives from it;
+  `account` is who asked, and with `klass` it is the idempotence key (one
+  live row per account and class); `deadlineAt` is the only clock a robot
+  reads — a row past it yields reap work, never a timer inside a robot;
+  `params` is the typed slot a recipe reads (a flat object of scalars under
+  an allow-list the product declares per class; immutable on a living row,
+  like its digest; carried to the recipe as `SHAPER_PARAM_<KEY>` on an
+  environment the maker builds, never as argv); `events[]` are the dated
+  facts makers reported, from which every transition is derived by one
+  table. `env` ranks `dev`, `test`, `demo`, `prod`: the first three are
+  environments a robot may end; `demo` is what a row carries when it names
+  none, and it is not production. **The canonical ledger contract ships
+  with `pkg-governor` (BINDING**: `software/packages/pkg-governor/INTENT.md`,
+  its `STATES`, its `EVENT_TRANSITIONS` and its work kinds — stamp, reap,
+  validate, adopt); it no longer waits for `brick-forge`, which never
+  carried it. A standalone universe governs itself: its ledger lives in its
+  own database — which means a standalone class that will hold its own
+  ledger takes the `+data` profile option (the default `agent` profile
+  carries no database brick). The package's JSONL journal is its reference
+  adapter, not the database this rule names: the gap is recorded in
+  `doctrine/CONVERGENCE-STATE.md` until a governor binds its own.
   "placement" survives only as the name of the machine-assignment column.
   Tag precedence: **fleet.yml = the default for new instances and the PRA
   floor; the ledger row = the truth, which may lag during a canary; an audit
@@ -990,15 +1053,39 @@ rule is what killed the synonyms, and it keeps them dead.*
   sovereign fork (Rule 33) keeps its own mirrored fleet map — a client's PRA
   never hinges on the vendor's repo.
 * **Lexicon closure**: the vocabulary of this architecture is the prefix table
-  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus twelve words — class, instance, ledger, drift, PURRING (and
-  its state machine), status.json, board, fleet map, forge, forkedFrom, the
-  mirror rule, source/perimeter. A new noun enters only by amending this rule,
-  with the failure it prevents written beside it. New bricks are not new
-  nouns — `brick-forge`, `brick-scraper`, `brick-sso` are the prefix system
-  doing its job.
+  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus sixteen words —
+  class, instance, ledger, drift, PURRING (and its state machine), status.json,
+  board, fleet map, forge, forkedFrom, the mirror rule, source/perimeter, and,
+  by the amendment of 2 September 2026 (maker-and-governor verdict, §10),
+  governor, maker, matrix, REAPED. A new noun enters only by amending this
+  rule, with the failure it prevents written beside it — as here:
+  * **governor** — the universe that holds a ledger and makes it respected:
+    it writes what should exist, dates what makers report, and never dials
+    out. *Prevents*: "the SaaS" and "the manager" naming two things — the
+    product and the organ — and the maker learning which one it serves.
+  * **maker** — the hand of a machine, one per machine: it asks its governor
+    what should exist on its host, runs a frozen recipe with typed
+    positions, reports a fact, never decides. *Prevents*: a script on a host
+    whose state nobody knows, and a form field reaching a shell.
+  * **matrix** — the locked, content-addressed artefact (sha256) from which
+    instances are stamped; baked by the tandem from a class, never by a
+    robot. *Prevents*: "image" meaning both a podman image and a universe
+    archive, and five builds of one commit giving five fingerprints.
+  * **REAPED** — the fifth, terminal state, above. *Prevents*: a reaped row
+    still counted as living, blocking its account and pinning its matrix.
+  What does not enter: `stamp`, `reap`, `validate`, `adopt` — kinds of work,
+  a table in `pkg-governor`, not nouns of the language. New bricks are not
+  new nouns — `brick-forge`, `brick-scraper`, `brick-sso` are the prefix
+  system doing its job. The forge's line is bounded by the same amendment:
+  `brick-forge` deploys, destroys and repairs BRICKS inside a living universe
+  (the podman level; drift at brick level); universes are born and ended by
+  the maker, from a ledger row (the LXC level; the gap at instance level).
 * **What it protects**: a human juggling several vibecoded projects and a cold
   agent landing in a repo must both answer, from one page — *where is the
-  truth?* (the ledger) — *who repairs?* (the forge, triggered by drift) —
-  *is everything fine?* (the board, rendering status.json) — *how is it all
-  recreated?* (the fleet map + R2, Rule 16). A vocabulary that cannot fit on
-  one page has already failed them both.
+  truth?* (the ledger) — *who repairs?* (the forge, on drift, inside a
+  universe) — *who births?* (the maker, from a row) — *is everything fine?*
+  (the board, rendering status.json) — *how is it all recreated?* (the fleet
+  map + R2, Rule 16). A vocabulary that cannot fit on one page has already
+  failed them both. `docs/architecture/LEXICON.md` is that page, and the test
+  `lexicon-and-code-agree.test.js` holds it, this rule and `pkg-governor`'s
+  states to one set of names.
