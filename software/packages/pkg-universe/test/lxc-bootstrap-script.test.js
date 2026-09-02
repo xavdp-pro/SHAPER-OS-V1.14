@@ -29,7 +29,9 @@ describe('the one-click LXC bootstrap does what its guide says', () => {
   it('creates nothing under /data on the host, and opens nothing to the world', () => {
     assert.doesNotMatch(code, /mkdir\s+(-p\s+)?\/data/, '/data/… is a container path; the deploy script creates what it mounts, under the universe');
     assert.doesNotMatch(code, /chmod\s+(-R\s+)?777/, 'world-writable directories that nothing uses');
-    assert.doesNotMatch(code, /\/data\/workspaces|_kovzu|Xavier/, 'a host journal in workspaces named after the author — nothing in the repository reads it');
+    // The author's first name is deliberately NOT in this pattern: a tracked file
+    // that spells the identifier it wants gone reintroduces it (Boot Contract 10b).
+    assert.doesNotMatch(code, /\/data\/workspaces|_kovzu/, 'a host journal in workspaces named after the author — nothing in the repository reads it');
   });
 
   it('quotes the slug in every path it builds', () => {
