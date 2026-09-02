@@ -298,6 +298,17 @@ function startServe() {
     ['serve', '--port', String(SERVE_PORT), '--hostname', '127.0.0.1'],
     { cwd: WS_BASE, env: AGENT_ENV, stdio: ['ignore', 'pipe', 'pipe'] },
   );
+  // Rule 0J: a CLI that cannot be started is a halt that names what to
+  // supply. Without this listener an absent OPENCODE_BIN was an uncaught
+  // 'error' event — a stack trace after /api/health had already answered —
+  // and the 'close' that follows it would have retried the same absent
+  // binary every three seconds. Nothing a retry can fix: the process exits
+  // with the same code as the missing-model halt, before 'close' runs.
+  serveChild.on('error', (err) => {
+    console.error(`[opencode-bridge] HALT: cannot start the OpenCode CLI at ${AGENT_BIN} (${err.code || err.message}).`);
+    console.error('[opencode-bridge] Set OPENCODE_BIN to the CLI the image carries (or OPT_BRIDGE_ROOT to its root) — or set BRIDGE_OPENCODE_STUB=1 for the simulated bridge.');
+    process.exit(2);
+  });
   serveChild.stdout.on('data', (d) => {
     const s = d.toString().trim();
     if (s) console.log(`[opencode serve] ${s.slice(0, 300)}`);

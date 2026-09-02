@@ -23,6 +23,12 @@ Default active model: the free model verified and measured at deployment (Rule 7
    before writing either file. A HOME the bridge has never seen is the case a
    clean-sheet deployment produces; it is not allowed to be the case that
    crashes.
+   <a id="absent-cli"></a>
+3. **A CLI that cannot start is a typed halt.** The headless `opencode serve`
+   child comes from `OPENCODE_BIN` (default: under `OPT_BRIDGE_ROOT`). When
+   the binary is absent or cannot be executed, the bridge halts with exit
+   code 2, naming the path it tried and the variable to set — never an
+   uncaught exception, and never a retry loop against the same absent file.
 
 ## What experience corrected
 
@@ -42,3 +48,7 @@ Default active model: the free model verified and measured at deployment (Rule 7
   write threw `ENOENT` out of its own catch block; two reviewers read it and
   the suite could not see it, because every test named `TOKEN_FILE` inside a
   directory it had created. Invariant 2; `test/fresh-home.test.js`.
+* **An absent binary was an uncaught exception.** The spawn of `opencode
+  serve` listened to stdout, stderr and close, never to `'error'`, so a
+  missing `OPENCODE_BIN` was a stack trace after `/api/health` had already
+  answered. Invariant 3; `test/absent-cli.test.js`.
