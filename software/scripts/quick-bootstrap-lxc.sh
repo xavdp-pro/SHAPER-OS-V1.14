@@ -2,6 +2,10 @@
 # Intent: software/RULES.md#rule-11
 # ==============================================================================
 # SHAPER OS — Quick 4-Step LXC & Podman Bootstrap Script
+#
+# Host family: Proxmox (`pct`). The LXD family (`lxc launch` + profile
+# podman-univ) is the runbook's Step 0a; Rule 11 asks a document that covers
+# one family to say which, and this one drives pct only.
 # ==============================================================================
 set -euo pipefail
 
@@ -49,6 +53,19 @@ pct start "${VMID}"
 echo "Waiting for container initialization..."
 sleep 3
 
+# Read nesting back from the APPLIED config (`pct config`, the pct analogue of
+# `lxc config show`) — `pct status` and `lxc info` list no feature and no
+# profile, and a check built on them passes every time (1 September 2026,
+# docs/proof/proof-rule-11-in-production.md, lesson 4). A feature set on a
+# running CT applies only after a reboot, and the symptom without the reboot
+# is the same as without nesting (lesson 5): here the features are set at
+# create, before the first start, so no reboot is needed.
+if ! pct config "${VMID}" | grep -qE '^features:.*nesting=1'; then
+    echo "ERROR: nesting is not in the applied config of CT ${VMID} (pct config shows no 'features: nesting=1')." >&2
+    echo "       Run: pct set ${VMID} --features nesting=1,keyctl=1 && pct reboot ${VMID}  — a feature set on a running CT applies only after a reboot." >&2
+    exit 1
+fi
+
 # 2. Inject Skeleton Configuration Files
 echo "[2/4] Injecting skel files (/etc/bash.bashrc, /etc/inputrc)..."
 if [ -d "${SKEL_DIR}/etc" ]; then
@@ -58,7 +75,10 @@ fi
 
 # 3. Upgrade and Install Podman Runtime Engines
 echo "[3/4] Performing dist-upgrade and installing Podman runtime..."
-pct exec "${VMID}" -- bash -c 'apt-get update && apt-get dist-upgrade -y && apt-get install -y podman crun fuse-overlayfs wireguard wireguard-tools curl git'
+# nftables: podman's nested network (netavark) needs it inside the LXC and
+# dies opaquely without it (lesson 1). iproute2: `ss`, so the preflight can
+# see which ports are already held before a brick claims them (lesson 8).
+pct exec "${VMID}" -- bash -c 'apt-get update && apt-get dist-upgrade -y && apt-get install -y podman crun fuse-overlayfs nftables wireguard wireguard-tools iproute2 curl git'
 
 # 4. Inject Host SSH Public Key
 echo "[4/4] Injecting host SSH public key..."

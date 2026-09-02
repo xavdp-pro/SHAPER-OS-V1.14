@@ -60,6 +60,16 @@ exec 9>&-
 
 # 3. Idempotent by construction: the row already has its container or it
 #    does not. Re-running a stamp never births a twin.
+#
+#    `lxc info` is asked ONE question here — does the instance exist — and
+#    never whether a profile is applied: it does not list profiles, and an
+#    idempotence check built on it passed every time on terrain, then tried
+#    to add a profile already present (1 September 2026, lesson 4 — read
+#    profiles with `lxc config show`). The profile is given at LAUNCH, so
+#    nesting is effective from the first boot; `security.nesting` set on a
+#    running container applies only after `lxc restart`, and the symptom
+#    without that restart is identical to no nesting (lesson 5). That is why
+#    this recipe never `config set`s a launched instance.
 if lxc info "$INSTANCE" > /dev/null 2>&1; then
   say "instance $INSTANCE already exists — nothing to stamp"
 else
