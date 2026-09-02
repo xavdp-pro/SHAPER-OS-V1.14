@@ -18,7 +18,7 @@ This directory gathers the **11 founding reference documents** and the convergen
 | **8** | [`SECURITY-FOLLOWS-FUNCTION.md`](./SECURITY-FOLLOWS-FUNCTION.md) | **When security work happens and who dictates its depth**: structure defends first, the paranoid pass comes once the symphony plays, sized by the cahier des charges — with the floor that is never deferred. |
 | **9** | [`DIRECTION-IS-THE-BOUNDARY.md`](./DIRECTION-IS-THE-BOUNDARY.md) | **The structural half of security-follows-function**: what holds power has no inbound door, what is reachable holds no power. A link that does not exist cannot be misconfigured. |
 | **10** | [`THE-SYSTEM-LEARNS-NO-DIALECT.md`](./THE-SYSTEM-LEARNS-NO-DIALECT.md) | **Interoperability is survival, not craftsmanship**: a component serving several variants never branches on the variant, it declares a contract and reads a table. The first silent `if (variant === …)` is a defect. |
-| **11** | [`MAKER-AND-GOVERNOR.md`](./MAKER-AND-GOVERNOR.md) | **The two organs of the fractal**: the governor writes what should exist, the maker makes it true, the gap between ledger and world is the only source of work. Ledger, recipes, matrices, one maker per machine, the fractal's levels — with WMANAGER (Grégory's Windows fleet) as the worked example. |
+| **11** | [`MAKER-AND-GOVERNOR.md`](./MAKER-AND-GOVERNOR.md) | **The two organs of the fractal**: the governor writes what should exist, the maker makes it true, the gap between the ledger and what makers report is the only source of work. Ledger, recipes, matrices, one maker per machine, the fractal's levels — with a Windows fleet manager (WMANAGER) as the worked example. |
 
 ---
 
