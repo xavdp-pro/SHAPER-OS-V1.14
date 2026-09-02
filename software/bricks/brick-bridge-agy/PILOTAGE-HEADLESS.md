@@ -1,71 +1,71 @@
-# Piloter Antigravity sans IDE ni demande de permission
+# Driving Antigravity without an IDE or a permission prompt
 
-> **Question posée** : peut-on discipliner Antigravity pour l'utiliser sous commande de test,
-> sans qu'il réclame des autorisations dans l'IDE ?
-> **Réponse** : oui. Le CLI `agy` a tout ce qu'il faut, et le bridge de cette brique existe déjà.
+> **Question asked**: can Antigravity be disciplined for use under test command,
+> without it asking for authorisations in the IDE?
+> **Answer**: yes. The `agy` CLI has everything needed, and this brick's bridge already exists.
 
 ---
 
-## 1. Les deux voies
+## 1. The two paths
 
-### Voie A — le CLI en direct (boucle courte, un seul agent)
+### Path A — the CLI directly (short loop, a single agent)
 
 ```bash
-agy -p "<consigne>" \
+agy -p "<instruction>" \
     --output-format json \
     --mode accept-edits \
     --sandbox
 ```
 
-| Drapeau | Ce qu'il règle |
+| Flag | What it sets |
 | :--- | :--- |
-| `-p` / `--print` | **une seule consigne, non interactive**, puis sortie. C'est le mode « commande de test ». |
-| `--output-format json` | sortie exploitable par un script. `stream-json` pour du NDJSON au fil de l'eau. |
-| `--json-schema <fichier>` | impose la **forme** de la réponse — indispensable si un script consomme le résultat. |
-| `--mode accept-edits` | l'agent applique ses modifications sans confirmation. `plan` pour qu'il propose sans toucher. |
-| `--sandbox` | restrictions de terminal. **À conserver** dès qu'on retire les confirmations. |
-| `--effort low\|medium\|high` | dose le raisonnement, donc le coût. |
-| `--conversation <id>` / `--continue` | reprend une session existante. |
-| `--add-dir <chemin>` | limite l'espace de travail aux répertoires déclarés. |
-| `--input-format stream-json` | une consigne NDJSON par ligne sur l'entrée standard : **le mode lot**. |
+| `-p` / `--print` | **a single instruction, non-interactive**, then exit. This is the "test command" mode. |
+| `--output-format json` | output usable by a script. `stream-json` for NDJSON as it flows. |
+| `--json-schema <file>` | imposes the **shape** of the answer — indispensable when a script consumes the result. |
+| `--mode accept-edits` | the agent applies its changes without confirmation. `plan` for it to propose without touching. |
+| `--sandbox` | terminal restrictions. **Keep it** as soon as confirmations are removed. |
+| `--effort low\|medium\|high` | doses the reasoning, hence the cost. |
+| `--conversation <id>` / `--continue` | resumes an existing session. |
+| `--add-dir <path>` | limits the workspace to the declared directories. |
+| `--input-format stream-json` | one NDJSON instruction per line on standard input: **batch mode**. |
 
-### Voie B — le bridge HTTP (orchestration, plusieurs appelants)
+### Path B — the HTTP bridge (orchestration, several callers)
 
-C'est la voie recommandée dès qu'un autre composant pilote l'agent : la queue, Maestro, un test.
-L'appelant **ne lance jamais `agy`** — il parle HTTP au bridge, qui possède le process.
+This is the recommended path as soon as another component drives the agent: the queue, Maestro, a test.
+The caller **never launches `agy`** — it speaks HTTP to the bridge, which owns the process.
 
 ```bash
-TOKEN=$(cat <chemin-du-token-bridge>)
+TOKEN=$(cat <path-to-the-bridge-token>)
 
-# 1. Ouvrir le flux AVANT d'injecter, sinon on rate les premiers événements
+# 1. Open the stream BEFORE injecting, or the first events are missed
 curl -sN -H "Authorization: Bearer $TOKEN" \
   "http://127.0.0.1:4330/api/events?conversation=test-pipeline"
 
-# 2. Injecter
+# 2. Inject
 curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"conversation":"test-pipeline","message":"<consigne>","model":"gemini-3.7-flash-low"}' \
+  -d '{"conversation":"test-pipeline","message":"<instruction>","model":"gemini-3.7-flash-low"}' \
   http://127.0.0.1:4330/api/inject
 ```
 
-Événements reçus : `connected`, `inject`, `response`, `response_complete`, `run_complete`, `log`.
-`conversation` est un identifiant stable : même id, même espace de travail.
+Events received: `connected`, `inject`, `response`, `response_complete`, `run_complete`, `log`.
+`conversation` is a stable identifier: same id, same workspace.
 
 ---
 
-## 2. Le piège des clés — cause de gel connue
+## 2. The key trap — a known cause of freezes
 
-| Variable | Préfixe | Effet |
+| Variable | Prefix | Effect |
 | :--- | :--- | :--- |
-| **`ANTIGRAVITY_API_KEY`** | `AQ.` | ✅ la bonne |
-| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | `AIza…` | ❌ force `modelProvider: gemini` → **429 et agent qui gèle** |
+| **`ANTIGRAVITY_API_KEY`** | `AQ.` | ✅ the right one |
+| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | `AIza…` | ❌ forces `modelProvider: gemini` → **429 and a frozen agent** |
 
-`buildAgySpawnEnv()` de cette brique supprime déjà `GEMINI_API_KEY` et `GOOGLE_API_KEY` de
-l'environnement du process fils, et n'accepte la clé que si elle commence par `AQ.`.
-Ne pas contourner ce garde-fou.
+This brick's `buildAgySpawnEnv()` already removes `GEMINI_API_KEY` and `GOOGLE_API_KEY` from
+the child process environment, and accepts the key only if it starts with `AQ.`.
+Do not bypass this guard.
 
 ---
 
-## 3. État constaté sur cette machine
+## 3. State observed on this machine
 
 ```
 GET /api/health :4330
@@ -73,29 +73,29 @@ GET /api/health :4330
  "model":"gemini-3.7-flash-low","stubMode":true,"hasApiKey":false}
 ```
 
-* Le bridge **tourne et répond**.
-* `hasApiKey: false` → **aucune clé configurée**, donc `stubMode: true` : il simule au lieu de
-  piloter le vrai `agy`. C'est le seul élément manquant.
-* Le binaire `agy` est présent sur la machine.
+* The bridge **runs and answers**.
+* `hasApiKey: false` → **no key configured**, hence `stubMode: true`: it simulates instead of
+  driving the real `agy`. That is the only missing element.
+* The `agy` binary is present on the machine.
 
-**Pour activer** : renseigner `ANTIGRAVITY_API_KEY=AQ.…` dans l'environnement du bridge, puis
-le redémarrer. `hasApiKey` doit passer à `true` et `stubMode` à `false`.
+**To enable**: set `ANTIGRAVITY_API_KEY=AQ.…` in the bridge's environment, then
+restart it. `hasApiKey` must turn to `true` and `stubMode` to `false`.
 
 ---
 
-## 4. Sur `--dangerously-skip-permissions`
+## 4. On `--dangerously-skip-permissions`
 
-Ce drapeau existe et fait exactement ce que son nom dit : **il approuve d'office toute demande
-d'outil**. Il porte cet avertissement pour une raison.
+This flag exists and does exactly what its name says: **it approves every tool request
+outright**. It carries that warning for a reason.
 
-Position retenue :
+Position adopted:
 
-* En **commande de test**, `--mode accept-edits --sandbox --add-dir <périmètre>` suffit dans la
-  très grande majorité des cas, et laisse le bac à sable en place.
-* `--dangerously-skip-permissions` ne se justifie que dans un **conteneur jetable, sur un
-  périmètre déclaré**, jamais sur la machine de travail ni sur un dépôt vivant.
-* Combiné à `--sandbox` et `--add-dir`, il reste borné. Seul, il ne l'est pas.
+* Under **test command**, `--mode accept-edits --sandbox --add-dir <perimeter>` is enough in the
+  vast majority of cases, and leaves the sandbox in place.
+* `--dangerously-skip-permissions` is justified only in a **disposable container, on a declared
+  perimeter**, never on the working machine nor on a living repository.
+* Combined with `--sandbox` and `--add-dir`, it stays bounded. Alone, it is not.
 
-> Retirer les confirmations est un choix d'exploitation, pas un raccourci de développement :
-> ce qui protégeait n'était pas la question posée à l'humain, c'était le périmètre. Si on
-> supprime la question, il faut resserrer le périmètre d'autant.
+> Removing confirmations is an operating choice, not a development shortcut:
+> what protected was not the question asked of the human, it was the perimeter. If
+> the question is removed, the perimeter must be tightened accordingly.
