@@ -8,7 +8,8 @@ import { AgyBridgeServer } from '../index.js';
 describe('bridge-agy vitals', () => {
   it('publishes evidence and no verdict on GET /api/vitals', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-vitals-'));
-    const bridge = new AgyBridgeServer({ stubMode: true, workspaceBase: tmpDir });
+    // The model is supplied, never defaulted (Rule 7).
+    const bridge = new AgyBridgeServer({ stubMode: true, defaultModel: 'engine/measured-at-deploy', workspaceBase: tmpDir });
     const server = bridge.createServer();
 
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -21,7 +22,7 @@ describe('bridge-agy vitals', () => {
     assert.equal(vitals.service, 'brick-bridge-agy');
     assert.equal(typeof vitals.uptimeSeconds, 'number');
     assert.equal(vitals.signals.injects, 0);
-    assert.equal(vitals.signals.model, 'gemini-3.6-flash-low');
+    assert.equal(vitals.signals.model, 'engine/measured-at-deploy');
     assert.equal(vitals.checks.workspace.writable, true);
 
     for (const forbidden of ['status', 'ok', 'healthy', 'verdict']) {

@@ -2,6 +2,6 @@
   "name": "@shaper/pkg-bridge-deepseek",
   "version": "1.13.2",
   "type": "module",
-  "description": "HTTP/SSE bridge for DeepSeek R1/V3 & Ollama Cloud — Rule 8 agent contract",
+  "description": "HTTP/SSE bridge for DeepSeek and Ollama engines — Rule 8 agent contract",
   "main": "index.js"
 }

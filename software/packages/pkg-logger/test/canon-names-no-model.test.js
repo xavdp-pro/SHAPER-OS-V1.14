@@ -41,15 +41,31 @@ function canonFiles() {
     // rule does. The model pinned in .env.example, in a Containerfile, in a deploy
     // script and in a package source had been withdrawn from its catalogue while
     // the suite stayed green — because the guard only read Markdown.
+    //
+    // Every package, not two. The first sweep read only the opencode packages,
+    // and a pinned Composer version, a pinned Ollama model, a Gemini fallback
+    // and a worked example in the queue consumer naming the very model the
+    // clean-sheet record documents as withdrawn all survived it — each one a
+    // default the guard was written to refuse, sitting one directory over.
+    // The universe template's deploy script is read for the same reason: it
+    // pinned a second, different version of the model a package pinned.
+    //
+    // A package manifest is read too. The review of that sweep found two
+    // `description` fields still naming a Composer version and a DeepSeek
+    // generation: a manifest is what a registry and a reader see first, so a
+    // version there is a promise about the engine exactly like one in code.
     out.split('\0').filter(Boolean).filter((rel) => {
       if (rel.startsWith('software/bricks/brick-helm/app/')) return false;
       // A parser test needs realistic input, and a test ships no default to
       // production. Fixtures are data; only what runs is a promise.
       if (/\.test\.[cm]?js$/.test(rel)) return false;
+      if (/\/(test|tests|fixtures?|__fixtures__)\//.test(rel)) return false;
       return /\.env\.example$/.test(rel)
         || /(^|\/)Containerfile$/.test(rel)
         || /^examples\/deploy\/.*\.sh$/.test(rel)
-        || /^software\/packages\/(pkg-bridge-opencode|pkg-opencode-server)\/[^/]+\.(js|mjs)$/.test(rel);
+        || /^software\/universes\/_template\/deploy\/podman-up\.sh$/.test(rel)
+        || /^software\/packages\/[^/]+\/package\.json$/.test(rel)
+        || /^software\/packages\/[^/]+\/.*\.(js|mjs|cjs)$/.test(rel);
     }),
   ).filter((rel) => {
     return true;

@@ -268,6 +268,13 @@ podman run -d --name "${SLUG}-bridge-opencode" --network "$NET" --replace \
 
 if [[ "$WITH_BRIDGE_CURSOR" == "1" ]]; then
   echo "[podman-up] bridge-cursor :$CURSOR_BRIDGE_PORT"
+  # No default model — Rule 7, same contract as OPENCODE_MODEL above. Until the
+  # Rule 7 sweep this line pinned a Composer version the bridge did not even
+  # read; the bridge now halts without CURSOR_MODEL, so refuse here, where the
+  # message is readable, rather than in a crash-looping container.
+  if [[ "${BRIDGE_CURSOR_STUB:-0}" != "1" ]]; then
+    : "${CURSOR_MODEL:?not set — bridge-cursor is enabled and names no default model (Rule 7): measure the engines reachable from this host and export CURSOR_MODEL=<model id>}"
+  fi
   # cursor-agent is a separate CLI from the IDE. Mounted read-only from the host
   # so the image carries no binary it cannot version.
   podman run -d --name "${SLUG}-bridge-cursor" --network "$NET" --replace \
@@ -276,7 +283,7 @@ if [[ "$WITH_BRIDGE_CURSOR" == "1" ]]; then
     -e BRIDGE_CURSOR_STUB="${BRIDGE_CURSOR_STUB:-0}" \
     -e CURSOR_BIN=/usr/local/bin/cursor-agent \
     -e CURSOR_API_KEY="${CURSOR_API_KEY:-}" \
-    -e CURSOR_MODEL="${CURSOR_MODEL:-composer-2.5}" \
+    -e CURSOR_MODEL="${CURSOR_MODEL:-}" \
     -e CURSOR_MODE="${CURSOR_MODE:-normal}" \
     ${CURSOR_AGENT_DIR:+-v "${CURSOR_AGENT_DIR}:/opt/cursor-agent:ro"} \
     ${CURSOR_AGENT_DIR:+-e CURSOR_BIN=/opt/cursor-agent/cursor-agent} \
@@ -286,6 +293,11 @@ fi
 
 if [[ "$WITH_BRIDGE_AGY" == "1" ]]; then
   echo "[podman-up] bridge-agy :$AGY_BRIDGE_PORT"
+  # No default model — Rule 7, same contract as OPENCODE_MODEL above. Until the
+  # Rule 7 sweep this line pinned one version and the package pinned another:
+  # two defaults for one bridge, neither measured. The real bridge is forced on
+  # below, so a model is always required here.
+  : "${AGY_MODEL:?not set — bridge-agy is enabled and names no default model (Rule 7): measure the engines reachable from this host and export AGY_MODEL=<model id>}"
   # BRIDGE_AGY_STUB=1 is baked into the image; it must be overridden explicitly
   # or the bridge stays simulated while answering healthy.
   podman run -d --name "${SLUG}-bridge-agy" --network "$NET" --replace \
@@ -293,7 +305,7 @@ if [[ "$WITH_BRIDGE_AGY" == "1" ]]; then
     -e AGY_BRIDGE_PORT="$AGY_BRIDGE_PORT" \
     -e BRIDGE_AGY_STUB=0 \
     -e AGY_BIN=/usr/local/bin/agy \
-    -e AGY_MODEL="${AGY_MODEL:-gemini-3.7-flash-low}" \
+    -e AGY_MODEL="$AGY_MODEL" \
     ${AGY_HOST_BIN:+-v "${AGY_HOST_BIN}:/usr/local/bin/agy:ro"} \
     ${AGY_HOST_HOME:+-v "${AGY_HOST_HOME}:/root/.gemini"} \
     -v "${WORK_ROOT}:${WORK_ROOT}:Z" \

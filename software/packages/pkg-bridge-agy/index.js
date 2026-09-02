@@ -1,6 +1,7 @@
 /**
  * @package @shaper/pkg-bridge-agy
  * HTTP/SSE bridge for Antigravity CLI (agy) — Rule 8 agent container contract.
+ * The model is never named here: it is measured at deployment (Rule 7).
  */
 import http from 'node:http';
 import { buildAgySpawnEnv, hasAntigravityApiKey } from './agy-env.js';
@@ -22,12 +23,43 @@ export function formatSseEvent(data) {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
+/**
+ * No model is named here. The constructor used to fall back to a pinned model
+ * when AGY_MODEL was unset, and the deploy template pinned a *different* one:
+ * two values for the same default, neither measured, both ageing with their
+ * vendor (Rule 7: a default that must be edited when a vendor ships a version
+ * is a cache, not a rule).
+ *
+ * The model comes from AGY_MODEL (or ANTIGRAVITY_MODEL), chosen by measurement
+ * from the target host. When it is missing, the bridge halts and says which
+ * variable to provide rather than starting on a guess (Rule 0J). The simulated
+ * bridge (stub mode) never spawns the CLI, so it is the one place a model is
+ * not required.
+ */
+export const AGY_MODEL_ENV = 'AGY_MODEL';
+export const AGY_MODEL_ENV_ALT = 'ANTIGRAVITY_MODEL';
+
+export function resolveAgyModel(env = process.env) {
+  return String(env[AGY_MODEL_ENV] || env[AGY_MODEL_ENV_ALT] || '').trim();
+}
+
+export class ModelUnsetError extends Error {
+  constructor(envVar = AGY_MODEL_ENV) {
+    super(`bridge-agy: no model is set — this bridge names no default (Rule 7). `
+      + `Measure the engines reachable from this host, pick one, and export ${envVar}=<model id> `
+      + `(or ${AGY_MODEL_ENV_ALT}); set BRIDGE_AGY_STUB=1 to run the simulated bridge instead.`);
+    this.name = 'ModelUnsetError';
+    this.code = 'BRIDGE_MODEL_UNSET';
+    this.envVar = envVar;
+  }
+}
+
 export class AgyBridgeServer {
   constructor({
     port = 4330,
     bind = '0.0.0.0',
     agyBin = process.env.AGY_BIN || process.env.ANTIGRAVITY_BIN || 'agy',
-    defaultModel = process.env.AGY_MODEL || process.env.ANTIGRAVITY_MODEL || 'gemini-3.6-flash-low',
+    defaultModel = resolveAgyModel(process.env),
     defaultEffort = 'low',
     workspaceBase = '/tmp/agy-workspaces',
     authToken = '',
@@ -36,11 +68,14 @@ export class AgyBridgeServer {
     this.port = port;
     this.bind = bind;
     this.agyBin = agyBin;
-    this.defaultModel = defaultModel;
+    this.stubMode = stubMode;
+    // An empty model is reported as absent, never carried as '' into a CLI
+    // argument where it would fail with a message about the wrong thing.
+    this.defaultModel = String(defaultModel || '').trim() || null;
+    if (!this.stubMode && !this.defaultModel) throw new ModelUnsetError();
     this.defaultEffort = defaultEffort;
     this.workspaceBase = workspaceBase;
     this.authToken = authToken;
-    this.stubMode = stubMode;
     this.clients = new Map();
     this.runningProcesses = new Map();
     this.metrics = { injects: 0, completions: 0, errors: 0 };
@@ -133,6 +168,9 @@ export class AgyBridgeServer {
     // next flag as the prompt and drops the real one — it says so itself:
     // `--print took "--output-format" as its prompt`.
     const model = opts.model || this.defaultModel;
+    // The constructor already refused a real bridge without a model; this keeps
+    // a later mutation from reaching the CLI as `--model ''`.
+    if (!model) throw new ModelUnsetError();
     // The model name encodes its reasoning level; an --effort that contradicts
     // it makes the call fail. The model's suffix is therefore the authority.
     const encoded = /-(high|medium|low)$/.exec(model);
@@ -299,8 +337,11 @@ export class AgyBridgeServer {
           res.end(JSON.stringify({ ok: true, conversation: conv, ...result }));
         } catch (err) {
           this.metrics.errors++;
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, error: err.message }));
+          // A missing model is a configuration state, not a server fault: say
+          // so with a typed code the caller can act on.
+          const status = err.code === 'BRIDGE_MODEL_UNSET' ? 503 : 500;
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: err.message, code: err.code || undefined }));
         }
         return;
       }

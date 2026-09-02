@@ -9,7 +9,7 @@
  *     "message": "What to do (required)",
  *     "conversation": "optional-slug",
  *     "bridgeUrl": "http://127.0.0.1:4440",
- *     "model": "opencode/nemotron-3.5-lightning-free",
+ *     "model": "<engine>/<model measured at deployment — Rule 7, never a name written here>",
  *     "context": "optional instructions"
  *   },
  *   "totalSteps": 2

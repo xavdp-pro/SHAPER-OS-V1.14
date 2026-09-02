@@ -13,9 +13,13 @@ where sovereignty matters more than throughput.
 
 1. **The interface is the contract, not the engine** (Rule 0H). Identical routes
    and event shape to every other bridge.
-2. **Endpoint and model are parameters, never hardcoded** (Rule 0B). A model name
-   in this package is a default, not a decision: the deploying agent measures
-   availability from the target host and records the choice.
+2. <a id="no-default-model"></a>**Endpoint and model are parameters, never
+   hardcoded** (Rule 0B, Rule 7). No model name exists in this package, not even
+   as a default: the deploying agent measures availability from the target host,
+   records the choice, and supplies it through `OLLAMA_MODEL` (or `DEEPSEEK_MODEL`
+   for the DeepSeek API path). A real bridge started without one halts and names
+   the variable to provide (Rule 0J); only the simulated bridge
+   (`BRIDGE_DEEPSEEK_STUB=1`), which calls no engine, runs without a model.
 3. **Sovereign path stays sovereign.** When the universe declares an air-gapped
    perimeter, no request leaves it — a cloud fallback is a violation, not a
    convenience.

@@ -20,8 +20,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * The model is measured at deployment and supplied through OPENCODE_MODEL
  * (Rule 7). An empty value means "not chosen yet", and that is reported rather
  * than replaced by a guess.
+ *
+ * Reported — and, for a real bridge, refused. Until the Rule 7 sweep a bridge
+ * with no model still started and would have spawned the CLI with `-m ''`,
+ * failing later with a message about the wrong thing. Now a missing model halts
+ * at start-up and names the variable to provide (Rule 0J); only the simulated
+ * bridge (stub mode), which never spawns the CLI, runs without one.
  */
+export const OPENCODE_MODEL_ENV = 'OPENCODE_MODEL';
 export const FREE_MODEL = process.env.OPENCODE_MODEL || '';
+
+export function resolveOpencodeModel(env = process.env) {
+  return String(env[OPENCODE_MODEL_ENV] || '').trim();
+}
+
+export class ModelUnsetError extends Error {
+  constructor(envVar = OPENCODE_MODEL_ENV) {
+    super(`bridge-opencode: no model is set — this bridge names no default (Rule 7). `
+      + `Measure the engines reachable from this host, pick one, and export ${envVar}=<model id>; `
+      + 'set BRIDGE_OPENCODE_STUB=1 to run the simulated bridge instead.');
+    this.name = 'ModelUnsetError';
+    this.code = 'BRIDGE_MODEL_UNSET';
+    this.envVar = envVar;
+  }
+}
 
 export function normalizeConversationName(name) {
   if (!name || typeof name !== 'string') return 'default';
@@ -47,7 +69,7 @@ export class OpencodeBridgeServer {
     port = 4440,
     bind = '0.0.0.0',
     opencodeBin = process.env.OPENCODE_BIN || 'opencode',
-    defaultModel = process.env.OPENCODE_MODEL || FREE_MODEL,
+    defaultModel = resolveOpencodeModel(process.env) || FREE_MODEL,
     workspaceBase = '/tmp/opencode-workspaces',
     authToken = '',
     stubMode = process.env.BRIDGE_OPENCODE_STUB === '1',
@@ -55,10 +77,16 @@ export class OpencodeBridgeServer {
     this.port = port;
     this.bind = bind;
     this.opencodeBin = opencodeBin;
-    this.defaultModel = defaultModel;
+    this.stubMode = stubMode;
+    // An empty model is reported as absent, never carried as '' into a CLI
+    // argument where it would fail with a message about the wrong thing. The
+    // same shape as the three other bridges: the first sweep left this one
+    // reporting '' while they reported null, and a health check comparing
+    // bridges had to know which one it was reading.
+    this.defaultModel = String(defaultModel || '').trim() || null;
+    if (!this.stubMode && !this.defaultModel) throw new ModelUnsetError();
     this.workspaceBase = workspaceBase;
     this.authToken = authToken;
-    this.stubMode = stubMode;
     this.clients = new Map();
     this.runningProcesses = new Map();
     this.metrics = { injects: 0, completions: 0, errors: 0 };
@@ -127,6 +155,9 @@ export class OpencodeBridgeServer {
     const cwd = this.ensureWorkspace(conv);
     const runId = `run-oc-${Date.now()}`;
     const model = opts.model || this.defaultModel;
+    // The constructor already refused a real bridge without a model; this keeps
+    // a later mutation from reaching the CLI as `-m ''`.
+    if (!this.stubMode && !model) throw new ModelUnsetError();
     const fullPrompt = this.buildContextualPrompt(prompt, {
       contextFile: opts.contextFile || null,
       contextText: opts.contextText || null,
@@ -255,8 +286,11 @@ export class OpencodeBridgeServer {
           res.end(JSON.stringify({ ok: true, conversation: conv, ...result }));
         } catch (err) {
           this.metrics.errors++;
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, error: err.message }));
+          // A missing model is a configuration state, not a server fault: say
+          // so with a typed code the caller can act on.
+          const status = err.code === 'BRIDGE_MODEL_UNSET' ? 503 : 500;
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: err.message, code: err.code || undefined }));
         }
         return;
       }
