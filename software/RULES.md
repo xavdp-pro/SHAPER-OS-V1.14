@@ -544,12 +544,38 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
 
 ---
 
+<a id="rule-12"></a>
 ### Rule 12: Secure Archive Distribution & Cold Recovery
 * All archive transfers (`PROJECT.tar.bz2`, `REMOTE.tar.bz2`) must follow:
   * Multi-threaded compression (`pbzip2` or `tar -cjf`).
   * Zero directory listing (`autoindex off`).
   * Mandatory HTTP Basic Auth (`auth_basic` with hashed credentials).
   * End-to-end TLS encryption via Cloudflare Tunnel.
+* **What a backup archive never contains, and what it never lies about** *(V1.13)*:
+  * **The key that opens the coffer does not travel with the coffer.** A backup
+    carries `data/vault/vault.enc`; it never carries `.env`, because `.env` holds
+    `VAULT_MASTER_KEY`, and an archive holding both is the vault in clear text
+    for whoever holds the archive. The key is restored from the operator's own
+    key material (`KEYS-AND-ACCOUNTS.md`), never from a backup. Until V1.13
+    `backup-local.sh` put both in the same tarball.
+  * **The backup's encryption key is its own key.** `PRA_ENCRYPTION_KEY` is
+    generated for backups and for nothing else; it is required, and it is
+    refused when it equals `VAULT_MASTER_KEY`. A backup encrypted with the
+    vault's master key hands the vault's key to whoever breaks one backup.
+    The key reaches `openssl` through the environment (`-pass env:`), never as
+    a command-line argument readable by every process on the host — the same
+    rule as a database password, which travels in `MYSQL_PWD`, never as `-p`.
+  * **A dump that was not taken is announced, never written empty.** The
+    client is `mariadb-dump`, or `mysqldump` where only that one exists — a
+    script that knows one name dumps nothing on the other host. A dump with no
+    client, or no database declared for the universe, prints `SKIP` and says
+    why; a dump whose client fails, or whose output is empty, fails the backup.
+    `2>/dev/null || true` on a dump is a zero-byte `.sql` archived as the
+    database.
+  * **The archive command's failure is the backup's failure.** A `tar` that
+    ends in `|| true` followed by `{"status":"ok"}` is a report about a file
+    nobody checked. The status line is printed after the archive exists, has a
+    size and has a checksum, or it is not printed.
 
 ---
 
