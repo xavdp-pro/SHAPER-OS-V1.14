@@ -507,28 +507,50 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   largest state — the image store — into the one layer podman cannot back up as
   a whole. Depth comes from nesting **universes**, never from nesting runtimes.
 
-* **Two host families, one contract.** The host provides a nesting-capable
+* **Three host families, one contract.** The host provides a nesting-capable
   container; how it is created is the host's business, and a document that
-  covers only one family MUST say which in its first paragraph.
-  * **Proxmox node** — `pct create`, and `features: nesting=1,keyctl=1` in
+  covers only one family MUST say which in its first paragraph. Each family
+  has ONE token: it is the `kind` of a machine in the fleet map
+  (`docs/architecture/FLEET.md`) and the prefix of the maker's frozen recipes
+  (`<kind>-<work>.sh`, `software/universes/_maker-template/`). The token is
+  the only spelling of the family, everywhere.
+  * **`proxmox` — a Proxmox node** — `pct create`, and `features: nesting=1,keyctl=1` in
     `/etc/pve/lxc/<ID>.conf`. Verify the Debian 13 template is present
     (`pveam list local`) before creating anything.
-  * **Debian/Ubuntu with native LXC/LXD** — `lxc launch`, profile `podman-univ`:
+  * **`lxd` — Debian/Ubuntu with native LXC/LXD** — `lxc launch`, profile `podman-univ`:
     `security.nesting`, `security.privileged`,
     `linux.kernel_modules: overlay,nf_nat,ip_tables,ip6_tables,fuse,tun`.
-  * **A bare host with neither** — the agent halts and asks. Installing a
+  * **`liblxc` — Debian with plain LXC** (the `lxc-*` tools over the library,
+    no LXD daemon; amended 2 September 2026, maker-and-governor verdict, D2).
+    The same three prerequisites as the `lxd` family, spelled in the
+    container's `config` instead of a profile: nesting
+    (`lxc.include = /usr/share/lxc/config/nesting.conf`, and the AppArmor
+    profile that allows it), an **unprivileged idmap** (`lxc.idmap = u 0
+    <subuid> 65536` / `g …`, the ranges granted in `/etc/subuid` and
+    `/etc/subgid`), and the same host modules loaded
+    (`overlay,nf_nat,ip_tables,ip6_tables,fuse,tun`). The exact lines are
+    fixed by the first `liblxc-stamp.sh`, proven on terrain before it ships
+    (`recipes/README.md`): this rule names the family's contract, not the
+    recipe. **The token is `liblxc`, never `lxc`**: `lxc` is the name of LXD's
+    client binary, the very command the `lxd` recipes call — a family named
+    `lxc` would read as the other family's command, on every page and in
+    every recipe name.
+  * **A bare host with none of the three** — the agent halts and asks. Installing a
     hypervisor is an architecture decision (storage backend, pool size, bridge,
     firewall), not a package install, and a host may be bare on purpose. The
     agent states exactly which commands the human should run, and stops.
 
 * **Presence of a tool is not proof of a capability.** An agent declares a host
   fit to carry a universe only after launching a throwaway nested container and
-  running a container inside it. `lxc` being installed says nothing about whether
-  podman runs inside it; podman being installed says nothing about whether a
-  `RUN` step will execute — on one workstation every build failed at `RUN`
-  because the session bus carried no systemd, which no inventory of binaries
-  would ever have revealed. An agent that lists binaries manufactures confidence;
-  an agent that launches and observes produces a verdict.
+  running a container inside it — the same proof for the three families:
+  `lxc launch`, `pct create` or `lxc-create`/`lxc-start` for the throwaway,
+  and a podman container born inside it, observed. `lxc` being installed
+  says nothing about whether podman runs inside it; podman being installed
+  says nothing about whether a `RUN` step will execute — on one workstation
+  every build failed at `RUN` because the session bus carried no systemd,
+  which no inventory of binaries would ever have revealed. An agent that
+  lists binaries manufactures confidence; an agent that launches and
+  observes produces a verdict.
 
 * **First boot, inside the container**: `apt-get update && apt-get dist-upgrade
   -y && apt-get clean`, then inject `skel/etc/{bash.bashrc,inputrc}`. Host kernel
