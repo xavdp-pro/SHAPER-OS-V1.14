@@ -47,7 +47,14 @@ fi
 # halted on its own halt-check; a cold tester reported patching this script (run
 # without an on-disk report), and a second tester confirmed the clobbering. Same principle as the vault's storage file (V1.13.1): an explicit
 # choice always beats a packaged default.
-KEEP_VARS=(OPENCODE_MODEL SHAPER_REGISTRY SHAPER_IMAGE_TAG SHAPER_TLS_VERIFY
+#
+# Every model variable a bridge below reads is listed, under each name the
+# bridge accepts: after the Rule 7 sweep the cursor and agy bridges halt
+# without a measured model exactly as opencode does, and a `CURSOR_MODEL=`
+# left in a .env would otherwise blank the engine the operator exported and
+# trip that halt — the defect above, met again one bridge over.
+KEEP_VARS=(OPENCODE_MODEL CURSOR_MODEL AGY_MODEL ANTIGRAVITY_MODEL
+           SHAPER_REGISTRY SHAPER_IMAGE_TAG SHAPER_TLS_VERIFY
            VAULT_MASTER_KEY VAULT_TOKEN APP_PASSWORD MAESTRO_QUEUE_URL)
 for v in "${KEEP_VARS[@]}"; do declare -g "__KEEP_$v=${!v:-}"; done
 
@@ -133,8 +140,12 @@ IMG_QUEUE="$(shaper_image_ref img-queue)"
 IMG_MAESTRO="$(shaper_image_ref img-maestro)"
 
 # Ports: the manifest declares them; env may override; these defaults are the
-# last resort. Until V1.13.1 the manifest said one family and this script
-# hardcoded another, and `test:live` failed as documented (beta finding F5).
+# last resort. Beta finding F5: the manifest said one family and this script
+# hardcoded another, and `test:live` failed as documented. V1.13.1 made this
+# script read the manifest — and only this script: the rest of the tree kept
+# the old family until the release after v1.13.34, when one family was written
+# everywhere and the one-port-family guard was born
+# (pkg-universe/test/one-port-family.test.js, docs/architecture/BRICKS.md).
 manifest_port() {
   python3 - "$UNIV/manifest.json" "$1" "$2" 2>/dev/null <<'PY' || echo "$2"
 import json, sys

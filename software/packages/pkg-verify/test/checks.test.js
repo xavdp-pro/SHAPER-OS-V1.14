@@ -1,5 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +10,8 @@ import * as versionCoherence from '../checks/version-coherence.mjs';
 import * as committedIdentity from '../checks/committed-identity.mjs';
 import * as profileBootorder from '../checks/profile-bootorder.mjs';
 
+// Intent: software/packages/pkg-verify/INTENT.md#what-it-checks-today
+//
 // Each check was born from an incident. Each test rebuilds that incident in a
 // fixture and proves the check catches it — and stays quiet on a clean tree.
 
@@ -71,10 +74,80 @@ describe('version-coherence — the release names itself once', () => {
     const ok = repo('SHAPER-OS-V1.12', {
       'package.json': '{"version": "1.12.0"}',
       'manifest.tier-a.json': '{"intent": "SHAPER-OS-V1.12/software/INTENT.md"}',
+      'software/packages/pkg-a/package.json': '{"version": "1.12.0"}',
+      'software/universes/_template/manifest.json': '{"version": "1.12.0", "universe": "univ-example"}',
+      'software/node_modules/dep/package.json': '{"version": "0.0.1"}',
     });
     assert.deepEqual(versionCoherence.run(ok), []);
     const univ = repo('univ-client-acme', { 'manifest.json': '{"intent": "SHAPER-OS-V1.11/x"}' });
     assert.deepEqual(versionCoherence.run(univ), []);
+  });
+
+  // Non-regression (Rule 29): the check read the root package.json alone, and
+  // accepted any version under the folder's prefix. Sixteen other package.json
+  // and the template's were never opened, so one package could say 1.13.23
+  // beside the root's 1.13.2, and the template's package.json could still say
+  // 1.7.0 in a V1.13 tree, while verify reported the release named itself once.
+  it('catches a package or a manifest whose version differs from the root', () => {
+    const r = repo('SHAPER-OS-V1.13', {
+      'package.json': '{"version": "1.13.2"}',
+      'software/package.json': '{"version": "1.13.2"}',
+      'software/packages/pkg-a/package.json': '{"version": "1.13.23"}',
+      'software/universes/_template/package.json': '{"version": "1.7.0"}',
+      'software/universes/_template/manifest.json': '{"version": "1.12.0", "universe": "univ-example"}',
+      'software/universes/univ-x/manifest.json': '{"universe": "univ-x"}',
+      'software/node_modules/dep/package.json': '{"version": "0.0.1"}',
+    });
+    const findings = versionCoherence.run(r);
+    assert.equal(findings.length, 3, findings.join('\n'));
+    const text = findings.join('\n');
+    assert.match(text, /software\/packages\/pkg-a\/package\.json declares 1\.13\.23, the root package\.json declares 1\.13\.2/);
+    assert.match(text, /software\/universes\/_template\/package\.json declares 1\.7\.0/);
+    assert.match(text, /software\/universes\/_template\/manifest\.json declares 1\.12\.0/);
+    assert.doesNotMatch(text, /node_modules/, 'a dependency is not the release');
+  });
+
+  // Non-regression (Rule 29): the extended check walked the working tree, so
+  // a universe an operator copies from the template into `universes/univ-<slug>`
+  // (what the clean-sheet guide prescribes) was judged as if the repository
+  // shipped it, and verify went red on every operator's machine over a
+  // package.json the repository does not deliver (beta finding F12). The
+  // check now reads what git tracks.
+  it('judges the tracked tree, not an operator\'s untracked universe copy', () => {
+    const r = repo('tracked/SHAPER-OS-V1.13', {
+      'package.json': '{"version": "1.13.2"}',
+      'software/packages/pkg-a/package.json': '{"version": "1.13.2"}',
+      'software/universes/_template/manifest.json': '{"intent": "SHAPER-OS-V1.13/software/INTENT.md"}',
+      'software/universes/univ-acme-dev/package.json': '{"version": "1.7.0"}',
+      'software/universes/univ-acme-dev/manifest.json': '{"version": "1.7.0", "intent": "SHAPER-OS-V1.11/software/INTENT.md"}',
+    });
+    const git = (...args) => execFileSync('git', ['-C', r, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+    git('init', '-q');
+    git('add', 'package.json', 'software/packages/pkg-a/package.json', 'software/universes/_template/manifest.json');
+    assert.deepEqual(versionCoherence.run(r), []);
+    // And a tracked divergence in the same tree is still reported, alone.
+    fs.mkdirSync(path.join(r, 'software/packages/pkg-b'), { recursive: true });
+    fs.writeFileSync(path.join(r, 'software/packages/pkg-b/package.json'), '{"version": "1.13.23"}');
+    git('add', 'software/packages/pkg-b/package.json');
+    const findings = versionCoherence.run(r);
+    assert.equal(findings.length, 1, findings.join('\n'));
+    assert.match(findings[0], /software\/packages\/pkg-b\/package\.json declares 1\.13\.23, the root package\.json declares 1\.13\.2/);
+  });
+
+  // Non-regression (Rule 29): a package.json that does not parse used to end
+  // verify on a stack trace (verify.mjs runs each check without a net) instead
+  // of a finding that names the file — an exit, but not a halt that speaks (0J).
+  it('names a package.json or a manifest that is not valid JSON, instead of throwing', () => {
+    const r = repo('badjson/SHAPER-OS-V1.13', {
+      'package.json': '{"version": "1.13.2"}',
+      'software/universes/univ-bad-dev/package.json': '{ not json',
+      'software/universes/univ-bad-dev/manifest.json': '{ "version": ',
+    });
+    let findings;
+    assert.doesNotThrow(() => { findings = versionCoherence.run(r); });
+    assert.equal(findings.length, 2, findings.join('\n'));
+    assert.match(findings[0], /software\/universes\/univ-bad-dev\/package\.json is not valid JSON/);
+    assert.match(findings[1], /software\/universes\/univ-bad-dev\/manifest\.json is not valid JSON/);
   });
 });
 

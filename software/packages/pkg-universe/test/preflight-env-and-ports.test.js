@@ -45,6 +45,15 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOFTWARE = path.resolve(HERE, '../../..');
 const PREFLIGHT = path.join(SOFTWARE, 'scripts/preflight.mjs');
 const TEMPLATE = path.join(SOFTWARE, 'universes/_template/deploy/podman-up.sh');
+// univ-base is the reference script an agent copies; it sourced its cfg file
+// unread while the template and the gate held the file to the grammar, so a
+// note in cfg-univ-base.env was still a command on the canonical cell.
+const UNIV_BASE = path.join(SOFTWARE, 'universes/univ-base/deploy/podman-up.sh');
+/** Every deploy script that sources a variables file, with the file paths it must source through the guard. */
+const SOURCING_SCRIPTS = [
+  { name: 'the template', file: TEMPLATE, sources: ['"$ENV_FILE"'] },
+  { name: 'univ-base', file: UNIV_BASE, sources: ['"$ENV_FILE"', '"$UNIV/cfg-univ-base.env"'] },
+];
 
 // ---------------------------------------------------------------------------
 // The pure functions, fed the exact shapes seen on terrain.
@@ -351,27 +360,33 @@ test('preflight refuses a --universe whose manifest cannot be read', async () =>
 // The template that sources the file at deploy time runs the same grammar,
 // in bash, before `source` gets a chance to execute anything.
 
-function templateGuard() {
-  const script = fs.readFileSync(TEMPLATE, 'utf8');
+function guardOf({ name, file, sources }) {
+  const script = fs.readFileSync(file, 'utf8');
   const fn = script.match(/^shaper_env_file_is_variables_only\(\) \{[\s\S]*?^\}$/m);
-  assert.ok(fn, 'the template must define shaper_env_file_is_variables_only before it sources any .env');
-  assert.match(script, /shaper_source_env "\$ENV_FILE"/, 'the operator override file is sourced through the guard');
+  assert.ok(fn, `${name} must define shaper_env_file_is_variables_only before it sources any .env`);
+  for (const src of sources) {
+    assert.ok(script.includes(`shaper_source_env ${src}`), `${name}: ${src} is sourced through the guard`);
+  }
   const wrapper = script.match(/^shaper_source_env\(\) \{[\s\S]*?^\}$/m);
-  assert.ok(wrapper, 'the template wraps every source in shaper_source_env');
-  assert.match(wrapper[0], /shaper_env_file_is_variables_only "\$1" \|\| exit 1/, 'the wrapper halts before it sources');
+  assert.ok(wrapper, `${name} wraps every source in shaper_source_env`);
+  assert.match(wrapper[0], /shaper_env_file_is_variables_only "\$1" \|\| exit 1/, `${name}: the wrapper halts before it sources`);
   assert.doesNotMatch(script.replace(fn[0], '').replace(wrapper[0], ''), /set -a; source/,
-    'no .env reaches `source` without passing the guard');
+    `${name}: no .env reaches \`source\` without passing the guard`);
   return fn[0];
 }
 
-function runGuard(lines) {
+function templateGuard() {
+  return guardOf(SOURCING_SCRIPTS[0]);
+}
+
+function runGuard(lines, guard = templateGuard()) {
   const tmp = scratch();
   const file = path.join(tmp, 'env');
   fs.writeFileSync(file, lines.join('\n') + '\n');
   // The same shell options as the template's own first line: the function
   // must survive -e, where a grep that selects nothing (exit 1) would end
   // the script if its status were not read explicitly.
-  const probe = `set -euo pipefail\n${templateGuard()}\nshaper_env_file_is_variables_only "${file}"`;
+  const probe = `set -euo pipefail\n${guard}\nshaper_env_file_is_variables_only "${file}"`;
   try {
     execFileSync('bash', ['-c', probe], { encoding: 'utf8', stdio: 'pipe' });
     return { code: 0, stderr: '' };
@@ -392,19 +407,27 @@ test('the template accepts a file of comments, blanks and variables — digits i
   assert.equal(r.code, 0, r.stderr);
 });
 
-test('the template and the gate hold a value to the same grammar — a command in a value stops the deploy', () => {
-  // Admitted by both, or the template would halt on a file the gate passed.
-  const clean = runGuard(VALUE_LINES.admitted);
-  assert.equal(clean.code, 0, clean.stderr);
+// univ-base is held to the same lines as the template: it is the script an
+// agent copies, and until this guard reached it, it sourced cfg-univ-base.env
+// unread — a note there was a command on the canonical cell while the
+// template and the gate refused it.
+for (const script of SOURCING_SCRIPTS) {
+  test(`${script.name} and the gate hold a value to the same grammar — a command in a value stops the deploy`, () => {
+    const guard = guardOf(script);
 
-  // Refused by both, one line at a time, so that each shape is proven on its
-  // own: until the review of the first fix `KEY=1; echo INJECTED` passed the
-  // template's grep and `source` printed INJECTED.
-  for (const line of VALUE_LINES.executed) {
-    const r = runGuard([line]);
-    assert.equal(r.code, 1, `the template let source run: ${line}`);
-    assert.match(r.stderr, /line 1:/);
-  }
-  const probe = execFileSync('bash', ['-c', `set -euo pipefail\n${templateGuard()}\nf=$(mktemp); echo 'KEY=1; echo INJECTED' > "$f"\nshaper_env_file_is_variables_only "$f" || { echo halted; exit 0; }\nset -a; source "$f"; set +a`], { encoding: 'utf8', stdio: 'pipe' });
-  assert.equal(probe.trim(), 'halted', 'source ran the value');
-});
+    // Admitted by both, or the script would halt on a file the gate passed.
+    const clean = runGuard(VALUE_LINES.admitted, guard);
+    assert.equal(clean.code, 0, clean.stderr);
+
+    // Refused by both, one line at a time, so that each shape is proven on its
+    // own: until the review of the first fix `KEY=1; echo INJECTED` passed the
+    // template's grep and `source` printed INJECTED.
+    for (const line of VALUE_LINES.executed) {
+      const r = runGuard([line], guard);
+      assert.equal(r.code, 1, `${script.name} let source run: ${line}`);
+      assert.match(r.stderr, /line 1:/);
+    }
+    const probe = execFileSync('bash', ['-c', `set -euo pipefail\n${guard}\nf=$(mktemp); echo 'KEY=1; echo INJECTED' > "$f"\nshaper_env_file_is_variables_only "$f" || { echo halted; exit 0; }\nset -a; source "$f"; set +a`], { encoding: 'utf8', stdio: 'pipe' });
+    assert.equal(probe.trim(), 'halted', 'source ran the value');
+  });
+}

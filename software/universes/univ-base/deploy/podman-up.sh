@@ -18,11 +18,42 @@ UNIVERSE="univ-base"
 LOCK="$UNIV/cfg-image-lock.json"
 
 # ── 1. Configuration ────────────────────────────────────────────────────────
+# A variables file holds only variables. `source` EXECUTES every line that is
+# not blank, a comment, or KEY=value — on the first night Rule 11 ran in
+# production a human note slipped into a variables file was run as a command,
+# and the deploy died before it could print its own halt
+# (docs/proof/proof-rule-11-in-production.md, lesson 7). The template and
+# scripts/lib/preflight-checks.mjs learned the grammar; this script, the one
+# an agent copies, kept sourcing its cfg file unread. The two functions below
+# are the template's, verbatim — a test feeds both scripts the same lines.
+shaper_env_file_is_variables_only() {
+  local file="$1" bad status=0
+  # grep -v selects the lines that are NOT admitted. Its exit code is read
+  # explicitly rather than hidden behind `|| true`: 1 means no line was
+  # selected — the file is clean, the good outcome — and 2 means grep could
+  # not read the file, which is a halt of its own, never a pass.
+  bad="$(grep -nvE '^[[:space:]]*(#|$)|^[A-Z][A-Z0-9_]*=("([^"`$]|\$[^(])*\$?"|'"'"'[^'"'"']*'"'"'|[^[:blank:];&|()<>`'"'"'"]*)$' "$file")" || status=$?
+  if (( status == 1 )); then
+    return 0
+  elif (( status == 2 )); then
+    echo "[podman-up] cannot read $file — a file that cannot be checked is not sourced" >&2
+    return 1
+  fi
+  echo "[podman-up] $file is not a variables file — these lines would be EXECUTED by source, not exported:" >&2
+  echo "$bad" | sed 's/^/[podman-up]   line /' >&2
+  echo "[podman-up] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
+  return 1
+}
+shaper_source_env() {
+  shaper_env_file_is_variables_only "$1" || exit 1
+  set -a; source "$1"; set +a
+}
+
 # The universe's own cfg-* file wins over anything the host happens to export.
 if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
-  set -a; source "$ENV_FILE"; set +a
+  shaper_source_env "$ENV_FILE"
 elif [[ -f "$UNIV/cfg-univ-base.env" ]]; then
-  set -a; source "$UNIV/cfg-univ-base.env"; set +a
+  shaper_source_env "$UNIV/cfg-univ-base.env"
 fi
 
 : "${VAULT_MASTER_KEY:?not set — generate one and put it in cfg-univ-base.env; this repository ships none}"

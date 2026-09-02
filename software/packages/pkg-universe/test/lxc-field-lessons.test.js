@@ -111,6 +111,28 @@ test("the runbook's literal install line inside the LXC names nftables", () => {
   assert.deepEqual(without, [], 'a literal agent runs this line and never learns why podman networking fails');
 });
 
+/**
+ * The clean-sheet guide's "Inside it" section: the literal lines a tester ran
+ * inside a blank LXC on 23 August 2026, kept as the from-scratch record an
+ * agent follows. Its `apt-get install` line is a literal install line like
+ * the runbook's, and it did not name nftables either.
+ */
+function insideItInstallLines() {
+  const guide = read('software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md');
+  const section = guide.split(/^### Inside it\s*$/m)[1];
+  assert.ok(section, 'the guide carries a "### Inside it" section');
+  const fence = section.match(/```bash\n([\s\S]*?)```/);
+  assert.ok(fence, 'the "Inside it" section opens with a bash block');
+  return fence[1].split('\n').filter((l) => /apt(-get)?\s+install/.test(l));
+}
+
+test("the clean-sheet guide's literal install line inside the LXC names nftables", () => {
+  const lines = insideItInstallLines();
+  assert.ok(lines.length > 0, 'the "Inside it" block installs packages with apt-get');
+  const without = lines.filter((l) => !/\bnftables\b/.test(l));
+  assert.deepEqual(without, [], 'a literal agent runs this line and never learns why podman networking fails');
+});
+
 function shippedShell() {
   const found = [];
   const collect = (dir, prefix) => {
