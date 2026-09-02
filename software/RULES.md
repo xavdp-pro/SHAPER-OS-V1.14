@@ -544,12 +544,59 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
 
 ---
 
+<a id="rule-12"></a>
 ### Rule 12: Secure Archive Distribution & Cold Recovery
 * All archive transfers (`PROJECT.tar.bz2`, `REMOTE.tar.bz2`) must follow:
   * Multi-threaded compression (`pbzip2` or `tar -cjf`).
   * Zero directory listing (`autoindex off`).
   * Mandatory HTTP Basic Auth (`auth_basic` with hashed credentials).
   * End-to-end TLS encryption via Cloudflare Tunnel.
+* **What a backup archive never contains, and what it never lies about** *(V1.13)*:
+  * **The key that opens the coffer does not travel with the coffer.** A backup
+    carries `data/vault/vault.enc`; it never carries `.env`, because `.env` holds
+    `VAULT_MASTER_KEY`, and an archive holding both is the vault in clear text
+    for whoever holds the archive. The key is restored from the operator's own
+    key material (`KEYS-AND-ACCOUNTS.md`), never from a backup. Until V1.13
+    `backup-local.sh` put both in the same tarball.
+  * **The backup's encryption key is its own key.** `PRA_ENCRYPTION_KEY` is
+    generated for backups and for nothing else; it is required, and it is
+    refused when it equals `VAULT_MASTER_KEY`. A backup encrypted with the
+    vault's master key hands the vault's key to whoever breaks one backup.
+    The key reaches `openssl` through the environment (`-pass env:`), never as
+    a command-line argument readable by every process on the host — the same
+    rule as a database password, which travels in `MYSQL_PWD`, never as `-p`.
+  * **A dump that was not taken is announced, never written empty.** The
+    client is `mariadb-dump`, or `mysqldump` where only that one exists — a
+    script that knows one name dumps nothing on the other host. A dump with no
+    client, or no database declared for the universe, prints `SKIP` and says
+    why; a dump whose client fails, or whose output is empty, fails the backup.
+    `2>/dev/null || true` on a dump is a zero-byte `.sql` archived as the
+    database.
+  * **The archive command's failure is the backup's failure.** A `tar` that
+    ends in `|| true` followed by `{"status":"ok"}` is a report about a file
+    nobody checked. The status line is printed after the archive exists, has a
+    size and has a checksum, or it is not printed.
+  * **A failure after the archive is complete keeps the archive.** Cleanup
+    on exit removes a partial archive, never a complete one that has been
+    announced: a rotation that cannot run is a failure, reported over an
+    archive that stays — "Backup created" on the log and an empty directory
+    on disk is a data loss caused by housekeeping.
+  * **A dump that failed leaves nothing behind.** The dump is written under
+    a `.part` name and renamed only once it has a size; a client that dies
+    half-way leaves no `.sql` for the next snapshot to archive as the
+    database. A partial file left on disk is the empty-dump defect moved one
+    run later.
+  * **`.env` in every spelling.** `.env`, `.env.local`, `.env.<slug>`,
+    `deploy/env`, `<slug>.env` — Rule 0J propagates the same key under all of
+    them, and the exclusion is `.env*` and `*.env`, never the bare name.
+  * **How the script calls the client is proven with a recorder.** The
+    guard tests run the real scripts, the real `tar` and the real `openssl`
+    against a throwaway layout; the one substitute is a recorder standing in
+    for `mariadb-dump`/`mysqldump` on a PATH built from scratch, because what
+    is under test is the call — which client name, where the password
+    travels, what a failing or empty client does to the backup — and not
+    what MariaDB answers. What MariaDB answers is the live test's business
+    (Rule 0G), and the recorder never stands in for it there.
 
 ---
 
