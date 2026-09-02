@@ -981,24 +981,61 @@ rule is what killed the synonyms, and it keeps them dead.*
     `"forkedFrom": { "repo": "<upstream>", "atTag": "vX.Y.Z" }` — this is what
     lets `shaper verify` enforce the mirror rule by machine.
 * **One state machine, one set of names, everywhere**:
-  `DESIRED → RECONCILING → PURRING → DEGRADED`.
+  `DESIRED → RECONCILING → PURRING → DEGRADED`, plus the terminal `REAPED`
+  (amended 2 September 2026, maker-and-governor verdict: five states, the
+  ones `pkg-governor` has always held).
   * **PURRING** is the healthy state, and it is **dated**: the universe writes
     it to its `status.json` on every on-time beat when observed == desired.
     Silence is ambiguous between "fine" and "dead and unable to say so"; a
     stale `lastPurr` timestamp is the alarm. `running`, `green`, `OK` and
     every other synonym are forbidden as state words.
   * **drift** is the ONLY word for observed != desired, and the only repair
-    trigger. Rule 27 governs the repair ladder and the terminal `DEGRADED`.
+    trigger. Rule 27 governs the repair ladder and the resting `DEGRADED`.
+  * **DEGRADED** rests; it never self-clears. It is left in two ways only
+    (Rule 27): by its account's explicit new ask, for the environments a
+    robot may end (`dev`, `test`, `demo`) — the broken row's deadline
+    becomes now, a maker reaps whatever half-exists, a fresh row is born —
+    or, for a `prod` row, by human or Root Guardian action alone.
+  * **REAPED** is the end: a maker ended the universe on the row's deadline
+    and looked (the reap recipe verifies the absence, it does not assume
+    it), or a human ended it. Terminal, and dated by its event. *Prevents*:
+    a reaped row still counted as living — its account blocked forever
+    behind a slot nothing frees, its matrix pinned by a reference no
+    instance holds. A state word for "ended" that did not exist was read
+    as "still there".
   * `status.json` (per instance: state, lastPurr, lastBackup) is the canonical
     surface; every board, cockpit tile or STATE file is a rendering of it,
     never a rival.
-* **The ledger is the only instance store**: one row per instance (class, tag,
-  machine, env, state, bucket) in the governing universe's database (Rule 26).
-  A standalone universe governs itself: its ledger lives in its own database —
-  which means a standalone class that will hold its own ledger takes the
-  `+data` profile option (the default `agent` profile carries no database
-  brick). The canonical ledger table contract ships with `brick-forge`
-  (TARGET); until then the ledger binds by this rule's reading.
+* **The ledger is the only instance store**: one row per instance, in the
+  governing universe's database (Rule 26). The row (amended 2 September
+  2026, maker-and-governor verdict): `id`, `account`, `klass`, `matrix`,
+  `digest`, `machine`, `env`, `state`, `params`, `deadlineAt`, `createdAt`,
+  `updatedAt`, `events[]`. What changed from the first reading (class, tag,
+  machine, env, state, bucket), and why: `tag` became `matrix` + `digest`,
+  because an instance is born from an artefact, not from a repo tag — five
+  builds of one commit are five fingerprints, and the digest is what the
+  maker proves it holds; `bucket` is derivable (`r2://<id>`) and never
+  stored; `id` was missing while the instance's name derives from it;
+  `account` is who asked, and with `klass` it is the idempotence key (one
+  live row per account and class); `deadlineAt` is the only clock a robot
+  reads — a row past it yields reap work, never a timer inside a robot;
+  `params` is the typed slot a recipe reads (a flat object of scalars under
+  an allow-list the product declares per class; immutable on a living row,
+  like its digest; carried to the recipe as `SHAPER_PARAM_<KEY>` on an
+  environment the maker builds, never as argv); `events[]` are the dated
+  facts makers reported, from which every transition is derived by one
+  table. `env` ranks `dev`, `test`, `demo`, `prod`: the first three are
+  environments a robot may end; `demo` is what a row carries when it names
+  none, and it is not production. **The canonical ledger contract ships
+  with `pkg-governor` (BINDING**: `software/packages/pkg-governor/INTENT.md`,
+  its `STATES`, its `EVENT_TRANSITIONS` and its work kinds — stamp, reap,
+  validate, adopt); it no longer waits for `brick-forge`, which never
+  carried it. A standalone universe governs itself: its ledger lives in its
+  own database — which means a standalone class that will hold its own
+  ledger takes the `+data` profile option (the default `agent` profile
+  carries no database brick). The package's JSONL journal is its reference
+  adapter, not the database this rule names: the gap is recorded in
+  `doctrine/CONVERGENCE-STATE.md` until a governor binds its own.
   "placement" survives only as the name of the machine-assignment column.
   Tag precedence: **fleet.yml = the default for new instances and the PRA
   floor; the ledger row = the truth, which may lag during a canary; an audit
@@ -1012,15 +1049,39 @@ rule is what killed the synonyms, and it keeps them dead.*
   sovereign fork (Rule 33) keeps its own mirrored fleet map — a client's PRA
   never hinges on the vendor's repo.
 * **Lexicon closure**: the vocabulary of this architecture is the prefix table
-  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus twelve words — class, instance, ledger, drift, PURRING (and
-  its state machine), status.json, board, fleet map, forge, forkedFrom, the
-  mirror rule, source/perimeter. A new noun enters only by amending this rule,
-  with the failure it prevents written beside it. New bricks are not new
-  nouns — `brick-forge`, `brick-scraper`, `brick-sso` are the prefix system
-  doing its job.
+  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus sixteen words —
+  class, instance, ledger, drift, PURRING (and its state machine), status.json,
+  board, fleet map, forge, forkedFrom, the mirror rule, source/perimeter, and,
+  by the amendment of 2 September 2026 (maker-and-governor verdict, §10),
+  governor, maker, matrix, REAPED. A new noun enters only by amending this
+  rule, with the failure it prevents written beside it — as here:
+  * **governor** — the universe that holds a ledger and makes it respected:
+    it writes what should exist, dates what makers report, and never dials
+    out. *Prevents*: "the SaaS" and "the manager" naming two things — the
+    product and the organ — and the maker learning which one it serves.
+  * **maker** — the hand of a machine, one per machine: it asks its governor
+    what should exist on its host, runs a frozen recipe with typed
+    positions, reports a fact, never decides. *Prevents*: a script on a host
+    whose state nobody knows, and a form field reaching a shell.
+  * **matrix** — the locked, content-addressed artefact (sha256) from which
+    instances are stamped; baked by the tandem from a class, never by a
+    robot. *Prevents*: "image" meaning both a podman image and a universe
+    archive, and five builds of one commit giving five fingerprints.
+  * **REAPED** — the fifth, terminal state, above. *Prevents*: a reaped row
+    still counted as living, blocking its account and pinning its matrix.
+  What does not enter: `stamp`, `reap`, `validate`, `adopt` — kinds of work,
+  a table in `pkg-governor`, not nouns of the language. New bricks are not
+  new nouns — `brick-forge`, `brick-scraper`, `brick-sso` are the prefix
+  system doing its job. The forge's line is bounded by the same amendment:
+  `brick-forge` deploys, destroys and repairs BRICKS inside a living universe
+  (the podman level; drift at brick level); universes are born and ended by
+  the maker, from a ledger row (the LXC level; the gap at instance level).
 * **What it protects**: a human juggling several vibecoded projects and a cold
   agent landing in a repo must both answer, from one page — *where is the
-  truth?* (the ledger) — *who repairs?* (the forge, triggered by drift) —
-  *is everything fine?* (the board, rendering status.json) — *how is it all
-  recreated?* (the fleet map + R2, Rule 16). A vocabulary that cannot fit on
-  one page has already failed them both.
+  truth?* (the ledger) — *who repairs?* (the forge, on drift, inside a
+  universe) — *who births?* (the maker, from a row) — *is everything fine?*
+  (the board, rendering status.json) — *how is it all recreated?* (the fleet
+  map + R2, Rule 16). A vocabulary that cannot fit on one page has already
+  failed them both. `docs/architecture/LEXICON.md` is that page, and the test
+  `lexicon-and-code-agree.test.js` holds it, this rule and `pkg-governor`'s
+  states to one set of names.
