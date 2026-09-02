@@ -26,3 +26,19 @@ describe('the runner reads facts from the recipe', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });
+
+describe('a birth is proven by facts, an end by its exit code', () => {
+  // Intent: software/universes/_maker-template/INTENT.md
+  it('an unreadable stamp result is a failure, not a birth', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'recipe-'));
+    // A stamp that exits 0 and ends in prose: it used to be reported STAMPED.
+    fs.writeFileSync(path.join(dir, 'lxd-stamp.sh'), '#!/bin/bash\necho launched, probably\n');
+    const run = defaultRecipeRunner({ recipesDir: dir, hostKind: 'lxd' });
+    await assert.rejects(
+      () => run({ kind: 'stamp', rowId: 'r', klass: 'k', matrix: 'm', digest: 'd', account: 'a', env: 'demo' }),
+      /without a line of facts.*launched, probably/s,
+      'a stamp without facts must be a failure the maker reports as STAMP_FAILED',
+    );
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});

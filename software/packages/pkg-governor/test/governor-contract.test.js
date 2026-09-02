@@ -99,7 +99,7 @@ describe('deadlines are desired state', () => {
       account: 'a1', klass: 'univ-demo-crm', matrix: 'crm', digest: 'sha256:aa',
       machine: 'gbs-test', deadlineAt: new Date(nowRef.t + 3 * 24 * 3600 * 1000).toISOString(),
     });
-    g.report({ token, rowId: row.id, event: 'STAMPED' });
+    g.report({ token, rowId: row.id, event: 'STAMPED', data: { state: 'RUNNING' } });
     assert.equal(g.getRow(row.id).state, 'PURRING');
     const before = g.poll({ token, host: 'gbs-test', inventory: ['sha256:aa'] });
     assert.equal(before.work.length, 0, 'a living row before its deadline owes nothing');
@@ -178,7 +178,7 @@ describe('the ledger survives its governor', () => {
       digest: 'sha256:aa', machine: 'gbs-test',
       deadlineAt: new Date(Date.now() + 86400000).toISOString(),
     });
-    first.report({ token, rowId: row.id, event: 'STAMPED' });
+    first.report({ token, rowId: row.id, event: 'STAMPED', data: { state: 'RUNNING' } });
 
     // The process dies. The universe it asked for is still running out there.
     const second = createGovernor({ storage: createFileStorage(file) });

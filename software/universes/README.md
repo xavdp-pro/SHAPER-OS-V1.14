@@ -1,4 +1,4 @@
-# software/universes/ — the blueprint and the reference
+# software/universes/ — the blueprint, the reference and the maker
 
 > **The rule this directory exists to enforce:** SHAPER OS is a **generic**
 > repository. A universe is configuration and data for one concrete deployment.
@@ -10,8 +10,9 @@
 | :--- | :--- |
 | [`_template/`](./_template/) | **The blueprint.** The shape every universe is derived from. Generic by construction: it names no domain, no account, no catalogue brick. |
 | [`univ-base/`](./univ-base/) | **The reference.** The six-brick base cell, deployable as it stands, and the manifest an agent should imitate. |
+| [`_maker-template/`](./_maker-template/) | **The maker.** The hand of a machine, one per host: it asks its governor what should exist, stamps universes from matrices with frozen recipes, and reports. Generic by construction — it belongs to no project, and it listens on nothing. |
 
-Two entries, and that is deliberate. Everything else that used to sit beside
+Three entries, and that is deliberate. Everything else that used to sit beside
 them — a demonstration cockpit that needed a catalogue brick, a `-test` universe
 kept past its verdict — left in V1.11, because each of them taught an agent
 something the base cannot honour on its own.
@@ -22,6 +23,7 @@ something the base cannot honour on its own.
 | :--- | :--- | :--- |
 | **The blueprint** every universe is derived from | `_template/` | Generic. It is the shape, not an instance |
 | **The reference** the documentation walks through | `univ-base/` | The base cell itself, provable with this repository alone |
+| **A generic organ template** — the maker, one per machine | `_maker-template/` | Generic by construction: the hand of a machine, it belongs to no project |
 | **A demonstration that needs a catalogue brick** | The `SHAPER-OS-BRICKS` catalogue | It demonstrates a product. It belongs beside the product |
 | **Real work** — a client, a business, a production deployment | **Outside this repository** | It carries someone's data, domain and accounts. Publishing it would publish them |
 | **An experiment** — a scratch universe, a harness, a spike | **Outside this repository** | An experiment is a moment of work, not a description of the system |
