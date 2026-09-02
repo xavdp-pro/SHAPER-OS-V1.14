@@ -6,7 +6,7 @@
   "description": "HTTP + SSE bridge in front of the OpenCode CLI, on the shared agent-bridge contract",
   "scripts": {
     "start": "./start-bridge.sh",
-    "test": "node --test *.test.mjs",
+    "test": "node --test test/*.test.js",
     "test:cli": "bash scripts/test-cli.sh"
   }
 }

@@ -12,7 +12,7 @@ import {
   sessionIdOf,
   closeOpenTools,
   translateEvent,
-} from './translate.mjs';
+} from '../translate.mjs';
 
 const SESSION = 'ses_fec155dfeffeN2mym8OMaobqB5';
 const MSG = 'msg_013eaa6de001Wru3ygaKCI44HB';
