@@ -147,3 +147,22 @@ test('one port family: an operator\'s untracked env file is neither scanned nor 
     fs.rmSync(probe, { force: true });
   }
 });
+
+test('one port family: topology.intent.json and the univ-base manifest agree on every core port', () => {
+  // A second answer can hide outside the retired family: vault was declared
+  // 8443 in the topology intent while its manifest, Containerfile, quadlet and
+  // server default said 8610. The lexical scan cannot see that; a cross-check
+  // between the two declarations can.
+  const topology = JSON.parse(fs.readFileSync(path.join(REPO, 'software/topology.intent.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'software/universes/univ-base/manifest.json'), 'utf8'));
+  const disagreements = [];
+  let compared = 0;
+  for (const [name, node] of Object.entries(topology.nodes)) {
+    const brick = node.brick && manifest.bricks[node.brick];
+    if (!brick || node.port === undefined) continue;
+    compared += 1;
+    if (brick.port !== node.port) disagreements.push(`${name}: topology says ${node.port}, univ-base/manifest.json says ${brick.port}`);
+  }
+  assert.ok(compared >= 4, `only ${compared} core bricks were compared — the topology or manifest shape changed`);
+  assert.deepEqual(disagreements, [], `two answers for one port:\n  ${disagreements.join('\n  ')}`);
+});
