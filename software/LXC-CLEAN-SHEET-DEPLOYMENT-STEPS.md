@@ -1,72 +1,72 @@
-# 📋 Liste Officielle des Étapes : Déploiement LXC Vierge & Relais Agent
+# 📋 Official Step List: Blank LXC Deployment & Agent Takeover
 
 > **Perimeter law**: Deployed stack = **P1 socle + P2 agentic** (KovZu Helm). P3 client tools are out of scope here.  
 > See [`docs/PERIMETERS.md`](./docs/PERIMETERS.md).
 
-> **Le slug appartient à l'opérateur.** Cette procédure est générique : partout où
-> vous lisez `<univ_slug>`, substituez le nom de votre univers. Aucun univers
-> concret n'est livré avec ce dépôt — voir [`universes/README.md`](./universes/README.md).
+> **The slug belongs to the operator.** This procedure is generic: wherever you
+> read `<univ_slug>`, substitute the name of your universe. No concrete
+> universe ships with this repository — see [`universes/README.md`](./universes/README.md).
 
-Ce document détaille la séquence exacte et chronologique permettant de monter un univers Shaper OS / KovZu complet sur un conteneur **LXC vierge** (Debian 13, conformément à la règle 11 ; Debian 12 et Ubuntu 24.04 restent utilisables), jusqu'à la **prise de relais autonome par l'agent IA**.
+This document details the exact, chronological sequence that brings up a complete Shaper OS / KovZu universe on a **blank LXC** container (Debian 13, as Rule 11 states; Debian 12 and Ubuntu 24.04 remain usable), up to the **autonomous takeover by the AI agent**.
 
 ---
 
-## 🎯 Définition du Succès (Critère d'Accomplissement Total)
-> **Le système est réputé réussi quand, sur un conteneur LXC vierge, une séquence automatisée déploie l'écosystème et que l'agent IA (`<univ_slug>-bridge-opencode`) prend le commandement, découvre son environnement, manipule les briques Podman et répond à l'opérateur.**
+## 🎯 Definition of Success (Criterion of Total Accomplishment)
+> **The system is deemed successful when, on a blank LXC container, an automated sequence deploys the ecosystem and the AI agent (`<univ_slug>-bridge-opencode`) takes command, discovers its environment, manipulates the Podman bricks and answers the operator.**
 >
-> **Trois horloges de restauration (ne jamais dire « &lt; 120 s » sans ça) :**
-> 1. **Images déjà dans notre registry / cache Podman** — déploiement **rapide**.
-> 2. **Images reconstruites ou tirées de zéro** — **plus long** (build/pull réseau).
-> 3. **Plus un delta données** — proportionnel au volume (`sav/`, dumps, GED, fichiers). Un TEST vide ≠ une prod avec des années de fichiers.
+> **Three restoration clocks (never say "&lt; 120 s" without them):**
+> 1. **Images already in our registry / Podman cache** — **fast** deployment.
+> 2. **Images rebuilt or pulled from scratch** — **longer** (network build/pull).
+> 3. **Plus a data delta** — proportional to the volume (`sav/`, dumps, GED, files). An empty TEST ≠ a production with years of files.
 >
-> Le provisionnement LXC / `apt` est en plus. Détail : [`RULES.md`](./RULES.md) Rule 10.
+> LXC provisioning / `apt` comes on top. Detail: [`RULES.md`](./RULES.md) Rule 10.
 
 ---
 
 ```mermaid
 flowchart TD
-    S0["Étape 0 : Création LXC (Proxmox / Linux)"] --> S1["Étape 1 : Paquets & Dépendances Système"]
-    S1 --> S2["Étape 2 : Paire de Clés SSH Locale"]
-    S2 --> S3["Étape 3 : Arborescence Persistante /data/"]
-    S3 --> S4["Étape 4 : Déploiement des Briques Podman"]
-    S4 --> S5["Étape 5 : Câblage du Pont Podman Transparent"]
-    S5 --> S6["Étape 6 : Mémoire Persistante & CONTEXT.md"]
-    S6 --> S7["Étape 7 : Self-Check & Découverte Agent"]
-    S7 --> S8["🏆 Étape 8 : Prise de Relais Totale de l'Agent"]
+    S0["Step 0: LXC creation (Proxmox / Linux)"] --> S1["Step 1: System packages & dependencies"]
+    S1 --> S2["Step 2: Local SSH key pair"]
+    S2 --> S3["Step 3: Persistent tree /data/"]
+    S3 --> S4["Step 4: Podman bricks deployment"]
+    S4 --> S5["Step 5: Wiring the transparent Podman bridge"]
+    S5 --> S6["Step 6: Persistent memory & CONTEXT.md"]
+    S6 --> S7["Step 7: Self-check & agent discovery"]
+    S7 --> S8["🏆 Step 8: Total takeover by the agent"]
 ```
 
 ---
 
-## 🛠️ Déroulé des 8 Étapes
+## 🛠️ The 8 Steps, in Order
 
-### Étape 0 — Configuration du Conteneur LXC (Hôte Proxmox)
-Pour permettre à Podman de tourner sans restriction dans le conteneur LXC :
-1. Conteneur LXC non-privilégié (ou privilégié selon politique).
-2. Options activées dans la configuration Proxmox (`/etc/pve/lxc/<ID>.conf`) :
+### Step 0 — LXC Container Configuration (Proxmox Host)
+So that Podman can run without restriction inside the LXC container:
+1. Unprivileged LXC container (or privileged, depending on policy).
+2. Options enabled in the Proxmox configuration (`/etc/pve/lxc/<ID>.conf`):
    ```text
    features: nesting=1,keyctl=1
    ```
-3. Démarrage du LXC : `pct start <ID>` puis `pct enter <ID>`.
+3. Start the LXC: `pct start <ID>` then `pct enter <ID>`.
 
 ---
 
-> **Deux familles d'hôtes, un contrat (Rule 11).** Les étapes `pct`/Proxmox de
-> ce document ne s'appliquent PAS telles quelles à un hôte Debian/LXD : sur
-> LXD, c'est `lxc launch` + profil `podman-univ` + `security.nesting=true`
-> (section « Verified from scratch » plus bas, et Rule 11). Un agent identifie
-> la famille de l'hôte AVANT de suivre une commande de conteneur — constat
-> beta V1.13 : les scripts ne routent qu'une famille, la loi route les deux.
+> **Two host families, one contract (Rule 11).** The `pct`/Proxmox steps of
+> this document do NOT apply as written to a Debian/LXD host: on LXD it is
+> `lxc launch` + the `podman-univ` profile + `security.nesting=true`
+> (section "Verified from scratch" below, and Rule 11). An agent identifies
+> the host's family BEFORE following a container command — V1.13 beta
+> finding: the scripts route one family, the law routes both.
 
-### Étape 1 — Provisioning OS & Outils d'Ingénierie
-Exécuté sur le système Debian 13 vierge :
+### Step 1 — OS Provisioning & Engineering Tools
+Run on the blank Debian 13 system:
 ```bash
 apt-get update && apt-get install -y   podman   nftables   git   curl   wget   jq   ripgrep   openssh-server   openssh-client   python3   python3-pip   rsync   unzip   ca-certificates   nodejs   npm
 ```
 
 ---
 
-### Étape 2 — Génération de la Clé SSH Locale Sécurisée
-Permet à l'agent conteneurisé d'accéder au démon Podman hôte sans mot de passe :
+### Step 2 — Generating the Secured Local SSH Key
+Lets the containerised agent reach the host Podman daemon without a password:
 ```bash
 if [ ! -f /root/.ssh/id_ed25519 ]; then
   ssh-keygen -t ed25519 -N '' -f /root/.ssh/id_ed25519
@@ -80,28 +80,28 @@ systemctl enable --now ssh
 ---
 
 <a id="no-host-data-tree"></a>
-### Étape 3 — L'état persistant vit dans l'univers, pas dans `/data/`
+### Step 3 — Persistent state lives in the universe, not in `/data/`
 
-**Rien à créer à la main ici.** Cette étape demandait autrefois de créer une
-arborescence `/data/` sur l'hôte. C'était une erreur de lecture, et elle a coûté
-une hésitation à un testeur : **`/data/…` sont les chemins vus *depuis l'intérieur*
-des conteneurs**, jamais des répertoires de l'hôte.
+**Nothing to create by hand here.** This step used to ask for a `/data/` tree
+to be created on the host. That was a reading error, and it cost a tester a
+hesitation: **`/data/…` are the paths seen *from inside* the containers**,
+never directories of the host.
 
-Le montage réel est celui-ci :
+The real mount is this one:
 
-| Sur l'hôte (ce qui existe vraiment) | Vu dans le conteneur |
+| On the host (what really exists) | Seen in the container |
 | :--- | :--- |
-| `$UNIV/sav/<brique>/` | `/data/<brique>` ou `/sav/<brique>` |
+| `$UNIV/sav/<brick>/` | `/data/<brick>` or `/sav/<brick>` |
 | `$UNIV/log/` | `/data/logger` |
 | `$UNIV/sav/vault/` | `/data/vault` — per-universe since V1.13.1 (beta F9) |
 
-L'état persistant d'un univers vit donc **sous le dossier de cet univers**, ce
-qui est ce qui rend un univers déplaçable, sauvegardable et destructible d'un
-seul geste. Le script de déploiement crée ces répertoires lui-même, avant de les
-monter — un test le vérifie désormais pour chaque point de montage.
+A universe's persistent state therefore lives **under that universe's
+folder**, which is what makes a universe movable, backupable and destroyable
+in a single gesture. The deploy script creates these directories itself,
+before mounting them — a test now checks it for every mount point.
 
-Il n'y a par conséquent **aucun `chmod 777` à passer** : la ligne qui figurait
-ici ouvrait en écriture universelle des répertoires que personne n'utilisait.
+There is consequently **no `chmod 777` to run**: the line that stood here
+opened world-writable directories that nobody used.
 
 > **The one-click script obeys this step too.** Until the 2 September audit
 > `scripts/shaper-lxc-bootstrap.sh` still ran `mkdir -p /data/{…}` and
@@ -116,70 +116,70 @@ ici ouvrait en écriture universelle des répertoires que personne n'utilisait.
 
 ---
 
-### Étape 4 — Déploiement de la pile complète (9 conteneurs)
+### Step 4 — Deploying the Full Stack (9 containers)
 
-> **Ce n'est pas « la base ».** Le socle exécutable est de **cinq** briques —
-> vault, logger, bridge, queue, maestro — et c'est ce que déclare
-> `manifest.tier-a.json`. Les neuf conteneurs ci-dessous sont la pile complète
-> de ce guide : le socle, plus le cockpit, la GED, le vectoriel et le tunnel.
-> Un testeur a hésité entre les deux comptes ; les trois lectures possibles de
-> « la base » sont réconciliées dans
+> **This is not "the base".** The runnable socle is **five** bricks —
+> vault, logger, bridge, queue, maestro — and that is what
+> `manifest.tier-a.json` declares. The nine containers below are this guide's
+> full stack: the socle, plus the cockpit, the GED, the vector store and the
+> tunnel. A tester hesitated between the two counts; the three possible
+> readings of "the base" are reconciled in
 > [`../docs/architecture/BRICKS.md`](../docs/architecture/BRICKS.md).
-Lancement coordonné du cluster avec `universes/<univ_slug>/deploy/podman-up.sh` :
-* 🔐 **`<univ_slug>-vault`** (:8610) — Coffre-fort chiffré AES-256-GCM
-* 📜 **`<univ_slug>-logger`** (:8620) — Collecteur d'audit JSONL et bus SSE
-* 📬 **`<univ_slug>-queue`** (:8640) — File d'attente de jobs asynchrones
-* 🎼 **`<univ_slug>-maestro`** (:8630) — Orchestrateur et supervision d'état
-* 📂 **`<univ_slug>-ged`** (:8660) — Hub documentaire souverain et OCR
-* 🧠 **`<univ_slug>-qdrant`** (:6333) — Base vectorielle sémantique
-* 🎛️ **`<univ_slug>-helm`** (:8650) — Cockpit de pilotage universel KovZu
-* 🌐 **`<univ_slug>-tunnel`** — Passerelle d'accès distante sécurisée
-* 🤖 **`<univ_slug>-bridge-opencode`** (:4440) — Runtime de l'Agent IA
+Coordinated launch of the cluster with `universes/<univ_slug>/deploy/podman-up.sh`:
+* 🔐 **`<univ_slug>-vault`** (:8610) — AES-256-GCM encrypted vault
+* 📜 **`<univ_slug>-logger`** (:8620) — JSONL audit collector and SSE bus
+* 📬 **`<univ_slug>-queue`** (:8640) — Asynchronous job queue
+* 🎼 **`<univ_slug>-maestro`** (:8630) — Orchestrator and state supervision
+* 📂 **`<univ_slug>-ged`** (:8660) — Sovereign document hub and OCR
+* 🧠 **`<univ_slug>-qdrant`** (:6333) — Semantic vector database
+* 🎛️ **`<univ_slug>-helm`** (:8650) — KovZu universal steering cockpit
+* 🌐 **`<univ_slug>-tunnel`** — Secured remote access gateway
+* 🤖 **`<univ_slug>-bridge-opencode`** (:4440) — AI agent runtime
 
 ---
 
-### Étape 5 — Câblage du Pont Podman Transparent dans l'Agent
+### Step 5 — Wiring the Transparent Podman Bridge into the Agent
 
-> **Ce qui descend est une clé publique. Jamais une clé privée.**
+> **What goes down is a public key. Never a private key.**
 >
-> Cette étape copiait auparavant `/root/.ssh/id_ed25519` — la clé **privée** du
-> LXC — dans le conteneur de l'agent. Comme la publique correspondante figure
-> déjà dans l'`authorized_keys` du LXC (étape 2), cela revenait à **remettre à
-> l'agent la clé qui ouvre son propre hôte**. Un conteneur compromis n'aurait
-> pas eu à s'évader : il détenait l'accès.
+> This step used to copy `/root/.ssh/id_ed25519` — the LXC's **private** key —
+> into the agent's container. Since the matching public key already sits in
+> the LXC's `authorized_keys` (step 2), that amounted to **handing the agent
+> the key that opens its own host**. A compromised container would not have
+> had to escape: it held the access.
 >
-> La règle 36 le dit sans condition — *« la clé privée ne quitte jamais le
-> Parent »* — et la question de savoir qui est le Parent ici ne change rien :
-> une clé privée ne se déplace pas, à aucun niveau.
+> Rule 36 says it without condition — *"the private key never leaves the
+> Parent"* — and the question of who the Parent is here changes nothing: a
+> private key does not move, at any level.
 >
-> Le sens de circulation correct est l'inverse : **celui qui doit initier la
-> connexion fabrique sa propre paire et n'envoie que sa clé publique** à celui
-> qu'il veut joindre. Révoquer un accès redevient alors le retrait d'une ligne,
-> au lieu d'une rotation de clé sur tout ce qui lui faisait confiance.
+> The correct direction of flow is the reverse: **whoever must initiate the
+> connection makes its own pair and sends only its public key** to whoever it
+> wants to reach. Revoking an access then becomes the removal of one line,
+> instead of a key rotation on everything that trusted it.
 
-Le conteneur agent doit joindre le LXC pour piloter Podman. Il génère donc sa
-propre paire, et seule sa clé **publique** remonte :
+The agent container must reach the LXC to drive Podman. It therefore
+generates its own pair, and only its **public** key goes up:
 
 ```bash
-# 1. L'agent fabrique sa propre identité — la privée naît et reste chez lui
+# 1. The agent makes its own identity — the private key is born and stays with it
 podman exec <univ_slug>-bridge-opencode mkdir -p /root/.ssh
 podman exec <univ_slug>-bridge-opencode chmod 700 /root/.ssh
 podman exec <univ_slug>-bridge-opencode \
   ssh-keygen -t ed25519 -N '' -q -f /root/.ssh/id_ed25519
 
-# 2. Seule la publique remonte vers l'hôte LXC, et elle est identifiable
+# 2. Only the public key goes up to the LXC host, and it is identifiable
 AGENT_PUB="$(podman exec <univ_slug>-bridge-opencode cat /root/.ssh/id_ed25519.pub)"
 grep -qF "$AGENT_PUB" /root/.ssh/authorized_keys 2>/dev/null || \
-  echo "$AGENT_PUB # agent:<univ_slug>-bridge-opencode ajouté $(date -I)" \
+  echo "$AGENT_PUB # agent:<univ_slug>-bridge-opencode added $(date -I)" \
     >> /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
 
-# Révoquer cet agent, plus tard, c'est retirer cette seule ligne :
+# Revoking this agent, later, is removing this single line:
 #   sed -i '/agent:<univ_slug>-bridge-opencode/d' /root/.ssh/authorized_keys
 ```
 
 ```bash
-# Déploiement du wrapper /usr/local/bin/podman
+# Deploying the /usr/local/bin/podman wrapper
 cat << 'EOF_WRAPPER' > /tmp/podman-wrapper.sh
 #!/bin/bash
 if [ $# -eq 0 ]; then
@@ -199,12 +199,12 @@ rm -f /tmp/podman-wrapper.sh
 
 ---
 
-### Étape 6 — The logbook belongs to the universe, not to the host
+### Step 6 — The logbook belongs to the universe, not to the host
 
 **Nothing to do on the host here.** Until the 2 September audit this step
 created `/data/workspaces/<first name>/_kovzu/JOURNAL.md` on the host — a
 journal seeded with a port list and an operator's first name, in the very host
-tree Étape 3 says nothing creates, and that nothing in this repository reads.
+tree Step 3 says nothing creates, and that nothing in this repository reads.
 An operator's name in a tracked file is exactly what the Boot Contract forbids
 (10b), and a host path the containers do not mount is state that survives no
 rebuild.
@@ -217,29 +217,29 @@ This guide names no path for it and no author.
 
 ---
 
-### Étape 7 — Self-Check & Découverte Autonome de l'Agent
-L'agent exécute automatiquement son cycle de vérification :
-1. Test de son accès Podman : `podman ps -a`
-2. Test des APIs MCP : `curl http://127.0.0.1:8610/api/health`, `curl http://127.0.0.1:8660/api/health`
-3. Persistent memory: the logbook the universe's `INTENT.md` declares, read from the universe's own volume — nothing on the host (Étape 6).
+### Step 7 — Self-Check & Autonomous Discovery by the Agent
+The agent automatically runs its verification cycle:
+1. Test of its Podman access: `podman ps -a`
+2. Test of the MCP APIs: `curl http://127.0.0.1:8610/api/health`, `curl http://127.0.0.1:8660/api/health`
+3. Persistent memory: the logbook the universe's `INTENT.md` declares, read from the universe's own volume — nothing on the host (Step 6).
 
 ---
 
-### 🏆 Étape 8 — Prise de Relais Totale & Confirmation Opérationnelle
-L'agent est opérationnel sur le port 8650 (Cockpit Helm) et par voix/chat. Il est capable :
-* De manipuler le Vault (ex: configurer les identifiants emails sans fuite).
-* D'analyser les documents dans la GED.
-* De lancer des bacs à sable éphémères (`podman run --rm`).
-* De consigner chacune de ses étapes dans son journal.
+### 🏆 Step 8 — Total Takeover & Operational Confirmation
+The agent is operational on port 8650 (Helm cockpit) and by voice/chat. It is able:
+* To manipulate the Vault (e.g. configure the email credentials without a leak).
+* To analyse the documents in the GED.
+* To launch ephemeral sandboxes (`podman run --rm`).
+* To record each of its steps in its journal.
 
 ---
 
-## ⚡ Script de Bootstrap 1-Click (`scripts/shaper-lxc-bootstrap.sh`)
+## ⚡ 1-Click Bootstrap Script (`scripts/shaper-lxc-bootstrap.sh`)
 
 Steps 1, 2, 4, 5 and 7 are condensed in the executable script
 `software/scripts/shaper-lxc-bootstrap.sh`. Step 3 creates nothing, and step 6
 is no longer a host gesture: the script seeds no journal, because a logbook is
-the universe's own (see Étape 6 above). The script needs two things the
+the universe's own (see Step 6 above). The script needs two things the
 command names: the universe slug, and a universe already derived from
 `software/universes/_template/` under `software/universes/<univ_slug>/`.
 On a fresh LXC container:
@@ -258,9 +258,9 @@ UNIV_SLUG=<univ_slug> bash software/scripts/shaper-lxc-bootstrap.sh
 > is `software/universes/$UNIV_SLUG`, and a slug that names no universe is a
 > halt that says so, not a warning that scrolls by.
 
-**Durée d'exécution constatée dans ce contexte précis** : images déjà présentes en cache local, univers vide sans données à restaurer, provisionnement LXC et `apt` **non inclus**.
-Cette valeur est une mesure d'observation, **pas un engagement** : elle ne vaut que pour ce contexte exact. Voir Rule 10 (trois horloges) avant de la citer où que ce soit.  
-**Résultat** : Univers opérationnel, agent prêt au service.
+**Execution time observed in this precise context**: images already present in the local cache, empty universe with no data to restore, LXC provisioning and `apt` **not included**.
+This value is an observed measurement, **not a commitment**: it holds only for this exact context. See Rule 10 (three clocks) before quoting it anywhere.  
+**Result**: Universe operational, agent ready for service.
 
 ---
 
