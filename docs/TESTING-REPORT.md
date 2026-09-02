@@ -224,5 +224,8 @@ sealer walked.** The claim at the top of this page — a cold agent can
 deploy from the repository alone — held for nine runs on the runbook's path
 and said nothing about the README's, the guide's, or the scripts nobody ran.
 A repository is read from every door, so every door gets its cold reader.
-Measured on this branch after the audit's corrections: **328 tests, verify
-8/8** on a naked clone.
+Measured on 2 September 2026, on the branch that carried this page's own
+corrections alone (`fix/docs`, before the other September branches were
+merged): **330 tests, verify 8/8** on a naked clone. That number is bounded
+by that branch and that day; the merged count belongs to the next seal, not
+to this line.
