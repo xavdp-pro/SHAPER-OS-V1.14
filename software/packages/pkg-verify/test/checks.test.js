@@ -1,5 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -104,6 +105,33 @@ describe('version-coherence — the release names itself once', () => {
     assert.match(text, /software\/universes\/_template\/package\.json declares 1\.7\.0/);
     assert.match(text, /software\/universes\/_template\/manifest\.json declares 1\.12\.0/);
     assert.doesNotMatch(text, /node_modules/, 'a dependency is not the release');
+  });
+
+  // Non-regression (Rule 29): the extended check walked the working tree, so
+  // a universe an operator copies from the template into `universes/univ-<slug>`
+  // (what the clean-sheet guide prescribes) was judged as if the repository
+  // shipped it, and verify went red on every operator's machine over a
+  // package.json the repository does not deliver (beta finding F12). The
+  // check now reads what git tracks.
+  it('judges the tracked tree, not an operator\'s untracked universe copy', () => {
+    const r = repo('tracked/SHAPER-OS-V1.13', {
+      'package.json': '{"version": "1.13.2"}',
+      'software/packages/pkg-a/package.json': '{"version": "1.13.2"}',
+      'software/universes/_template/manifest.json': '{"intent": "SHAPER-OS-V1.13/software/INTENT.md"}',
+      'software/universes/univ-acme-dev/package.json': '{"version": "1.7.0"}',
+      'software/universes/univ-acme-dev/manifest.json': '{"version": "1.7.0", "intent": "SHAPER-OS-V1.11/software/INTENT.md"}',
+    });
+    const git = (...args) => execFileSync('git', ['-C', r, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+    git('init', '-q');
+    git('add', 'package.json', 'software/packages/pkg-a/package.json', 'software/universes/_template/manifest.json');
+    assert.deepEqual(versionCoherence.run(r), []);
+    // And a tracked divergence in the same tree is still reported, alone.
+    fs.mkdirSync(path.join(r, 'software/packages/pkg-b'), { recursive: true });
+    fs.writeFileSync(path.join(r, 'software/packages/pkg-b/package.json'), '{"version": "1.13.23"}');
+    git('add', 'software/packages/pkg-b/package.json');
+    const findings = versionCoherence.run(r);
+    assert.equal(findings.length, 1, findings.join('\n'));
+    assert.match(findings[0], /software\/packages\/pkg-b\/package\.json declares 1\.13\.23, the root package\.json declares 1\.13\.2/);
   });
 });
 
