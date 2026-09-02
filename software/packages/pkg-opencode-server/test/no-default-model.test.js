@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -19,6 +19,12 @@ import { fileURLToPath } from 'node:url';
 
 const SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), '../server.mjs');
 
+/** Every scratch HOME this file creates; removed once the suite is done. */
+const homes = [];
+after(() => {
+  for (const home of homes) fs.rmSync(home, { recursive: true, force: true });
+});
+
 /**
  * Start the real server.mjs and watch what it does. A process still alive
  * after the grace period is one that started on nothing, which is the
@@ -28,6 +34,7 @@ const SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), '../serve
 function start(extraEnv = {}) {
   return new Promise((resolve) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'shaper-opencode-server-'));
+    homes.push(home);
     // The token and registry files are named explicitly, in a directory that
     // exists: the brick image mounts ~/.config/opencode-bridge, and this test
     // is about the model, not about a fresh HOME.
