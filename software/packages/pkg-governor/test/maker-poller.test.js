@@ -40,7 +40,8 @@ describe('the maker asks, stamps, reports — and listens on nothing', () => {
     const maker = startMaker({
       governorUrl: url, token, host: 'test-host', lanes: 1, intervalMs: 50,
       inventory: () => ['sha256:aa'],
-      runRecipe: async (work) => { ran.push(work); return { note: 'stamped in test' }; },
+      // The recipe's facts: a birth is one only if the container runs.
+      runRecipe: async (work) => { ran.push(work); return { state: 'RUNNING', note: 'stamped in test' }; },
       log: () => {},
     });
     await waitFor(() => governor.getRow(row.id).state === 'PURRING');
@@ -86,7 +87,7 @@ describe('the maker asks, stamps, reports — and listens on nothing', () => {
     const maker = startMaker({
       governorUrl: url, token, host: 'test-host', intervalMs: 50,
       inventory: () => ['sha256:aa'],
-      runRecipe: async (work) => { received = work.account; return {}; },
+      runRecipe: async (work) => { received = work.account; return { state: 'RUNNING' }; },
       log: () => {},
     });
     await waitFor(() => received !== null);

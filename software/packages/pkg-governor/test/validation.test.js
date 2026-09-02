@@ -17,7 +17,7 @@ function purringRow(g, token, { checks }) {
   });
   g.poll({ token, host: 'gbs-test', inventory: ['sha256:aa'], version: 't', lanes: 2 });
   g.report({ token, rowId: row.id, event: 'STAMPING' });
-  g.report({ token, rowId: row.id, event: 'STAMPED', data: { instance: 'i', checks } });
+  g.report({ token, rowId: row.id, event: 'STAMPED', data: { instance: 'i', state: 'RUNNING', checks } });
   return row;
 }
 

@@ -21,10 +21,18 @@ contract, written once, so every governor speaks it and every maker reads it.
 1. **The governor governs by writing, never by commanding.** Its only act is
    a ledger row of desired state. Work is derived from the gap between
    desired and reported, never pushed anywhere.
-2. **A maker's identity is its host.** Enrolment binds a credential to one
-   hostname; a poll claiming another host is refused. Enrolment itself is the
-   tandem's act (an operator credential), never self-service: the fleet is
-   not a place one walks into.
+2. <a id="identity-is-the-host"></a>**A maker's identity is its host.**
+   Enrolment binds a credential to one hostname; a poll claiming another
+   host is refused, and so is a report on a row written for another
+   machine: a stolen credential may lie about its own host's rows, never
+   about another's. Each refusal is journaled — who, about which row, when
+   — because a lie at the door is a security fact, not a 403. The journal
+   is not capped or coalesced, on purpose: only an enrolled credential can
+   write to it (an unknown token is a 401, unrecorded), so a journal that
+   grows is one maker lying on repeat, and the answer is not a smaller
+   journal but the tandem revoking that maker — the revocation is the
+   alarm. Enrolment itself is the tandem's act (an operator credential),
+   never self-service: the fleet is not a place one walks into.
 3. **No work for bytes unproven.** A maker declares the matrices it holds,
    by digest, at every poll. Work whose digest the maker has not declared is
    withheld and answered with a preload instruction instead. (The image lock
@@ -58,6 +66,14 @@ contract, written once, so every governor speaks it and every maker reads it.
 7. **No dependencies.** Node built-ins only; the storage is injectable so a
    real governor binds its own database (Rule 26) while the contract stays
    testable on a naked clone.
+8. <a id="a-birth-is-a-fact"></a>**A birth is a fact, not a claim.** An
+   event means what its name says only if its facts hold: STAMPED purrs only
+   when the reported `state` says the container runs (the word, in any
+   case — host tooling spells it its own way); a stopped container, or a
+   stamp that ended without a line of facts, degrades the row and the ledger
+   names the fact that was missing. The recipe looked and reported; the
+   governor never purrs because a maker said so. The HTTP door answers
+   enrol, poll and `/api/work/<rowId>/events` exactly — nothing else.
 
 ## How to run
 

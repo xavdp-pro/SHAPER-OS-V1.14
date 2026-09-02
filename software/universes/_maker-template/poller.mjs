@@ -24,9 +24,20 @@ export function defaultRecipeRunner({ recipesDir, hostKind }) {
     // the event into the ledger — the stamp says whether the child ships an
     // acceptance spec, the validation says which step failed — and the
     // governor derives work from facts, never from prose. Unparseable output
-    // stays what it is: a tail of text, kept for the audit.
+    // stays what it is: a tail of text, kept for the audit — except on a
+    // stamp. A reap proves its end by its exit code (exit 5 is "not
+    // proven"); a birth is proven only by the facts the recipe looked at,
+    // and a stamp that ended without them used to be reported STAMPED, and
+    // purred. It is a failure: the tail of text rides the STAMP_FAILED.
     const lastLine = stdout.trim().split('\n').at(-1) || '';
-    try { return JSON.parse(lastLine); } catch { return { stdout: stdout.slice(-2000) }; }
+    try { return JSON.parse(lastLine); } catch {
+      if (work.kind === 'stamp') {
+        const err = new Error(`the stamp recipe ended without a line of facts: ${stdout.trim().slice(-400)}`);
+        err.stdout = stdout.slice(-2000);
+        throw err;
+      }
+      return { stdout: stdout.slice(-2000) };
+    }
   };
 }
 

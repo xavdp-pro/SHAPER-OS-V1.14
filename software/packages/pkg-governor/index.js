@@ -34,6 +34,17 @@ const EVENT_TRANSITIONS = {
   VALIDATION_FAILED: 'DEGRADED',
 };
 
+/** Facts an event must carry to mean what it claims. A STAMPED whose facts
+ *  say the container is not running is not a birth: it used to purr all the
+ *  same, because the table read the event's name and never its facts. The
+ *  word is compared without case — LXD's list column says RUNNING, its API
+ *  says Running — and any other word, or none, degrades the row. A second
+ *  table, not a branch: the next fact a birth must prove is one line here. */
+const EVENT_FACTS = {
+  STAMPED: { state: (v) => typeof v === 'string' && v.toLowerCase() === 'running' },
+};
+const UNMET_TRANSITION = 'DEGRADED';
+
 /** A journal on disk: every change appended, the last word per id winning at
  *  boot. The ledger is not like the queue — a queue's durability is evidence
  *  and never resumption, but a ledger IS the desired state: a governor that
@@ -65,6 +76,7 @@ export function createGovernor({
 } = {}) {
   const rows = new Map();     // id -> ledger row
   const makers = new Map();   // host -> { token, version, lanes, inventory:Set<digest>, lastPollAt, enrolledAt }
+  const refusals = [];        // reports refused at the door — a credential lying about another machine's rows
   let seq = 0;
 
   /** Persist a snapshot. Inventory is a Set in memory and a list on disk. */
@@ -82,6 +94,8 @@ export function createGovernor({
         if (Number.isFinite(n) && n > seq) seq = n;
       } else if (record.kind === 'maker') {
         makers.set(record.body.host, { ...record.body, inventory: new Set(record.body.inventory || []) });
+      } else if (record.kind === 'refusal') {
+        refusals.push(record.body);
       }
     }
   }
@@ -261,14 +275,35 @@ export function createGovernor({
     if (!maker) return { ok: false, code: 401, error: 'not enrolled' };
     const row = rows.get(rowId);
     if (!row) return { ok: false, code: 404, error: `no row "${rowId}"` };
-    row.events.push({ event, data, host: maker.host, at: stamp() });
-    const next = EVENT_TRANSITIONS[event];
+    // The same binding poll() applies, on the way back. A credential is
+    // bound to one machine; a report on another machine's row used to be
+    // accepted all the same, so a stolen token could write REAPED on any
+    // row in the ledger — slot freed, matrix dereferenced, twin at the next
+    // ask. A stolen credential may lie about its own host's rows, never
+    // about another's. The refusal is a security fact: it is journaled.
+    if (row.machine !== maker.fleetName && row.machine !== maker.host) {
+      const refusal = {
+        at: stamp(), host: maker.host, fleetName: maker.fleetName,
+        rowId, machine: row.machine, event: String(event),
+      };
+      refusals.push(refusal);
+      persist('refusal', refusal);
+      return { ok: false, code: 403, error: `row "${rowId}" belongs to "${row.machine}" — this credential reports for "${maker.fleetName}" only` };
+    }
+    // An event means what its name says only if its facts hold: a STAMPED
+    // that reports a stopped container degrades the row instead of purring.
+    const claimed = EVENT_FACTS[event] || {};
+    const unmet = Object.keys(claimed).filter((k) => !claimed[k](data?.[k]));
+    const entry = { event, data, host: maker.host, at: stamp() };
+    if (unmet.length) entry.unmet = unmet;
+    row.events.push(entry);
+    const next = unmet.length ? UNMET_TRANSITION : EVENT_TRANSITIONS[event];
     if (next) {
       row.state = next;
       row.updatedAt = stamp();
     }
     persist('row', row);
-    return { ok: true, state: row.state };
+    return unmet.length ? { ok: true, state: row.state, unmet } : { ok: true, state: row.state };
   }
 
   /** The silences. A host quiet beyond the interval is drifting. */
@@ -297,6 +332,8 @@ export function createGovernor({
     })),
     listRows: () => [...rows.values()],
     getRow: (id) => rows.get(id) || null,
+    /** Reports refused at the door: who lied, about which row, when. */
+    listRefusals: () => refusals.map((r) => ({ ...r })),
     STATES,
   };
 }
@@ -335,8 +372,11 @@ export function createGovernorServer({ governor, port = 0, host = '127.0.0.1', a
       const out = governor.poll({ ...body, token: bearer(req) });
       return sendJson(res, out.ok ? 200 : out.code, out);
     }
-    if (req.method === 'POST' && pathname.startsWith('/api/work/')) {
-      const rowId = decodeURIComponent(pathname.split('/')[3] || '');
+    // The door answers enrol, poll, events — nothing else. Any POST under
+    // /api/work/ used to be taken as a report; the route is exact.
+    const events = req.method === 'POST' && pathname.match(/^\/api\/work\/([^/]+)\/events$/);
+    if (events) {
+      const rowId = decodeURIComponent(events[1]);
       const body = await readBody(req);
       const out = governor.report({ token: bearer(req), rowId, event: body?.event, data: body?.data });
       return sendJson(res, out.ok ? 200 : out.code, out);

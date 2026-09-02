@@ -18,10 +18,13 @@ it does not improvise.
 
 ## 2. Invariants
 
-1. **Nothing can open a connection to it.** It listens on nothing and holds
-   no certificate. It calls outward to ask for work and to report; a stolen
-   credential lets someone impersonate a worker, never command a host.
-   *(Doctrine: the direction of the link is the boundary.)*
+1. <a id="never-command-a-host"></a>**Nothing can open a connection to
+   it.** It listens on nothing and holds no certificate. It calls outward to
+   ask for work and to report; a stolen credential lets someone impersonate
+   a worker, never command a host — and, since the governor binds every
+   report to the machine the row names, it may lie about its own host's
+   rows, never about another's. *(Doctrine: the direction of the link is
+   the boundary.)*
 2. **It executes a frozen recipe with typed parameters.** Data that came from
    a form never becomes part of a command: arguments are passed, never
    concatenated into a shell string. Pulling work is not permission to
@@ -52,7 +55,12 @@ it does not improvise.
 9. **Two credentials, never confused.** The one that speaks to the SaaS may
    only ask and report. The one that acts on the host is the machine's own
    power, held in this universe's vault, reachable by no one.
-10. **A refusal is reported under its own name.** A recipe may refuse — an
+10. **A birth is reported from facts, never from an exit code.** A stamp
+   recipe ends with one line of facts — what the host observed of the child
+   — and a stamp whose output holds none is reported as a failure, not a
+   birth: an end is proven by the recipe's exit code (absence verified, or
+   not), a birth only by the facts it looked at.
+11. **A refusal is reported under its own name.** A recipe may refuse — an
    unverified matrix, an absent one, a production universe asked to end —
    and says so by its exit code. The maker reports a refusal as what it is
    (exit 4 → `REAP_REFUSED`), never as a failure the governor would offer
