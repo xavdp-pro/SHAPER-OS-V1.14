@@ -23,19 +23,19 @@ We do not write bloated step-by-step cooking recipes. We state the high-signal e
 
 These four concepts are distinct facets of the same universal truth:
 
-### Pillar 1: Intent-Driven Engineering (L'Ingénierie par Intention)
+### Pillar 1: Intent-Driven Engineering
 * **Definition**: Describing the high-level business goal, security boundaries, and outcome rather than micromanaging low-level syntax.
 * **Mechanism**: When an agent knows *What* needs to be achieved and *Why*, it autonomously generates the optimal commands, algorithms, and glue code with zero friction.
 
-### Pillar 2: Declarative Crafting (Le Façonnage Déclaratif)
+### Pillar 2: Declarative Crafting
 * **Definition**: Stating the *desired target state* instead of a brittle sequence of procedural steps.
 * **Mechanism**: State the 4 mandatory invariants (e.g. OS, capabilities, skeleton injection, access keys). The agent inspects the environment and reconciles reality to match the declared contract.
 
-### Pillar 3: Zero-Noise Contract Protocol (Le Contrat Minimaliste Zéro-Bruit)
+### Pillar 3: Zero-Noise Contract Protocol
 * **Definition**: Ruthlessly eliminating decorative fluff, boilerplate noise, and redundant code from repositories and documentation.
 * **Mechanism**: High-signal input yields high-accuracy output. Less noise equals zero hallucinations, prompt-caching efficiency, and zero token waste at rest.
 
-### Pillar 4: Living Fractal Intent (La Spécification Vivante Fractale)
+### Pillar 4: Living Fractal Intent
 * **Definition**: Documentation that lives as active, composable context (`ctx-universe.md`, `RULES.md`, LEGO `@shaper/*` engines) rather than dead manuals.
 * **Mechanism**: Small, atomic bricks assembled like fractals to build enterprise ERPs, CRMs, voice AI engines, or legal universes in minutes.
 
@@ -116,53 +116,53 @@ To maximize innovation velocity without corrupting the canonical standard, SHAPE
 
 ---
 
-## 7. The Fundamental Duality: Le « Ventre » de KovZu vs La « Voie » Shaper OS
+## 7. The Fundamental Duality: The KovZu "Belly" vs the Shaper OS "Way"
 
 An autonomous agent operating within the Shaper ecosystem must **NEVER confuse what belongs inside its own organism with what must be built as a sovereign tool for the human user**.
 
 ```
 +-------------------------------------------------------------------------------+
-|                       LA DUALITÉ FONDAMENTALE SHAPER OS                       |
+|                       THE FUNDAMENTAL SHAPER OS DUALITY                       |
 +-------------------------------------------------------------------------------+
-|   LE « VENTRE » DE KOVZU (L'Organisme)   |   LA « VOIE » SHAPER OS (L'Outil)  |
+|   THE KOVZU "BELLY" (The Organism)       |   THE SHAPER OS "WAY" (The Tool)   |
 +------------------------------------------+------------------------------------+
-| • C'est ce que nous développons pour     | • C'est ce que l'agent développe   |
-|   étendre et enrichir l'agent lui-même   |   comme vrai outil pour l'humain   |
-| • Moteur de prompt, plugins voix/STT/TTS | • ERP, CRM, micro-services, APIs   |
-| • Gestion des sessions, timelines, auth  | • Briques logicielles pérennes     |
-| • Mini-GED souveraine locale (/data/ged) | • Sandboxes isolées Podman (--rm)  |
-| • Interface Cockpit `/console` (P2)     | • Volumes dédiés (/data/<slug>)    |
-| • Voix opérateur dans `/console` (P2)   | • `market-intelligence`, CRM (P3)  |
-| • Reste DANS le corps de KovZu           | • Déployé SUR le système hôte      |
+| • What we develop to extend and enrich   | • What the agent develops as a     |
+|   the agent itself                       |   real tool for the human          |
+| • Prompt engine, voice/STT/TTS plugins   | • ERP, CRM, micro-services, APIs   |
+| • Session, timeline and auth management  | • Durable software bricks          |
+| • Local sovereign mini-GED (/data/ged)   | • Isolated Podman sandboxes (--rm) |
+| • The `/console` cockpit interface (P2)  | • Dedicated volumes (/data/<slug>) |
+| • Operator voice inside `/console` (P2)  | • `market-intelligence`, CRM (P3)  |
+| • Stays INSIDE KovZu's body              | • Deployed ON the host system      |
 +------------------------------------------+------------------------------------+
 ```
 
-### 7.1 Le « Ventre » de KovZu : L'Organisme de l'Assistant
-* **Définition** : Tout ce qui enrichit l'intelligence, la mémoire, l'ergonomie, la perception vocale et la réactivité de l'assistant Zephir.
-* **Ce qui y vit** (all **P2** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)):
-  1. Le moteur de prompt, la conscience de contexte (`sessionPrime.js`, `agentSkills.js`).
-  2. Le pipeline de voix opérateur **dans `/console`** (Deepgram STT/TTS, Groq ack) — **not** the retired `/talk` route.
-  3. L'authentification, les rôles, la gestion des conversations par dossiers et l'archivage.
-  4. La Mini-GED locale (`/data/ged/`) et la traçabilité des pièces jointes.
-  5. La queue de délégation et le scheduler Maestro (`:8640`, `:8630`).
-* **Règle d'or** : Ce qui entre dans le ventre de KovZu ne se transforme **PAS** en un outil tiers externe. Cela fait partie intégrante du corps de l'assistant pour le rendre plus puissant au service de l'humain.
+### 7.1 The KovZu "Belly": The Assistant's Organism
+* **Definition**: Everything that enriches the intelligence, memory, ergonomics, voice perception and responsiveness of the Zephir assistant.
+* **What lives there** (all **P2** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)):
+  1. The prompt engine, the context awareness (`sessionPrime.js`, `agentSkills.js`).
+  2. The operator voice pipeline **inside `/console`** (Deepgram STT/TTS, Groq ack) — **not** the retired `/talk` route.
+  3. Authentication, roles, folder-based conversation management and archiving.
+  4. The local Mini-GED (`/data/ged/`) and the traceability of attachments.
+  5. The delegation queue and the Maestro scheduler (`:8640`, `:8630`).
+* **Golden rule**: What enters KovZu's belly does **NOT** turn into an external third-party tool. It is an integral part of the assistant's body, making it more powerful in the service of the human.
 
-### 7.2 La « Voie » Shaper OS : La Forge d'Outils Pérennes pour l'Humain
-* **Définition** : Lorsqu'un utilisateur demande à l'agent de créer un ERP, un CRM, un tableau de bord sur-mesure, un robot d'automatisation ou un service métier, l'agent **ne code jamais cela dans son propre ventre**.
-* **Le Protocole d'Exécution de la Voie Shaper OS** :
-  1. **Phase 1 : Prototypage en Sandbox Isolé (Zero Pollution)** :
-     L'agent lance un conteneur éphémère de calcul via `bash scripts/shaper-sandbox.sh` pour compiler, tester, exécuter des scripts lourds sans risque d'altérer KovZu.
-  2. **Phase 2 : Échafaudage de Brique Pérenne Standardisée** :
+### 7.2 The Shaper OS "Way": The Forge of Durable Tools for the Human
+* **Definition**: When a user asks the agent to create an ERP, a CRM, a custom dashboard, an automation robot or a business service, the agent **never codes it inside its own belly**.
+* **The Shaper OS Way execution protocol**:
+  1. **Phase 1: Prototyping in an Isolated Sandbox (Zero Pollution)**:
+     The agent launches an ephemeral compute container via `bash scripts/shaper-sandbox.sh` to compile, test and run heavy scripts with no risk of altering KovZu.
+  2. **Phase 2: Scaffolding a Standardised Durable Brick**:
      The agent generates a standalone brick with `node scripts/shaper-tool-scaffold.mjs create --slug <slug> --name "<Name>" --desc "<what it does>" [--port <port>]`, run from the root of the universe class repository — never from the base, where the scaffold halts:
      - Source package: `packages/pkg-<slug>/` (`@shaper/pkg-<slug>`, with a test that binds a real socket)
      - Containerised brick: `bricks/brick-<slug>/` — `INTENT.md`, `brick.json`, a `Containerfile` that copies the package from the pinned source image, and the Quadlet unit `cfg-<slug>.container` in the base bricks' shape (`Image=@IMG@` from the lock, `ContainerName=%i-ctr-<slug>`)
      - Its own port, and state in a volume the universe owns (`Volume=vol-%i-<slug>`, mounted at `/data/<slug>` inside the container — never a host path)
      - Nothing written to the base's `topology.json`: the brick is declared in the universe's manifest
-  3. **Phase 3 : Déploiement & Pérennité dans le Temps** :
-     L'outil dispose de sa propre interface, son propre port, son propre cycle de vie, et perdure indépendamment de l'agent. Il peut être dupliqué d'un client à l'autre selon les lois de modularité fractale.
+  3. **Phase 3: Deployment & Durability over Time**:
+     The tool has its own interface, its own port, its own lifecycle, and outlives the agent independently. It can be duplicated from one client to another under the laws of fractal modularity.
 
-### 7.3 Règle de Décision Instantanée pour l'Agent AI
-Avant toute action, l'agent doit se poser la question :
-> **« Est-ce que cette demande concerne mes propres capacités cognitives/vocales/documentaires (Le Ventre de KovZu), ou est-ce un outil de travail pérenne destiné à l'activité de l'humain (La Voie Shaper OS) ? »**
-* Si **Ventre** $\rightarrow$ Modifier/étendre les modules internes KovZu (`bricks/brick-helm`, `packages/*`).
-* Si **Voie Shaper OS** $\rightarrow$ Utiliser `shaper-sandbox.sh` pour prototyper et `shaper-tool-scaffold.mjs` pour livrer un véritable outil conteneurisé.
+### 7.3 The Agent's Instant Decision Rule
+Before any action, the agent must ask itself:
+> **"Does this request concern my own cognitive/voice/document capabilities (the KovZu Belly), or is it a durable working tool meant for the human's activity (the Shaper OS Way)?"**
+* If **Belly** $\rightarrow$ Modify/extend the internal KovZu modules (`bricks/brick-helm`, `packages/*`).
+* If **Shaper OS Way** $\rightarrow$ Use `shaper-sandbox.sh` to prototype and `shaper-tool-scaffold.mjs` to deliver a real containerised tool.
