@@ -15,12 +15,17 @@
 | :--- | :--- | :--- |
 | A host with native LXC (or Proxmox) | `lxc list` answers | operator |
 | The `podman-univ` LXC profile | `lxc profile show podman-univ` | operator |
+| The profile **applied** to the universe container | `lxc config show <univ> \| grep -A2 '^profiles:'` — never `lxc info`, which lists no profile; on Proxmox `pct config <vmid>` shows `features: nesting=1`. Set after launch, nesting applies only after `lxc restart` / `pct reboot` ([Rule 11](../software/RULES.md#rule-11-read-profiles-with-config-show)) | agent, at runbook Step 0a |
+| `nftables` **inside** the universe LXC | `lxc exec <univ> -- dpkg -s nftables` | agent, at runbook Step 0a — podman's nested network dies opaquely without it ([Rule 11](../software/RULES.md#rule-11-nftables-inside-the-universe)) |
 | **The podman registry of THIS machine** | `curl -sf http://$SHAPER_REGISTRY/v2/` | **operator — one registry per machine, recorded in the fleet map (`fleet.yml` → `machines:`). The address must be reachable from INSIDE a universe LXC — a loopback answered on the host names the LXC itself. If you do not know it: ASK. If the human is absent: STOP and write it down.** |
 
 ## 2. Tools on the deploy host
 
 `git`, `podman`, `curl`, `python3`, `openssl`, `node` (built-ins only — the
 verifier and the preflight run on a naked clone, before any `npm install`).
+Inside the universe LXC, also `nftables` (podman's nested network) and
+`iproute2` (`ss`, so the preflight can see which ports are already held —
+without it the gate falls back to `/proc/net/tcp` and cannot name the holder).
 
 ## 3. The shell contract
 
@@ -41,15 +46,37 @@ Everything else in `.env.example` is either a port with a sane default or a
 key is an honest halt of that perimeter (P3), never a fake and never a
 blocker for tier-a. See `docs/human/KEYS-AND-ACCOUNTS.md`.
 
+**The file holds only variables.** Three kinds of line are admitted: blank,
+`#` comment, and `KEY=value` where `KEY` matches `[A-Z][A-Z0-9_]*` (digits
+allowed — `R2_BUCKET_NAME` is a variable) and the value is one bash exports
+as written: `"double-quoted"` (no `$(…)`, no backticks), `'single-quoted'`,
+or a bare word with no whitespace and no shell operator (`; & | ( ) < >`,
+quotes). The deploy script `source`s the file, so any other line is executed
+by bash: a human note written into it killed a deploy silently, and
+`KEY=1; echo INJECTED` runs its tail. Both gates halt on such a line and
+quote it. A note for a human goes behind `#`
+([proof, lesson 7](./proof/proof-rule-11-in-production.md#a-variables-file-holds-only-variables)).
+
 ## 5. The two gates, in order
 
 1. **`npm run preflight`** — at the start, right after the registry answer
    (runbook Step 0c): tools present, registry named and reachable, image tag
-   named, and — if `software/.env` already exists — its vault keys real, not
-   placeholders. Exit 1 = do not start.
-2. **`podman-up.sh`** — at deploy: refuses to run without `OPENCODE_MODEL`
-   and without real vault material. Its halts are by design; they name the
-   variable.
+   named, and — if `software/.env` already exists — every line a variable and
+   its vault keys real, not placeholders. Exit 1 = do not start. Run it
+   **again** once the universe exists, as
+   `node scripts/preflight.mjs --universe <path to <slug>-dev>` (runbook Step
+   4.4): the ports its manifest declares must be free in this LXC — bricks run
+   with `--network host`, and a service the container already runs holds the
+   port first ([Rule 11](../software/RULES.md#rule-11-declared-ports-are-free)).
+   A port held by this universe's **own** container from a previous run
+   (`<slug>-dev-vault`, …, as `podman ps` names it) is reported OK, because
+   `podman-up.sh` replaces it — the check is right on a first deploy and on a
+   retry alike. Without `--universe` the port check is skipped out loud,
+   never silently.
+2. **`podman-up.sh`** — at deploy: refuses to run without `OPENCODE_MODEL`,
+   without real vault material, and on an env file carrying a line that is
+   not a variable. Its halts are by design; they name the variable, or quote
+   the line.
 
 A failed gate is a **measured result**: report it, do not work around it.
 The only path past a red gate is the human's explicit override, and the

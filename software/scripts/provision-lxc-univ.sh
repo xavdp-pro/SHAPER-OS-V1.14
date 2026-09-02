@@ -3,6 +3,10 @@
 # ==============================================================================
 # SHAPER OS — Universal Parametric LXC & WireGuard Mesh Provisioning Engine
 # Rule 0B Compliant: 100% Infrastructure Agnostic & Parametric
+#
+# Host family: Proxmox (`pct`). The LXD family (`lxc launch` + profile
+# podman-univ) is the runbook's Step 0a; Rule 11 asks a document that covers
+# one family to say which, and this one drives pct only.
 # ==============================================================================
 set -euo pipefail
 
@@ -125,11 +129,31 @@ pct start "${VMID}"
 echo "Waiting for guest OS initialization..."
 sleep 4
 
+# Nesting is read back from the APPLIED configuration, never assumed from the
+# create line and never from `pct status`/`lxc info`, which list no feature
+# and no profile: an idempotence check built on `lxc info` passed every time
+# on terrain (1 September 2026, docs/proof/proof-rule-11-in-production.md,
+# lesson 4). And a feature set on a container that is already running does
+# not apply until it is rebooted — the symptom without the reboot is the very
+# same `Permission denied` as without nesting at all (lesson 5). This script
+# sets the features at create, before the first start, which is why no reboot
+# follows here; if you ever add them to a running container, `pct reboot`.
+if ! pct config "${VMID}" | grep -qE '^features:.*nesting=1'; then
+    echo "ERROR: nesting is not in the applied config of CT ${VMID} (pct config shows no 'features: nesting=1')." >&2
+    echo "       Run: pct set ${VMID} --features nesting=1,keyctl=1 && pct reboot ${VMID}  — a feature set on a running CT applies only after a reboot." >&2
+    exit 1
+fi
+
 # ------------------------------------------------------------------------------
 # 3. System Dist-Upgrade & Runtime Packages
 # ------------------------------------------------------------------------------
 echo -e "\n[2/5] Upgrading guest system and installing runtime engines..."
-pct exec "${VMID}" -- bash -c 'apt-get update && apt-get dist-upgrade -y && apt-get install -y podman crun fuse-overlayfs wireguard wireguard-tools iproute2 curl git'
+# nftables is not optional: podman's nested network (netavark) programs the
+# firewall through it, and without it the first container with a network dies
+# with an error that names neither nftables nor nesting (1 September 2026,
+# lesson 1). iproute2 gives `ss`, which the preflight uses to see which ports
+# are already held inside the universe (lesson 8).
+pct exec "${VMID}" -- bash -c 'apt-get update && apt-get dist-upgrade -y && apt-get install -y podman crun fuse-overlayfs nftables wireguard wireguard-tools iproute2 curl git'
 
 # ------------------------------------------------------------------------------
 # 4. Injection of Standard Skeleton (Rule 11)

@@ -534,6 +534,55 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   -y && apt-get clean`, then inject `skel/etc/{bash.bashrc,inputrc}`. Host kernel
   modules are loaded via `/etc/modules-load.d/lxc-podman.conf`.
 
+* **Field lessons (proven in production, 1 September 2026).** The first night
+  this rule ran for real — two universes rebuilt as podman bricks, one complete
+  birth measured end to end — is recorded in
+  [`docs/proof/proof-rule-11-in-production.md`](../docs/proof/proof-rule-11-in-production.md).
+  Four of what it found are constraints of this rule; each is held by a test
+  that names its anchor.
+
+  <a id="rule-11-nftables-inside-the-universe"></a>
+  * **nftables is part of the universe's first boot.** Podman's nested
+    network (netavark) programs the firewall through nftables; without it the
+    first container with a network dies with an error that names neither
+    nftables nor nesting. Every provisioner and every literal install line
+    inside the LXC installs `nftables` beside `podman`. A universe that does
+    not carry it is not fit to hold a brick, whatever `podman --version`
+    says (see *Presence of a tool is not proof of a capability*).
+
+  <a id="rule-11-read-profiles-with-config-show"></a>
+  * **A profile is read from the applied configuration, never from
+    `lxc info`.** `lxc info` lists no profile; an idempotence check built on it
+    passed every time and the next run tried to add a profile already present
+    (`Duplicate profile found`). `lxc config show <ct>` (or `lxc profile show`)
+    lists what is applied; on Proxmox the analogue is `pct config <vmid>`.
+    A check whose condition can never be true is not a check.
+
+  <a id="rule-11-nesting-needs-a-restart"></a>
+  * **Nesting does not apply to a running container.** `lxc config set <ct>
+    security.nesting=true` (or a profile added, or `pct set --features`) on a
+    launched container takes effect only after `lxc restart` (`pct reboot`).
+    Until that restart the container behaves as if it had no nesting, and
+    the symptom to expect is the one the LXC guide documents for that case
+    (`Permission denied` on the first image) — so a script that sets nesting
+    on an existing container restarts it in the same breath, and a profile
+    is given at launch whenever it can be.
+
+  <a id="rule-11-declared-ports-are-free"></a>
+  * **A declared port is a claim on the whole universe.** Bricks run with
+    `--network host` so that `localhost` stays valid across the universe;
+    the price is that a port the manifest declares is a port nothing else in
+    the LXC may hold. A container born before this rule still carried an
+    apt-installed MariaDB on 3306; the podman brick crash-looped and the only
+    place the cause was visible was the brick's own journal. Before a deploy,
+    the manifest's ports are compared with the sockets already listening
+    (`ss -ltn`, or `/proc/net/tcp`), and a held port is a halt that names the
+    port and its holder. What holds it is stopped and disabled by the human,
+    never worked around with a second port. The one holder that is not a
+    defect is the universe's own brick left running by a previous deploy —
+    `podman-up.sh` replaces it by design — and the gate tells the two apart
+    by the running containers' names, never by the process alone.
+
 * **What is restored, and what is merely rebuilt.** A universe's restorable
   identity is its `manifest.json`, its `cfg-image-lock.json` and its volumes.
   Images are never backed up: they are rebuilt from source at the recorded
@@ -627,6 +676,7 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
 
 ---
 
+<a id="rule-16"></a>
 ### Rule 16: Multi-level backup (container → files tar.bz2 → database → git → S3)
 This set is **enough**. Missing a level is a hole. Same idea as turbinobash-web (`tb app sudo/backup` + `/var/sav1/`) — **adapted to Podman / Shaper OS**.
 
@@ -634,7 +684,7 @@ This set is **enough**. Missing a level is a hole. Same idea as turbinobash-web 
 | :--- | :--- | :--- |
 | **1. Infra — entire container** | The LXC/CT (or VM) as a whole | Host snapshot (`vzdump` / ZFS / Proxmox). Recovers the machine, not a substitute for inner levels. |
 | **2. Files — persistent volumes** | Only what must survive a recreate | Archive **Podman bind-mounts** (`<univ>/sav/*`, `/data/<slug>/` persistent volumes) as **`tar.bz2`** (pbzip2), like turbinobash app backups. **Exclude `nosav/`**, caches, image layers, `node_modules`. |
-| **3. Database** | Relational / vector state, consistent | `mysqldump` (and Qdrant snapshot, JSONL rotate if needed). Do not rely on a live volume tar alone for a crash-consistent DB. |
+| **3. Database** | Relational / vector state, consistent | `mariadb-dump` — the official MariaDB image ships `mariadb` and `mariadb-dump`, not `mysql` and `mysqldump`; a script falls back to `mysqldump` only where that name still exists (proven on terrain, 1 September 2026: two calls in one file disagreed on the name before they were made to agree). Plus Qdrant snapshot, JSONL rotate if needed. Do not rely on a live volume tar alone for a crash-consistent DB. |
 | **4. Git** | Code and architecture | Immutable tagged repo. Never treat git as a data backup. |
 | **5. S3 / R2** | Off-site copy of 2+3 (and optionally 1) | Encrypted archives (AES-256-GCM), cold bucket (Cloudflare R2 / Glacier-class). Copies **the tar.bz2 and dumps**, not a second git clone pretending to be backup. |
 

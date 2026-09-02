@@ -51,22 +51,62 @@ KEEP_VARS=(OPENCODE_MODEL SHAPER_REGISTRY SHAPER_IMAGE_TAG SHAPER_TLS_VERIFY
            VAULT_MASTER_KEY VAULT_TOKEN APP_PASSWORD MAESTRO_QUEUE_URL)
 for v in "${KEEP_VARS[@]}"; do declare -g "__KEEP_$v=${!v:-}"; done
 
+# A variables file holds only variables. `source` EXECUTES every line that is
+# not blank, a comment, or KEY=value — and on the first night Rule 11 ran in
+# production a human note slipped into tokens.env (`BACKOFFICE_ADMIN = email /
+# password`) was run as a command: the deploy died before it could print its
+# own halt (docs/proof/proof-rule-11-in-production.md, lesson 7). So every
+# file is read before it is sourced, and the first line that is not a
+# variable stops the deploy, quoted, with its number. Keys may carry digits
+# (R2_BUCKET_NAME is a variable); a note for a human goes behind #.
+#
+# The value is held to the same standard as the key. A first version admitted
+# any `KEY=value`, and its reviewer showed that `KEY=1; echo INJECTED` passed
+# and was then run by source. A value is a double-quoted string (no `$(…)`,
+# no backtick — bash expands those inside double quotes), a single-quoted
+# string, or a bare word carrying no whitespace and no shell operator
+# (`; & | ( ) < >` and quotes): `KEY=a b` runs `b`, `KEY=a>b` writes a file.
+# This grep and ENV_VALUE in scripts/lib/preflight-checks.mjs are the same
+# grammar; a test feeds both the same lines.
+shaper_env_file_is_variables_only() {
+  local file="$1" bad status=0
+  # grep -v selects the lines that are NOT admitted. Its exit code is read
+  # explicitly rather than hidden behind `|| true`: 1 means no line was
+  # selected — the file is clean, the good outcome — and 2 means grep could
+  # not read the file, which is a halt of its own, never a pass.
+  bad="$(grep -nvE '^[[:space:]]*(#|$)|^[A-Z][A-Z0-9_]*=("([^"`$]|\$[^(])*\$?"|'"'"'[^'"'"']*'"'"'|[^[:blank:];&|()<>`'"'"'"]*)$' "$file")" || status=$?
+  if (( status == 1 )); then
+    return 0
+  elif (( status == 2 )); then
+    echo "[podman-up] cannot read $file — a file that cannot be checked is not sourced" >&2
+    return 1
+  fi
+  echo "[podman-up] $file is not a variables file — these lines would be EXECUTED by source, not exported:" >&2
+  echo "$bad" | sed 's/^/[podman-up]   line /' >&2
+  echo "[podman-up] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
+  return 1
+}
+shaper_source_env() {
+  shaper_env_file_is_variables_only "$1" || exit 1
+  set -a; source "$1"; set +a
+}
+
 # 1. Base defaults from software/.env or root .env
 if [[ -f "$SHAPER/.env" ]]; then
-  set -a; source "$SHAPER/.env"; set +a
+  shaper_source_env "$SHAPER/.env"
 elif [[ -f "$REPO_ROOT/.env" ]]; then
-  set -a; source "$REPO_ROOT/.env"; set +a
+  shaper_source_env "$REPO_ROOT/.env"
 fi
 
 # 2. Universe overrides (takes highest precedence)
 if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
-  set -a; source "$ENV_FILE"; set +a
+  shaper_source_env "$ENV_FILE"
 elif [[ -f "$UNIV/.env" ]]; then
-  set -a; source "$UNIV/.env"; set +a
+  shaper_source_env "$UNIV/.env"
 elif [[ -f "$UNIV/deploy/env" ]]; then
-  set -a; source "$UNIV/deploy/env"; set +a
+  shaper_source_env "$UNIV/deploy/env"
 elif [[ -f "$UNIV/deploy/${SLUG}.env" ]]; then
-  set -a; source "$UNIV/deploy/${SLUG}.env"; set +a
+  shaper_source_env "$UNIV/deploy/${SLUG}.env"
 fi
 
 # The operator's explicit exports come back on top of every file.
