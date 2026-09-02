@@ -12,7 +12,7 @@ const SOFTWARE = path.join(REPO, 'software');
 /**
  * A test nobody runs is a test that does not exist.
  *
- * `npm test` is one glob in `software/package.json`. Until V1.13 three test
+ * `npm test` is one glob in `software/package.json`. Until V1.13.2 three test
  * files of `pkg-opencode-server` sat at the package root as `*.test.mjs`,
  * outside that glob, and had been green for nobody: the package's own
  * `npm test` reached them, the repository's did not, and the repository's is
@@ -65,6 +65,6 @@ test('every test file under packages/ is reached by the npm test glob', () => {
   assert.deepEqual(
     orphans,
     [],
-    `test files "npm test" never runs (glob is "${glob}"; move them, do not widen it):\n  ${orphans.join('\n  ')}`,
+    `test files "npm test" never runs (glob is "${glob}"; move them to packages/<pkg>/test/ and name them *.test.js — the packages are ESM, so .js is the module form; do not widen the glob):\n  ${orphans.join('\n  ')}`,
   );
 });

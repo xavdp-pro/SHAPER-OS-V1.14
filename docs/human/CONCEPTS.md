@@ -100,7 +100,7 @@ Default ports (one stack on one host): vault `8610`, logger `8620`, Maestro `863
 Nothing is “ready to promote” until its floor is green.
 
 1. **Unit** — `npm test` (`packages/*/test`). Fast. No live stack. **Must be green on a fresh clone.**  
-2. **Integration / live** — `npm run test:live` (`universes/_template/test/socle-live.test.js`). Needs the tier-a stack **up**. **Must be green. Never skip.** Tier-b adds `npm run test:live:helm`.  
+2. **Integration / live** — `npm run test:live` (`universes/_template/test/socle-live.test.js`). Needs the tier-a stack **up**. **Must be green. Never skip.**  
 3. **Universe live** — the universe you deployed runs its own contract and live suites. Maintainers and regression — not the first-install gate.  
 4. **Operator proof** — [`PROOF.md`](./PROOF.md) order → action → log.
 
