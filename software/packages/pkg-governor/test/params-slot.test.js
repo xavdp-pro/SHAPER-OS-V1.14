@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createFileStorage, createGovernor } from '../index.js';
-import { defaultRecipeRunner, recipeEnvironment } from '../../../universes/_maker-template/poller.mjs';
+import { createFileStorage, createGovernor, createGovernorServer } from '../index.js';
+import { defaultRecipeRunner, recipeEnvironment, startMaker } from '../../../universes/_maker-template/poller.mjs';
 
 // Intent: software/packages/pkg-governor/INTENT.md#params-are-typed
 // Intent: software/universes/_maker-template/INTENT.md#typed-parameters
@@ -21,8 +21,8 @@ import { defaultRecipeRunner, recipeEnvironment } from '../../../universes/_make
 // environment by inheritance would have carried LD_PRELOAD or BASH_ENV
 // into a shell running as root. These tests hold the slot to its shape.
 
-const SCHEMA = { 'univ-wm-vpn': { n: { type: 'number', unique: true }, label: { type: 'string' } } };
-const ASK = { account: 'A', klass: 'univ-wm-vpn', matrix: 'wm', digest: 'sha256:aa', machine: 'gbs-test' };
+const SCHEMA = { 'univ-demo-vpn': { n: { type: 'number', unique: true }, label: { type: 'string' } } };
+const ASK = { account: 'A', klass: 'univ-demo-vpn', matrix: 'vpn', digest: 'sha256:aa', machine: 'gbs-test' };
 
 function world(options = {}) {
   const g = createGovernor({ paramsSchema: SCHEMA, ...options });
@@ -204,5 +204,47 @@ describe('the params slot: typed, immutable, unique, and never a shell\'s word',
     const next = offers();
     assert.deepEqual(next.work.map((w) => `${w.kind}:${w.rowId}`), [`stamp:${again.row.id}`]);
     assert.deepEqual(next.withheld, []);
+  });
+
+  it('a withheld birth is heard on the host, never read as an empty answer', async () => {
+    // The governor answers the wait as a typed fact; the maker used to log
+    // only `preload`, so on the host a withheld birth looked exactly like a
+    // beat with nothing to do — the operator watching the maker's journal
+    // could not tell "no work" from "a birth waiting on a reap".
+    const g = createGovernor({ paramsSchema: SCHEMA });
+    const server = createGovernorServer({ governor: g, adminToken: 'tandem-secret' });
+    await new Promise((r) => server.on('listening', r));
+    const url = `http://127.0.0.1:${server.address().port}`;
+    const { token } = g.enrolMaker({ host: 'gbs-test' });
+    const report = (rowId, event, data = {}) => g.report({ token, rowId, event, data });
+    const { row: broken } = g.desire({ ...ASK, params: { n: 12 } });
+    report(broken.id, 'STAMPING');
+    report(broken.id, 'STAMP_FAILED', { error: 'bridge refused' });
+    const { row: successor } = g.desire({ ...ASK, params: { n: 12 } });
+    const journal = [];
+    let maker = null;
+    try {
+      maker = startMaker({
+        governorUrl: url, token, host: 'gbs-test', intervalMs: 50,
+        inventory: () => ['sha256:aa'],
+        // The reap the same beat offers never ends here: the wait must be
+        // heard while it stands, not inferred after it lifted.
+        runRecipe: () => new Promise(() => {}),
+        log: (...words) => journal.push(words.join(' ')),
+      });
+      const heard = async () => {
+        const end = Date.now() + 3000;
+        while (Date.now() < end && !journal.some((l) => /withheld/.test(l))) await new Promise((r) => setTimeout(r, 25));
+        return journal.find((l) => /withheld/.test(l)) || null;
+      };
+      const line = await heard();
+      assert.ok(line, `the maker's journal never named the withheld birth:\n  ${journal.join('\n  ')}`);
+      assert.match(line, new RegExp(successor.id), 'the line must name the row whose birth waits');
+      assert.match(line, new RegExp(broken.id), 'the line must name the predecessor it waits on');
+      assert.match(line, /\bn\b/, 'the line must name the unique key that is held');
+    } finally {
+      maker?.stop();
+      server.close();
+    }
   });
 });

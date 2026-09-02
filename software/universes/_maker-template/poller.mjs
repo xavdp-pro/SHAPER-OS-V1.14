@@ -168,6 +168,14 @@ export function startMaker({
         handle(work); // a lane must not block the others
       }
       if (out.preload?.length) log('preload ordered:', out.preload.join(', '));
+      // A birth the governor withholds is a typed fact in the answer; on the
+      // host it used to look exactly like a beat with nothing to do. The
+      // journal names the row that waits, the value it waits for, and the
+      // predecessor still holding it — so "no work" and "a birth waiting on
+      // a reap" are never the same silence.
+      if (out.withheld?.length) {
+        log('withheld:', out.withheld.map((w) => `${w.rowId} waits on ${w.on} (${w.key})`).join(', '));
+      }
     } catch (err) {
       // A governor out of reach is a fact to retry, never a crash: the loop
       // itself is the heartbeat, and stopping it would silence the host.

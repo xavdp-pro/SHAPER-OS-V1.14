@@ -7,7 +7,10 @@ them into a composed command. The row's `params`, when its class declares
 any, reach it as `SHAPER_PARAM_<KEY>` variables on an environment the maker
 builds for the run — PATH, HOME, locale, the operator's own `SHAPER_*`
 configuration, the allow-listed keys, and nothing inherited from the maker's
-process. The shipped `lxd-*` recipes read no param.
+process. The shipped `lxd-*` recipes read no param. The built environment
+is proven here with stub recipes (`params-slot.test.js`), not with `lxc`,
+`podman` or `curl`; the first stamp on terrain after this change is its
+proof, and it comes before any prod row.
 
 **No recipe ships before it has run on real terrain.** A snippet published
 untested has already cost a sealing run (F25).
@@ -72,11 +75,14 @@ refuses anything outside its vocabulary. Proven on gbs-test, in this order:
 | What was tried | What happened |
 | :--- | :--- |
 | the verifier by hand, before the recipe, against a living instance | step 2 failed on a real defect of the old matrix (a build flag never set): the harness bit at its first look |
-| the first autonomous validation, right after STAMPED | **exit 1**, VALIDATION_FAILED on a healthy child — judged before the application inside had booted, a connection never offered. The recipe now waits, bounded, for the child's first HTTP answer before judging (`validate-recipe-waits.test.js`) |
-| the second, after the wait | **exit 1** again, and it was a real defect: the login answered 500, no session secret in the instance. Fixed in the class, not in the recipe |
+| the first autonomous validation, right after STAMPED | VALIDATION_FAILED, the row DEGRADED, on a healthy child — judged before the application inside had booted, a connection never offered. The recipe now waits, bounded, for the child's first HTTP answer before judging (`validate-recipe-waits.test.js`) |
+| the second, after the wait | VALIDATION_FAILED again, and it was a real defect: the login answered 500, no session secret in the instance. Fixed in the class, not in the recipe |
 | the corrected child | **exit 0**, every step of its spec passed — page, title, card, click, login, sidebar — verdict on the last line, screenshot kept as evidence on the host |
 
-By contract: exit 0 is VALIDATED; exit 1 is VALIDATION_FAILED, and the
+The field note of that day records the two DEGRADED rows, not the exit
+codes behind them; the maker reports VALIDATION_FAILED for any non-zero
+exit, so the code itself is not claimed here. By contract: exit 0 is
+VALIDATED; exit 1 is VALIDATION_FAILED, and the
 verdict rides the event naming the failing step; exit 2 is the facts having
 changed since the stamp (instance absent, no address, no spec); any other
 code is the harness itself breaking. A child silent past its boot budget is

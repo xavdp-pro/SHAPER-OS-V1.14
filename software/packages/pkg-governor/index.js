@@ -174,8 +174,10 @@ export function createGovernor({
   /** A row's params, held to the class's allow-list. Every refusal is a
    *  typed fact naming the key: a param the governor did not understand used
    *  to have nowhere to go, and one it passed along unread would reach a
-   *  recipe running as root. The result is the normalised object (only the
-   *  keys the schema names, in schema order) or `{ refused, reason }`. */
+   *  recipe running as root. The result is the checked object — every key
+   *  the caller gave, each one named by the schema, in the caller's order (a
+   *  key the schema does not name is a refusal, never a key dropped on the
+   *  way) — or `{ refused, reason }`. */
   const checkParams = (klass, params) => {
     if (params === undefined || params === null) return { params: {} };
     if (typeof params !== 'object' || Array.isArray(params)) {
