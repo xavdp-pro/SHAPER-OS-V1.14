@@ -23,14 +23,14 @@ const openJob = (conversation, status) => ({
 describe('maestro queue beat handler', () => {
   it('enqueues an agent.inject job carrying the pod identity', async () => {
     const posts = [];
-    const beat = createQueueBeatHandler({ queueUrl: 'http://127.0.0.1:8540/', fetchImpl: fakeQueue({ posts }) });
+    const beat = createQueueBeatHandler({ queueUrl: 'http://127.0.0.1:8640/', fetchImpl: fakeQueue({ posts }) });
 
     const result = await beat({ slug: 'task-contact', beatMessage: 'Report the current state', bridgeUrl: 'http://127.0.0.1:4330' });
 
     assert.equal(result.ok, true);
     assert.equal(result.enqueued, true);
     assert.equal(result.jobId, 'job-1');
-    assert.equal(posts[0].url, 'http://127.0.0.1:8540/api/jobs');
+    assert.equal(posts[0].url, 'http://127.0.0.1:8640/api/jobs');
     assert.equal(posts[0].body.type, 'agent.inject');
     assert.equal(posts[0].body.payload.message, 'Report the current state');
     assert.equal(posts[0].body.payload.conversation, 'task-contact');
@@ -38,7 +38,7 @@ describe('maestro queue beat handler', () => {
   });
 
   it('claims only that the job is queued, never that the work succeeded', async () => {
-    const beat = createQueueBeatHandler({ queueUrl: 'http://127.0.0.1:8540', fetchImpl: fakeQueue() });
+    const beat = createQueueBeatHandler({ queueUrl: 'http://127.0.0.1:8640', fetchImpl: fakeQueue() });
     const result = await beat({ slug: 'pod-a' });
 
     // The outcome of the run belongs to the job and arrives later. A beat that
@@ -53,7 +53,7 @@ describe('maestro queue beat handler', () => {
   it('skips the beat when the pod still has a RUNNING job', async () => {
     const posts = [];
     const beat = createQueueBeatHandler({
-      queueUrl: 'http://127.0.0.1:8540',
+      queueUrl: 'http://127.0.0.1:8640',
       fetchImpl: fakeQueue({ held: [openJob('pod-a', 'RUNNING')], posts }),
     });
 
@@ -68,7 +68,7 @@ describe('maestro queue beat handler', () => {
   it('skips just as firmly on a PENDING job — a backlog is already lateness', async () => {
     const posts = [];
     const beat = createQueueBeatHandler({
-      queueUrl: 'http://127.0.0.1:8540',
+      queueUrl: 'http://127.0.0.1:8640',
       fetchImpl: fakeQueue({ held: [openJob('pod-a', 'PENDING')], posts }),
     });
 
@@ -79,7 +79,7 @@ describe('maestro queue beat handler', () => {
   it('is not blocked by another pod being busy', async () => {
     const posts = [];
     const beat = createQueueBeatHandler({
-      queueUrl: 'http://127.0.0.1:8540',
+      queueUrl: 'http://127.0.0.1:8640',
       fetchImpl: fakeQueue({ held: [openJob('pod-b', 'RUNNING')], posts }),
     });
 
@@ -90,7 +90,7 @@ describe('maestro queue beat handler', () => {
   it('is not blocked by its own finished jobs', async () => {
     const posts = [];
     const beat = createQueueBeatHandler({
-      queueUrl: 'http://127.0.0.1:8540',
+      queueUrl: 'http://127.0.0.1:8640',
       fetchImpl: fakeQueue({ held: [openJob('pod-a', 'COMPLETED'), openJob('pod-a', 'FAILED')], posts }),
     });
 
@@ -103,7 +103,7 @@ describe('maestro queue beat handler', () => {
     // bookkeeping was briefly unreachable.
     const posts = [];
     const beat = createQueueBeatHandler({
-      queueUrl: 'http://127.0.0.1:8540',
+      queueUrl: 'http://127.0.0.1:8640',
       fetchImpl: async (url, opts = {}) => {
         if ((opts.method || 'GET') === 'GET') throw new Error('ECONNREFUSED');
         posts.push({ url, body: JSON.parse(opts.body) });
@@ -119,7 +119,7 @@ describe('maestro queue beat handler', () => {
 
   it('reports a missed beat when the queue is unreachable', async () => {
     const beat = createQueueBeatHandler({
-      queueUrl: 'http://127.0.0.1:8540',
+      queueUrl: 'http://127.0.0.1:8640',
       fetchImpl: async () => { throw new Error('ECONNREFUSED'); },
     });
     const result = await beat({ slug: 'pod-a' });
@@ -131,7 +131,7 @@ describe('maestro queue beat handler', () => {
 
   it('reports a missed beat when the queue rejects the job', async () => {
     const beat = createQueueBeatHandler({
-      queueUrl: 'http://127.0.0.1:8540',
+      queueUrl: 'http://127.0.0.1:8640',
       fetchImpl: async (url, opts = {}) => ((opts.method || 'GET') === 'GET'
         ? { ok: true, status: 200, json: async () => ({ jobs: [] }) }
         : { ok: false, status: 400, json: async () => ({ error: 'bad payload' }) }),
@@ -144,7 +144,7 @@ describe('maestro queue beat handler', () => {
 
   it('supplies a default instruction when the pod declares none', async () => {
     const posts = [];
-    const beat = createQueueBeatHandler({ queueUrl: 'http://127.0.0.1:8540', fetchImpl: fakeQueue({ posts }) });
+    const beat = createQueueBeatHandler({ queueUrl: 'http://127.0.0.1:8640', fetchImpl: fakeQueue({ posts }) });
     await beat({ slug: 'pod-a' });
 
     assert.match(posts[0].body.payload.message, /pod-a/);
@@ -174,8 +174,8 @@ describe('the audit event joins the job id (proof #4)', () => {
       return { ok: true, status: 201, json: async () => ({ status: 'ok', job: { id: 'job-77' } }) };
     };
     const beat = createQueueBeatHandler({
-      queueUrl: 'http://127.0.0.1:8540/',
-      loggerUrl: 'http://127.0.0.1:8520',
+      queueUrl: 'http://127.0.0.1:8640/',
+      loggerUrl: 'http://127.0.0.1:8620',
       fetchImpl,
     });
 

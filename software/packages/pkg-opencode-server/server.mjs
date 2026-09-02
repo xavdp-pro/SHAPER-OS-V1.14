@@ -39,7 +39,7 @@ import {
 import { unwrapGlobalEvent, withDirectory } from './api-path.mjs';
 import { opencodeBridgeVitals } from './vitals.mjs';
 
-const PORT = Number(process.env.OPENCODE_BRIDGE_PORT || 4340);
+const PORT = Number(process.env.OPENCODE_BRIDGE_PORT || 4440);
 const BIND = process.env.OPENCODE_BRIDGE_BIND || '127.0.0.1';
 const CFG_DIR = path.join(os.homedir(), '.config/opencode-bridge');
 const TOKEN_FILE = process.env.TOKEN_FILE || path.join(CFG_DIR, 'token');
@@ -52,7 +52,7 @@ const AGENT_BIN = process.env.OPENCODE_BIN || `${OPT_BRIDGE_ROOT}/opencode/bin/o
 // (Rule 7). Empty means not chosen; the run says so instead of guessing.
 const MODEL = process.env.OPENCODE_MODEL || '';
 /** Internal port of the headless `opencode serve` child (never exposed). */
-const SERVE_PORT = Number(process.env.OPENCODE_SERVE_PORT || 4341);
+const SERVE_PORT = Number(process.env.OPENCODE_SERVE_PORT || 4441);
 const SERVE_URL = `http://127.0.0.1:${SERVE_PORT}`;
 const STARTED_AT = Date.now();
 

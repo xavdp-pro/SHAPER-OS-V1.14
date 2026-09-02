@@ -4,7 +4,7 @@
 
 /**
  * @param {object} options
- * @param {string} options.loggerUrl - Base URL e.g. http://127.0.0.1:8520
+ * @param {string} options.loggerUrl - Base URL e.g. http://127.0.0.1:8620
  * @param {string} options.pod
  * @param {string} options.event
  * @param {object} [options.data]

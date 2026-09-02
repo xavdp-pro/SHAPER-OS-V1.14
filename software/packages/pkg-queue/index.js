@@ -266,7 +266,7 @@ export class JobQueue extends EventEmitter {
 const STARTED_AT = new Date().toISOString();
 
 export function createQueueServer({
-  port = 8540,
+  port = 8640,
   host = '0.0.0.0',
   queue = null,
   storageFile = null,

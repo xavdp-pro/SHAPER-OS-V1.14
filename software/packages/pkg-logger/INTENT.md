@@ -70,5 +70,5 @@ content — will outlive this particular endpoint.
 
 ### Illustrative Example (Non-Binding / Demonstration Only)
 
-* **Brick port**: `8520`
+* **Brick port**: `8620`
 * **Storage**: `/data/<universe-slug>/logger/<POD>/activity.jsonl`

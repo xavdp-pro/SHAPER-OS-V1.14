@@ -6,7 +6,7 @@
 import { createQueueServer } from './index.js';
 import { startQueueAgentWorker } from './worker.js';
 
-const PORT = parseInt(process.env.PORT || process.env.QUEUE_PORT || '8540', 10);
+const PORT = parseInt(process.env.PORT || process.env.QUEUE_PORT || '8640', 10);
 const HOST = process.env.HOST || process.env.QUEUE_HOST || '0.0.0.0';
 const AUTO = process.env.QUEUE_AUTO_DISPATCH === '1';
 
@@ -20,7 +20,7 @@ server.on('listening', () => {
   if (AUTO) {
     worker = startQueueAgentWorker({
       queue: server.jobQueue,
-      bridgeUrl: process.env.QUEUE_BRIDGE_URL || 'http://127.0.0.1:4340',
+      bridgeUrl: process.env.QUEUE_BRIDGE_URL || 'http://127.0.0.1:4440',
       bridgeToken: process.env.QUEUE_BRIDGE_TOKEN || process.env.BRIDGE_AUTH_TOKEN || '',
       pollMs: Number(process.env.QUEUE_POLL_MS || 2000),
     });

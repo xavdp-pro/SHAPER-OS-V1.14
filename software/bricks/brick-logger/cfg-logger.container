@@ -15,8 +15,8 @@ After=network-online.target
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-logger
-PublishPort=127.0.0.1:8520:8520
-Environment=LOGGER_PORT=8520
+PublishPort=127.0.0.1:8620:8620
+Environment=LOGGER_PORT=8620
 Environment=LOG_DIR=/data/logger
 Volume=vol-%i-log:/data/logger:Z
 Restart=always

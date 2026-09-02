@@ -15,8 +15,8 @@ After=network-online.target
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-queue
-PublishPort=127.0.0.1:8540:8540
-Environment=QUEUE_PORT=8540
+PublishPort=127.0.0.1:8640:8640
+Environment=QUEUE_PORT=8640
 Environment=QUEUE_STORAGE_FILE=/data/queue/jobs.jsonl
 Volume=vol-%i-queue:/data/queue:Z
 Restart=always

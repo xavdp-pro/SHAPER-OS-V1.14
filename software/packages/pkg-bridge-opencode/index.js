@@ -44,7 +44,7 @@ export function buildOpencodeSpawnEnv(baseEnv = process.env) {
 
 export class OpencodeBridgeServer {
   constructor({
-    port = 4340,
+    port = 4440,
     bind = '0.0.0.0',
     opencodeBin = process.env.OPENCODE_BIN || 'opencode',
     defaultModel = process.env.OPENCODE_MODEL || FREE_MODEL,
@@ -270,6 +270,6 @@ export class OpencodeBridgeServer {
 export function createOpencodeBridgeServer(opts = {}) {
   const bridge = new OpencodeBridgeServer(opts);
   const server = bridge.createServer();
-  server.listen(opts.port || 4340, opts.bind || '0.0.0.0');
+  server.listen(opts.port || 4440, opts.bind || '0.0.0.0');
   return { bridge, server };
 }

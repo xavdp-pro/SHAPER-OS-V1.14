@@ -7,7 +7,7 @@
 
 import { createLoggerServer } from './index.js';
 
-const PORT = parseInt(process.env.PORT || process.env.LOGGER_PORT || '8520', 10);
+const PORT = parseInt(process.env.PORT || process.env.LOGGER_PORT || '8620', 10);
 const HOST = process.env.HOST || process.env.LOGGER_HOST || '0.0.0.0';
 const LOG_DIR = process.env.LOG_DIR || '/data/logger';
 

@@ -22,5 +22,5 @@ Deterministic cadence beat scheduler — register worker pods, pulse on interval
 
 ### Illustrative Example (Non-Binding / Demonstration Only)
 
-* **Brick port**: `8530` | **Default cadence**: `60`s
+* **Brick port**: `8630` | **Default cadence**: `60`s
 * **Logs**: `/data/<universe-slug>/maestro/log`

@@ -5,7 +5,7 @@
 #   bash scripts/test-cli.sh [base-url]
 set -uo pipefail
 
-BASE="${1:-http://127.0.0.1:4340}"
+BASE="${1:-http://127.0.0.1:4440}"
 TOKEN_FILE="${TOKEN_FILE:-$HOME/.config/opencode-bridge/token}"
 CONV="${CONV:-cli-test-$$}"
 TMP="$(mktemp -d)"

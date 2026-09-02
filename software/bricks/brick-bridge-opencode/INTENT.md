@@ -6,7 +6,7 @@
 
 1. Binary `/usr/local/bin/opencode` is baked into the image (not host bind-mount).
 2. Runtime uses vendored `packages/pkg-opencode-server` (`opencode serve` + HTTP/SSE contract).
-3. Port 4340 (bridge) / 4341 (internal serve).
+3. Port 4440 (bridge) / 4441 (internal serve).
 4. Default free model: the most responsive free model **measured from the target host** at deployment (Rule 7). None is named here — a named default is wrong the day its vendor ships a successor.
 5. Auth: Bearer token at `TOKEN_FILE` (shared with maestro/queue).
 6. Model Discovery: At deployment time, available free models (`opencode models`) must be checked and active free models prioritized. Groq models are isolated from general chat.

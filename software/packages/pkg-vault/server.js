@@ -7,7 +7,7 @@
 
 import { createVaultServer } from './index.js';
 
-const PORT = parseInt(process.env.PORT || process.env.VAULT_PORT || '8510', 10);
+const PORT = parseInt(process.env.PORT || process.env.VAULT_PORT || '8610', 10);
 const HOST = process.env.HOST || process.env.VAULT_HOST || '0.0.0.0';
 const MASTER_KEY = process.env.VAULT_MASTER_KEY || process.env.VAULT_ENCRYPTION_KEY;
 if (!MASTER_KEY || !MASTER_KEY.trim()) {

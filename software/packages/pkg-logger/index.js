@@ -236,14 +236,14 @@ export class LogCollector {
 /**
  * Creates an HTTP REST + SSE gateway for centralized JSONL log collection.
  * @param {object} options
- * @param {number} [options.port=8520]
+ * @param {number} [options.port=8620]
  * @param {string} [options.host='0.0.0.0']
  * @param {string} [options.logDir='/data/logger']
  * @param {LogCollector} [options.collector]
  * @returns {http.Server}
  */
 export function createLoggerServer({
-  port = 8520,
+  port = 8620,
   host = '0.0.0.0',
   logDir = '/data/logger',
   collector = null,

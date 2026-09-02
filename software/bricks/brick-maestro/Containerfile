@@ -16,9 +16,9 @@ COPY --from=shaper_base /shaper/packages/pkg-maestro/ ./packages/pkg-maestro/
 
 WORKDIR /app/packages/pkg-maestro
 
-EXPOSE 8530
+EXPOSE 8630
 ENV NODE_ENV=production
-ENV MAESTRO_PORT=8530
+ENV MAESTRO_PORT=8630
 ENV MAESTRO_AUTO_START=0
 
 CMD ["node", "server.js"]

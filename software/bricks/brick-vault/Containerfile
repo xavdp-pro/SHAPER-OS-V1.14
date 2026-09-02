@@ -11,9 +11,9 @@ WORKDIR /app
 COPY --from=shaper_base /shaper/packages/pkg-logger/ /pkg-logger/
 COPY --from=shaper_base /shaper/packages/pkg-vault/ ./
 
-EXPOSE 8510
+EXPOSE 8610
 ENV NODE_ENV=production
-ENV VAULT_PORT=8510
+ENV VAULT_PORT=8610
 ENV VAULT_STORAGE_FILE=/data/vault/vault.enc
 
 CMD ["node", "server.js"]

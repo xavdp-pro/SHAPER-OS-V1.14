@@ -88,7 +88,7 @@ for WS in /data/workspaces/Administrateur /data/workspaces/Xavier; do
 
 ## Initialization — Clean-Sheet LXC Deployment
 - **Operational Baseline**: Podman 5.4, Python 3.11, Pip, Git, JQ, Ripgrep, Node 20.
-- **Active Shaper OS Cluster**: Vault (:8610), Logger (:8620), Queue (:8640), Maestro (:8530), GED (:8660), Qdrant (:6333), Helm (:8650).
+- **Active Shaper OS Cluster**: Vault (:8610), Logger (:8620), Queue (:8640), Maestro (:8630), GED (:8660), Qdrant (:6333), Helm (:8650).
 - **Handover**: Sovereign agent initialized and ready for user commands.
 EOF_JOURNAL
   fi
