@@ -589,6 +589,14 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   * **`.env` in every spelling.** `.env`, `.env.local`, `.env.<slug>`,
     `deploy/env`, `<slug>.env` — Rule 0J propagates the same key under all of
     them, and the exclusion is `.env*` and `*.env`, never the bare name.
+  * **How the script calls the client is proven with a recorder.** The
+    guard tests run the real scripts, the real `tar` and the real `openssl`
+    against a throwaway layout; the one substitute is a recorder standing in
+    for `mariadb-dump`/`mysqldump` on a PATH built from scratch, because what
+    is under test is the call — which client name, where the password
+    travels, what a failing or empty client does to the backup — and not
+    what MariaDB answers. What MariaDB answers is the live test's business
+    (Rule 0G), and the recorder never stands in for it there.
 
 ---
 
