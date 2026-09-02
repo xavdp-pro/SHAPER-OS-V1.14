@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Intent: software/RULES.md#rule-7
-// Intent: software/packages/pkg-bridge-opencode/INTENT.md#no-default-model
+// Intent: software/packages/pkg-opencode-server/INTENT.md#no-default-model
 //
 // Non-regression (Rule 29): the opencode brick's image runs THIS package, and
 // it used to start without a model — logging `model=` and handing every run
