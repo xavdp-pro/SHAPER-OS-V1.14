@@ -33,7 +33,7 @@ directly on a host that carries production. Create the container first:
 # piped SSH session lxc launch waits on stdin forever without it.
 lxc launch images:debian/13 <univ_slug> --profile podman-univ < /dev/null
 lxc exec <univ_slug> -- apt-get update
-lxc exec <univ_slug> -- apt-get install -y podman git curl jq nodejs npm openssl
+lxc exec <univ_slug> -- apt-get install -y podman nftables iproute2 git curl jq nodejs npm openssl
 ```
 
 On a **Proxmox** host it is `pct create` with `features: nesting=1,keyctl=1`
@@ -45,6 +45,19 @@ Nesting is mandatory; without it podman fails on the first image with a
 
 - **The host has neither Proxmox nor LXD → STOP and ask.** Installing a
   hypervisor is an architecture decision, not a package install (Rule 11).
+
+- **Trap — nftables is not optional inside the LXC.** Podman's nested
+  network dies with an opaque error without it; the install line above names
+  it on purpose ([Rule 11 — nftables](../../software/RULES.md#rule-11-nftables-inside-the-universe)).
+- **Trap — verify the profile with `lxc config show`, never `lxc info`.**
+  `lxc info` lists no profile; a check built on it passes every time. Run
+  `lxc config show <univ_slug> | grep -A2 '^profiles:'` and expect
+  `podman-univ` ([Rule 11 — read profiles](../../software/RULES.md#rule-11-read-profiles-with-config-show)).
+- **Trap — nesting set on a running container needs a restart.** If you
+  `lxc config set <univ_slug> security.nesting=true` (or add the profile)
+  after launch, run `lxc restart <univ_slug>` in the same breath — the
+  symptom without it is identical to no nesting at all
+  ([Rule 11 — restart](../../software/RULES.md#rule-11-nesting-needs-a-restart)).
 
 *(Added in V1.13.5: a cold tester following the runbook literally reached the
 build with no container, and had to derive its creation from the Boot Contract.
@@ -197,6 +210,12 @@ first and used the human's request as an implicit intention. Copy
 `software/universes/_template/INTENT.md`, state in it what this universe is for
 and its four to six invariants, and only then run the commands below.
 
+- **Trap — a behaviour that differs by environment is a declared value.**
+  Write it in the manifest or the env file (`environment`, an explicit flag),
+  never as an inference from another variable such as `NODE_ENV`: the day dev
+  and prod converged on the same artefact, a guard inferred from `NODE_ENV`
+  shut on dev too ([proof, lesson 6](../proof/proof-rule-11-in-production.md#environment-differences-are-declared-not-inferred)).
+
 ```bash
 # 4.0 — the intention, first
 mkdir -p <univ_slug>-dev/context
@@ -225,6 +244,12 @@ d['vault']['token'] = env.get('VAULT_TOKEN', '')
 json.dump(d, open(p, 'w'), indent=2)
 print('vault-resources.local.json filled from software/.env')
 FILL
+# Trap — a variables file holds ONLY variables: blank lines, # comments and
+# KEY=value (keys may carry digits). podman-up.sh `source`s the file, so any
+# other line is EXECUTED by bash: a human note (`BACKOFFICE_ADMIN = email /
+# password`) killed a deploy before it could print its own halt. preflight
+# and podman-up.sh now stop on such a line and quote it; a note goes behind #.
+# (docs/proof/proof-rule-11-in-production.md#a-variables-file-holds-only-variables)
 
 # 4.2 — build and verify the software
 cd software
@@ -298,7 +323,19 @@ python3 software/scripts/record-image-lock.py <univ_slug>-dev \
 # 4.4 — start it, then prove the stack is up. SHAPER_REGISTRY, SHAPER_IMAGE_TAG
 # (and SHAPER_TLS_VERIFY if set) must still be exported: the deploy pulls the
 # images the build published, with the same TLS posture.
+#
+# Trap — the ports the manifest declares must be FREE in this LXC. Bricks run
+# with --network host; a service the container already runs (an apt-installed
+# MariaDB on 3306 in a CT born before Rule 11) holds the port first, and the
+# brick crash-loops with the cause visible only in its own journal. The gate
+# names the port and its holder; stop and disable the holder, never pick a
+# second port (software/RULES.md#rule-11-declared-ports-are-free):
+node software/scripts/preflight.mjs --universe <univ_slug>-dev   # exit 0, or STOP
 bash <univ_slug>-dev/deploy/podman-up.sh     # health must exit 0
+# Trap — a wait loop must test a condition that CAN become true. A readiness
+# probe that pings the database with a root password nobody holds waits its
+# whole budget and then proceeds as if ready; probe with the credentials the
+# brick will actually use (docs/proof/proof-rule-11-in-production.md#a-wait-loop-tests-a-condition-that-can-become-true).
 
 # 4.5 — live tests, only now that the stack is running
 cd software && npm run test:live             # tier-a — MUST be green
