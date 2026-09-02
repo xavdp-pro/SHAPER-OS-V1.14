@@ -40,6 +40,33 @@ Template file: [`.env.example`](../../.env.example) → copy to `.env` or `softw
 
 ---
 
+## Backups and the registry — what the operator scripts read
+
+Four scripts under `software/scripts/` take their credentials from the
+environment and from nowhere else. None carries a default: a required
+variable that is missing **halts the script, which names it**. Values go in
+`software/.env` (or the universe's `deploy/env`) — never in a tracked file.
+
+| Variable | Read by | Required? | What it does |
+| :--- | :--- | :---: | :--- |
+| `REGISTRY_HOST` — or `SHAPER_REGISTRY` in its place | `push-images-to-registry.sh` | **Yes** | The private OCI registry, `host:port`. `SHAPER_REGISTRY` is the name the [registry contract](../architecture/ARTIFACT-BOUNDARY.md) uses; either works |
+| `REGISTRY_USER` | `push-images-to-registry.sh` | **Yes** | The registry account. No default — the one that shipped in V1.13 was the author's |
+| `REGISTRY_PASS` | `push-images-to-registry.sh` | **Yes** | The registry password; it reaches `podman login` on stdin, never on a command line |
+| `PRA_ENCRYPTION_KEY` | `backup-pra-sync.sh` | **Yes** | The key the off-site archive is encrypted with. Generated for backups only (`openssl rand -hex 32`); the script **refuses** a value equal to `VAULT_MASTER_KEY`, whether exported or found in a `.env` on disk |
+| `PRA_DEST_HOST` | `backup-pra-sync.sh` | No | Where the encrypted archive is `rsync`ed; unset, it stays in `data/backups/` and the script says so |
+| `MYSQL_USER` | `backup-local.sh`, `snapshot-universe.sh` | No | Set, it declares that this universe has a database to dump. Unset, both scripts print `SKIP` and report `"database":"skipped"` — never an empty dump passed off as one |
+| `MYSQL_PASSWORD` | `backup-local.sh`, `snapshot-universe.sh` | With `MYSQL_USER` | Travels in `MYSQL_PWD`, never on a command line |
+| `MYSQL_DATABASE` | `backup-local.sh`, `snapshot-universe.sh` | No | One schema to dump; unset, `--all-databases` |
+| `MYSQL_HOST`, `MYSQL_PORT` | `backup-local.sh`, `snapshot-universe.sh` | No | Default to `127.0.0.1` and `3306` inside the scripts |
+
+The universe's own database belongs in its `deploy/env`
+([`examples/universe.env.example`](../../examples/universe.env.example)); the
+PRA key and the registry account belong in `software/.env`
+([`software/.env.example`](../../software/.env.example)). Both example files
+declare every variable above **empty**.
+
+---
+
 ## The Vibe-Coder & AI Agent Contract (Strict Validation Protocol)
 
 1. **Human's Responsibility**:
