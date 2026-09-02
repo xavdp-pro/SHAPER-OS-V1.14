@@ -41,15 +41,25 @@ function canonFiles() {
     // rule does. The model pinned in .env.example, in a Containerfile, in a deploy
     // script and in a package source had been withdrawn from its catalogue while
     // the suite stayed green — because the guard only read Markdown.
+    //
+    // Every package, not two. The first sweep read only the opencode packages,
+    // and a pinned Composer version, a pinned Ollama model, a Gemini fallback
+    // and a worked example in the queue consumer naming the very model the
+    // clean-sheet record documents as withdrawn all survived it — each one a
+    // default the guard was written to refuse, sitting one directory over.
+    // The universe template's deploy script is read for the same reason: it
+    // pinned a second, different version of the model a package pinned.
     out.split('\0').filter(Boolean).filter((rel) => {
       if (rel.startsWith('software/bricks/brick-helm/app/')) return false;
       // A parser test needs realistic input, and a test ships no default to
       // production. Fixtures are data; only what runs is a promise.
       if (/\.test\.[cm]?js$/.test(rel)) return false;
+      if (/\/(test|tests|fixtures?|__fixtures__)\//.test(rel)) return false;
       return /\.env\.example$/.test(rel)
         || /(^|\/)Containerfile$/.test(rel)
         || /^examples\/deploy\/.*\.sh$/.test(rel)
-        || /^software\/packages\/(pkg-bridge-opencode|pkg-opencode-server)\/[^/]+\.(js|mjs)$/.test(rel);
+        || /^software\/universes\/_template\/deploy\/podman-up\.sh$/.test(rel)
+        || /^software\/packages\/[^/]+\/.*\.(js|mjs|cjs)$/.test(rel);
     }),
   ).filter((rel) => {
     return true;
