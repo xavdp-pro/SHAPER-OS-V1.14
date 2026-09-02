@@ -197,7 +197,7 @@
 | UNIV7 | PRA BTP · mail zoutik + storm-watch | vivant |
 | UNIV8 | stack Podman + Helm + OpenCode | vivant |
 | UNIV9 | Helm tout-en-un + MariaDB | vivant |
-| Factory | `univ-factory.mjs` | partiel |
+| Factory | none — a universe class is born by `docs/agent/UNIVERSE-REPO-BIRTH.md`, a procedure, not a generator; the factory script left on 2 September 2026 (it wrote `apps/` and `quadlet/`, a frame the base does not have, and was run by nothing) | retiré |
 | Doublons miroir | `SHAPER-OS/universes/univ*` vs `UNIV*` | partiel (dérive) |
 | UNIV9 INTENT.md | manifest seulement | partiel |
 
@@ -221,7 +221,7 @@
 | ERP verticaux | univ-sinistre, artisan, immo | vision |
 | POC CRM | app séparée (VISION phase 5) | vision |
 | Helm Desk | mobile → desktop WS (phase 4) | vision |
-| Outillage scaffold | `shaper-tool-scaffold.mjs`, `shaper-sandbox.sh` | vivant |
+| Outillage scaffold | `shaper-tool-scaffold.mjs` (writes `packages/pkg-<slug>` + `bricks/brick-<slug>`, from a universe class repository, never from the base), `shaper-sandbox.sh` | vivant |
 
 **Protocole** : sandbox → brick dédiée → volume `/data/<slug>/` → jamais dans KovZu.
 

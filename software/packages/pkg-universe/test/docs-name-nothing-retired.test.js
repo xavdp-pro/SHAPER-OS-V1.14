@@ -31,6 +31,13 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const RETIRED = [
   { name: 'test:live:helm', why: 'the script left software/package.json with brick-helm; the cockpit\'s live tests live in the catalogue beside the brick' },
   { name: 'WITH_HELM', why: 'nothing in the tree reads it since brick-helm left the template; tier-b is the catalogue\'s +web profile' },
+  // The 2 September audit: univ-factory.mjs wrote a frame the base does not
+  // have and was run by nothing, so it left; the tool scaffold wrote
+  // packages/<slug>-engine, a layer NAMING.md does not declare, and now
+  // writes packages/pkg-<slug> and bricks/brick-<slug>. Three inventories
+  // kept describing both as they were.
+  { name: 'univ-factory', why: 'removed on 2 September 2026 — a universe class is born by docs/agent/UNIVERSE-REPO-BIRTH.md, a procedure, not a generator' },
+  { name: '<slug>-engine', why: 'no such layer in NAMING.md — shaper-tool-scaffold.mjs writes packages/pkg-<slug> and bricks/brick-<slug>' },
 ];
 
 const DATED_RECORDS = [/^docs\/proof\//, /^docs\/TESTING-REPORT\.md$/, /CHANGELOG/i, /VERDICT/];
