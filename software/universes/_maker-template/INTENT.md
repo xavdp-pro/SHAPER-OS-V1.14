@@ -62,10 +62,14 @@ it does not improvise.
    not), a birth only by the facts it looked at.
 11. **A refusal is reported under its own name.** A recipe may refuse — an
    unverified matrix, an absent one, a production universe asked to end —
-   and says so by its exit code. The maker reports a refusal as what it is
-   (exit 4 → `REAP_REFUSED`), never as a failure the governor would offer
-   again at every beat: a refused end retried forever is a storm on a row no
-   robot may touch.
+   and says so by its exit code. Today only the reap's refusal has a name of
+   its own (exit 4 → `REAP_REFUSED`), because it is the one the governor
+   would otherwise offer again at every beat: a refused end retried forever
+   is a storm on a row no robot may touch. A stamp's refusal (exit 2, the
+   matrix absent; exit 3, its bytes unverified) degrades the row as
+   `STAMP_FAILED` and the row is never offered a stamp again, so it cannot
+   storm; a `STAMP_REFUSED` event is one line in both tables the day it is
+   needed.
 
 ## 3. Cognition
 

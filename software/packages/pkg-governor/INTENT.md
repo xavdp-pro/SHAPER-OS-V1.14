@@ -46,7 +46,12 @@ contract, written once, so every governor speaks it and every maker reads it.
    one. A DEGRADED **prod** row is a life a robot may not end: the re-ask is
    refused as a typed fact carrying the row id — never an exception, never a
    twin — and the slot stays held until a human ends it (Rule 27, amended
-   in the same release).
+   in the same release). How a human ends it today: the tandem ends the
+   universe by hand on its host, then the maker of that machine reports
+   REAPED on the row — the only credential the ledger lets write it (inv.
+   2). The contract offers no explicit act of release: an `end`/`release`
+   the tandem performs through the governor is a TARGET, not a hidden
+   route, and until it exists an agent must not look for one.
 5. **The poll is the heartbeat.** Every ask is dated. A host silent beyond
    the declared interval is listed as drifting — an alarm, never a green
    tile (Rule 27 carries it out of band).
@@ -62,7 +67,14 @@ contract, written once, so every governor speaks it and every maker reads it.
    the ledger under its own name, `REAP_REFUSED`: a refusal is a fact, not a
    failure, and the row is never offered again. A claim — STAMPING, REAPING,
    VALIDATING — that goes silent past its budget is offered again: a maker
-   that died mid-work must not hold a row RECONCILING forever.
+   that died mid-work must not hold a row RECONCILING forever. Those
+   re-offers are not yet bounded (TARGET): only REAP_FAILED events count
+   toward `maxHealingAttempts`, so a maker that claims and dies every time
+   is offered the same work again at every budget — a cadence of one per
+   `claimBudgetMs`, never a storm, and its silence is heard through inv. 5.
+   Bounding them means the governor writing a state of its own on a row no
+   maker reported on; that act is designed with the explicit end above,
+   not improvised here.
 7. **No dependencies.** Node built-ins only; the storage is injectable so a
    real governor binds its own database (Rule 26) while the contract stays
    testable on a naked clone.
