@@ -32,7 +32,11 @@ test('test-cli.sh greps the service name server.mjs answers on /api/health', () 
   assert.equal(grepped[1], answered[1], `the script expects "${grepped[1]}" and the bridge answers "${answered[1]}"`);
 });
 
-const FRENCH = /(^|[\s"(])(Santé|Registre|Continuité|Garde-fous|Résultat|abandon|attendu|reçu|manquant|modèle)\b/m;
+// Words the old script used that no English sentence contains. `abandon`
+// is not among them: it is an English word too ("abandon the run"), and a
+// Rule 0 guard that refuses English is a false red. The old script stays
+// red on Santé, Registre, Résultat, attendu and reçu alone.
+const FRENCH = /(^|[\s"(])(Santé|Registre|Continuité|Garde-fous|Résultat|attendu|reçu|manquant|modèle)\b/m;
 
 test('test-cli.sh is written in English (Rule 0)', () => {
   const m = FRENCH.exec(script);
