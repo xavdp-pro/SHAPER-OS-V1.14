@@ -103,6 +103,17 @@ describe('the tool scaffold writes the layers the naming contract knows, and not
     assert.match(out.stderr, /artifact-boundary\.json/);
     assert.equal(fs.existsSync(path.join(base, 'bricks')), false, 'nothing may be written before the halt');
   });
+
+  it('halts on a boundary file that is present but unreadable, instead of scaffolding past it', () => {
+    // The first version of the guard above swallowed the parse error and
+    // returned — the scaffold then wrote into the base it was refusing.
+    const base = classRepo('base-truncated', { 'artifact-boundary.json': '{' });
+    const out = scaffold(base, ['--slug', 'demo']);
+    assert.notEqual(out.status, 0, 'an unreadable boundary must halt, not fall through (Rule 0J)');
+    assert.match(out.stderr, /HALT/);
+    assert.match(out.stderr, /artifact-boundary\.json.*unreadable/);
+    assert.equal(fs.existsSync(path.join(base, 'bricks')), false, 'nothing may be written before the halt');
+  });
 });
 
 describe('no shipped script materialises a tree the base does not have', () => {

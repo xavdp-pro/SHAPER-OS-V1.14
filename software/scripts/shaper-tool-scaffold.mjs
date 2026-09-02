@@ -78,9 +78,25 @@ function findNextAvailablePort() {
 function refuseTheBase() {
   const boundary = path.join(ROOT_DIR, 'artifact-boundary.json');
   if (!fs.existsSync(boundary)) return;
+  // The file's PRESENCE is the signal. The first version of this guard let an
+  // unreadable or unshaped boundary fall through (`catch { return; }`), so a
+  // truncated artifact-boundary.json in the base — the one tree the guard
+  // exists to protect — would have had the scaffold write a brick into it
+  // without a word. Rule 0J: a configuration that is there but cannot be read
+  // is a halt naming the file, never a silent default.
   let base;
-  try { base = JSON.parse(fs.readFileSync(boundary, 'utf8')).base; } catch { return; }
-  if (!base || !Array.isArray(base.bricks)) return;
+  try {
+    base = JSON.parse(fs.readFileSync(boundary, 'utf8')).base;
+  } catch (err) {
+    console.error(`${TAG} HALT — ${boundary} is present but unreadable: ${err.message}`);
+    console.error(`${TAG} A directory that carries artifact-boundary.json is the SHAPER OS base; nothing is scaffolded until that file is repaired.`);
+    process.exit(1);
+  }
+  if (!base || !Array.isArray(base.bricks)) {
+    console.error(`${TAG} HALT — ${boundary} is present but carries no base.bricks list (contract shape: { base: { packages: [], bricks: [] } }).`);
+    console.error(`${TAG} A directory that carries artifact-boundary.json is the SHAPER OS base; nothing is scaffolded until that file is repaired.`);
+    process.exit(1);
+  }
   console.error(`${TAG} HALT — ${ROOT_DIR} is the SHAPER OS base (it carries artifact-boundary.json).`);
   console.error(`${TAG} A P3 tool brick is native to a universe class repository (Rule 37, docs/agent/UNIVERSE-REPO-BIRTH.md); run this script from that repository's root.`);
   process.exit(1);
