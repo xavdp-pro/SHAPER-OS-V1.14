@@ -69,4 +69,4 @@ to watch and to report anomalies — that agent has **no** hand on the host.
 | :--- | :--- |
 | `INTENT.md` | This file — law for the maker |
 | `manifest.json` | Bricks, `alerting` (mandatory: silence must be heard) |
-| `recipes/` | The frozen recipes, `<kind>-<work>.sh`: one per host kind (`lxd`, `proxmox`, `liblxc` — Rule 11's tokens, read from the host, never the bare `lxc`) and per work kind. `lxd-*` ships; `proxmox-*` and `liblxc-*` are not yet written, and none ships before terrain (`recipes/README.md`) |
+| `recipes/` | The frozen recipes, `<kind>-<work>.sh`: one per host kind (`lxd`, `proxmox`, `liblxc` — Rule 11's tokens, declared to the maker's recipe runner as `hostKind`; reading the kind from the host itself is TARGET; never the bare `lxc`) and per work kind. `lxd-*` ships; `proxmox-*` and `liblxc-*` are not yet written, and none ships before terrain (`recipes/README.md`) |
