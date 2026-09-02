@@ -101,10 +101,20 @@ if (!IS_STUB && !MODEL) {
 // ENOENT out of its own catch block and the process died before listening
 // (two reviewers read it; every test named TOKEN_FILE in a directory it had
 // made). The directory is made before either file is written, whichever of
-// the two the operator relocated.
+// the two the operator relocated. A directory that cannot be made (a HOME
+// that is read-only, a parent the process may not enter) is the same halt as
+// a missing model: exit 2 naming the path and the variable to relocate it —
+// not an uncaught EACCES before the first log line (Rule 0J).
 function ensureStateDirs() {
-  for (const file of [TOKEN_FILE, SESSIONS_FILE]) {
-    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  for (const [file, variable] of [[TOKEN_FILE, 'TOKEN_FILE'], [SESSIONS_FILE, 'SESSIONS_FILE']]) {
+    const dir = path.dirname(file);
+    try {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    } catch (err) {
+      console.error(`[opencode-bridge] HALT: cannot create ${dir} for ${variable}=${file} (${err.code || err.message}).`);
+      console.error(`[opencode-bridge] Point ${variable} at a writable path, or mount a writable volume on ${dir}.`);
+      process.exit(2);
+    }
   }
 }
 

@@ -20,14 +20,21 @@ const SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), '../serve
 
 const homes = [];
 after(() => {
-  for (const home of homes) fs.rmSync(home, { recursive: true, force: true });
+  for (const home of homes) {
+    fs.chmodSync(home, 0o700);
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
-/** Start the real server.mjs on a HOME that holds nothing, with no file named. */
-function start() {
+/**
+ * Start the real server.mjs on a HOME that holds nothing, with no file named.
+ * `prepare` may alter the empty HOME before the bridge sees it.
+ */
+function start(prepare = () => {}) {
   return new Promise((resolve) => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'shaper-opencode-fresh-home-'));
     homes.push(home);
+    prepare(home);
     const env = {
       PATH: process.env.PATH,
       HOME: home,
@@ -57,5 +64,22 @@ describe('opencode-server starts on a HOME it has never seen', () => {
     assert.ok(fs.existsSync(token), 'the token file is created under the config directory the bridge made');
     assert.match(fs.readFileSync(token, 'utf8'), /^[0-9a-f]{48}\n$/, 'the token is the generated secret');
     assert.equal(fs.statSync(token).mode & 0o777, 0o600, 'the token is owner-only');
+  });
+
+  // The mirror case (Rule 0J): the directory cannot be made. Before this
+  // guard, mkdirSync threw EACCES outside any try — an untyped stack trace
+  // before the first log line, the very shape the fresh-HOME fix removed
+  // for ENOENT. A HOME the process may not write into halts with exit code 2
+  // and names the path and the variable to relocate it. Root ignores
+  // directory modes, so under uid 0 this case cannot be produced and is
+  // reported as skipped, never as green.
+  it('halts with exit 2, naming the directory and the variable, when the config directory cannot be created', {
+    skip: typeof process.getuid === 'function' && process.getuid() === 0 && 'root ignores directory modes',
+  }, async () => {
+    const run = await start((home) => fs.chmodSync(home, 0o500));
+    assert.equal(run.code, 2, `the bridge did not halt with exit code 2 (code=${run.code}, signal=${run.signal}):\n${run.stderr}`);
+    assert.match(run.stderr, /\[opencode-bridge\] HALT: cannot create .*\.config\/opencode-bridge for TOKEN_FILE=/, `the halt does not name the directory and the variable:\n${run.stderr}`);
+    assert.doesNotMatch(run.stderr, /^\s+at /m, `the halt is a stack trace, not a typed message:\n${run.stderr}`);
+    assert.doesNotMatch(run.stdout, /\[opencode-bridge\] http:\/\//, 'the bridge did not listen on a HOME it cannot write');
   });
 });

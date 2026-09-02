@@ -22,7 +22,9 @@ Default active model: the free model verified and measured at deployment (Rule 7
    `TOKEN_FILE` and `SESSIONS_FILE` point) and creates that directory itself
    before writing either file. A HOME the bridge has never seen is the case a
    clean-sheet deployment produces; it is not allowed to be the case that
-   crashes.
+   crashes. A directory it cannot create (a read-only HOME, a parent it may
+   not enter) is a typed halt — exit code 2, naming the directory and the
+   variable to point elsewhere — never an uncaught EACCES.
    <a id="absent-cli"></a>
 3. **A CLI that cannot start is a typed halt.** The headless `opencode serve`
    child comes from `OPENCODE_BIN` (default: under `OPT_BRIDGE_ROOT`). When
