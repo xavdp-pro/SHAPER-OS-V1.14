@@ -197,7 +197,7 @@
 | UNIV7 | PRA BTP · mail zoutik + storm-watch | vivant |
 | UNIV8 | stack Podman + Helm + OpenCode | vivant |
 | UNIV9 | Helm tout-en-un + MariaDB | vivant |
-| Factory | none — a universe class is born by `docs/agent/UNIVERSE-REPO-BIRTH.md`, a procedure, not a generator; the factory script left on 2 September 2026 (it wrote `apps/` and `quadlet/`, a frame the base does not have, and was run by nothing) | retiré |
+| Factory | none — a universe class is born by `docs/agent/UNIVERSE-REPO-BIRTH.md`, a procedure, not a generator; the factory script left on 2 September 2026 (it wrote `apps/` and `quadlet/`, a frame the base does not have, and was run by nothing) | retired |
 | Doublons miroir | `SHAPER-OS/universes/univ*` vs `UNIV*` | partiel (dérive) |
 | UNIV9 INTENT.md | manifest seulement | partiel |
 
