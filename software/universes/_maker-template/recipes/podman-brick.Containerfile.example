@@ -1,0 +1,57 @@
+# Reference shape for a podman brick's Containerfile — Rule 11.
+#
+# Not a recipe the maker calls (bricks are a class's own concern); a WORKED
+# EXAMPLE, so that "a brick runs as its class, not root" is a checked shape
+# a class can copy, not a paragraph it has to reinvent. Extracted from the
+# two bricks that ran this shape first in production (univ-demo-crm's
+# crm-app, univ-demo-saas's saas-app, 3 September 2026) — themselves
+# reporting a convention older than either: turbinobash-web's
+# `useradd -m -s /bin/bash ${app} -d $d_app` (one system account per app,
+# named after the app), the same identity it gives the database
+# (`tb mysql sudo/user/create $app`, `sudo/db/create $app`). See
+# software/RULES.md#rule-11-a-brick-runs-as-its-own-class-not-root.
+#
+# <class> is the class id (a-z0-9-, matches the LXC universe's own name and
+# the database's own name/user — one identity in three places). <uid> is a
+# FIXED numeric id, not whatever a bare `useradd` would pick: the deploy
+# script must chown host-side bind-mounted files (a passwd file, a declared
+# volume) to this exact id without asking the built image what it chose.
+# 10001 is proven; a class is free to pick its own as long as it is fixed
+# and stays out of the host's own system-account range (< 1000).
+#
+# Build: podman build -t localhost/<class>-app:1 -f Containerfile <context>
+
+FROM docker.io/library/node:22-slim AS builder
+WORKDIR /build
+COPY package*.json ./
+RUN npm ci --no-audit --no-fund
+COPY . .
+RUN npx vite build --logLevel error
+RUN npm prune --omit=dev --no-audit --no-fund
+
+FROM docker.io/library/node:22-slim
+
+# The account IS the class: same spelling as the LXC universe, the database
+# name and the database user (see the same anchor in RULES.md). -m creates
+# and chowns the home dir; -d fixes it at /apps/<class>, the same absolute
+# path db.js and instanceIdentity.js already derive their app name from.
+RUN useradd -u <uid> -m -s /bin/bash <class> -d /apps/<class>
+
+WORKDIR /apps/<class>/app
+# --chown at COPY time, not a RUN chown after: a RUN chown -R walks and
+# rewrites every inode a second time, on every layer, for no gain a
+# COPY --chown does not already give for free at build time.
+COPY --from=builder --chown=<class>:<class> /build/dist ./dist
+COPY --from=builder --chown=<class>:<class> /build/node_modules ./node_modules
+COPY --from=builder --chown=<class>:<class> /build/src ./src
+COPY --from=builder --chown=<class>:<class> /build/package.json ./package.json
+
+ENV NODE_ENV=production
+EXPOSE <port>
+# Never root. A port below 1024 needs CAP_NET_BIND_SERVICE granted by the
+# systemd unit's ExecStart (--cap-add=NET_BIND_SERVICE) — proven on
+# crm-app, port 80 — never by dropping this line back to root: the
+# capability is scoped to exactly the one privilege the process needs, root
+# is every privilege the kernel has.
+USER <class>
+CMD ["node", "src/server.js"]

@@ -638,6 +638,47 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
     this shape; a class is free to grow more bricks, never to invent a
     fifth operation for one of them.
 
+  <a id="rule-11-a-brick-runs-as-its-own-class-not-root"></a>
+  * **A brick runs as its class, not root.** One identity, in three places:
+    a Linux account inside the image named after the class, the database
+    name, and the database user — the same spelling used for the LXC
+    universe itself. This is not invented here: it reports a convention
+    older than podman, [turbinobash-web](https://github.com/xavdp-pro/turbinobash-web)'s
+    `useradd -m -s /bin/bash ${app} -d $d_app` (one system account per app,
+    named after the app — `modules/app/scripts/sudo/way/noweb/create`),
+    the same identity it already gives the database
+    (`tb mysql sudo/user/create $app`, `sudo/db/create $app`). Base bricks
+    (the official images in the catalogue — MariaDB, and any third-party
+    image a class did not author) are out of scope: `USER` is a concern of
+    a class's OWN application code, never retrofitted onto an image this
+    architecture does not build.
+    `_maker-template/recipes/podman-brick.Containerfile.example` is the
+    checked shape: `useradd -u <uid> ...` with a FIXED numeric uid (10001,
+    proven — a class may pick its own, fixed and above 1000), `COPY
+    --chown` at build time, `USER <class>` before `CMD`. The uid is fixed
+    so a deploy script can `chown` the host-side files this user must
+    read or write — a passwd file, a declared volume — without asking the
+    built image what a bare `useradd` would have picked. What must NOT be
+    chowned: a volume owned by a DIFFERENT brick's container (MariaDB's own
+    data directory manages its own internal user regardless of what uid
+    started it) — the chown is scoped to exactly what the class's own
+    process touches, named file by file, never a blanket `-R` over a
+    directory shared with another brick. A port below 1024 needs
+    `CAP_NET_BIND_SERVICE` granted by the unit's `ExecStart`
+    (`--cap-add=NET_BIND_SERVICE`) — proven on `crm-app` binding port 80 as
+    uid 10001 — never solved by leaving the image as root, which would
+    grant every privilege the kernel has to solve needing exactly one.
+    Proven in production on both demo classes (`univ-demo-crm`'s crm-app,
+    `univ-demo-saas`'s saas-app, 3 September 2026): `podman exec <brick>
+    id` reports the class's own uid, not 0, in dev and in prod, and the
+    already-running services kept their existing data (the chown targets
+    files a REBUILD leaves in place, never re-created). This closes the
+    process-owner question for a class's own bricks; it does not reopen
+    `doctrine/README.md`'s deferred **Hardening of controls** decision —
+    podman itself still runs rootful, launched by a systemd unit that is
+    still root, which remains phase 2, owned and named, not silently
+    assumed.
+
 ---
 
 <a id="rule-12"></a>
