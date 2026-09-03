@@ -615,6 +615,29 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   reproducible. Restoration ends with the universe's own `deploy/proof.sh` — a
   restore nobody proved is a claim (Rule 33).
 
+  <a id="rule-11-a-brick-is-rebuilt-not-repaired"></a>
+  * **A brick is rebuilt, not repaired.** Four operations, never confused
+    (named in `doctrine/THE-KERNEL-IS-CONSULTED-NOT-CARRIED.md` and
+    `doctrine/kernel/`, a corpus consulted at design time and never carried
+    into a running agent — this clause is one of its derivations, not the
+    corpus itself): **CORRECT** changes a known error in a controlled
+    source — the Containerfile, the app code, a config file the source
+    tree owns. **REPAIR** restores a state that is not easily
+    reproducible — a database's rows, a volume's contents. **REBUILD**
+    recreates a reproducible runtime from a known-good image; a brick
+    whose integrity is doubtful is disposable, its declared volume is not.
+    **QUARANTINE** removes a suspect container from active service while
+    keeping it for inspection, without pretending a `podman exec` cleanup
+    has restored trust nothing has actually verified.
+    `_maker-template/recipes/podman-brick.service.example` is the checked
+    shape: every start (`ExecStartPre=-podman rm -f`, then a fresh
+    `podman run`) is a rebuild of the whole container, never a patch
+    applied to a running one — and the one thing that may legitimately
+    change in place is the volume the unit itself declares as the brick's
+    non-reproducible state. A class's own stamp recipe raises its bricks in
+    this shape; a class is free to grow more bricks, never to invent a
+    fifth operation for one of them.
+
 ---
 
 <a id="rule-12"></a>

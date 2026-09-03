@@ -1,0 +1,39 @@
+# Reference shape for a podman brick's systemd unit — Rule 11.
+#
+# Not a recipe the maker calls (bricks are a class's own concern, raised by
+# the class's stamp recipe once the universe exists); a WORKED EXAMPLE, so
+# that "a brick is rebuilt, not repaired" is a checked shape a class can
+# copy, not a paragraph it has to reinvent. Extracted from the two bricks
+# that ran this shape first in production (univ-demo-crm's crm-app,
+# univ-demo-saas's saas-app, 1 September 2026).
+#
+# The discipline, in one look at the two ExecStart lines: every start REMOVES
+# whatever container answered to this name and RUNS a fresh one from the
+# image. There is no third line that reaches into the running container to
+# patch it — CORRECT changes the source (this file, the Containerfile, the
+# app code); REBUILD is what these two lines do; REPAIR belongs only to the
+# declared, non-reproducible volume (a database's data directory), never to
+# the container's own layers. See doctrine/THE-KERNEL-IS-CONSULTED-NOT-CARRIED.md
+# and doctrine/kernel/ for where this vocabulary comes from.
+
+[Unit]
+Description=<class> — <brick> brick (podman, Rule 11)
+After=network-online.target
+
+[Service]
+# REBUILD, not REPAIR: whatever answered to this name is gone before the
+# fresh one starts. "-" means a missing container is not an error — the
+# common case, every boot but the first.
+ExecStartPre=-/usr/bin/podman rm -f <brick>
+# Always a fresh container from the image. Never `podman start` on a
+# stopped one, never `podman exec` to patch a running one back to health.
+ExecStart=/usr/bin/podman run --rm --name <brick> --network host \
+  --env-file=/apps/<class>/etc/<brick>.env \
+  -v /apps/<class>/etc/<brick>-data:/var/lib/<brick>-data \
+  <image>
+ExecStop=/usr/bin/podman stop -t 10 <brick>
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
