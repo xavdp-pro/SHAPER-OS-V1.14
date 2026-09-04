@@ -12,6 +12,7 @@
       "pkg-logger",
       "pkg-maestro",
       "pkg-opencode-server",
+      "pkg-proposal",
       "pkg-queue",
       "pkg-supervisor",
       "pkg-universe",
