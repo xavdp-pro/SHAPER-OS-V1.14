@@ -1,5 +1,9 @@
 {
   "name": "@shaper/pkg-proposal",
   "version": "1.13.35",
-  "type": "module"
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
 }
