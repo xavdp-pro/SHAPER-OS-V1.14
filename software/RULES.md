@@ -1117,11 +1117,12 @@ rule is what killed the synonyms, and it keeps them dead.*
   sovereign fork (Rule 33) keeps its own mirrored fleet map — a client's PRA
   never hinges on the vendor's repo.
 * **Lexicon closure**: the vocabulary of this architecture is the prefix table
-  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus sixteen words —
+  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus eighteen words —
   class, instance, ledger, drift, PURRING (and its state machine), status.json,
   board, fleet map, forge, forkedFrom, the mirror rule, source/perimeter, and,
   by the amendment of 2 September 2026 (maker-and-governor verdict, §10),
-  governor, maker, matrix, REAPED. A new noun enters only by amending this
+  governor, maker, matrix, REAPED, and, by the amendment of 4 September 2026,
+  rig, tool. A new noun enters only by amending this
   rule, with the failure it prevents written beside it — as here:
   * **governor** — the universe that holds a ledger and makes it respected:
     it writes what should exist, dates what makers report, and never dials
@@ -1137,6 +1138,21 @@ rule is what killed the synonyms, and it keeps them dead.*
     archive, and five builds of one commit giving five fingerprints.
   * **REAPED** — the fifth, terminal state, above. *Prevents*: a reaped row
     still counted as living, blocking its account and pinning its matrix.
+  * **rig** — the assembled solution: the classes it takes, the bricks they
+    declare, and the declarations that shape them (sector profile, tool
+    catalogue, seed), pinned together. A rig is NOT a class: a class is one
+    repo, a rig is what is delivered — the demo rig is `univ-demo-saas` and
+    `univ-demo-crm` and the entry door and the maker, at named tags.
+    *Prevents*: "the demo" meaning one repo to the person building it, two
+    repos to the person deploying it, and the whole visitor chain to the
+    person selling it — so that what a client buys has no name, no version,
+    and no way to be assembled twice the same.
+  * **tool** — one declared capability a class exposes to its agent, with a
+    typed contract, from a closed catalogue: the agent may fill it, the human
+    validates it, and only then does it execute. *Prevents*: `tool` naming
+    both a deliverable unit and an agent's capability (the unit is a brick);
+    and free text reaching an action because the catalogue of what may be
+    asked was never declared anywhere.
   What does not enter: `stamp`, `reap`, `validate`, `adopt` — kinds of work,
   a table in `pkg-governor`, not nouns of the language. New bricks are not
   new nouns — `brick-forge`, `brick-scraper`, `brick-sso` are the prefix

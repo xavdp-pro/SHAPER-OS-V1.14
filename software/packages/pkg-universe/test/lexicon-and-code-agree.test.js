@@ -116,3 +116,40 @@ test('governor, maker and matrix are lexicon words, each with the failure it pre
   }
   assert.deepEqual(missing, [], `nouns the doctrine uses and the lexicon does not seal:\n  ${missing.join('\n  ')}`);
 });
+
+// The amendment of 4 September 2026. `rig` names what is delivered — a thing
+// three desks were already discussing under three different meanings — and
+// `tool` separates an agent's declared capability from the brick that runs
+// it. Both must sit in the rule's clause AND in the page's table, each with
+// the failure it prevents: a word that lives in only one of the two is the
+// state of affairs the 2 September verdict was written to end.
+test('rig and tool are sealed in both the rule and the page', () => {
+  const clause = bulletOf(ruleText('rule-37'), 'Lexicon closure');
+  const rows = lexiconRows();
+  const missing = [];
+  for (const word of ['rig', 'tool']) {
+    if (!new RegExp(`\\*\\*${word}\\*\\*`).test(clause)) {
+      missing.push(`${word}: Rule 37's lexicon-closure clause does not name it`);
+    }
+    const sentence = rows.get(word);
+    if (!sentence) { missing.push(`${word}: not a row of the lexicon's table`); continue; }
+    if (!/prevents/i.test(sentence)) {
+      missing.push(`${word}: its row does not say what failure it prevents (Rule 37)`);
+    }
+  }
+  assert.deepEqual(missing, [], `words entered by amendment but not sealed:\n  ${missing.join('\n  ')}`);
+});
+
+// A rig is not a class, and the lexicon must say so where a reader looks —
+// otherwise the two words drift back into synonyms and the amendment bought
+// nothing. `steward` is the counter-check: it is `brick-steward`, and Rule 37
+// holds that new bricks are not new nouns, so it must NOT be a lexicon word.
+test('the rig is distinguished from the class, and no brick smuggled itself in', () => {
+  const rows = lexiconRows();
+  const rig = rows.get('rig') || '';
+  assert.match(rig, /class/i, 'the rig row does not distinguish itself from a class');
+  assert.equal(
+    rows.has('steward'), false,
+    'steward is a brick (brick-steward): Rule 37 says new bricks are not new nouns',
+  );
+});

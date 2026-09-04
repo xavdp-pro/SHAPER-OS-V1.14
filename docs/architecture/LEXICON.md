@@ -7,7 +7,12 @@
 > by the maker-and-governor verdict: four words entered (governor, maker,
 > matrix, REAPED), the ledger row and the forge's line were bounded, and a
 > test (`lexicon-and-code-agree.test.js`) now holds this page, Rule 37 and
-> `pkg-governor`'s states to one set of names.
+> `pkg-governor`'s states to one set of names. Amended 4 September 2026: two
+> words entered (rig, tool) — the first names what is delivered, which until
+> then had no name at any of the three desks that spoke of it; the second
+> separates an agent's declared capability from the brick that runs it.
+> `steward` did NOT enter: it is `brick-steward`, and Rule 37 holds that new
+> bricks are not new nouns.
 
 ## The three grammar rules (they held at every scale)
 
@@ -25,7 +30,7 @@
 — a new brick is **not** a new noun: `brick-forge`, `brick-scraper`,
 `brick-sso` are the prefix system doing its job.
 
-## The sixteen words
+## The eighteen words
 
 | Word | One sentence |
 | :--- | :--- |
@@ -45,6 +50,8 @@
 | **governor** | The universe that holds a ledger and makes it respected: writes what should exist, dates what makers report, never dials out. *Prevents*: "the SaaS" and "the manager" naming two things — the product and the organ — and the maker learning which one it serves |
 | **maker** | The hand of a machine, one per machine: asks its governor what should exist on its host, runs a frozen recipe (`<kind>-<work>.sh`) with typed positions, reports a fact, never decides. *Prevents*: a script on a host whose state nobody knows, and a form field reaching a shell |
 | **matrix** | The locked, content-addressed artefact (sha256) from which instances are stamped; baked by the tandem from a class, never by a robot. *Prevents*: "image" meaning both a podman image and a universe archive, and five builds of one commit giving five fingerprints |
+| **rig** | The assembled solution: the classes it takes, the bricks they declare, and the declarations that shape them (sector profile, tool catalogue, seed), pinned together. NOT a class — a class is one repo, a rig is what is delivered (the demo rig = `univ-demo-saas` + `univ-demo-crm` + the entry door + the maker, at named tags). *Prevents*: "the demo" meaning one repo to whoever builds it, two to whoever deploys it and the whole visitor chain to whoever sells it — so what a client buys has no name, no version, and no way to be assembled twice the same |
+| **tool** | One declared capability a class exposes to its agent, typed contract, closed catalogue: the agent fills it, the human validates it, then it executes. *Prevents*: `tool` naming both a deliverable unit and an agent capability (the unit is a brick); and free text reaching an action because nothing declared what may be asked |
 
 ## The six verbs (one dialect, one target grammar)
 
