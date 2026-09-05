@@ -225,7 +225,22 @@ and belongs where the rig is assembled.
 
 ## Status
 
-TARGET. Written before the first line, and rewritten after four adversarial
+**Partially implemented.** The package validates and freezes catalogues and
+proposals and derives accepted calls. Its full SHA-256 identity covers the
+proposed lines (including arguments and standing policy), source digest,
+authority, filling path and expiry. Object property order does not change it.
+Standing acceptance requires the tool's explicit permission; irreversible
+writes and universe-scoped writes remain outside that path.
+
+**Caller obligations remain open integration work:** load the stored proposal
+under authenticated authority rather than trust a browser-supplied object;
+retire superseded proposals; apply effects and record their idempotency key in
+one transaction; enforce expiry with a real clock; verify business effects and
+handle external actions. A digest does not authenticate a proposal, and a
+stable key alone does not make execution idempotent. These package tests do not
+prove invariants 8 and 10 end to end.
+
+Written before the first line, and rewritten after four adversarial
 readings that found eleven blocking defects in the first draft — among them an
 invariant that could never be violated, a promise the package was not in
 position to keep, and a provenance rule that authenticated an attacker's own

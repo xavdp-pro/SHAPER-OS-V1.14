@@ -181,6 +181,11 @@ decides.** Record the measurement with the choice.
 
 ## 6. Where the system currently stands
 
+This branch is preparing V1.14. After the required entry reading, consult
+[`docs/V1.14-WORKPLAN.md`](./docs/V1.14-WORKPLAN.md) for the active development
+state and the [operating contract](./docs/agent/OPERATING-CONTRACT.md).
+Historical V1.13 verdicts do not qualify changes made on this branch.
+
 Principles describe how it must behave. To learn what it has actually been proven
 to do, read the most recent verdict under
 `software/universes/*/proof/VERDICT.md`, then

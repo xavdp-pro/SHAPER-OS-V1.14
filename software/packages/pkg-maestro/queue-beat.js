@@ -24,6 +24,7 @@
  * finished well". Conflating the two is the very confusion it removes.
  */
 import { ingestLog } from '../pkg-logger/ingest-client.js';
+import { readTaskContext } from '../pkg-agent-runtime/context.js';
 
 /**
  * The pod's still-open job, if it has one.
@@ -58,7 +59,7 @@ export function createQueueBeatHandler({
 
   return async function queueBeatHandler(entry) {
     const slug = entry.slug;
-    const message = entry.beatMessage
+    const message = entry.instruction || entry.beatMessage
       || `Scheduled beat for ${slug}. Do the work this pod is registered for, then stop.`;
 
     const headers = { 'Content-Type': 'application/json' };
@@ -90,6 +91,17 @@ export function createQueueBeatHandler({
       return { ok: false, skipped: true, reason: 'previous_run_still_open', jobId: open.id, processed: 0 };
     }
 
+    let context;
+    try {
+      context = readTaskContext(entry);
+    } catch (err) {
+      await ingestLog({
+        loggerUrl, pod: slug, event: 'BEAT_SKIPPED', level: 'WARN', correlationId: slug,
+        data: { reason: 'context_unreadable', path: entry.contextPath, error: err.message }, fetchImpl,
+      });
+      return { ok: false, skipped: true, reason: 'context_unreadable', processed: 0 };
+    }
+
     let res;
     try {
       res = await fetchImpl(`${target}/api/jobs`, {
@@ -104,7 +116,9 @@ export function createQueueBeatHandler({
             // The pod names its own bridge and model; the queue only carries them.
             bridgeUrl: entry.bridgeUrl || undefined,
             model: entry.model || undefined,
-            context: entry.contextPath || undefined,
+            // Carry an immutable snapshot in the job, never a path that only
+            // exists inside this container. The queue already persists payloads.
+            context: context || undefined,
           },
         }),
       });

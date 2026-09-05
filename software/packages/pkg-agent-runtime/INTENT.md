@@ -12,6 +12,12 @@ Generic runtime for parameterized tasks — one `brick-maestro` image, many univ
 2. **Context is a path parameter** (`ctx-*`), not a separate image.
 3. Bridge-agnostic: agy, cursor, deepseek or opencode via `bridgeType` + `bridgeUrl`.
 4. A task skips when `GET /api/health` fails — no inject on a dead bridge.
+5. **Context crosses as text.** Read a configured context file where the task
+   originates and send its contents with any inline instructions. A declared
+   missing or empty file skips the task with `context_unreadable`; a local path
+   is never offered to a remote bridge as if it shared the same filesystem.
+   The same reader is used by maestro's queue beat handler. Context contains
+   relevant instructions and references, never credentials or unrelated tenants.
 
 ## 3. Why this is a package and not a brick
 

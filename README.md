@@ -6,6 +6,10 @@
 
 # SHAPER OS V1.13
 
+> **V1.14 development is open.** This working branch starts from V1.13 and is
+> not a sealed release. Read the [workplan and current state](docs/V1.14-WORKPLAN.md)
+> for scope, validation and the next step.
+
 > **The Sovereign Operating System of Standardized Bricks & Intentions — Where Humans Formulate Vision and AI Agents Build & Operate**
 
 ---

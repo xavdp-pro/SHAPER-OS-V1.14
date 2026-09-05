@@ -8,6 +8,8 @@ export const title = 'Manifests and package versions name the release they live 
 export const readAt = 'software/RULES.md';
 
 const REPO_VERSION = /-V(\d+\.\d+)$/;
+const RELEASE_REPOS = new Set(['@shaper/os', '@shaper/bricks']);
+const RELEASE_VERSION = /^(\d+\.\d+)\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const POINTER = /SHAPER-OS(?:-BRICKS)?-V(\d+\.\d+)/g;
 
 /** The `version` field of a JSON file, or null when the file carries none. */
@@ -43,8 +45,11 @@ function trackedFiles(root) {
 }
 
 /**
- * The repo's version is its folder name (SHAPER-OS-V1.12). Every cross-repo
- * pointer inside manifests and every package version must agree with it.
+ * A base or catalogue declares its release in the root package.json. Its
+ * checkout directory is an operator choice, never a release constraint.
+ * Legacy repositories without a recognised package name retain the folder
+ * convention, so earlier releases and their fixtures remain checkable.
+ * Every cross-repo pointer and every package version must agree with the release.
  * Born from the incident where four manifests still named V1.11 in V1.12.
  *
  * Every package.json, not the root alone. The first version of this check
@@ -57,13 +62,20 @@ function trackedFiles(root) {
  */
 export function run(root) {
   const findings = [];
-  const m = path.basename(root).match(REPO_VERSION);
-  if (!m) return findings; // an unversioned repo (a universe repo) has nothing to agree with
-  const version = m[1];
-
   const rootPkg = path.join(root, 'package.json');
-  const reference = fs.existsSync(rootPkg) ? versionOf(rootPkg) : null;
-  if (reference && !reference.startsWith(version + '.')) {
+  let rootDoc = null;
+  try {
+    if (fs.existsSync(rootPkg)) rootDoc = JSON.parse(fs.readFileSync(rootPkg, 'utf8'));
+  } catch (err) {
+    return [`package.json is not valid JSON: ${err.message}`];
+  }
+  const reference = typeof rootDoc?.version === 'string' ? rootDoc.version : null;
+  const namedRelease = RELEASE_REPOS.has(rootDoc?.name);
+  const m = namedRelease ? reference?.match(RELEASE_VERSION) : path.basename(root).match(REPO_VERSION);
+  if (namedRelease && !m) return ['package.json must declare a release version (major.minor.patch, optionally a prerelease)'];
+  if (!m) return findings; // independent universe repositories do not share the kit's release
+  const version = m[1];
+  if (!namedRelease && reference && !reference.startsWith(version + '.')) {
     findings.push(`package.json declares ${reference}, the repository is V${version}`);
   }
 

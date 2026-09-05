@@ -178,6 +178,14 @@ export function digestOf(material) {
   return `sha256:${createHash('sha256').update(String(material), 'utf8').digest('hex')}`;
 }
 
+// A proposal's content, not the insertion order of object properties, names it.
+function canonicalJson(value) {
+  return JSON.stringify(value, (_key, item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+    return Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]]));
+  });
+}
+
 /**
  * Turn what an agent filled into a sealed proposal.
  *
@@ -247,6 +255,7 @@ export function propose({
       id, tool: tool.name, kind: tool.kind, args: Object.freeze(args),
       span: Object.freeze({ at: span.at, length: span.length }), fragment: quoted,
       needs: Object.freeze(needs), ticked, irreversible,
+      standingAcceptable: tool.standingAcceptable,
       reaches: tool.reaches, reason: name === UNKNOWN ? inertText(entry.reason || 'not understood', `${id}.reason`) : null,
     });
   });
@@ -264,13 +273,16 @@ export function propose({
   }
 
   const materialDigest = digestOf(material);
-  return Object.freeze({
-    id: `prop-${materialDigest.slice(7, 19)}-${lines.length}`,
+  const content = {
     materialDigest,
     filledBy,
     authority,
     lines: Object.freeze(lines),
     staleAfter: now + lifeMs,
+  };
+  return Object.freeze({
+    id: `prop-${digestOf(canonicalJson(content)).slice(7)}`,
+    ...content,
   });
 }
 
@@ -301,7 +313,8 @@ export function accept({ proposal, keep = [], authority = null, now = 0, standin
       }
     }
     // Invariant 7: a standing rule accepts only what the catalogue allows it to.
-    if (standing && !(line.kind === 'read' || line.reaches === 'record')) {
+    if (standing && (line.standingAcceptable !== true || line.irreversible ||
+      !(line.kind === 'read' || line.reaches === 'record'))) {
       refuse('standing', `${id}: this line is not standing-acceptable`, { line: id });
     }
   }
@@ -316,8 +329,8 @@ export function accept({ proposal, keep = [], authority = null, now = 0, standin
     authority,
     acceptedAt: now,
     calls: Object.freeze(calls),
-    // Invariant 8: the caller applies these whole, or none — and invariant 10:
-    // this key is what makes a second attempt create once.
+    // Invariants 8 and 10: the caller atomically records this key with the
+    // effects. Returning a stable key alone does not deduplicate execution.
     idempotencyKey: `${proposal.id}:${[...kept].sort().join(',')}`,
   });
 }

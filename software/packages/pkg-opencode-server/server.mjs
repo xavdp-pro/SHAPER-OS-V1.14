@@ -13,7 +13,7 @@
  *   GET  /api/health
  *   GET  /api/status
  *   GET  /api/conversations            -> { registered: [...] }
- *   POST /api/inject { conversation, message, model, attachments }
+ *   POST /api/inject { conversation, message, context?, model, attachments }
  *   GET  /api/events                   -> SSE (inject, thinking, tool, tool_complete,
  *                                              response, response_complete, run_complete)
  *   POST /api/conversations/delete { conversation }
@@ -272,7 +272,7 @@ async function waitForServe(timeoutMs = 30000) {
 
 function ensureOpencodeConfig() {
   try {
-    const configDir = path.join(os.homedir(), '.config/opencode');
+    const configDir = process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), '.config/opencode');
     fs.mkdirSync(configDir, { recursive: true });
     const configFile = path.join(configDir, 'opencode.json');
     let cfg = {};
@@ -302,6 +302,12 @@ function startServe() {
     return;
   }
   if (serveChild) return;
+  try {
+    fs.mkdirSync(WS_BASE, { recursive: true });
+  } catch (err) {
+    console.error(`[opencode-bridge] HALT: cannot create OPENCODE_WS_BASE=${WS_BASE} (${err.code || err.message}).`);
+    process.exit(2);
+  }
   ensureOpencodeConfig();
   serveChild = spawn(
     AGENT_BIN,
@@ -655,10 +661,21 @@ const server = http.createServer(async (req, res) => {
   if ((p === '/api/inject' || p === '/api/conversations/inject') && req.method === 'POST') {
     const body = await readBody(req);
     const name = normalizeName(body.conversation);
-    const message = withAttachments(String(body.message || '').trim(), body.attachments);
+    if (body.context_file || (body.context != null && typeof body.context !== 'string')) {
+      return send(res, 400, {
+        ok: false, code: 'INVALID_CONTEXT',
+        error: 'Send context as inline text; a caller-local context_file cannot be read by this bridge.',
+      });
+    }
+    const request = withAttachments(String(body.message || '').trim(), body.attachments);
     const model = String(body.model || '').trim() || undefined;
     if (!name) return send(res, 400, { ok: false, error: 'conversation requise' });
-    if (!message) return send(res, 400, { ok: false, error: 'message vide' });
+    if (!request) return send(res, 400, { ok: false, error: 'message vide' });
+    // Preserve the caller's configured context in both the initial submission
+    // and runAgent's fresh-session retry. A new backend session must not erase it.
+    const message = body.context?.trim()
+      ? `[INSTRUCTIONS]\n${body.context}\n\n[USER REQUEST]\n${request}`
+      : request;
     const id = `inject-${Date.now()}`;
     try {
       const { chatId, runId } = await runAgent(name, message, { model, perimeter: body.perimeter || null });
