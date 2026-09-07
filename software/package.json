@@ -1,6 +1,6 @@
 {
   "name": "@shaper/root",
-  "version": "1.13.35",
+  "version": "1.14.0",
   "description": "SHAPER OS — Autonomous Sovereign Business Operating System",
   "type": "module",
   "private": true,
