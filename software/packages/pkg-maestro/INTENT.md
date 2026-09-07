@@ -17,6 +17,12 @@ Deterministic cadence beat scheduler — register worker pods, pulse on interval
 2. **Registry**: Requires `<SLUG>`, `<LABEL>`, `<PORT>`. Vault key and context path are opaque references.
 3. **Audit**: Every beat logged via `@shaper/pkg-logger` as JSONL.
 4. **Isolation**: No universe business logic. Scheduling only.
+5. **Context snapshot**: Before enqueueing, the handler reads the task's
+   configured context and puts the text in `payload.context`. An unreadable or
+   empty declared file skips the beat with its reason. The job thus carries the
+   context actually supplied at creation, independently of container mounts or
+   later file changes. `instruction` is the explicit task request; `beatMessage`
+   remains the fallback for existing registrations.
 
 ---
 

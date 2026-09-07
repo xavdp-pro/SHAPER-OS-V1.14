@@ -20,6 +20,7 @@ const SHOP = defineCatalogue({
   },
   create_client: {
     kind: 'write',
+    standingAcceptable: true,
     reversible: true,
     reaches: 'record',
     touches: ['clients.name', 'clients.phone'],
@@ -241,7 +242,7 @@ test('invariant 9 — keeping a line whose support was dropped is refused before
   assert.equal(err.detail.needs, 'L1');
 });
 
-test('invariant 10 — the same acceptance carries the same key, so a retry creates once', () => {
+test('invariant 10 — retrying the same accepted set returns the same execution key', () => {
   const p = twoLines();
   const first = accept({ proposal: p, keep: ['L1', 'L2'], authority: 'sandrine' });
   const again = accept({ proposal: p, keep: ['L2', 'L1'], authority: 'sandrine' });
@@ -252,10 +253,81 @@ test('invariant 10 — the same acceptance carries the same key, so a retry crea
 
 test('invariant 7 — a standing rule accepts only what the catalogue lets it', () => {
   const p = twoLines();
-  // record-scoped writes are fine for a standing rule…
+  // This record-scoped write explicitly permits standing acceptance.
   assert.ok(accept({
     proposal: p, keep: ['L1'], authority: 'sandrine', standing: true,
   }).calls.length === 1);
+});
+
+test('invariant 7 — record scope alone never grants standing acceptance', () => {
+  const p = propose({
+    material: MATERIAL, catalogue: SHOP,
+    filled: [{ tool: 'create_task', span: spanOf('samedi'), args: { title: 'Prepare' } }],
+  });
+  assert.equal(refusal(() => accept({ proposal: p, keep: ['L1'], standing: true })).code, 'standing');
+  assert.equal(accept({ proposal: p, keep: ['L1'] }).calls.length, 1);
+});
+
+test('invariant 7 — an irreversible record cannot be accepted by a standing rule', () => {
+  const p = propose({
+    material: MATERIAL, catalogue: SHOP,
+    filled: [{ tool: 'issue_invoice', span: spanOf('2 bouquets'), args: { total: 64 } }],
+  });
+  assert.equal(refusal(() => accept({ proposal: p, keep: ['L1'], standing: true })).code, 'standing');
+  assert.equal(accept({ proposal: p, keep: ['L1'] }).calls.length, 1);
+});
+
+test('invariant 7 — reads also require explicit standing permission', () => {
+  const catalogue = defineCatalogue({
+    read_record: { kind: 'read', standingAcceptable: false, args: {} },
+  });
+  const p = propose({
+    material: MATERIAL, catalogue,
+    filled: [{ tool: 'read_record', span: spanOf('Leroy') }],
+  });
+  assert.equal(refusal(() => accept({ proposal: p, keep: ['L1'], standing: true })).code, 'standing');
+});
+
+test('invariants 6 and 10 — different proposed values have different identities and execution keys', () => {
+  const make = (title) => propose({
+    material: MATERIAL, catalogue: SHOP, authority: 'operator', now: 1000,
+    filled: [{ tool: 'create_task', span: spanOf('samedi'), args: { title } }],
+  });
+  const first = make('Prepare two bouquets');
+  const revised = make('Prepare three bouquets');
+  assert.notEqual(first.id, revised.id);
+  const accepted = (proposal) => accept({ proposal, keep: ['L1'], authority: 'operator', now: 1001 });
+  assert.notEqual(accepted(first).idempotencyKey, accepted(revised).idempotencyKey);
+  assert.equal(accepted(first).calls[0].args.title, 'Prepare two bouquets');
+  assert.equal(accepted(revised).calls[0].args.title, 'Prepare three bouquets');
+});
+
+test('invariant 6 — proposal identity binds authority, lifetime, tool and standing policy', () => {
+  const make = (options = {}) => propose({
+    material: MATERIAL, catalogue: SHOP, authority: 'operator', now: 1000,
+    filled: [{ tool: 'create_client', span: spanOf('Leroy'), args: { name: 'Leroy' } }],
+    ...options,
+  });
+  const original = make();
+  assert.notEqual(original.id, make({ authority: 'another-operator' }).id);
+  assert.notEqual(original.id, make({ lifeMs: 1000 }).id);
+  assert.notEqual(original.id, make({ filled: [{ tool: 'match_client', span: spanOf('Leroy'), args: { name: 'Leroy' } }] }).id);
+  const catalogue = defineCatalogue({
+    create_client: {
+      kind: 'write', reversible: true, reaches: 'record', standingAcceptable: false,
+      touches: ['clients.name', 'clients.phone'],
+      args: { name: { type: 'text', required: true }, phone: { type: 'text' } },
+    },
+  });
+  assert.notEqual(original.id, make({ catalogue }).id);
+});
+
+test('invariant 10 — argument property order does not change a proposal identity', () => {
+  const make = (args) => propose({
+    material: MATERIAL, catalogue: SHOP, authority: 'operator', now: 1000,
+    filled: [{ tool: 'create_client', span: spanOf('Leroy'), args }],
+  });
+  assert.equal(make({ name: 'Leroy', phone: '0612' }).id, make({ phone: '0612', name: 'Leroy' }).id);
 });
 
 // ── Bounds ────────────────────────────────────────────────────────────────

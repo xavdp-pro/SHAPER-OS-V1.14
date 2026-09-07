@@ -32,7 +32,7 @@ flowchart LR
 | `GET  /api/health` | Public probe (no token) |
 | `GET  /api/status` | State + `ready` (the serve answers) + the model in use |
 | `GET  /api/conversations` | Registered conversations |
-| `POST /api/inject` | `{ conversation, message, model?, attachments? }` |
+| `POST /api/inject` | `{ conversation, message, context?, model?, attachments? }` |
 | `GET  /api/events` | SSE, filterable with `?conversation=` |
 | `POST /api/conversations/stop` | `{ conversation }` or `{ all: true }` |
 | `POST /api/conversations/reset` | Forgets the session — the next run starts from zero |
@@ -42,6 +42,15 @@ flowchart LR
 
 Auth: `Authorization: Bearer <token>`, created on first start in
 `~/.config/opencode-bridge/token` (chmod 600).
+
+`context` is inline text from the authorised task configuration. A caller must
+read its own context file before sending the request: `context_file` and
+non-text context are refused with `400 INVALID_CONTEXT`. The bridge carries
+the context and request together to the backend.
+
+On a clean start, the bridge creates `OPENCODE_WS_BASE` before spawning its
+headless child. `OPENCODE_CONFIG_DIR` relocates the configuration directory
+written by the bridge (default: `~/.config/opencode`).
 
 ## Events emitted
 

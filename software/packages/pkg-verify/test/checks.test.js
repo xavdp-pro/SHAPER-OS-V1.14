@@ -59,6 +59,50 @@ describe('map-links — documentation is a map', () => {
 });
 
 describe('version-coherence — the release names itself once', () => {
+  it('checks a named base after cloning into an unversioned directory', () => {
+    const r = repo('renamed-base', {
+      'package.json': '{"name":"@shaper/os","version":"1.14.0-dev.0"}',
+      'software/packages/pkg-a/package.json': '{"version":"1.13.35"}',
+      'manifest.json': '{"version":"1.13.35","intent":"SHAPER-OS-V1.13/software/INTENT.md"}',
+    });
+    const findings = versionCoherence.run(r);
+    assert.equal(findings.length, 3, findings.join('\n'));
+    assert.match(findings.join('\n'), /points at V1\.13/);
+  });
+
+  it('uses the named base release even when its directory carries an older number', () => {
+    const r = repo('renamed/SHAPER-OS-V1.13', {
+      'package.json': '{"name":"@shaper/os","version":"1.14.0-dev.0"}',
+      'software/packages/pkg-a/package.json': '{"version":"1.14.0-dev.0"}',
+      'manifest.json': '{"version":"1.14.0-dev.0","intent":"SHAPER-OS-V1.14/software/INTENT.md"}',
+    });
+    assert.deepEqual(versionCoherence.run(r), []);
+  });
+
+  it('also checks a named catalogue without a version in its directory', () => {
+    const r = repo('renamed-catalogue', {
+      'package.json': '{"name":"@shaper/bricks","version":"1.14.0"}',
+      'packages/pkg-a/package.json': '{"version":"1.13.35"}',
+    });
+    assert.equal(versionCoherence.run(r).length, 1);
+  });
+
+  it('reports a malformed root package instead of throwing or silently skipping it', () => {
+    const r = repo('malformed-root', { 'package.json': '{ not json' });
+    const findings = versionCoherence.run(r);
+    assert.equal(findings.length, 1);
+    assert.match(findings[0], /package.json is not valid JSON/);
+  });
+
+  it('refuses missing or invalid release versions in a named base', () => {
+    for (const version of [undefined, 'latest', '1.14']) {
+      const r = repo(`invalid-release-${version}`, {
+        'package.json': JSON.stringify({ name: '@shaper/os', version }),
+      });
+      assert.equal(versionCoherence.run(r).length, 1);
+    }
+  });
+
   it('catches a manifest pointing at the previous base version', () => {
     const r = repo('SHAPER-OS-BRICKS-V1.12', {
       'package.json': '{"version": "1.11.0"}',

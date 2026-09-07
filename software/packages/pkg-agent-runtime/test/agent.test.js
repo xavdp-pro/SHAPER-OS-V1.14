@@ -5,11 +5,12 @@ import { probeBridgeHealth, buildInjectBody } from '../index.js';
 test('agent runtime - buildInjectBody uses generic task params', () => {
   const body = buildInjectBody({
     slug: 'task-mail-triage',
-    contextPath: '/ctx/ctx-mail-triage.md',
+    contextText: 'Use the declared classification rules.',
     instruction: 'Classify the received message.',
   });
   assert.equal(body.conversation, 'task-mail-triage-beat');
-  assert.equal(body.context_file, '/ctx/ctx-mail-triage.md');
+  assert.equal(body.context_file, null);
+  assert.equal(body.context, 'Use the declared classification rules.');
   assert.equal(body.message, 'Classify the received message.');
 });
 

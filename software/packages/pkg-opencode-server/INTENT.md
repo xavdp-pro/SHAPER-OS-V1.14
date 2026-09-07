@@ -31,6 +31,17 @@ Default active model: the free model verified and measured at deployment (Rule 7
    the binary is absent or cannot be executed, the bridge halts with exit
    code 2, naming the path it tried and the variable to set — never an
    uncaught exception, and never a retry loop against the same absent file.
+   <a id="context-transport"></a>
+4. **Configured context reaches the backend.** `/api/inject` accepts optional
+   inline `context` text and carries it with the request into `prompt_async`.
+   A non-text context or a caller-local `context_file` is refused as HTTP 400,
+   `INVALID_CONTEXT`, before a session is started. The caller resolves its own
+   file into text. A bridge must never silently discard that context.
+5. **The headless child's working directory exists before spawn.** Create
+   `OPENCODE_WS_BASE` on a clean start; if it cannot be created, halt with the
+   path and variable named. A missing cwd otherwise masquerades as an absent CLI.
+   The bridge's configuration directory can be relocated with
+   `OPENCODE_CONFIG_DIR`; its default remains the user's `.config/opencode`.
 
 ## What experience corrected
 

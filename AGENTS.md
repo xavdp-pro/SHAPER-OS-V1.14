@@ -181,6 +181,11 @@ decides.** Record the measurement with the choice.
 
 ## 6. Where the system currently stands
 
+This branch is preparing V1.14. After the required entry reading, consult
+[`docs/V1.14-WORKPLAN.md`](./docs/V1.14-WORKPLAN.md) for the active development
+state and the [operating contract](./docs/agent/OPERATING-CONTRACT.md).
+Historical V1.13 verdicts do not qualify changes made on this branch.
+
 Principles describe how it must behave. To learn what it has actually been proven
 to do, read the most recent verdict under
 `software/universes/*/proof/VERDICT.md`, then
@@ -212,3 +217,37 @@ first pointed at `docs/pkg-agent-runtime/`, a directory that never existed: a
 global rename reached inside link targets and nothing noticed for a release. You
 are the reader who pays for that, and you have no way to tell a missing file
 from your own mistake.
+
+---
+
+<a id="one-language-for-the-work"></a>
+## Talk in the operator's language, ship in English
+
+Conversation with the operator happens in their language. **Everything the
+repository carries is English**: code, identifiers, file names, comments, commit
+messages, documentation, error codes, and the notes agents leave each other.
+
+The product's own text is not covered by this. Strings a clinic reads are
+translated content, and they live in the dictionaries — `fr`, `en`, `ja` today,
+more tomorrow. A key is English; the sentence behind it is whatever the person
+in front of the screen speaks.
+
+*Why this is written here.* On 7 September 2026 an agent wrote a day of work in
+French: nineteen commits, two of them in this repository — the only two French
+commit messages in its history — plus function names, comments and inter-agent
+notes. Nothing was wrong with any of it in isolation. What was wrong is that the
+next reader is not guaranteed to be French, and a repository that speaks two
+languages costs every future reader a translation they did not ask for. The rule
+existed; it was spoken and never written, so it drifted, and the drift was
+invisible until someone said it out loud.
+
+The remedy is not a sweep. A repository already half-written in another language
+is repaired where it is touched, not by a rename that breaks every import,
+selector and error contract at once. **What you write today is English. What you
+find in another language, you convert when you are already changing that file,
+and never as a separate commit that changes nothing but words.**
+
+*A word on the operator's language.* Talking in it is not a courtesy, it is what
+makes the work correct: the person who knows what the clinic needs thinks in
+French, and asking them to think in English to talk to you would lose more than
+it saves. The boundary is the repository, not the conversation.

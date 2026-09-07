@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bearerAuthHeaders } from '../pkg-auth/index.js';
 import { ingestLog } from '../pkg-logger/ingest-client.js';
+import { readTaskContext } from './context.js';
 
 export function resolveContextPath(contextPath) {
   if (!contextPath) return null;
@@ -26,10 +27,14 @@ export async function probeBridgeHealth(healthUrl, authToken = '') {
 }
 
 export function buildInjectBody(entry, overrides = {}) {
+  const context = readTaskContext({
+    contextPath: overrides.context_file ?? entry.contextPath,
+    contextText: overrides.context ?? entry.contextText,
+  });
   return {
     conversation: overrides.conversation || `${entry.slug}-beat`,
-    context_file: overrides.context_file || resolveContextPath(entry.contextPath) || null,
-    context: overrides.context || entry.contextText || `Scheduled task for ${entry.slug}`,
+    context_file: null,
+    context: context || `Scheduled task for ${entry.slug}`,
     message: overrides.message || entry.instruction || entry.beatMessage || `Execute task ${entry.slug}.`,
   };
 }
@@ -58,19 +63,21 @@ export function createAgentRuntimeHandler({ bridgeBaseUrl, authToken = '', logge
       return { ok: false, skipped: true, reason: 'bridge_unhealthy', processed: 0 };
     }
 
-    const resolvedContext = resolveContextPath(entry.contextPath);
-    if (entry.contextPath && !fs.existsSync(resolvedContext)) {
+    let body;
+    try {
+      body = buildInjectBody(entry);
+    } catch (err) {
       await ingestLog({
         loggerUrl, pod: slug, event: 'BEAT_SKIPPED', level: 'WARN', correlationId: slug,
-        data: { reason: 'context_file_missing', path: entry.contextPath }, fetchImpl,
+        data: { reason: 'context_unreadable', path: entry.contextPath, error: err.message }, fetchImpl,
       });
-      return { ok: false, skipped: true, reason: 'context_file_missing', processed: 0 };
+      return { ok: false, skipped: true, reason: 'context_unreadable', processed: 0 };
     }
 
     const injectRes = await fetchImpl(`${bridgeUrl}/api/inject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...bearerAuthHeaders(authToken) },
-      body: JSON.stringify(buildInjectBody(entry)),
+      body: JSON.stringify(body),
     });
     const injectData = await injectRes.json().catch(() => ({}));
     if (!injectRes.ok || injectData.ok !== true) {
