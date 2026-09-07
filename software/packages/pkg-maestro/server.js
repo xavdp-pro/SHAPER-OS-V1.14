@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { MaestroScheduler, createMaestroServer } from './index.js';
 import { createAgentRuntimeHandler } from '../pkg-agent-runtime/index.js';
 import { createQueueBeatHandler } from './queue-beat.js';
+import { resolveContextPath, resolveCheckpointPath } from './task-paths.js';
 import { ingestLog } from '../pkg-logger/ingest-client.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,17 +59,21 @@ const scheduler = new MaestroScheduler({ service: 'brick-maestro', logDir: LOG_D
 
 if (TASKS_FILE && fs.existsSync(TASKS_FILE)) {
   const tasksPath = path.isAbsolute(TASKS_FILE) ? TASKS_FILE : path.resolve(SHAPER_ROOT, TASKS_FILE);
-  const tasksBaseDir = path.dirname(path.dirname(tasksPath));
+  const scheduleDir = path.dirname(tasksPath);
   const raw = JSON.parse(fs.readFileSync(tasksPath, 'utf8'));
   const tasks = Array.isArray(raw) ? raw : (raw.tasks || []);
   for (const task of tasks) {
-    if (task.contextPath && !path.isAbsolute(task.contextPath)) {
-      const candidate = path.resolve(tasksBaseDir, task.contextPath);
-      task.contextPath = fs.existsSync(candidate) ? candidate : path.resolve(SHAPER_ROOT, task.contextPath);
+    if (task.contextPath) {
+      const resolved = resolveContextPath(task.contextPath, { scheduleDir, shaperRoot: SHAPER_ROOT });
+      // A context file that cannot be found skips its beat for good. Say so at
+      // boot, naming every place we looked, instead of letting the operator
+      // discover it as a silent `context_unreadable` five minutes later.
+      if (!resolved.found) {
+        console.warn(`[brick-maestro] Task ${task.slug}: declared context "${task.contextPath}" not found — looked in ${resolved.tried.join(', ')}`);
+      }
+      task.contextPath = resolved.path;
     }
-    if (task.checkpointPath && !path.isAbsolute(task.checkpointPath)) {
-      task.checkpointPath = path.resolve(tasksBaseDir, task.checkpointPath);
-    }
+    task.checkpointPath = resolveCheckpointPath(task.checkpointPath, { scheduleDir });
     scheduler.registerTask(task);
   }
   console.log(`[brick-maestro] Loaded ${tasks.length} task(s)`);
