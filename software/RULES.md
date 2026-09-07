@@ -285,6 +285,37 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
 | A fork's catalogue | `<projet>-bricks` (Rule 33 forks only) | `fortex-bricks` |
 | The fleet map | `<scope>-fleet` | `shaper-fleet`, `fortex-fleet` |
 
+* **One repository per version of the base, and why** — `SHAPER-OS-V1.13` and
+  `SHAPER-OS-V1.14` are two repositories, not two branches of one. This is the
+  convention outsiders question first, so the reason is written here rather
+  than left to be re-explained.
+
+  A version of the base is **not a continuation, it is a slice**. Shaper OS is a
+  suite of intentions; the code is the present slice of them, disposable by
+  design. A branch says *the same thing, later*. A separate repository says
+  *this is what the intentions were, and it stays readable and runnable as
+  such*. Nothing is merged forward: 1.14 is a re-cut, not 1.13 plus commits.
+
+  Three consequences make it hold:
+
+  * **The fleet map pins a repo and a tag** (Rule 37). A universe running 1.13
+    names a repository whose HEAD still is 1.13. Share one repository across
+    versions and answering *what does 1.13 say* needs a checkout, forever, for
+    everyone.
+  * **`shaper verify` reads the release from the folder name** when the root
+    package is not a named release repo, so the convention checks itself.
+  * **Versions run side by side.** Several are on disk and deployed at once;
+    they are not a history to walk back through, they are neighbours.
+
+  **What it costs, stated plainly**, because anyone who asks deserves the whole
+  trade: history is duplicated, issues do not follow, and a fix in one version
+  does not flow to the others — it is carried by hand or not at all. We accept
+  that, because a slice whose code is disposable does not earn an automatic
+  merge. And it has one trap, which has already been paid for: a version folder
+  is made by copying the previous one, `.git` included, so **its remote is
+  inherited and points at the wrong repository until corrected**. Check
+  `git remote -v` before the first push of any new version.
+
 * **The mirror rule (Rule 33 forks)**: a fork swaps **only the projet word**
   and keeps every classe word, repo kind and file name verbatim
   (`univ-boutik-shop → univ-fortex-shop`). A fork costs zero new vocabulary,
