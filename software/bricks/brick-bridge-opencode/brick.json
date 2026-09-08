@@ -1,14 +1,16 @@
 {
   "brick": "bridge-opencode",
-  "contractVersion": 1,
+  "contractVersion": 2,
   "distribution": "base",
   "buildPackages": [
-    "pkg-opencode-server"
+    "pkg-opencode-server",
+    "pkg-bridge-contract"
   ],
   "runtimeServices": [],
   "proof": [
     "bridge health",
     "authenticated vitals",
-    "pinned CLI version"
+    "pinned CLI version",
+    "shaper-bridge/v1 status"
   ]
 }

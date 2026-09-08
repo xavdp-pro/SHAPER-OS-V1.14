@@ -38,6 +38,7 @@ import {
 } from './translate.mjs';
 import { unwrapGlobalEvent, withDirectory } from './api-path.mjs';
 import { opencodeBridgeVitals } from './vitals.mjs';
+import { bridgeStatus } from '../pkg-bridge-contract/index.js';
 
 const PORT = Number(process.env.OPENCODE_BRIDGE_PORT || 4440);
 const BIND = process.env.OPENCODE_BRIDGE_BIND || '127.0.0.1';
@@ -596,16 +597,22 @@ const server = http.createServer(async (req, res) => {
   if (!authed(req)) return send(res, 401, { ok: false, error: 'Unauthorized' });
 
   if (p === '/api/status') {
-    return send(res, 200, {
-      ok: true,
+    return send(res, 200, bridgeStatus({
       ready: serveReady,
       service: 'brick-bridge-opencode',
+      capabilities: {
+        stopRun: true,
+        resetSession: true,
+        bindWorkspace: true,
+        attachments: true,
+        modelSelection: true,
+      },
       registry: SESSIONS_FILE,
       ws_base: WS_BASE,
       port: PORT,
       serve_url: SERVE_URL,
       model: MODEL,
-    });
+    }));
   }
   if (p === '/api/vitals') {
     const conversations = Object.keys(loadSessions().conversations).length;
