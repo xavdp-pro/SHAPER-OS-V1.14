@@ -24,6 +24,7 @@ If a step is law, it is **mandatory**. Convenience is not a reason to skip it.
 | **A repair loop that can give up** | Hammer a failing child forever instead of raising `DEGRADED` |
 | **Every fixed bug ships its test** | Close a defect on "it works now" |
 | **The canon is read in full** | Replace `RULES.md` content with a pointer to itself |
+| **Rule 0: Human dialogue in French, 100% code & docs in English** | Write French in code, comments, or technical docs, or address the operator in English |
 
 If a check fails: **stop**. Fix it. Do not stub your way to green.
 

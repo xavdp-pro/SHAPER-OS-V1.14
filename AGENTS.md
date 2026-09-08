@@ -9,6 +9,12 @@ do not soften the law to make your task easier.
 
 ---
 
+> ### 🌐 Absolute Invariant — Rule 0: Language & Collaboration Protocol
+> * **Human Operator Dialogue in French**: All pair programming interactions, strategic questions, problem reviews, and plan alignments with the human operator are conducted strictly in **French**.
+> * **100% Technical Artifacts in English**: All source code, docstrings, variable/type names, schemas, JSON configs, documentation files (`README.md`, `LAW.md`, architecture guides), commit messages, scripts, and logs MUST be written in **English**. Zero exceptions.
+
+---
+
 ## 1. Take the reading that matches you
 
 The corpus is large. Reading it in the wrong order is why an agent ends up
