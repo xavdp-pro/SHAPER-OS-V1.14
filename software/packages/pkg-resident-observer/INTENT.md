@@ -22,8 +22,8 @@ evidence without changing the observed universe.
    role to an address and never sends a notification.
 6. There is no command executor, remediation callback, write endpoint, restart,
    deployment or provider call in this package.
-7. Observation response bodies are bounded and retained as evidence only when
-   the context explicitly requests JSON equality checks.
+7. Observation response bodies are bounded. When the context explicitly
+   requests JSON equality checks, evidence retains only the declared keys.
 
 ## Boundary
 

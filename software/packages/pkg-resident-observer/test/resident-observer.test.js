@@ -87,6 +87,34 @@ test('declared JSON evidence is bounded before parsing or persistence', async (t
   assert.equal(JSON.stringify(result).includes('padding'), false);
 });
 
+test('JSON evidence retains only keys declared by the context', async (t) => {
+  const directory = workspace(t);
+  const server = http.createServer((_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ status: 'degraded', service: 'brick-voice', patientName: 'must-not-persist' }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+
+  const contextPath = writeContext(directory, context({
+    observations: [{
+      id: 'voice-health',
+      url: `http://127.0.0.1:${server.address().port}/health`,
+      expectedStatuses: [200],
+      expectedJson: { status: 'ok', service: 'brick-voice' },
+    }],
+  }));
+  const journalPath = path.join(directory, 'incidents.jsonl');
+  const result = await createResidentObserver({ contextPath, journalPath }).observe();
+
+  assert.deepEqual(result.events[0].facts[0].evidence.observedJson, {
+    status: 'degraded',
+    service: 'brick-voice',
+  });
+  assert.equal(JSON.stringify(result).includes('patientName'), false);
+  assert.equal(fs.readFileSync(journalPath, 'utf8').includes('must-not-persist'), false);
+});
+
 test('observation uses GET only and appends facts without hypotheses or delivery', async (t) => {
   const directory = workspace(t);
   const methods = [];

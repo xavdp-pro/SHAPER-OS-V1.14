@@ -9,6 +9,13 @@ function sameExpectedJson(actual, expected) {
   return Object.entries(expected).every(([key, value]) => Object.hasOwn(actual, key) && actual[key] === value);
 }
 
+function selectExpectedJson(actual, expected) {
+  if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return null;
+  return Object.fromEntries(
+    Object.keys(expected).filter((key) => Object.hasOwn(actual, key)).map((key) => [key, actual[key]]),
+  );
+}
+
 function incidentId(universe, observationId) {
   return crypto.createHash('sha256').update(`${universe}\n${observationId}`).digest('hex').slice(0, 24);
 }
@@ -91,7 +98,7 @@ async function collectHttpFact(observation, fetchImpl, observedAt) {
           expectedStatuses: observation.expectedStatuses,
           ...(observation.expectedJson === undefined ? {} : {
             expectedJson: observation.expectedJson,
-            observedJson: json,
+            observedJson: selectExpectedJson(json, observation.expectedJson),
             jsonError,
           }),
         },
