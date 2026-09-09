@@ -1,0 +1,12 @@
+{
+  "name": "@shaper/pkg-resident-observer",
+  "version": "1.14.0",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "shaper-resident-observe": "runner.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
