@@ -66,6 +66,7 @@ Outside those two cases, the tiers change nothing: you comply with all of them.
 
 ---
 
+<a id="rule-0-language-collaboration-protocol"></a>
 ### Rule 0: Language & Collaboration Protocol
 * **English for All Technical Assets**: 100% of source code, variable/function names, API schemas, JSON payloads, Git commit messages, branch names, technical specifications, and repository documentation (`README.md`, `RULES.md`, `ctx-universe.md`) MUST be written strictly in **English**.
 * **French for Human-Agent Pair Programming**: All strategic discussions, planning sessions, architectural reflections, live brainstormings, and human interactions are conducted fluently in **French**.

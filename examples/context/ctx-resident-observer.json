@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "contextVersion": "example-runtime-observer/1",
+  "universe": "univ-example-dev",
+  "role": "resident-observer",
+  "purpose": "Record factual service degradation without changing the observed universe.",
+  "authority": {
+    "mode": "read-only"
+  },
+  "permittedOutputs": [
+    "incident-journal"
+  ],
+  "stopConditions": [
+    "Stop when the context cannot be read or validated.",
+    "Stop when the incident journal cannot be read or appended."
+  ],
+  "recoveryBoundary": "record-recovery-fact-only",
+  "escalationDestination": {
+    "kind": "role",
+    "id": "universe_operator"
+  },
+  "observations": [
+    {
+      "id": "service-health",
+      "url": "http://127.0.0.1:8080/api/health",
+      "method": "GET",
+      "expectedStatuses": [
+        200
+      ],
+      "expectedJson": {
+        "ok": true
+      },
+      "timeoutMs": 2500
+    }
+  ]
+}

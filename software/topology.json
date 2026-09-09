@@ -30,6 +30,7 @@
       "@shaper/pkg-bridge-deepseek",
       "@shaper/pkg-bridge-opencode",
       "opencode-bridge",
+      "@shaper/pkg-resident-observer",
       "@shaper/pkg-supervisor"
     ]
   },
@@ -92,6 +93,7 @@
   "packageImports": {
     "@shaper/pkg-maestro": ["@shaper/pkg-logger", "@shaper/pkg-agent-runtime", "@shaper/pkg-vault"],
     "@shaper/pkg-agent-runtime": ["@shaper/pkg-auth"],
+    "@shaper/pkg-resident-observer": [],
     "@shaper/pkg-vault": [],
     "@shaper/pkg-queue": [],
     "@shaper/pkg-logger": [],
