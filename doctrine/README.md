@@ -49,7 +49,7 @@ This directory gathers the **12 founding reference documents** and the convergen
 
 This **`doctrine/` directory is the single source of truth** for the corpus, and since v1.8 it is the *only* copy. The nine convenience mirrors that used to live under `software/docs/` were byte-identical duplicates, which left an agent no way to know which copy was authoritative; they were removed and `software/docs/DOC-INDEX.md` now references these originals directly.
 
-The binding, executable law remains [`software/RULES.md`](../software/RULES.md) — **Rules 0 to 0K, then 1 to 29**, with no abbreviation and no cross-reference: an agent must be able to read the entire canon in that one file.
+The binding, executable law remains [`software/RULES.md`](../software/RULES.md) — **Rules 0 to 0K, then 1 to 37 — forty-nine in all**, with no abbreviation and no cross-reference: an agent must be able to read the entire canon in that one file.
 
 ---
 
