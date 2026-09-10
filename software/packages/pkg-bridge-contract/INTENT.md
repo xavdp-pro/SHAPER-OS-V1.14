@@ -1,5 +1,7 @@
 # pkg-bridge-contract
 
+> **Intent Classification**: GENERIC INTENT (Universal / Parameterized Blueprint)
+
 ## Objective
 
 Define the provider-neutral contract between SHAPER callers and cognition
