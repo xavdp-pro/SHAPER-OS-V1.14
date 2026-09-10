@@ -12,6 +12,9 @@
 2. <Cadence / logging rule>
 3. <Secret handling rule>
 4. <Test / PRA rule>
+5. Explicit image locks and startup posture survive deployment unchanged: an invalid
+   digest or startup flag halts before container replacement; dormant scheduling
+   and a loopback bridge remain dormant and loopback until deliberately changed.
 
 ## 3. Document map
 

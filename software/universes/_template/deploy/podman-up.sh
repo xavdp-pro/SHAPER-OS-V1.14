@@ -55,8 +55,15 @@ fi
 # trip that halt — the defect above, met again one bridge over.
 KEEP_VARS=(OPENCODE_MODEL CURSOR_MODEL AGY_MODEL ANTIGRAVITY_MODEL
            SHAPER_REGISTRY SHAPER_IMAGE_TAG SHAPER_TLS_VERIFY
-           VAULT_MASTER_KEY VAULT_TOKEN APP_PASSWORD MAESTRO_QUEUE_URL)
+           VAULT_MASTER_KEY VAULT_TOKEN APP_PASSWORD MAESTRO_QUEUE_URL
+           SHAPER_IMAGE_LOCK_FILE QUEUE_AUTO_DISPATCH MAESTRO_AUTO_START OPENCODE_BRIDGE_BIND)
 for v in "${KEEP_VARS[@]}"; do declare -g "__KEEP_$v=${!v:-}"; done
+# For explicit startup controls, even an empty export is intentional input.
+# Preserve it so validation rejects it instead of a file silently enabling work.
+declare -A __EXPLICIT_STARTUP=()
+for v in SHAPER_IMAGE_LOCK_FILE QUEUE_AUTO_DISPATCH MAESTRO_AUTO_START OPENCODE_BRIDGE_BIND; do
+  if [[ -v "$v" ]]; then __EXPLICIT_STARTUP[$v]="${!v}"; fi
+done
 
 # A variables file holds only variables. `source` EXECUTES every line that is
 # not blank, a comment, or KEY=value — and on the first night Rule 11 ran in
@@ -120,6 +127,9 @@ fi
 for v in "${KEEP_VARS[@]}"; do
   k="__KEEP_$v"; [[ -n "${!k}" ]] && export "$v=${!k}"
 done
+for v in "${!__EXPLICIT_STARTUP[@]}"; do
+  export "$v=${__EXPLICIT_STARTUP[$v]}"
+done
 
 # The halt must SPEAK. Under set -u a bare $ENV_FILE in this message crashed
 # the script with "ENV_FILE: unbound variable" whenever the key was missing
@@ -171,6 +181,25 @@ export MAESTRO_PORT="${MAESTRO_PORT:-$(manifest_port brick-maestro 8630)}"
 # V1.13.1 a withdrawn model was hardcoded here — the very one documented as
 # timing out on the reference host.)
 export OPENCODE_MODEL="${OPENCODE_MODEL:?not set — measure engines from this host (Rule 7): podman run --rm --entrypoint opencode <bridge-image> models}"
+# Dormant integration is explicit. Validate before bootstrap, pulls, or removal;
+# passing an invalid flag through to a service can silently enable it.
+export QUEUE_AUTO_DISPATCH="${QUEUE_AUTO_DISPATCH-1}"
+export MAESTRO_AUTO_START="${MAESTRO_AUTO_START-1}"
+for flag in QUEUE_AUTO_DISPATCH MAESTRO_AUTO_START; do
+  case "${!flag}" in
+    0|1) ;;
+    *) echo "[podman-up] $flag must be 0 or 1" >&2; exit 1 ;;
+  esac
+done
+export OPENCODE_BRIDGE_BIND="${OPENCODE_BRIDGE_BIND-0.0.0.0}"
+python3 - "$OPENCODE_BRIDGE_BIND" <<'PYBIND'
+import ipaddress, sys
+try:
+    ipaddress.ip_address(sys.argv[1])
+except ValueError:
+    print("[podman-up] OPENCODE_BRIDGE_BIND must be an IP address", file=sys.stderr)
+    sys.exit(1)
+PYBIND
 export DEEPGRAM_API_KEY="${DEEPGRAM_API_KEY:-}"
 export GROQ_API_KEY="${GROQ_API_KEY:-}"
 # The queue is the universe's unit of work. Lanes are how it is sized to the
@@ -289,7 +318,7 @@ podman run -d --name "${SLUG}-logger" --network "$NET" --replace \
 echo "[podman-up] queue :$QUEUE_PORT"
 podman run -d --name "${SLUG}-queue" --network "$NET" --replace \
   -e QUEUE_PORT="$QUEUE_PORT" \
-  -e QUEUE_AUTO_DISPATCH=1 \
+  -e QUEUE_AUTO_DISPATCH="$QUEUE_AUTO_DISPATCH" \
   -e LOGGER_URL="http://127.0.0.1:$LOGGER_PORT" \
   -e QUEUE_BRIDGE_URL="http://127.0.0.1:$OPENCODE_BRIDGE_PORT" \
   -e QUEUE_BRIDGE_TOKEN="$BRIDGE_AUTH_TOKEN" \
@@ -304,7 +333,7 @@ podman run -d --name "${SLUG}-queue" --network "$NET" --replace \
 echo "[podman-up] bridge-opencode :$OPENCODE_BRIDGE_PORT"
 podman run -d --name "${SLUG}-bridge-opencode" --network "$NET" --replace \
   -e OPENCODE_BRIDGE_PORT="$OPENCODE_BRIDGE_PORT" \
-  -e OPENCODE_BRIDGE_BIND=0.0.0.0 \
+  -e OPENCODE_BRIDGE_BIND="$OPENCODE_BRIDGE_BIND" \
   -e OPENCODE_SERVE_PORT="$OPENCODE_SERVE_PORT" \
   -e OPENCODE_BIN=/usr/local/bin/opencode \
   -e OPENCODE_WS_BASE=/data/opencode-ws \
@@ -371,7 +400,7 @@ fi
 echo "[podman-up] maestro :$MAESTRO_PORT"
 podman run -d --name "${SLUG}-maestro" --network "$NET" --replace \
   -e MAESTRO_PORT="$MAESTRO_PORT" \
-  -e MAESTRO_AUTO_START=1 \
+  -e MAESTRO_AUTO_START="$MAESTRO_AUTO_START" \
   -e VAULT_URL="http://127.0.0.1:$VAULT_PORT" \
   -e VAULT_TOKEN \
   -e LOGGER_URL="http://127.0.0.1:$LOGGER_PORT" \

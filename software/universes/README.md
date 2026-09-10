@@ -61,3 +61,25 @@ the class of defect is permanent, because a bind mount to a missing directory
 fails in a way that names the container rather than the mistake. The machine
 where a script is written always has the directories — that is precisely why the
 author cannot see them.
+
+<a id="explicit-startup-posture"></a>
+## Explicit image locks and dormant startup
+
+`_template/deploy/podman-up.sh` accepts `SHAPER_IMAGE_LOCK_FILE`, a JSON object
+mapping image keys to OCI digest references, either directly or beneath `images`.
+An explicit lock wins over registry/tag defaults. A missing file, invalid JSON,
+missing required image, or non-digest value fails before container replacement;
+it never falls back to a tag. Without an explicit lock, the existing registry/tag
+resolution remains unchanged.
+
+A staged integration can set `QUEUE_AUTO_DISPATCH=0`, `MAESTRO_AUTO_START=0` and
+`OPENCODE_BRIDGE_BIND=127.0.0.1`. Startup flags must be exactly `0` or `1`; the bind
+value must be an IP address. These exports survive source-local environment
+files. Without explicit values, the legacy defaults remain `1`, `1` and
+`0.0.0.0`. Dormant startup is not a working autonomous agent and does not prove a
+job or an alert was delivered.
+
+The regression recorder in `pkg-universe/test/dormant-factory.test.js` checks the
+actual shell arguments and early refusal. It is a unit test of deployment
+arguments, not a substitute for real Podman inspection, persisted Queue results,
+Logger correlation, or listener verification on the target.

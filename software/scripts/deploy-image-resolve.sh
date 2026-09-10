@@ -8,7 +8,7 @@
 # hit it. Sourced by deploy/podman-up.sh; not an executable.
 #
 # The ladder, per brick key (img-<component>):
-#   1. The caller's own pin (an image lock) — resolved BEFORE calling this.
+#   1. SHAPER_IMAGE_LOCK_FILE — an explicit per-image digest lock, fail closed.
 #   2. ${SHAPER_REGISTRY}/shaper/brick-<component>:${SHAPER_IMAGE_TAG}
 #      — exactly what scripts/build-brick-*.sh published. The registry is an
 #      INFRASTRUCTURE PREREQUISITE, one per machine: if you do not know this
@@ -20,6 +20,32 @@
 
 shaper_image_ref() {
   local key="$1" component="${1#img-}"
+  if [[ -v SHAPER_IMAGE_LOCK_FILE ]]; then
+    # An explicit lock is authoritative, including when it is invalid. Never
+    # turn a missing pin into the mutable tag ladder below.
+    python3 - "${SHAPER_IMAGE_LOCK_FILE}" "$key" <<'PYLOCK'
+import json, re, sys
+file, key = sys.argv[1:]
+try:
+    if not file:
+        raise ValueError("SHAPER_IMAGE_LOCK_FILE is empty")
+    with open(file, encoding="utf-8") as stream:
+        document = json.load(stream)
+    if not isinstance(document, dict):
+        raise ValueError("image lock must be an object")
+    images = document.get("images", document)
+    if not isinstance(images, dict):
+        raise ValueError("images must be an object")
+    value = images.get(key)
+    if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9][a-z0-9.:-]*(?:/[a-z0-9][a-z0-9._-]*)+@sha256:[a-f0-9]{64}", value):
+        raise ValueError("missing or invalid digest reference for " + key)
+    print(value)
+except (OSError, ValueError) as error:
+    print("[deploy] explicit image lock refused: " + str(error), file=sys.stderr)
+    sys.exit(1)
+PYLOCK
+    return $?
+  fi
   if [[ -n "${SHAPER_REGISTRY:-}" && -n "${SHAPER_IMAGE_TAG:-}" ]]; then
     echo "${SHAPER_REGISTRY}/shaper/brick-${component}:${SHAPER_IMAGE_TAG}"
     return
