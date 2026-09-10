@@ -56,12 +56,13 @@ fi
 KEEP_VARS=(OPENCODE_MODEL CURSOR_MODEL AGY_MODEL ANTIGRAVITY_MODEL
            SHAPER_REGISTRY SHAPER_IMAGE_TAG SHAPER_TLS_VERIFY
            VAULT_MASTER_KEY VAULT_TOKEN APP_PASSWORD MAESTRO_QUEUE_URL
-           SHAPER_IMAGE_LOCK_FILE QUEUE_AUTO_DISPATCH MAESTRO_AUTO_START OPENCODE_BRIDGE_BIND)
+           SHAPER_IMAGE_LOCK_FILE QUEUE_AUTO_DISPATCH MAESTRO_AUTO_START OPENCODE_BRIDGE_BIND
+           VAULT_HOST LOGGER_HOST QUEUE_HOST MAESTRO_HOST)
 for v in "${KEEP_VARS[@]}"; do declare -g "__KEEP_$v=${!v:-}"; done
 # For explicit startup controls, even an empty export is intentional input.
 # Preserve it so validation rejects it instead of a file silently enabling work.
 declare -A __EXPLICIT_STARTUP=()
-for v in SHAPER_IMAGE_LOCK_FILE QUEUE_AUTO_DISPATCH MAESTRO_AUTO_START OPENCODE_BRIDGE_BIND; do
+for v in SHAPER_IMAGE_LOCK_FILE QUEUE_AUTO_DISPATCH MAESTRO_AUTO_START OPENCODE_BRIDGE_BIND VAULT_HOST LOGGER_HOST QUEUE_HOST MAESTRO_HOST; do
   if [[ -v "$v" ]]; then __EXPLICIT_STARTUP[$v]="${!v}"; fi
 done
 
@@ -192,13 +193,19 @@ for flag in QUEUE_AUTO_DISPATCH MAESTRO_AUTO_START; do
   esac
 done
 export OPENCODE_BRIDGE_BIND="${OPENCODE_BRIDGE_BIND-0.0.0.0}"
-python3 - "$OPENCODE_BRIDGE_BIND" <<'PYBIND'
-import ipaddress, sys
-try:
-    ipaddress.ip_address(sys.argv[1])
-except ValueError:
-    print("[podman-up] OPENCODE_BRIDGE_BIND must be an IP address", file=sys.stderr)
-    sys.exit(1)
+export VAULT_HOST="${VAULT_HOST-0.0.0.0}"
+export LOGGER_HOST="${LOGGER_HOST-0.0.0.0}"
+export QUEUE_HOST="${QUEUE_HOST-0.0.0.0}"
+export MAESTRO_HOST="${MAESTRO_HOST-0.0.0.0}"
+# Each daemon consumes its own HOST variable; ambient HOST is not propagated.
+python3 - <<'PYBIND'
+import ipaddress, os, sys
+for key in ("OPENCODE_BRIDGE_BIND", "VAULT_HOST", "LOGGER_HOST", "QUEUE_HOST", "MAESTRO_HOST"):
+    try:
+        ipaddress.ip_address(os.environ[key])
+    except ValueError:
+        print("[podman-up] " + key + " must be an IP address", file=sys.stderr)
+        sys.exit(1)
 PYBIND
 export DEEPGRAM_API_KEY="${DEEPGRAM_API_KEY:-}"
 export GROQ_API_KEY="${GROQ_API_KEY:-}"
@@ -299,6 +306,7 @@ NET="${PODMAN_NETWORK:-host}"
 echo "[podman-up] vault :$VAULT_PORT"
 podman run -d --name "${SLUG}-vault" --network "$NET" --replace \
   -e VAULT_PORT="$VAULT_PORT" \
+  -e VAULT_HOST="$VAULT_HOST" \
   -e VAULT_MASTER_KEY \
   -e VAULT_TOKEN \
   -e VAULT_STORAGE_FILE=/data/vault/vault.enc \
@@ -308,6 +316,7 @@ podman run -d --name "${SLUG}-vault" --network "$NET" --replace \
 echo "[podman-up] logger :$LOGGER_PORT"
 podman run -d --name "${SLUG}-logger" --network "$NET" --replace \
   -e LOGGER_PORT="$LOGGER_PORT" \
+  -e LOGGER_HOST="$LOGGER_HOST" \
   -e LOG_DIR=/data/logger \
   -v "$UNIV/log:/data/logger:Z" \
   "$IMG_LOGGER"
@@ -318,6 +327,7 @@ podman run -d --name "${SLUG}-logger" --network "$NET" --replace \
 echo "[podman-up] queue :$QUEUE_PORT"
 podman run -d --name "${SLUG}-queue" --network "$NET" --replace \
   -e QUEUE_PORT="$QUEUE_PORT" \
+  -e QUEUE_HOST="$QUEUE_HOST" \
   -e QUEUE_AUTO_DISPATCH="$QUEUE_AUTO_DISPATCH" \
   -e LOGGER_URL="http://127.0.0.1:$LOGGER_PORT" \
   -e QUEUE_BRIDGE_URL="http://127.0.0.1:$OPENCODE_BRIDGE_PORT" \
@@ -400,6 +410,7 @@ fi
 echo "[podman-up] maestro :$MAESTRO_PORT"
 podman run -d --name "${SLUG}-maestro" --network "$NET" --replace \
   -e MAESTRO_PORT="$MAESTRO_PORT" \
+  -e MAESTRO_HOST="$MAESTRO_HOST" \
   -e MAESTRO_AUTO_START="$MAESTRO_AUTO_START" \
   -e VAULT_URL="http://127.0.0.1:$VAULT_PORT" \
   -e VAULT_TOKEN \

@@ -92,3 +92,28 @@ test('empty explicit startup values refuse rather than inherit active defaults f
     assert.equal(result.calls.length, 0);
   }
 });
+
+test('all core bind exports survive source defaults and reach their daemon-specific host contract', t => {
+  const f = setup(t);
+  const hosts = ['VAULT_HOST', 'LOGGER_HOST', 'QUEUE_HOST', 'MAESTRO_HOST'];
+  fs.writeFileSync(path.join(f.software, '.env'), hosts.map(key => `${key}=0.0.0.0`).join('\n') + '\n');
+  const result = f.run(Object.fromEntries(hosts.map(key => [key, '127.0.0.1'])));
+  assert.equal(result.status, 0, result.stderr);
+  for (const key of hosts) assert.ok(named(result, key.replace('_HOST', '').toLowerCase()).includes(`${key}=127.0.0.1`));
+});
+
+test('core bind defaults remain compatible when no host is declared', t => {
+  const f = setup(t), result = f.run();
+  assert.equal(result.status, 0, result.stderr);
+  for (const key of ['VAULT_HOST', 'LOGGER_HOST', 'QUEUE_HOST', 'MAESTRO_HOST']) assert.ok(named(result, key.replace('_HOST', '').toLowerCase()).includes(`${key}=0.0.0.0`));
+});
+
+test('empty and invalid explicit core host exports refuse before Podman even with source defaults', t => {
+  const f = setup(t), hosts = ['VAULT_HOST', 'LOGGER_HOST', 'QUEUE_HOST', 'MAESTRO_HOST'];
+  fs.writeFileSync(path.join(f.software, '.env'), hosts.map(key => `${key}=0.0.0.0`).join('\n') + '\n');
+  for (const key of hosts) for (const value of ['', 'invalid;bind']) {
+    const result = f.run({ [key]: value });
+    assert.notEqual(result.status, 0);
+    assert.equal(result.calls.length, 0);
+  }
+});

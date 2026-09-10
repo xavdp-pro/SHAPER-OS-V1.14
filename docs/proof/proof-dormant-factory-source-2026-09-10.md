@@ -54,3 +54,12 @@ key nor an example model constitutes valid deployment input.
 This correction does not implement rollback, dynamic manifest boot execution,
 a Vox integration, a production promotion, a matrix or a maker recipe. Those are
 separate contracts; shell argument correctness does not satisfy them.
+
+## Additional loopback qualification
+
+The factory also preserves and validates explicit `VAULT_HOST`, `LOGGER_HOST`,
+`QUEUE_HOST` and `MAESTRO_HOST` IP addresses. Their existing default remains
+`0.0.0.0`; the Vox DEV assembly explicitly selects `127.0.0.1` for all four.
+Three further recorder regressions failed before this correction and now pass,
+including empty/invalid values refused before any Podman operation. Nine focused
+factory tests pass. Actual listener addresses still require target inspection.
