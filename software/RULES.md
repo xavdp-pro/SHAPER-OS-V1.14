@@ -848,6 +848,39 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
 ---
 
 ### Rule 20: Typed Closed-Loop Quality Gate (Verification Before Delivery)
+
+<a id="rule-20-functional-test-means"></a>
+* **Construction includes functional verification.** Before building, the
+  constructing agent in the human-agent tandem inventories the scoped features
+  from the applicable intents, rules and manifest, including inherited base
+  capabilities and specialization. The same checklist defines expected results
+  before implementation and carries actual execution evidence after assembly.
+* **Test means follow the delivered interaction.** For every feature, the agent
+  determines, prepares and verifies the tools, access, equipment, test data and
+  observation channels needed to exercise its real usage. This is open-ended:
+  command-line features require actual commands; APIs require actual requests;
+  web interfaces require a controlled browser (for example Playwright); mobile
+  applications require control of the installed app on an authorized device;
+  physical integrations require appropriate control/stimulation and independent
+  observation of the equipment. No fixed technology list limits this obligation.
+* **Exercise every scoped feature on the assembled target.** The constructing
+  agent executes the scenarios through their delivered surfaces and verifies
+  downstream results outside the producer. Test each exposed contract and the
+  cross-surface journey where applicable. A build, unit suite, health endpoint,
+  screenshot or API success alone cannot stand in for the complete user journey.
+  After correction, rerun the failed scenario and affected dependent scenarios.
+* **Record what actually happened.** Each checklist item carries the target and
+  source version, execution date, steps, expected and observed results, actual
+  evidence reference, execution actor and coverage limits. Independent review
+  supplements the agent's own functional run; human acceptance remains separate.
+* **Missing test means are an explicit gap, never a pass.** Inspect available
+  means first and prepare what the existing mandate authorizes. If required
+  hardware, access or authority is missing, record NOT VERIFIED, the blocker and
+  the smallest operator action needed; continue other authorized checks. No new
+  spending, unauthorized external call or physical actuation is implied.
+  Simulators/emulators qualify only what they actually exercise, never an absent
+  real device or connector. Human-assisted execution is attributed honestly.
+
 * **Pre-Delivery Verification by Livrable Type**:
   * No job or generated output can transition to status `COMPLETED` in `@shaper/pkg-queue` without passing its typed verification contract:
     * **Code & Scripts**: Native unit test suite (`node --test`), linter, ephemeral sandbox.

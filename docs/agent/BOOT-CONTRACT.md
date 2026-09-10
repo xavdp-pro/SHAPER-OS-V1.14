@@ -105,6 +105,9 @@ thing that produced it** — the artefact inspected byte for byte, the audit eve
 correlated with the job id (Rules 0G, 20, 23). No fake, no fallback, no stub on
 the way to green.
 
+The constructing agent's checklist, test equipment and per-surface functional
+execution duties are binding in [Rule 20](../../software/RULES.md#rule-20-functional-test-means).
+
 ## 9b — If this is a beta test, the report is the deliverable
 
 Operating the system and being asked to test it are different mandates. When a
