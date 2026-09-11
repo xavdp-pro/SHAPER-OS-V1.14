@@ -23,6 +23,27 @@ of the data, and of every decision the agent is not allowed to take alone.
 
 ---
 
+## Why this helps people work together
+
+The aim is more useful autonomy, fewer misunderstandings and costly mistakes,
+and clearer ways to correct them. A shared method makes intentions, limits,
+evidence and responsibilities easier to carry between people, agents and projects.
+
+| Relationship | Practical benefit sought |
+| --- | --- |
+| Human to agent | Express the desired result and scope without prescribing every step; distinguish verified work from assumptions |
+| Agent to agent | Share context and independent objections without turning a recommendation into permission |
+| Agent to human | Present results, uncertainty and decisions that need the person's judgment |
+| Human to human | Discuss facts, commitments and consequences without reducing disagreement to a judgment of the person |
+
+The same method can be reused in another team or universe while adapting its
+values, roles and permissions. People retain their choices; agents act within
+explicit mandates. Firm limits coexist with openness to evidence and correction.
+These are intended benefits, not measured guarantees: written principles alone
+neither remove hallucinations nor prove that a deployed system follows them.
+
+See the [operating contract](docs/agent/OPERATING-CONTRACT.md) and [documented qualification boundary](docs/proof/proof-decision-hygiene-contract.md).
+
 ## 📖 Start with the reading that fits you
 
 This repository is read by two kinds of reader, and they do not need the same
@@ -552,3 +573,21 @@ logger holds the evidence that it did. That output is the proof — not this pag
 **Author:** Xavier DE POORTER / XDP LLC · **Missions:** Short & long term architecture & implementation — [xavier@xavdp.pro](mailto:xavier@xavdp.pro) · [LinkedIn](https://www.linkedin.com/in/xavier-de-poorter)  
 **Live Showcase:** [https://shaper.xavdp.pro](https://shaper.xavdp.pro) · [https://xavdp.pro](https://xavdp.pro)  
 **License:** [CC BY-SA 4.0](./LICENSE) · **Doctrine:** [`software/MANIFESTO.md`](./software/MANIFESTO.md)
+
+## Conclusion: what the collaboration framework establishes
+
+For the decision-hygiene additions reviewed on 2026-09-11, the evidence establishes
+explicit contracts for authority, contextual action, counter-view and integrity,
+with linked qualification scenarios. Documentation consistency and file links
+were checked, including an independent counter-view. See the
+[scope and evidence record](docs/proof/proof-decision-hygiene-contract.md). This finding concerns those additions,
+not qualification of the entire repository or every deployed agent.
+
+The introduction's four benefits remain objectives to evaluate: fewer handoff
+misunderstandings between human and agent; useful agent-to-agent review without
+authority bypass; evidence-based reports to humans; and clearer human agreements.
+The nine behavioral scenarios have not been executed in this documentation work,
+and effects on human collaboration have not been measured. Therefore this review
+does not establish reduced error rates, improved daily autonomy or elimination
+of hallucinations. Future conclusions must name actual outcomes, conditions and
+remaining gaps rather than repeat these intended benefits as achievements.
