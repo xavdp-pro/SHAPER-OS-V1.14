@@ -422,6 +422,31 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
 * Never re-inject entire system rulebooks into execution prompts; send only the short delta/instruction.
 * Leverage prompt caching, local deterministic idempotence checkpoints (`checkpoint.json`), and zero token consumption when idle.
 
+<a id="rule-6-decision-hygiene"></a>
+**Decision hygiene is derived into the role, not carried as a second rulebook.**
+
+* The designer translates intent, explicit values, people's rights and effects
+  on others and the environment into scoped decision constraints. An agent's
+  ethical interpretation never grants additional authority.
+* The role's checks distinguish runaway goal pursuit, unwarranted inhibition
+  and incomplete understanding. Responses consider both action and inaction,
+  current evidence and the conditions under which prior experience applies.
+* Prepared responses declare triggers, preconditions, current authority,
+  deadline, review conditions and a permitted alternative. A response outside
+  its validated context is not automatically replayed. Urgency does not expand
+  permission; unknown situations require bounded action or escalation within
+  the mandate, not invented facts or unlimited deliberation.
+* Reliability includes a required deadline. Strict timing needs a bounded,
+  tested execution path; an assumed model latency is not a guarantee.
+* External retrospective review preserves observations and provenance, compares
+  outcomes and revises context-specific conclusions. Governing changes remain
+  deliberate and owned; the acting agent never self-amends its authority.
+* Qualification under Rule 20 exercises appropriate initiative, justified
+  restraint, missing information, changed context and time pressure through the
+  actual harness. Reciting the rule is not behavioral proof. The
+  [operating contract](../docs/agent/OPERATING-CONTRACT.md#decision-hygiene-qualification)
+  specifies the evidence boundary.
+
 ---
 
 <a id="rule-7"></a>

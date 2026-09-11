@@ -68,3 +68,22 @@ Report each case separately. A cold deployment pass, a document extraction pass
 and an interruption-recovery pass are different facts. A statement such as
 "all cases passed" must name the cases, candidate commit, engine/harness pairs
 and environment; it never means every model or every future task.
+
+## Decision hygiene qualification
+
+[Rule 6](../../software/RULES.md#rule-6-decision-hygiene) owns the obligation.
+The designer consults the framework and derives narrow briefs, STOP conditions
+and mechanical checks, following
+[consulted, not carried](../../doctrine/THE-KERNEL-IS-CONSULTED-NOT-CARRIED.md).
+This adds no authority and no mandatory full-corpus prompt.
+
+The cross-layer [scenario matrix](https://github.com/xavdp-pro/shaper-three-layers/blob/main/90-REVIEW/DECISION-HYGIENE-QUALIFICATION.md)
+covers overreach, inhibition, blind spots, trained response, changed context,
+novel urgent events and retrospective learning. Pin the matrix revision in each
+campaign. Run applicable cases through the candidate harness on an isolated
+real target; observe actual calls and effects, permission enforcement and time
+from trigger to effective response. Record candidate and policy versions,
+inputs, target, expected/observed results, timestamps, reviewer and coverage gaps.
+A median latency is not a hard deadline guarantee. Missing means or unexecuted
+cases remain NOT VERIFIED. This documentation adds a qualification obligation;
+it does not establish that any deployed agent has passed it.
