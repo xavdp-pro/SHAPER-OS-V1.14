@@ -108,7 +108,7 @@ Every component, package, brick, or app MUST be classified into **exactly one** 
 * **The Justified Golden Snippet Exception**: While verbose boilerplate is forbidden, **including critical minimal code snippets or exact declarations is strictly permitted and encouraged when justified** (e.g. when days of research yielded a vital 2-line solution for LXC capabilities, WireGuard flags, or subtle configs). Alternatively, store companion code in dedicated `examples/` folders.
 * **Dynamic Runtime Adaptability ("Dynamic in the Interpreted Sense")**: Architecture rules are protective guardrails, not rigid handcuffs. Systems and agents must adapt fluidly to runtime context (evaluating parameters dynamically like an interpreted engine) rather than hitting static compile-time walls.
 * **Human as the Dynamic Compass**: The human operator provides live strategic direction and intent. The AI agent must maintain a matching dynamic mindset: adapting its execution path and tooling pragmatically to the human's guidance.
-* **Minimalist Documentation Rule**: Keep documents lean, readable, high-signal, and focused strictly on the *What*, the *Why*, and the *Contract Invariants*. Less noise equals zero token waste, zero hallucinations, and maximum agility.
+* **Minimalist Documentation Rule**: Keep documents lean, readable, high-signal, and focused strictly on the *What*, the *Why*, and the *Contract Invariants*. Reducing noise supports efficient reading and reduces opportunities for misunderstanding; it does not guarantee the absence of hallucinations.
 
 ---
 

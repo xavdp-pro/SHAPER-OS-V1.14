@@ -87,3 +87,17 @@ inputs, target, expected/observed results, timestamps, reviewer and coverage gap
 A median latency is not a hard deadline guarantee. Missing means or unexecuted
 cases remain NOT VERIFIED. This documentation adds a qualification obligation;
 it does not establish that any deployed agent has passed it.
+
+## Grounded reporting
+
+Distinguish incorrect results, unsupported generated factual claims, premature
+conclusions from partial evidence, and misleading concealment. A false statement
+alone does not establish intent to deceive. Report observations, inferences,
+uncertainties and verified outcomes separately; investigate discrepancies through
+independent evidence, including the observation tool's own limitations. Rules 0G
+and 20 remain the governing verification obligations.
+
+The [human explanation](https://github.com/xavdp-pro/shaper-three-layers/blob/main/10-SHAPER-OS/20_HUMAN_FOUNDATIONS.md#a-short-guide-to-reliability)
+defines intention, expected result, sensor, tension, counter-view and response.
+It is explanatory material, not a second runtime rulebook. No documentation
+change or finite successful test campaign establishes zero hallucinations.
