@@ -79,7 +79,7 @@ This adds no authority and no mandatory full-corpus prompt.
 
 The cross-layer [scenario matrix](https://github.com/xavdp-pro/shaper-three-layers/blob/main/90-REVIEW/DECISION-HYGIENE-QUALIFICATION.md)
 covers overreach, inhibition, blind spots, trained response, changed context,
-novel urgent events and retrospective learning. Pin the matrix revision in each
+novel urgent events, retrospective learning and counter-view without authority bypass. Pin the matrix revision in each
 campaign. Run applicable cases through the candidate harness on an isolated
 real target; observe actual calls and effects, permission enforcement and time
 from trigger to effective response. Record candidate and policy versions,
