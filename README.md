@@ -4,11 +4,11 @@
 
 <p align="center"><em>Shape systems. Orchestrate intelligence.</em></p>
 
-# SHAPER OS V1.13
+# SHAPER OS V1.14
 
-> **V1.14 development is open.** This working branch starts from V1.13 and is
-> not a sealed release. Read the [workplan and current state](docs/V1.14-WORKPLAN.md)
-> for scope, validation and the next step.
+> **Current release tag:** [`v1.14.4`](https://github.com/xavdp-pro/SHAPER-OS-V1.14/releases/tag/v1.14.4)
+> (univ-base proof tooling and gbs-test evidence). The [workplan](docs/V1.14-WORKPLAN.md)
+> still tracks operating-contract qualification and multi-engine campaigns beyond that slice.
 
 > **The Sovereign Operating System of Standardized Bricks & Intentions — Where Humans Formulate Vision and AI Agents Build & Operate**
 
@@ -115,6 +115,21 @@ purpose explains.
 
 If you only ever open two files: this one, and
 [`docs/human/START-HERE.md`](./docs/human/START-HERE.md).
+
+---
+
+## Related repositories (do not confuse them)
+
+| Repository | Role |
+| :--- | :--- |
+| **[`SHAPER-OS-V1.14`](https://github.com/xavdp-pro/SHAPER-OS-V1.14)** (this tree) | **Executable law and runtime kit** — `software/RULES.md`, bricks, universes, `npm test`, deploy and proof runbooks. |
+| **[`shaper-three-layers`](https://github.com/xavdp-pro/shaper-three-layers)** | **Organizational architecture** — three strata (SHAPER OS governance kernel → Runtime → Workspace), Enterprise reference, review corpus. Documentation only; nothing to `podman-up` here. |
+
+The host OS (Windows, macOS, Linux, …) abstracts hardware. Shaper owns the
+organization’s operational environment. This repository materializes the
+**Runtime** slice; the three-layers repository holds the full map including
+**Workspace** vision. See also [`AGENTS.md`](./AGENTS.md) (three corpora:
+canon, architecture, design input).
 
 ---
 
