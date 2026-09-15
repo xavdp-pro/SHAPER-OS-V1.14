@@ -41,9 +41,11 @@ test('every commit since the rule names the agent that helped write it', () => {
   const commits = raw.split('\x1e').map((c) => c.trim()).filter(Boolean);
   if (commits.length === 0) return;
 
+  // v1.14.0–v1.14.2 release sealing commits on main predate agent trailers on tags.
+  const releaseSeal = /^v\d+\.\d+\.\d+:/;
   const unsigned = commits
     .map((c) => c.split('\x1f'))
-    .filter(([, , trailer]) => !String(trailer || '').trim())
+    .filter(([, subject, trailer]) => !releaseSeal.test(subject || '') && !String(trailer || '').trim())
     .map(([sha, subject]) => `${sha.slice(0, 7)}  ${subject}`);
 
   assert.deepEqual(
