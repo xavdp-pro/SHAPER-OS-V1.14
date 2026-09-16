@@ -26,6 +26,11 @@ Helm is the system's conversational entry point for the operator: it turns an
 expressed intention into a visible, governed request. Customer-facing portals
 remain separate applications with their own access boundaries.
 
+Conversation is the shortest path to an answer or a decision. Screens reflect
+the work that matters — calls, cases, documents, queues, and evidence — and can
+produce a durable report when a result needs to be shared or kept. They are not
+an exhaustive maze that people must navigate before they can ask a question.
+
 The same brick shape repeats from one package to a fleet. DEV may break. TEST is born empty and then deleted. PROD moves by git tag.
 
 ```

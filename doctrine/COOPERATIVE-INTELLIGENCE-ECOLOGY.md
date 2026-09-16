@@ -130,6 +130,41 @@ application. It may offer conversation and guided control to a customer or
 employee through governed contracts, but it does not merge into Helm, inherit
 the provider cockpit's identity, or expose the internal control plane directly.
 
+## Conversation first, interfaces as operational reflections
+
+SHAPER uses conversation as the primary way to understand intent, explore a
+situation, refine a question, and choose a next action. A person should be able
+to ask a direct question such as “Which customer was most valuable two months
+ago?” and receive a useful, sourced answer without first learning which screen,
+filter, dashboard, or report contains it.
+
+Web interfaces remain essential, but they are **operational reflections** of the
+customer galaxy rather than a competing center of truth. They make the relevant
+part of the system visible and usable: current work, customer records, calls,
+documents, queues, permissions, history, evidence, plans, and approved actions.
+An interface may initiate a governed request, but the resulting fact belongs in
+the declared business record and evidence trail, not only in the screen state.
+
+This avoids two opposite failures:
+
+- a dashboard that becomes an exhaustive maze through which every question must
+  be manually reconstructed;
+- a conversation that gives transient answers while leaving no shareable,
+  inspectable artifact when one is needed.
+
+The system chooses the appropriate restitution for the intent:
+
+| Need | Appropriate restitution |
+| --- | --- |
+| A direct question | A concise answer with its source and freshness |
+| A situation that needs review | A focused operational view with the relevant filters already applied |
+| A result that must be shared, approved, or retained | A durable document, report, task, or record with provenance |
+| A consequential change | A visible plan, authority check, evidence trail, and recovery choice |
+
+Conversation and interface therefore strengthen each other. Conversation gives
+the system a human way to discover meaning; interfaces give people a stable,
+visual and shareable reflection of the work that matters at that moment.
+
 ## Open collaboration and common prosperity
 
 The free-software ethos matters here because a system that cannot be inspected,
