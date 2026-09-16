@@ -147,6 +147,10 @@ An autonomous agent operating within the Shaper ecosystem must **NEVER confuse w
 
 ### 7.1 The KovZu "Belly": The Assistant's Organism
 * **Definition**: Everything that enriches the intelligence, memory, ergonomics, voice perception and responsiveness of the Zephir assistant.
+* **Conversational entry point**: Helm is the conversational agentic entry point
+  of the internal SHAPER OS control plane. It receives intent, explains the
+  bounded next action, and uses declared Runtime capabilities; it is never the
+  source of authority or a permanent root remote control.
 * **What lives there** (all **P2** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)):
   1. The prompt engine, the context awareness (`sessionPrime.js`, `agentSkills.js`).
   2. The operator voice pipeline **inside `/console`** (Deepgram STT/TTS, Groq ack) — **not** the retired `/talk` route.

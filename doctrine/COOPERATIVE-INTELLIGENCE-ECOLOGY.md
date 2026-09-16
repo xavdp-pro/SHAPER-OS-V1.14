@@ -116,6 +116,20 @@ This is not a promise that an AI is morally reliable by nature. It is an
 architecture designed so that useful cooperation does not depend on that
 assumption.
 
+### Helm: the conversational agentic entry point
+
+**Helm is the conversational agentic entry point of SHAPER OS.** It receives
+an operator's or authorized system's expressed intent, gathers the declared
+context, explains the possible next action, and routes a permitted request
+toward Runtime and the relevant capability. It is the entry point into the
+internal control plane, not the source of authority and not a permanent root
+remote control.
+
+The customer-facing **SHAPER Control Hub** remains a separate P3 business
+application. It may offer conversation and guided control to a customer or
+employee through governed contracts, but it does not merge into Helm, inherit
+the provider cockpit's identity, or expose the internal control plane directly.
+
 ## Open collaboration and common prosperity
 
 The free-software ethos matters here because a system that cannot be inspected,

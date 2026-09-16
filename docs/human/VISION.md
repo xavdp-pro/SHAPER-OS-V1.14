@@ -22,6 +22,10 @@ The wider direction is [Cooperative Intelligence Ecology](../../doctrine/COOPERA
 understand and redirect the system; AI systems and software components help
 within clear limits.
 
+Helm is the system's conversational entry point for the operator: it turns an
+expressed intention into a visible, governed request. Customer-facing portals
+remain separate applications with their own access boundaries.
+
 The same brick shape repeats from one package to a fleet. DEV may break. TEST is born empty and then deleted. PROD moves by git tag.
 
 ```
