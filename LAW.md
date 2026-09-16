@@ -10,18 +10,18 @@ If a step is law, it is **mandatory**. Convenience is not a reason to skip it.
 | Live tests green **after** the stack is up | Run live tests before deploy, then ignore the red |
 | No secrets in git | Ship default API keys “so it works on my machine” |
 | First install is **DEV** | Call a laptop **PROD** |
-| TEST is rebuilt from empty, then **destroyed** | Keep a dirty TEST |
+| <a id="law-test-rebuilt-then-destroyed"></a>TEST is rebuilt from empty, then **destroyed** | Keep a dirty TEST |
 | `/console` is perimeter 2 | Put the client shop in Helm |
 | Bricks are referenced, not copied | Fork Containerfiles into the universe |
 | Voice in `/console` | Revive `/talk` or `/voice` |
 | <a id="law-parent-repairs-child"></a>**Parent repairs Child ($K+1 \rightarrow K$)** | Let an agent modify its own active infrastructure in-flight |
 | <a id="law-parent-holds-ssh-authority"></a>**Parent holds SSH authority ($K+1 \rightarrow K$)** | Pass private keys to children or mutate prod directly |
-| **TEST rebuilt clean-sheet from zero** | Retain dirty artifacts or unverified caches during validation |
+| <a id="law-test-rebuilt-clean-sheet"></a>**TEST rebuilt clean-sheet from zero** | Retain dirty artifacts or unverified caches during validation |
 | **Quality Gate automated check** | Mark a job COMPLETED without test proof |
 | **Simple mode is 100% jargon-free** | Expose P1/P2/P3/Maestro/Tokens to business owners |
 | **Agent context is 100% pre-digested** | Overload an agent with out-of-scope system architecture |
 | **Canary first, fleet second** | Push a config to 50 children at once |
-| **A repair loop that can give up** | Hammer a failing child forever instead of raising `DEGRADED` |
+| <a id="law-repair-loop-can-give-up"></a>**A repair loop that can give up** | Hammer a failing child forever instead of raising `DEGRADED` |
 | **Every fixed bug ships its test** | Close a defect on "it works now" |
 | **The canon is read in full** | Replace `RULES.md` content with a pointer to itself |
 | **Rule 0: Human dialogue in French, 100% code & docs in English** | Write French in code, comments, or technical docs, or address the operator in English |

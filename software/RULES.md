@@ -544,7 +544,7 @@ Every business universe `<slug>` operates across three strictly decoupled lifecy
 2. `univ-<slug>-test` (or `univ-test1`, `univ-test2`, `univ-testX` in parallel):
    - **The real PRA test is strictly FROM SCRATCH**: blank universe container (an LXC, or a `nested` Podman container — Rule 11), WireGuard split-mesh attachment, Podman stack boot, Vault injection, and 100% test execution.
    - **From scratch includes the images** *(V1.13.7)*: a TEST universe sets `SHAPER_FORCE_REBUILD=1` and builds every image from source. Reusing what the registry already serves is right when operating (Rule 0E) and hollow when proving — it turns a clean-sheet run into a claim about a build nobody performed (Rule 0G, Pillar 1 *creation ex nihilo*). The slow clock is the measurement, not an obstacle.
-   - **Mandatory Destroy-After-Test Rule**: Once the test cycle is verified, the ephemeral test container **MUST BE DESTROYED** (`pct destroy <vmid>`, `lxc delete --force`, or `podman rm -fv` for the `nested` shape, its declared volumes included) to guarantee zero residue and prove continuous cold recovery.
+   - <a id="rule-10-destroy-after-test"></a>**Mandatory Destroy-After-Test Rule**: Once the test cycle is verified, the ephemeral test container **MUST BE DESTROYED** (`pct destroy <vmid>`, `lxc delete --force`, or `podman rm -fv` for the `nested` shape, its declared volumes included) to guarantee zero residue and prove continuous cold recovery.
 3. `univ-<slug>-prod`: Initialized once, then atomic hot-updated via Git release tags (`v1.x.y`) and Quadlet reloads without service disruption.
 
 **PRA duration — three clocks (do not quote “&lt; 120s” alone):**
@@ -857,44 +857,44 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   * End-to-end TLS encryption via Cloudflare Tunnel.
 <a id="rule-12-what-a-backup-archive-never-contains"></a>
 * **What a backup archive never contains, and what it never lies about** *(V1.13)*:
-  * **The key that opens the coffer does not travel with the coffer.** A backup
+  * <a id="rule-12-key-does-not-travel-with-the-coffer"></a>**The key that opens the coffer does not travel with the coffer.** A backup
     carries `data/vault/vault.enc`; it never carries `.env`, because `.env` holds
     `VAULT_MASTER_KEY`, and an archive holding both is the vault in clear text
     for whoever holds the archive. The key is restored from the operator's own
     key material (`KEYS-AND-ACCOUNTS.md`), never from a backup. Until V1.13
     `backup-local.sh` put both in the same tarball.
-  * **The backup's encryption key is its own key.** `PRA_ENCRYPTION_KEY` is
+  * <a id="rule-12-backup-key-is-its-own"></a>**The backup's encryption key is its own key.** `PRA_ENCRYPTION_KEY` is
     generated for backups and for nothing else; it is required, and it is
     refused when it equals `VAULT_MASTER_KEY`. A backup encrypted with the
     vault's master key hands the vault's key to whoever breaks one backup.
     The key reaches `openssl` through the environment (`-pass env:`), never as
     a command-line argument readable by every process on the host — the same
     rule as a database password, which travels in `MYSQL_PWD`, never as `-p`.
-  * **A dump that was not taken is announced, never written empty.** The
+  * <a id="rule-12-dump-not-taken-is-announced"></a>**A dump that was not taken is announced, never written empty.** The
     client is `mariadb-dump`, or `mysqldump` where only that one exists — a
     script that knows one name dumps nothing on the other host. A dump with no
     client, or no database declared for the universe, prints `SKIP` and says
     why; a dump whose client fails, or whose output is empty, fails the backup.
     `2>/dev/null || true` on a dump is a zero-byte `.sql` archived as the
     database.
-  * **The archive command's failure is the backup's failure.** A `tar` that
+  * <a id="rule-12-archive-failure-is-backup-failure"></a>**The archive command's failure is the backup's failure.** A `tar` that
     ends in `|| true` followed by `{"status":"ok"}` is a report about a file
     nobody checked. The status line is printed after the archive exists, has a
     size and has a checksum, or it is not printed.
-  * **A failure after the archive is complete keeps the archive.** Cleanup
+  * <a id="rule-12-complete-archive-is-kept"></a>**A failure after the archive is complete keeps the archive.** Cleanup
     on exit removes a partial archive, never a complete one that has been
     announced: a rotation that cannot run is a failure, reported over an
     archive that stays — "Backup created" on the log and an empty directory
     on disk is a data loss caused by housekeeping.
-  * **A dump that failed leaves nothing behind.** The dump is written under
+  * <a id="rule-12-failed-dump-leaves-nothing"></a>**A dump that failed leaves nothing behind.** The dump is written under
     a `.part` name and renamed only once it has a size; a client that dies
     half-way leaves no `.sql` for the next snapshot to archive as the
     database. A partial file left on disk is the empty-dump defect moved one
     run later.
-  * **`.env` in every spelling.** `.env`, `.env.local`, `.env.<slug>`,
+  * <a id="rule-12-env-in-every-spelling"></a>**`.env` in every spelling.** `.env`, `.env.local`, `.env.<slug>`,
     `deploy/env`, `<slug>.env` — Rule 0J propagates the same key under all of
     them, and the exclusion is `.env*` and `*.env`, never the bare name.
-  * **How the script calls the client is proven with a recorder.** The
+  * <a id="rule-12-client-call-proven-with-a-recorder"></a>**How the script calls the client is proven with a recorder.** The
     guard tests run the real scripts, the real `tar` and the real `openssl`
     against a throwaway layout; the one substitute is a recorder standing in
     for `mariadb-dump`/`mysqldump` on a PATH built from scratch, because what
