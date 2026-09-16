@@ -849,6 +849,7 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   * Zero directory listing (`autoindex off`).
   * Mandatory HTTP Basic Auth (`auth_basic` with hashed credentials).
   * End-to-end TLS encryption via Cloudflare Tunnel.
+<a id="rule-12-what-a-backup-archive-never-contains"></a>
 * **What a backup archive never contains, and what it never lies about** *(V1.13)*:
   * **The key that opens the coffer does not travel with the coffer.** A backup
     carries `data/vault/vault.enc`; it never carries `.env`, because `.env` holds
@@ -939,6 +940,7 @@ This set is **enough**. Missing a level is a hole. Same idea as turbinobash-web 
 
 **Files (level 2) are the volumes, not the overlay.** Recreating the Podman container from a tagged image + restoring `sav/*.tar.bz2` + DB dump **is** the inner restore. Level 1 is the outer safety net (CT gone). With 1–5 together, PCA/PRA data path is covered.
 
+<a id="rule-16-archive-hygiene-scope"></a>
 Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2` that leaves the host.
 
 ---
