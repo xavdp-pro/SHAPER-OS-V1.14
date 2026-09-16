@@ -550,7 +550,7 @@ Every business universe `<slug>` operates across three strictly decoupled lifecy
 | **2** | Images **rebuilt or pulled from zero** (no cache) | **Longer** — build/pull + start |
 | **3** | Plus **data restore** | A **delta** proportional to volume (`sav/`, DB dumps, GED, files) |
 
-Never tell a client or write in this repo that restore is “under 120 seconds” without stating which clock. The historical “&lt; 120s” figure was a **target for core start when images are cached**, not a blank-host SLA, and **not including data**. LXC/`apt` provisioning is extra on every clock.
+Never tell a client or write in this repo that restore is “under 120 seconds” without stating which clock. The historical “&lt; 120s” figure was a **target for core start when images are cached**, not a blank-host SLA, and **not including data**. Provisioning the universe container (an LXC and its `apt`, or a `nested` container) is extra on every clock.
 
 * **Zero Duration Figure — Say "fast and structured", Never a Number**:
   * No document, pitch, README, doctrine page, or client-facing sentence in this repository states a restore or cold-boot duration — **not even to dismiss it**. A number quoted in order to be refuted still gets lifted out of its paragraph and quoted back as a promise.
@@ -682,7 +682,7 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
 * **PodMesh manages universe containers, and it is optional** (16 September
   2026, operator decision). This tandem built PodMesh
   (`github.com/xavdp-pro/podmesh`) for this level of the architecture:
-  creating, observing, stopping and cloning rootful Podman universes across
+  creating, observing, stopping and, under restrictions, cloning rootful Podman universes across
   autonomous Linux hosts through typed operations whose outcome is read from
   outside (packaged); pausing them and capturing recovery points (development
   tree, lab-tested); and moving one plain, network-disabled, musl container
@@ -709,7 +709,9 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   high availability, the loss of a real host, moving a universe that carries
   bricks — is not made in its name.
 
-* **First boot, inside the container**: `apt-get update && apt-get dist-upgrade
+* **First boot, inside the container** (`lxc` shape; the first boot of a
+  `nested` universe is TARGET — no `nested-*` recipe ships in this tree):
+  `apt-get update && apt-get dist-upgrade
   -y && apt-get clean`, then inject `skel/etc/{bash.bashrc,inputrc}`. Host kernel
   modules are loaded via `/etc/modules-load.d/lxc-podman.conf`.
 
@@ -765,6 +767,7 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
     `podman-up.sh` replaces it by design — and the gate tells the two apart
     by the running containers' names, never by the process alone.
 
+<a id="rule-11-what-is-restored"></a>
 * **What is restored, and what is merely rebuilt.** A universe's restorable
   identity is its `manifest.json`, its `cfg-image-lock.json` and its volumes.
   Images are never backed up: they are rebuilt from source at the recorded
@@ -1308,12 +1311,13 @@ rule is what killed the synonyms, and it keeps them dead.*
   sovereign fork (Rule 33) keeps its own mirrored fleet map — a client's PRA
   never hinges on the vendor's repo.
 * **Lexicon closure**: the vocabulary of this architecture is the prefix table
-  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus eighteen words —
+  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus nineteen words —
   class, instance, ledger, drift, PURRING (and its state machine), status.json,
   board, fleet map, forge, forkedFrom, the mirror rule, source/perimeter, and,
   by the amendment of 2 September 2026 (maker-and-governor verdict, §10),
   governor, maker, matrix, REAPED, and, by the amendment of 4 September 2026,
-  rig, tool. A new noun enters only by amending this
+  rig, tool, and, by the amendment of 16 September 2026 (Rule 11), shape.
+  A new noun enters only by amending this
   rule, with the failure it prevents written beside it — as here:
   * **governor** — the universe that holds a ledger and makes it respected:
     it writes what should exist, dates what makers report, and never dials
@@ -1344,6 +1348,13 @@ rule is what killed the synonyms, and it keeps them dead.*
     both a deliverable unit and an agent's capability (the unit is a brick);
     and free text reaching an action because the catalogue of what may be
     asked was never declared anywhere.
+  * **shape** — what a universe's container is, declared by its class
+    (`shape` in `manifest.json`, `lxc` when absent): `lxc` or `nested`
+    (Rule 11). A host family is how a machine makes that container; a machine
+    may offer several. *Prevents*: one token naming both what a universe is
+    and how a host builds it, so that a machine offering LXD and rootful
+    Podman cannot be described, and a class cannot say which container it
+    needs.
   What does not enter: `stamp`, `reap`, `validate`, `adopt` — kinds of work,
   a table in `pkg-governor`, not nouns of the language. New bricks are not
   new nouns — `brick-forge`, `brick-scraper`, `brick-sso` are the prefix

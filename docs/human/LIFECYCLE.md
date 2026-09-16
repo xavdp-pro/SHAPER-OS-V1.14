@@ -61,7 +61,7 @@ Observed in operation. Restoration is **not** one number:
 | **2. Images built or pulled from zero** | No cache: `podman build` / full pull | **Longer** — network + image construction, not just `podman start` |
 | **3. Data restore** | Persistent volumes as `tar.bz2` + DB dumps (Rule 16) | A **delta on top**, proportional to volume. Empty TEST ≠ years of production data |
 
-Do **not** write in git or tell a client “PRA &lt; 120s” without these three. Where an old “&lt; 120s” figure appears, it was a **target for core stack start when images are already cached**, not a SLA for a blank host, and **not including data**. Host OS / LXC create / `apt` is extra on every clock.
+Do **not** write in git or tell a client “PRA &lt; 120s” without these three. Where an old “&lt; 120s” figure appears, it was a **target for core stack start when images are already cached**, not a SLA for a blank host, and **not including data**. Host OS / universe container create (an LXC or a `nested` container) / `apt` is extra on every clock.
 
 Canonical law: [`software/RULES.md`](../../software/RULES.md) Rule 10.
 

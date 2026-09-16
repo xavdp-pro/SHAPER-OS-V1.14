@@ -74,7 +74,7 @@ function lexiconRows() {
  *  (`kind:` until 16 September 2026, when Rule 11 let one machine offer
  *  several families). */
 function kindsOfTheFleetMap() {
-  const m = FLEET.match(/^\s*kinds?:\s*([^#\n]+)/m);
+  const m = FLEET.match(/^\s*kinds:\s*([^#\n]+)/m);
   assert.ok(m, 'FLEET.md declares no `kinds:` line');
   return m[1].split('|').map((k) => k.trim()).filter(Boolean);
 }

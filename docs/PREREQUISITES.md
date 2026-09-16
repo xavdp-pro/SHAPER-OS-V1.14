@@ -11,7 +11,8 @@
 
 ## 1. Infrastructure (per machine — ask, never invent)
 
-This page walks the `lxc` shape; the `nested` shape has no page in this tree
+This page walks the `lxc` shape in full; for the `nested` shape it lists only
+the checks marked below, and no full `nested` page exists in this tree yet
 (Rule 11, 16 September 2026; PodMesh optional).
 
 | Prerequisite | How to check | Who provides it |
@@ -26,7 +27,7 @@ This page walks the `lxc` shape; the `nested` shape has no page in this tree
 
 `git`, `podman`, `curl`, `python3`, `openssl`, `node` (built-ins only — the
 verifier and the preflight run on a naked clone, before any `npm install`).
-Inside the universe LXC, also `nftables` (podman's nested network) and
+Inside the universe container (an LXC or a `nested` container), also `nftables` (podman's nested network) and
 `iproute2` (`ss`, so the preflight can see which ports are already held —
 without it the gate falls back to `/proc/net/tcp` and cannot name the holder).
 

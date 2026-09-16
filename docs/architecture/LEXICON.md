@@ -30,7 +30,7 @@
 — a new brick is **not** a new noun: `brick-forge`, `brick-scraper`,
 `brick-sso` are the prefix system doing its job.
 
-## The eighteen words
+## The nineteen words
 
 | Word | One sentence |
 | :--- | :--- |
@@ -52,6 +52,7 @@
 | **matrix** | The locked, content-addressed artefact (sha256) from which instances are stamped; baked by the tandem from a class, never by a robot. *Prevents*: "image" meaning both a podman image and a universe archive, and five builds of one commit giving five fingerprints |
 | **rig** | The assembled solution: the classes it takes, the bricks they declare, and the declarations that shape them (sector profile, tool catalogue, seed), pinned together. NOT a class — a class is one repo, a rig is what is delivered (the demo rig = `univ-demo-saas` + `univ-demo-crm` + the entry door + the maker, at named tags). *Prevents*: "the demo" meaning one repo to whoever builds it, two to whoever deploys it and the whole visitor chain to whoever sells it — so what a client buys has no name, no version, and no way to be assembled twice the same |
 | **tool** | One declared capability a class exposes to its agent, typed contract, closed catalogue: the agent fills it, the human validates it, then it executes. *Prevents*: `tool` naming both a deliverable unit and an agent capability (the unit is a brick); and free text reaching an action because nothing declared what may be asked |
+| **shape** | What a universe's container is, declared by its class (`shape` in `manifest.json`, `lxc` when absent): `lxc` or `nested` (Rule 11); a host family is how a machine makes it, and a machine may offer several. *Prevents*: one token naming both what a universe is and how a host builds it |
 
 ## The six verbs (one dialect, one target grammar)
 
