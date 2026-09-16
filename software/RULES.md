@@ -1,5 +1,6 @@
 # SHAPER OS & UNIV — Fundamental Engineering Rules & Architecture Invariants
 
+<a id="canon-preamble"></a>
 This file is the **canon**. It is read in full, never summarised, never replaced by a
 pointer to itself. Rules are added, never removed to fit what the code currently does —
 when doctrine and code diverge, the gap is recorded in
@@ -90,10 +91,12 @@ Every component, package, brick, or app MUST be classified into **exactly one** 
 
 ---
 
+<a id="rule-0b"></a>
 ### Rule 0B: Universal Parametric Genericity Invariant (Zero Hardcoding)
 * **Everything Behaves as a Parameterized Function**: Every script, engine, deployment workflow, container blueprint, and documentation guide MUST be engineered as a pure, parametric abstraction that receives its parameters via CLI arguments, environment variables, or configuration manifests.
 * **Multi-Infrastructure Portability**: All components must run interchangeably on Proxmox VE, LXD, raw KVM, standalone bare-metal Debian, or cloud VPS instances (Hetzner, OVH, Scaleway, AWS, home-lab) without modifying source code.
 * **Zero Hardcoded Environment Residue**: Never hardcode specific IP addresses, hypervisor node names, private subnets, tenant domains, or static credentials into code, scripts, or specifications.
+<a id="rule-0b-intent-header-classification"></a>
 * **Mandatory Intent Header Classification (Generic vs Specific)**: Every `INTENT.md` or blueprint document in SHAPER OS MUST declare its exact classification at the very top header:
   * `> **Intent Classification**: GENERIC INTENT (Universal / Parameterized Blueprint)` for reusable abstract bricks in `SHAPER-OS/`.
   * `> **Intent Classification**: SPECIFIC INTENT (Universe: <univ_slug>)` for concrete instantiated deployments in experimental sandboxes or apps.
@@ -161,6 +164,7 @@ SHAPER OS uses **two complementary layers** — never one replacing the other:
 
 ---
 
+<a id="rule-0g"></a>
 ### Rule 0G: Strict "NO FAKE, NO FALLBACK" Testing & Validation Invariant
 
 * **Zero Simulation / Zero Mock in Integration Tests**:
@@ -386,6 +390,7 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
 
 ---
 
+<a id="rule-4"></a>
 ### Rule 4: Standard Turbinobash Layout & On-Demand Database Isolation
 * **Plesk-like CLI Hosting Heritage**: SHAPER OS inherits the battle-tested, sovereign hosting philosophy of **Turbinobash (`tb`)**—a lightweight, CLI-first alternative to bloated control panels (like Plesk or cPanel) providing zero-friction app deployment, reverse-proxying, user isolation, and automated database provisioning.
 * **Official Turbinobash Documentation & Repositories**:
@@ -552,6 +557,7 @@ Every business universe `<slug>` operates across three strictly decoupled lifecy
 
 Never tell a client or write in this repo that restore is “under 120 seconds” without stating which clock. The historical “&lt; 120s” figure was a **target for core start when images are cached**, not a blank-host SLA, and **not including data**. Provisioning the universe container (an LXC and its `apt`, or a `nested` container) is extra on every clock.
 
+<a id="rule-10-zero-duration-figure"></a>
 * **Zero Duration Figure — Say "fast and structured", Never a Number**:
   * No document, pitch, README, doctrine page, or client-facing sentence in this repository states a restore or cold-boot duration — **not even to dismiss it**. A number quoted in order to be refuted still gets lifted out of its paragraph and quoted back as a promise.
   * The sanctioned formulation is qualitative: **restore is fast and structured**. *Fast* because nothing has to be reinvented — the fractal pattern is identical at every level and the bricks are already built. *Structured* because it always follows the same deterministic order (encrypted socle → orchestration → restitution), with zero hidden state and zero manual step.
@@ -899,11 +905,13 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
 
 ---
 
+<a id="rule-13"></a>
 ### Rule 13: Hybrid WireGuard Private Mesh Network & Mandatory Peer Naming
 * All distributed nodes (universe hosts, cloud VPS, bare-metal Proxmox) join the private encrypted mesh:
   * Central gateway on subnet `10.87.78.0/24` (or configured mesh subnet).
   * Dynamic peer key registration.
   * Persistent keepalive (`PersistentKeepalive = 25`) for firewall/NAT traversal.
+<a id="rule-13-peer-comments"></a>
 * **Mandatory Human-Readable Peer Comments**: Because raw WireGuard only uses cryptographic hashes, every AI agent or engineer registering a peer on the gateway (`wg0.conf`) MUST ALWAYS precede the `[Peer]` block with an explicit comment tag:
   ```ini
   ### Client <hostname> (CT <vmid> on <host>)
@@ -1053,6 +1061,7 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
 
 ---
 
+<a id="rule-24"></a>
 ### Rule 24: Root Guardian Law (Sentinel / Human Repairs Root)
 * **Out-of-Band Root Supervision**:
   * For the Root Universe of a fractal tree (Level $N$, with no parent in the tree), integrity monitoring and emergency patching are performed by a **Sentinel Sidecar Agent** or by the **Human Operator using an external IDE (Cursor, Antigravity, Claude Code)** via an isolated control channel.
@@ -1128,6 +1137,7 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
 
 ---
 
+<a id="rule-31"></a>
 ### Rule 31: Declared Data Lifecycle (Per Universe, Not a Universal Policy)
 * **The Doctrine Forces the Declaration, Not the Policy**: retention and erasure requirements depend entirely on the client and the use case. A personal mail-processing robot needs none; a universe holding a client's customer records needs a documented one. Imposing a single global policy would be wrong in both directions.
 * **Every Universe Declares Its `dataLifecycle` in `manifest.json`**, with at minimum:
@@ -1191,6 +1201,7 @@ A bridge exists to run a command-line agent. A bridge whose CLI **cannot start**
 
 ---
 
+<a id="rule-35"></a>
 ### Rule 35: Experience Corrects the Intent, Not Only the Code (Constructive Integrity, Upstream)
 
 Rule 29 requires that every bug resolved gives birth to a regression test. That protects the code. It does not protect the **next universe**, which is built from `INTENT.md` and not from our test suite.
@@ -1304,6 +1315,7 @@ rule is what killed the synonyms, and it keeps them dead.*
   Tag precedence: **fleet.yml = the default for new instances and the PRA
   floor; the ledger row = the truth, which may lag during a canary; an audit
   task reconciles them.**
+<a id="rule-37-fleet-map"></a>
 * **The fleet map**: one tiny repo (`<scope>-fleet`) holding one `fleet.yml` —
   base, catalogue and every class repo pinned to an **immutable tag**
   (Rule 0E), plus the `machines:` inventory. Instances NEVER appear in it;
