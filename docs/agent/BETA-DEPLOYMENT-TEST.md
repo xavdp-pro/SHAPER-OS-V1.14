@@ -180,7 +180,7 @@ One Markdown document. Deliver it whether the deployment succeeded or not.
 ## Environment
 Commit tested:      <git log --oneline -1>
 Host / container:   <VPS, LXC, VM, laptop — and the OS>
-Runtime:            <Podman/Docker version, Node version>
+Runtime:            <Podman version, Node version — Docker is never a runtime here>
 Tier deployed:      tier-a | tier-b
 Prior exposure — mine:      none | read version <x> | discussed previously
 Prior exposure — requester: <what they say they gave you, or "not declared">

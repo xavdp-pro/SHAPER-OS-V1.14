@@ -110,6 +110,12 @@
       "pattern": "^(passive|agent)( \\+[a-z]+)*$",
       "description": "A floor (passive|agent) plus options. See docs/architecture/UNIVERSE-PROFILES.md."
     },
+    "shape": {
+      "type": "string",
+      "enum": ["lxc", "nested"],
+      "default": "lxc",
+      "description": "Rule 11 (16 September 2026): what holds the universe \u2014 an LXC (`lxc`, the default when absent) or a rootful Podman container carrying its own Podman and its bricks (`nested`)."
+    },
     "description": {
       "type": "string"
     },

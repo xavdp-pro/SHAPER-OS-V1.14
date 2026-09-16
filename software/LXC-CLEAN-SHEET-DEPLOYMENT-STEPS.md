@@ -50,12 +50,12 @@ So that Podman can run without restriction inside the LXC container:
 
 ---
 
-> **Two host families, one contract (Rule 11).** The `pct`/Proxmox steps of
+> **Four host families, one contract (Rule 11); this document covers the `lxc` shape, families `proxmox` and `lxd`.** The `pct`/Proxmox steps of
 > this document do NOT apply as written to a Debian/LXD host: on LXD it is
 > `lxc launch` + the `podman-univ` profile + `security.nesting=true`
 > (section "Verified from scratch" below, and Rule 11). An agent identifies
 > the host's family BEFORE following a container command — V1.13 beta
-> finding: the scripts route one family, the law routes both.
+> finding: the scripts route one family, the law routes four.
 
 ### Step 1 — OS Provisioning & Engineering Tools
 Run on the blank Debian 13 system:

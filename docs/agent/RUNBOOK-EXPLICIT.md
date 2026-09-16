@@ -23,9 +23,12 @@ ls software/packages
   SHAPER OS monorepo — `software/packages` is missing." Do not clone anything,
   do not create the directory.
 
-## Step 0a — The terrain: you deploy inside an LXC, not on the host
+## Step 0a — The terrain: you deploy inside a universe container, not on the host
 
-Rule 11: **LXC is the universe, podman is the brick.** Never deploy a universe
+Rule 11: **the universe is a system container — an LXC, or a `nested` Podman
+container — and podman is the brick.** This runbook walks the `lxc` shape; the
+`nested` shape has no runbook in this tree — its only terrain is the vzcriu
+kit, and PodMesh, optional, has not stamped one. Never deploy a universe
 directly on a host that carries production. Create the container first:
 
 ```bash
@@ -37,7 +40,7 @@ lxc exec <univ_slug> -- apt-get install -y podman nftables iproute2 git curl jq 
 ```
 
 On a **Proxmox** host it is `pct create` with `features: nesting=1,keyctl=1`
-instead — both families, with the full package list and the profile
+instead — the `lxc`-shape families, with the full package list and the profile
 definition, are in
 [`../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md`](../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md).
 Nesting is mandatory; without it podman fails on the first image with a

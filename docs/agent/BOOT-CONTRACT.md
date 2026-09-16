@@ -32,11 +32,12 @@ are unsure whether a machine carries production, treat it as though it does.
 ## 3 — The terrain is nested, and it is not your laptop
 
 ```
-VPS (test host)  →  dedicated LXC  →  several Podman containers
+VPS (test host)  →  dedicated universe container (an LXC, or a nested Podman container)  →  several Podman bricks
 ```
 
-Real work happens in an isolated LXC on the test host, never directly on a host
-that carries production. Nesting is enabled for rootless Podman inside the LXC.
+Real work happens in an isolated universe container on the test host, never
+directly on a host that carries production. Nesting is enabled for Podman inside
+it (Rule 11: an LXC, or a `nested` Podman container).
 A laptop install is **DEV**, whatever you call it (Rule 10, `LIFECYCLE.md`).
 
 > **Where the commands are.** Nothing in this contract is a command list. The

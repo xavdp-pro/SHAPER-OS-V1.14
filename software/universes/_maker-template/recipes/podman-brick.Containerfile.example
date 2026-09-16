@@ -11,7 +11,7 @@
 # (`tb mysql sudo/user/create $app`, `sudo/db/create $app`). See
 # software/RULES.md#rule-11-a-brick-runs-as-its-own-class-not-root.
 #
-# <class> is the class id (a-z0-9-, matches the LXC universe's own name and
+# <class> is the class id (a-z0-9-, matches the universe's own name and
 # the database's own name/user — one identity in three places). <uid> is a
 # FIXED numeric id, not whatever a bare `useradd` would pick: the deploy
 # script must chown host-side bind-mounted files (a passwd file, a declared

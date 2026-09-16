@@ -35,7 +35,7 @@ on a variant is not ugly — it is **terminal**, on a delay.
 
 | Level | What interoperates | What makes it possible |
 | :--- | :--- | :--- |
-| Machines | LXD and Proxmox, any host | the fleet map declares a `kind`; the maker reads its host's kind instead of assuming it |
+| Machines | LXD, Proxmox, plain LXC or rootful Podman — any host | the fleet map declares the `kinds` a machine offers; the maker reads its host's kind instead of assuming it |
 | Engines | five bridges, and the sixth | Rule 7: no model named in the canon, a depth and a throughput declared, measurement at deployment |
 | CLI dialects | three vocabularies of termination | one table, quoted below |
 | Projects | every vertical built on the same organs | maker, ledger, matrices, drift |

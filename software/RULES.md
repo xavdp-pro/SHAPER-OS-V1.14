@@ -537,9 +537,9 @@ Every containerized AI agent must satisfy four core HTTP endpoints:
 Every business universe `<slug>` operates across three strictly decoupled lifecycle stages:
 1. `univ-<slug>-dev`: Fast prototyping and vibe-coding on the `dev` branch.
 2. `univ-<slug>-test` (or `univ-test1`, `univ-test2`, `univ-testX` in parallel):
-   - **The real PRA test is strictly FROM SCRATCH**: blank LXC container, WireGuard split-mesh attachment, Podman stack boot, Vault injection, and 100% test execution.
+   - **The real PRA test is strictly FROM SCRATCH**: blank universe container (an LXC, or a `nested` Podman container — Rule 11), WireGuard split-mesh attachment, Podman stack boot, Vault injection, and 100% test execution.
    - **From scratch includes the images** *(V1.13.7)*: a TEST universe sets `SHAPER_FORCE_REBUILD=1` and builds every image from source. Reusing what the registry already serves is right when operating (Rule 0E) and hollow when proving — it turns a clean-sheet run into a claim about a build nobody performed (Rule 0G, Pillar 1 *creation ex nihilo*). The slow clock is the measurement, not an obstacle.
-   - **Mandatory Destroy-After-Test Rule**: Once the test cycle is verified, the ephemeral test container **MUST BE DESTROYED** (`pct destroy <vmid>` or `lxc delete --force`) to guarantee zero residue and prove continuous cold recovery.
+   - **Mandatory Destroy-After-Test Rule**: Once the test cycle is verified, the ephemeral test container **MUST BE DESTROYED** (`pct destroy <vmid>`, `lxc delete --force`, or `podman rm -fv` for the `nested` shape, its declared volumes included) to guarantee zero residue and prove continuous cold recovery.
 3. `univ-<slug>-prod`: Initialized once, then atomic hot-updated via Git release tags (`v1.x.y`) and Quadlet reloads without service disruption.
 
 **PRA duration — three clocks (do not quote “&lt; 120s” alone):**
@@ -564,23 +564,59 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
 <a id="rule-11"></a>
 ### Rule 11: Two Levels of Containment, and Only Two
 
-* **LXC is the universe. Podman is the brick. There is no third level.**
+* **Two levels of containment: the universe is a system container, the brick is an
+  application container.** (amended 16 September 2026, operator decision — the
+  shape of the universe container is a free choice; Podman-in-Podman is admitted.)
   A universe is a *system* container — its own init, its own filesystem, its own
   package set — because that is what can be snapshotted, exported and restored as
-  one thing. A brick is an *application* container built from an immutable image.
-  Podman inside podman works, and has been verified to work three levels deep;
-  it is forbidden anyway, because it adds an image store and a namespace layer
-  without adding a boundary this architecture uses, and it moves the universe's
-  largest state — the image store — into the one layer podman cannot back up as
-  a whole. Depth comes from nesting **universes**, never from nesting runtimes.
+  one thing. A brick is an *application* container built from an immutable image,
+  and **a brick is always Podman**. A universe has one of two **shapes**, declared
+  by its class (`shape` in `manifest.json`, `lxc` when absent); a document
+  that covers only one of them says which in its first paragraph:
+  * **`lxc`** — the universe is an LXC: a standard Debian LXC (families `lxd`,
+    `liblxc`) or a Proxmox LXC (family `proxmox`). Every recipe that ships in
+    this tree stamps this shape.
+  * **`nested`** — the universe is a rootful Podman container that carries its
+    own Podman, its own image store and its bricks (family `nested`). Until this
+    amendment the rule forbade it, because a nested image store is the one layer
+    podman cannot back up as a whole. That objection stays true and is now a cost
+    to know rather than a ban: in either shape the image store is never backed
+    up — it is rebuilt from the lock (see *What is restored*).
+    What nesting may add is moving a running universe with its memory, and today
+    that is a candidate, not a property of the shape. Measured so far, through
+    PodMesh: one Alpine, musl, network-disabled, mount-free workload of about
+    0.5 GiB, between two hosts with identical kernel, runtime hashes and image,
+    forward and back. Glibc processes are refused (CRIU 3.15 predates rseq).
+    A universe that carries its own Podman and bricks has not been moved through
+    PodMesh; a separate kit moved one nested counter with its inner Podman
+    reconciled. A document of this tree that claims more cites a proof that shows
+    more. Depth still comes from nesting **universes**, never from a third
+    runtime level: a brick never holds a container.
 
-* **Three host families, one contract.** The host provides a nesting-capable
-  container; how it is created is the host's business, and a document that
-  covers only one family MUST say which in its first paragraph. Each family
-  has ONE token: it is the `kind` of a machine in the fleet map
-  (`docs/architecture/FLEET.md`) and the prefix of the maker's frozen recipes
-  (`<kind>-<work>.sh`, `software/universes/_maker-template/`). The token is
-  the only spelling of the family, everywhere.
+* **Never Docker.** No universe and no brick runs under Docker, no recipe
+  installs it, and no document of this tree describes a Docker path. A host
+  that happens to carry Docker may still hold a universe in either shape; the
+  two engines share no image, network or store, and an agent never bridges
+  them. A binary named `docker` inside a brick (the LXC guide's bridge wrapper)
+  is a compatibility alias over `podman`, not a Docker path.
+
+* **Host families, one contract, and a machine may offer several.** The host
+  provides a container able to hold a universe; how it is created is the host's
+  business, and a document that covers only one family MUST say which in its
+  first paragraph. Each family has ONE token and serves ONE shape: `proxmox`,
+  `lxd` and `liblxc` stamp the `lxc` shape, `nested` stamps the `nested` shape.
+  The token is the prefix of the maker's frozen recipes (`<kind>-<work>.sh`,
+  `software/universes/_maker-template/`) and appears in the fleet map
+  (`docs/architecture/FLEET.md`) in the list of families a machine offers — a
+  Debian host with LXD and rootful Podman lists both `lxd` and `nested`. A
+  machine lists at most ONE family per shape. An instance lands only on a
+  machine that offers a family of its class's shape; a maker whose machine
+  offers several families selects the recipe prefix from the row's class
+  `shape` — TARGET: the shipped runner takes a single `hostKind`, and the gap
+  is recorded in `doctrine/CONVERGENCE-STATE.md`. The shape (what a universe
+  is) and the family (how a host makes it) are two dimensions; neither token
+  stands for the other. The token is the only spelling of the family,
+  everywhere.
   * **`proxmox` — a Proxmox node** — `pct create`, and `features: nesting=1,keyctl=1` in
     `/etc/pve/lxc/<ID>.conf`. Verify the Debian 13 template is present
     (`pveam list local`) before creating anything.
@@ -604,15 +640,37 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
     client binary, the very command the `lxd` recipes call — a family named
     `lxc` would read as the other family's command, on every page and in
     every recipe name.
-  * **A bare host with none of the three** — the agent halts and asks. Installing a
+  * **`nested` — Debian with rootful Podman** (amended 16 September 2026,
+    operator decision). The host runs Podman; the universe is a Podman container
+    that holds a second Podman and the bricks. What such a universe has been
+    observed to need, on the only terrain that exists (the vzcriu nested-podman
+    kit, `migration-lab-evidence/vzcriu`, 11 September 2026): a rootful outer
+    container started `--privileged --network none`; an inner Podman on the
+    `vfs` storage driver with `cgroup-manager=cgroupfs`; inner containers run
+    `--cgroups=disabled`, because nested cgroup namespaces are unsupported by
+    the qualified CRIU; an overlay-backed inner store checkpoints but does not
+    restore with that runtime. User-namespace and cgroup-delegated forms, a
+    `fuse-overlayfs` inner store, the device nodes and capabilities the `lxd`
+    profile grants (`/dev/net/tun` and `NET_ADMIN` for Rule 13, `/dev/fuse`),
+    and the module list are TARGET, unproven: the exact `podman run` flags are
+    fixed by the first `nested-stamp.sh`, proven on terrain before it ships.
+    **The token is `nested`, never `podman`**: `podman` is the brick engine's
+    command, present in every family and on every page — a family named
+    `podman` would read as the brick level, the very confusion `liblxc` was
+    named to avoid. In this rule the word `nested` in backticks is the token;
+    LXC nesting is always written "nesting". No `nested-*` recipe ships in this
+    tree; PodMesh (below), optional, has not stamped a `nested` universe, and
+    the gap is recorded in `doctrine/CONVERGENCE-STATE.md`.
+  * **A bare host with none of the four** — the agent halts and asks. Installing a
     hypervisor is an architecture decision (storage backend, pool size, bridge,
     firewall), not a package install, and a host may be bare on purpose. The
     agent states exactly which commands the human should run, and stops.
 
 * **Presence of a tool is not proof of a capability.** An agent declares a host
-  fit to carry a universe only after launching a throwaway nested container and
-  running a container inside it — the same proof for the three families:
-  `lxc launch`, `pct create` or `lxc-create`/`lxc-start` for the throwaway,
+  fit to carry a universe only after launching a throwaway nesting-capable container and
+  running a container inside it — the same proof for the four families:
+  `lxc launch`, `pct create`, `lxc-create`/`lxc-start` or `podman run` for
+  the throwaway,
   and a podman container born inside it, observed. `lxc` being installed
   says nothing about whether podman runs inside it; podman being installed
   says nothing about whether a `RUN` step will execute — on one workstation
@@ -620,6 +678,36 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   which no inventory of binaries would ever have revealed. An agent that
   lists binaries manufactures confidence; an agent that launches and
   observes produces a verdict.
+
+* **PodMesh manages universe containers, and it is optional** (16 September
+  2026, operator decision). This tandem built PodMesh
+  (`github.com/xavdp-pro/podmesh`) for this level of the architecture:
+  creating, observing, stopping and cloning rootful Podman universes across
+  autonomous Linux hosts through typed operations whose outcome is read from
+  outside (packaged); pausing them and capturing recovery points (development
+  tree, lab-tested); and moving one plain, network-disabled, musl container
+  with its memory within the bounds above. No universe that carries its own
+  Podman has yet been created or moved through PodMesh — its migration
+  preflight refuses the privileged, mount-carrying form the kit proved.
+  Managing the `nested` shape end to end is PodMesh's TARGET, not its record.
+  TARGET as well: where PodMesh is installed, the maker's frozen
+  `nested-<work>.sh` recipe is the hop that invokes PodMesh operations for the
+  work its governor's ledger declares (Rule 37: one maker per machine, a recipe
+  with typed positions; the Parent's key still travels as a file in the stamp)
+  — no such recipe ships, and PodMesh knows no maker or governor today
+  (`doctrine/CONVERGENCE-STATE.md`, Rule 11 gap). Where PodMesh is not
+  installed, a universe born by a recipe or by hand, in either shape, is fully
+  conformant. PodMesh is never a source of authority. **PodMesh's "maker" and
+  "governor" are neither**: PodMesh names its per-host agent a maker, and calls
+  a governor the replica whose host holds a live, unsuperseded activation lease
+  on the manager resource under an externally issued epoch; in this tree they
+  are *the PodMesh node* and *the active PodMesh replica*, because both nouns
+  are closed by Rule 37 — a maker is one per machine and executes frozen
+  recipes, a governor holds a ledger and never dials out. This rule names the
+  shape of containment, never the tool that produces it. PodMesh's own
+  contracts are not canon, and a promise PodMesh has not proven — production
+  high availability, the loss of a real host, moving a universe that carries
+  bricks — is not made in its name.
 
 * **First boot, inside the container**: `apt-get update && apt-get dist-upgrade
   -y && apt-get clean`, then inject `skel/etc/{bash.bashrc,inputrc}`. Host kernel
@@ -633,11 +721,11 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   that names its anchor.
 
   <a id="rule-11-nftables-inside-the-universe"></a>
-  * **nftables is part of the universe's first boot.** Podman's nested
+  * **nftables is part of the universe's first boot.** Podman's inner
     network (netavark) programs the firewall through nftables; without it the
     first container with a network dies with an error that names neither
     nftables nor nesting. Every provisioner and every literal install line
-    inside the LXC installs `nftables` beside `podman`. A universe that does
+    inside the universe container installs `nftables` beside `podman`. A universe that does
     not carry it is not fit to hold a brick, whatever `podman --version`
     says (see *Presence of a tool is not proof of a capability*).
 
@@ -647,6 +735,8 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
     passed every time and the next run tried to add a profile already present
     (`Duplicate profile found`). `lxc config show <ct>` (or `lxc profile show`)
     lists what is applied; on Proxmox the analogue is `pct config <vmid>`.
+    This lesson belongs to the `lxc` shape: a `nested` universe has no profile
+    to read.
     A check whose condition can never be true is not a check.
 
   <a id="rule-11-nesting-needs-a-restart"></a>
@@ -657,13 +747,14 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
     the symptom to expect is the one the LXC guide documents for that case
     (`Permission denied` on the first image) — so a script that sets nesting
     on an existing container restarts it in the same breath, and a profile
-    is given at launch whenever it can be.
+    is given at launch whenever it can be. (`lxc` shape only: a `nested`
+    universe is born with its delegation and namespaces in one `podman run`.)
 
   <a id="rule-11-declared-ports-are-free"></a>
   * **A declared port is a claim on the whole universe.** Bricks run with
     `--network host` so that `localhost` stays valid across the universe;
     the price is that a port the manifest declares is a port nothing else in
-    the LXC may hold. A container born before this rule still carried an
+    the universe container may hold. A container born before this rule still carried an
     apt-installed MariaDB on 3306; the podman brick crash-looped and the only
     place the cause was visible was the brick's own journal. Before a deploy,
     the manifest's ports are compared with the sockets already listening
@@ -708,7 +799,7 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   <a id="rule-11-a-brick-runs-as-its-own-class-not-root"></a>
   * **A brick runs as its class, not root.** One identity, in three places:
     a Linux account inside the image named after the class, the database
-    name, and the database user — the same spelling used for the LXC
+    name, and the database user — the same spelling used for the universe container
     universe itself. This is not invented here: it reports a convention
     older than podman, [turbinobash-web](https://github.com/xavdp-pro/turbinobash-web)'s
     `useradd -m -s /bin/bash ${app} -d $d_app` (one system account per app,
@@ -837,7 +928,7 @@ This set is **enough**. Missing a level is a hole. Same idea as turbinobash-web 
 
 | Level | What | How (Shaper / Podman spirit) |
 | :--- | :--- | :--- |
-| **1. Infra — entire container** | The LXC/CT (or VM) as a whole | Host snapshot (`vzdump` / ZFS / Proxmox). Recovers the machine, not a substitute for inner levels. |
+| **1. Infra — entire container** | The universe container as a whole — the LXC/CT (or VM), or the outer Podman container of a `nested` universe | Host snapshot (`vzdump` / ZFS / Proxmox). For `nested`, TARGET (Rule 11 gap, `doctrine/CONVERGENCE-STATE.md`): an export of the stopped outer container plus its declared volumes is the floor; a checkpoint of a container carrying an inner Podman has been restored once, with the inner runtime repaired by hand (vzcriu kit); PodMesh recovery points exist in its development tree only. Never a level this table counts as covered until proven. Recovers the machine, not a substitute for inner levels. |
 | **2. Files — persistent volumes** | Only what must survive a recreate | Archive **Podman bind-mounts** (`<univ>/sav/*`, `/data/<slug>/` persistent volumes) as **`tar.bz2`** (pbzip2), like turbinobash app backups. **Exclude `nosav/`**, caches, image layers, `node_modules`. |
 | **3. Database** | Relational / vector state, consistent | `mariadb-dump` — the official MariaDB image ships `mariadb` and `mariadb-dump`, not `mysql` and `mysqldump`; a script falls back to `mysqldump` only where that name still exists (proven on terrain, 1 September 2026: two calls in one file disagreed on the name before they were made to agree). Plus Qdrant snapshot, JSONL rotate if needed. Do not rely on a live volume tar alone for a crash-consistent DB. |
 | **4. Git** | Code and architecture | Immutable tagged repo. Never treat git as a data backup. |
@@ -1123,7 +1214,7 @@ Rule 29 requires that every bug resolved gives birth to a regression test. That 
 * **Canary Promotion & Garbage Collection**:
   * Once the clean-sheet `-test` container passes 100% green, the git commit/tag is promoted to production via the canary protocol (Rule 25).
   * Immediately after promotion, the Parent executes complete destruction (`podman rm -f` / `lxc delete`) of the `-dev` and `-test` containers, releasing all ports, memory, and scratch volumes (Universe Garbage Collector).
-* **The maker is the Parent's hand** (amended 2 September 2026, maker-and-governor verdict): in the fractal of Rule 11, the level $K+1$ of an instance is its **governor and the makers that governor enrolled** — the tandem, root from underneath, brought each maker into being and declared it (the maker template's invariant 7). The authority this rule grants — to instantiate, access and destroy a child — is held by the **maker organ of that level**, in its vault, on the one machine it acts on: never by the governor, which writes rows and holds no key to any host, and **it never leaves the level** — no private key crosses down into a child, none climbs up into a ledger. The Parent's public key reaches a child through the stamp recipe, as a file, never as a command built from the row. Birth and end (`lxc launch` / `lxc delete`, `pct create` / `pct destroy`) are the maker's gestures on a ledger row; the garbage collection above is the same gesture, driven by the row's deadline. The host's own SSH door is the tandem's, from underneath; it is not the maker's, and the maker holds no inbound door of its own.
+* **The maker is the Parent's hand** (amended 2 September 2026, maker-and-governor verdict): in the fractal of Rule 11, the level $K+1$ of an instance is its **governor and the makers that governor enrolled** — the tandem, root from underneath, brought each maker into being and declared it (the maker template's invariant 7). The authority this rule grants — to instantiate, access and destroy a child — is held by the **maker organ of that level**, in its vault, on the one machine it acts on: never by the governor, which writes rows and holds no key to any host, and **it never leaves the level** — no private key crosses down into a child, none climbs up into a ledger. The Parent's public key reaches a child through the stamp recipe, as a file, never as a command built from the row. Birth and end (`lxc launch` / `lxc delete`, `pct create` / `pct destroy`, and for the `nested` shape `podman run` / `podman rm` — or the PodMesh operations that wrap them where PodMesh is installed) are the maker's gestures on a ledger row; the garbage collection above is the same gesture, driven by the row's deadline. The host's own SSH door is the tandem's, from underneath; it is not the maker's, and the maker holds no inbound door of its own.
 
 
 ---
@@ -1258,8 +1349,8 @@ rule is what killed the synonyms, and it keeps them dead.*
   new nouns — `brick-forge`, `brick-scraper`, `brick-sso` are the prefix
   system doing its job. The forge's line is bounded by the same amendment:
   `brick-forge` deploys, destroys and repairs BRICKS inside a living universe
-  (the podman level; drift at brick level); universes are born and ended by
-  the maker, from a ledger row (the LXC level; the gap at instance level).
+  (the brick level; drift at brick level); universes are born and ended by
+  the maker, from a ledger row (the universe level; the gap at instance level).
 * **What it protects**: a human juggling several vibecoded projects and a cold
   agent landing in a repo must both answer, from one page — *where is the
   truth?* (the ledger) — *who repairs?* (the forge, on drift, inside a

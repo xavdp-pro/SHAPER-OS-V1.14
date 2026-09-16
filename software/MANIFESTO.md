@@ -84,7 +84,7 @@ These four concepts are distinct facets of the same universal truth:
 
 ## 5. Living Blueprint: The 4-Step Container Provisioning Intent
 
-### 5.1 Generic LXC Intent
+### 5.1 Generic Universe Container Intent (`lxc` shape; Rule 11 also admits a `nested` Podman universe)
 To instantiate any sovereign LXC node (Debian 13) ready for SHAPER OS, nested Podman OCI engines, and private mesh networking:
 1. **LXC Base**: Create a Debian 13 LXC container with nested virtualization, unconfined AppArmor profile, and device permissions for `/dev/net/tun` (WireGuard) and `/dev/fuse` (fuse-overlayfs).
 2. **OS Environment**: Copy repository `skel/etc/` files (`bash.bashrc`, `inputrc`) to the container's `/etc/`.

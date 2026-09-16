@@ -332,9 +332,9 @@ almost, even on a VPS."*
 
 | | brick-forge | the maker |
 | :--- | :--- | :--- |
-| Where it lives | **inside** a universe — it is a brick | in its own LXC, outside every universe it stamps |
+| Where it lives | **inside** a universe — it is a brick | in its own universe container, outside every universe it stamps |
 | What it touches | what already exists: restart, repair, redeploy | what does not yet exist: birth |
-| Its level | podman | LXC / bare metal |
+| Its level | brick (podman) | universe container (LXC or nested Podman) / bare metal |
 
 **One cannot be inside a universe that is not yet born.** That is the deep
 reason the maker holds root on its host, from its own universe. The sharing,
@@ -433,9 +433,11 @@ bytes on two machines carry the same identity, with no rebuild and no central
 store. This was the only path through the blocker the demo met: *five builds of
 one commit gave five fingerprints*, because the podman registry is per machine
 and bakes its host into the locked identity. The sha256 names the stored file;
-whether one pivot serves three host kinds — a bare rootfs hashed, wrapped at
-import by each stamp — is decided by the second recipe, not by this page.
-*"One truth" across host kinds is TARGET until `proxmox-*` or the third kind
+whether one pivot serves the three `lxc`-shape host kinds — a bare rootfs
+hashed, wrapped at import by each stamp — is decided by the second recipe, not
+by this page; the `nested` shape (Rule 11, 16 September 2026) stamps from an
+OCI image, a matrix format this question does not cover.
+*"One truth" across host kinds is TARGET until `proxmox-*` or `liblxc-*`
 exists and proves its matrix format in `recipes/README.md`.*
 
 **Who makes a matrix: the tandem — the vibe coder and their AI agent.** Never

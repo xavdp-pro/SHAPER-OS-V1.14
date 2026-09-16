@@ -17,7 +17,7 @@ That idea repeats at four scales:
 | :---: | :--- | :--- |
 | **0** | One brick / one package | Code + unit tests + `INTENT.md` |
 | **1** | One **universe** | `manifest.json`, tasks, `ctx-universe.md` — no copy of packages |
-| **2** | One **host** (laptop, VPS, LXC) | Podman, volumes, this machine’s `.env` |
+| **2** | One **host** (laptop, VPS, universe container) | Podman, volumes, this machine’s `.env` |
 | **3** | A **fleet** | Several hosts, public domain, tunnel, optional private network |
 
 If you copy a `Containerfile` into a universe, you broke the fractal. Specialize with `instance.json`, task files, and env — never by forking the brick.

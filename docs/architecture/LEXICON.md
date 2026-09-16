@@ -43,7 +43,7 @@
 | **status.json** | The canonical per-instance surface (state + lastPurr + lastBackup). Every board, tile or STATE file is a rendering of it, never a rival |
 | **board** | THE fleet view: one line per ledger row, all machines. Terminal twin `shaper board`. Offline, `cat fleet.yml` tells you what SHOULD exist — health only ever comes from status.json |
 | **fleet map** | The `fleet.yml` in a `<scope>-fleet` repo: base, catalogue, classes pinned to immutable tags, plus machines. Never instances. `-dev` bypasses it; `-test`/`-prod` are guarded by it |
-| **forge** | `brick-forge`: the organ that deploys/destroys/repairs BRICKS inside a living universe (podman level; escalation restart → rebuild → redeploy + R2). Universes are born and ended by the maker, from a ledger row |
+| **forge** | `brick-forge`: the organ that deploys/destroys/repairs BRICKS inside a living universe (brick level; escalation restart → rebuild → redeploy + R2). Universes are born and ended by the maker, from a ledger row |
 | **forkedFrom** | The lineage proof, at both levels: brick `{package, atVersion}`, repo `{repo, atTag}` — machine-checkable |
 | **mirror rule** | A Rule 33 fork swaps the projet word and NOTHING else: `univ-boutik-shop → univ-fortex-shop`. A fork costs zero vocabulary |
 | **source / perimeter** | Brick fields: `source ∈ {base, catalogue, fork, native}`; `perimeter ∈ {P1, P2, P3}` = **LAYER, never OWNER** |

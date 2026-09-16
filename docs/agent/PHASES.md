@@ -43,7 +43,7 @@ perimeter is, and which four to six invariants must never break.
 **Purpose.** Establish what you may do, with what, and where.
 
 **You do.** Confirm the granted perimeter. Identify the target host and the
-isolation level (LXC, nesting). Verify every required secret is present,
+isolation level (an LXC or a `nested` Podman universe, and its nesting). Verify every required secret is present,
 non-empty, and not a placeholder — and halt for the human if one is missing.
 Enumerate available engines, measure them from the target host, and select
 against each brick's declared cognition ([`../COGNITION.md`](../architecture/COGNITION.md)).

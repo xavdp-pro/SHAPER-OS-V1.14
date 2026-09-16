@@ -11,13 +11,16 @@
 
 ## 1. Infrastructure (per machine — ask, never invent)
 
+This page walks the `lxc` shape; the `nested` shape has no page in this tree
+(Rule 11, 16 September 2026; PodMesh optional).
+
 | Prerequisite | How to check | Who provides it |
 | :--- | :--- | :--- |
-| A host with native LXC (or Proxmox) | `lxc list` answers | operator |
-| The `podman-univ` LXC profile | `lxc profile show podman-univ` | operator |
-| The profile **applied** to the universe container | `lxc config show <univ> \| grep -A2 '^profiles:'` — never `lxc info`, which lists no profile; on Proxmox `pct config <vmid>` shows `features: nesting=1`. Set after launch, nesting applies only after `lxc restart` / `pct reboot` ([Rule 11](../software/RULES.md#rule-11-read-profiles-with-config-show)) | agent, at runbook Step 0a |
-| `nftables` **inside** the universe LXC | `lxc exec <univ> -- dpkg -s nftables` | agent, at runbook Step 0a — podman's nested network dies opaquely without it ([Rule 11](../software/RULES.md#rule-11-nftables-inside-the-universe)) |
-| **The podman registry of THIS machine** | `curl -sf http://$SHAPER_REGISTRY/v2/` | **operator — one registry per machine, recorded in the fleet map (`fleet.yml` → `machines:`). The address must be reachable from INSIDE a universe LXC — a loopback answered on the host names the LXC itself. If you do not know it: ASK. If the human is absent: STOP and write it down.** |
+| A host with native LXC (or Proxmox) for the `lxc` shape, or rootful Podman for the `nested` shape | `lxc list` answers, or `podman info` answers | operator |
+| (`lxc` shape only) The `podman-univ` LXC profile | `lxc profile show podman-univ` | operator |
+| (`lxc` shape only) The profile **applied** to the universe container | `lxc config show <univ> \| grep -A2 '^profiles:'` — never `lxc info`, which lists no profile; on Proxmox `pct config <vmid>` shows `features: nesting=1`. Set after launch, nesting applies only after `lxc restart` / `pct reboot` ([Rule 11](../software/RULES.md#rule-11-read-profiles-with-config-show)) | agent, at runbook Step 0a |
+| `nftables` **inside** the universe container | `lxc exec <univ> -- dpkg -s nftables`, or `podman exec <univ> dpkg -s nftables` for the `nested` shape | agent, at runbook Step 0a — podman's nested network dies opaquely without it ([Rule 11](../software/RULES.md#rule-11-nftables-inside-the-universe)) |
+| **The podman registry of THIS machine** | `curl -sf http://$SHAPER_REGISTRY/v2/` | **operator — one registry per machine, recorded in the fleet map (`fleet.yml` → `machines:`). The address must be reachable from INSIDE a universe container — a loopback answered on the host names the container itself. If you do not know it: ASK. If the human is absent: STOP and write it down.** |
 
 ## 2. Tools on the deploy host
 

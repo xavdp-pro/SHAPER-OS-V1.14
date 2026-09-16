@@ -70,10 +70,12 @@ function lexiconRows() {
   return rows;
 }
 
-/** The host kinds the fleet map admits: the `kind:` line of its schema. */
+/** The host kinds the fleet map admits: the `kinds:` line of its schema
+ *  (`kind:` until 16 September 2026, when Rule 11 let one machine offer
+ *  several families). */
 function kindsOfTheFleetMap() {
-  const m = FLEET.match(/^\s*kind:\s*([^#\n]+)/m);
-  assert.ok(m, 'FLEET.md declares no `kind:` line');
+  const m = FLEET.match(/^\s*kinds?:\s*([^#\n]+)/m);
+  assert.ok(m, 'FLEET.md declares no `kinds:` line');
   return m[1].split('|').map((k) => k.trim()).filter(Boolean);
 }
 

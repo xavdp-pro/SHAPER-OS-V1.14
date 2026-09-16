@@ -1,7 +1,7 @@
 # Recipes — frozen, typed, field-proven or absent
 
 A recipe is `<hostKind>-<workKind>.sh` (`lxd-stamp.sh`, shipped;
-`proxmox-reap.sh`, not yet written…). It receives typed positional arguments
+`proxmox-*`, `liblxc-*` and `nested-*`, not yet written…). It receives typed positional arguments
 — rowId, class, matrix, digest, account, env — and never interpolates any of
 them into a composed command. The row's `params`, when its class declares
 any, reach it as `SHAPER_PARAM_<KEY>` variables on an environment the maker

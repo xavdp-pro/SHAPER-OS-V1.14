@@ -28,17 +28,24 @@ classes:
                            # "self" for a standalone that governs itself
 machines:
   - name: <machine-name>   # the host inventory — a handful of rows that change yearly
-    kind: proxmox | lxd | liblxc   # the host family (Rule 11) — the token the
-                           # maker's recipes are keyed by (<kind>-<work>.sh).
+    kinds: proxmox | lxd | liblxc | nested   # the host families this machine
+                           # offers (Rule 11) — one or more; each is the token the
+                           # maker's recipes are keyed by (<kind>-<work>.sh). A
+                           # family serves one shape: `nested` stamps the nested
+                           # shape, the other three stamp the `lxc` shape; a
+                           # Debian host with LXD and rootful Podman lists both
+                           # `lxd` and `nested` (16 September 2026).
                            # Plain LXC is `liblxc`, never the bare `lxc`: that
                            # word is LXD's client binary (2 September 2026).
+                           # A YAML list, e.g. `kinds: [lxd, nested]`.
     registry: <host:port>  # the machine's podman registry — an infrastructure
                            # prerequisite, one per machine (V1.13.1, operator ruling):
                            # deployments on this machine use THIS registry; an agent
                            # that does not know it asks, never invents one.
                            # THE ADDRESS IS THE ONE REACHABLE FROM INSIDE A UNIVERSE
-                           # LXC, never a host-relative one: the build runs in the
-                           # LXC (Rule 11), so 127.0.0.1 there names the LXC itself
+                           # CONTAINER, never a host-relative one: the build runs in
+                           # the universe container (Rule 11), so 127.0.0.1 there
+                           # names the container itself
                            # and the push dies on `connection refused` (V1.13.3).
     reach: <how the operator reaches it — never a credential>
 ```
