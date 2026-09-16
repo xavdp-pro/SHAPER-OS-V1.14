@@ -4,7 +4,7 @@
 
 ## Objective
 
-Give a Linux operator and an IDE agent enough intent to **install**, **prove**, and **keep** Shaper OS without weakening RULES.md — including fractal reuse, perimeters, and DEV / TEST / PROD.
+Give a Linux operator and an IDE agent enough intent to **install**, **prove**, and **keep** Shaper OS without weakening RULES.md — including fractal reuse, perimeters, and DEV / TEST / PROD. Its human direction is [Cooperative Intelligence Ecology](./doctrine/COOPERATIVE-INTELLIGENCE-ECOLOGY.md): useful capability under human direction, with bounded authority, evidence, repair, and room for specialization.
 
 ## Invariants
 

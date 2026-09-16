@@ -47,6 +47,14 @@ where we do not (architectural drift).
 This is why the corpus is large and the freedom is real: **carte blanche on the
 implementation, zero blanche on the frame.**
 
+**Design direction, not authority:** SHAPER's [Cooperative Intelligence
+Ecology](../../doctrine/COOPERATIVE-INTELLIGENCE-ECOLOGY.md) explains why the
+frame exists: useful human freedom, bounded authority, evidence, repair, and
+cooperation across people and systems. Read it while designing or reviewing.
+Do not carry it wholesale into a live agent context, and never derive a new
+permission from it; `RULES.md`, the mandate, and the local contract still decide
+what may happen.
+
 ---
 
 ## The ten principles

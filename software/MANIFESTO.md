@@ -39,6 +39,14 @@ These four concepts are distinct facets of the same universal truth:
 * **Definition**: Documentation that lives as active, composable context (`ctx-universe.md`, `RULES.md`, LEGO `@shaper/*` engines) rather than dead manuals.
 * **Mechanism**: Small, atomic bricks assembled like fractals to build enterprise ERPs, CRMs, voice AI engines, or legal universes in minutes.
 
+### Design Direction: Cooperative Intelligence Ecology
+
+SHAPER's engineering method serves a human purpose: people and organizations
+should gain useful capability without losing the ability to understand, govern,
+repair, or leave the systems they depend on. AI systems help inside declared
+mandates; they do not become the source of purpose or authority. The canonical
+statement is [`doctrine/COOPERATIVE-INTELLIGENCE-ECOLOGY.md`](../doctrine/COOPERATIVE-INTELLIGENCE-ECOLOGY.md).
+
 ---
 
 ## 3. The Concrete Laws of Declarative Crafting

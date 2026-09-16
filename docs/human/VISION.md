@@ -12,6 +12,16 @@ You run a business by **talking**. The agent looks up real context, does the wor
 
 A chatbot replies. This stack is an **operating system**: local secrets, audit, background jobs, copyable universes. Client apps stay outside the operator cockpit.
 
+It exists to help people build company systems they can understand, shape, and
+recover. Start with one useful service — calls, customer follow-up, documents,
+or team work — then connect other services deliberately. Important changes stay
+visible, bounded, and recoverable; technology should give people more useful
+freedom, not trap them in a black box.
+
+The wider direction is [Cooperative Intelligence Ecology](../../doctrine/COOPERATIVE-INTELLIGENCE-ECOLOGY.md): humans set purpose and remain able to
+understand and redirect the system; AI systems and software components help
+within clear limits.
+
 The same brick shape repeats from one package to a fleet. DEV may break. TEST is born empty and then deleted. PROD moves by git tag.
 
 ```
