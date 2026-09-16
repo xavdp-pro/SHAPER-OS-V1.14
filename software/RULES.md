@@ -233,7 +233,7 @@ SHAPER OS uses **two complementary layers** — never one replacing the other:
   * The AI agent is the meticulous technical co-pilot and strict executor.
 * **Strict `.env` Pre-Flight Verification & Mandatory Halt**:
   * **Pre-Flight Inspection**: Before building images, launching containers (`podman-up.sh`), or running tests, the AI agent **MUST ALWAYS inspect the `.env`** (at repository root, `software/.env`, or universe directory).
-  * **Zero Blind Execution**: The AI agent MUST NEVER start deployment blindly hoping secrets exist or using dummy placeholders that return 401s.
+  * <a id="rule-0j-zero-blind-execution"></a>**Zero Blind Execution**: The AI agent MUST NEVER start deployment blindly hoping secrets exist or using dummy placeholders that return 401s.
   * **Proactive Key Reclamation**: If any required secret (`VAULT_MASTER_KEY`, `JWT_SECRET`, `DEEPGRAM_API_KEY`, `GROQ_API_KEY`, Cloudflare tunnel token) is missing or empty, the AI agent **MUST HALT IMMEDIATELY**, explain which key is missing, provide the exact vendor signup/console URL, and wait for the human to paste it.
 * **Multi-Podman Key Propagation**:
   * The AI agent is strictly responsible for copying and propagating the validated `.env` across all universe and Podman runtime directories (`software/.env`, `deploy/env`, `deploy/<univ_slug>.env`).
@@ -1007,7 +1007,7 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
   cross-surface journey where applicable. A build, unit suite, health endpoint,
   screenshot or API success alone cannot stand in for the complete user journey.
   After correction, rerun the failed scenario and affected dependent scenarios.
-* **Record what actually happened.** Each checklist item carries the target and
+* <a id="rule-20-record-what-actually-happened"></a>**Record what actually happened.** Each checklist item carries the target and
   source version, execution date, steps, expected and observed results, actual
   evidence reference, execution actor and coverage limits. Independent review
   supplements the agent's own functional run; human acceptance remains separate.
@@ -1049,7 +1049,7 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
   * Any validated file deposited in `/data/ged` emits an asynchronous event that triggers automatic chunking and vector embedding into Qdrant using a sovereign local model (`all-MiniLM-L6-v2` via ONNX).
   * **No silent degradation**: if the sovereign embedding model is unavailable, ingestion fails loudly and the document is queued as `PENDING_EMBED`. A lexical or hash-based placeholder vector MUST NEVER be written into a semantic collection (Rule 0G).
 * **Strict Multi-Tenant Isolation**:
-  * Each Universe owns its isolated Qdrant collection. An agent can only query its own vector namespace.
+  * <a id="rule-22-isolated-qdrant-collection"></a>Each Universe owns its isolated Qdrant collection. An agent can only query its own vector namespace.
   * Parent Supervisor universes only consume aggregated metrics and structured summaries; they NEVER access raw child vector collections directly.
 
 ---
@@ -1278,7 +1278,7 @@ rule is what killed the synonyms, and it keeps them dead.*
     behind a slot nothing frees, its matrix pinned by a reference no
     instance holds. A state word for "ended" that did not exist was read
     as "still there".
-  * `status.json` (per instance: state, lastPurr, lastBackup) is the canonical
+  * <a id="rule-37-status-json"></a>`status.json` (per instance: state, lastPurr, lastBackup) is the canonical
     surface; every board, cockpit tile or STATE file is a rendering of it,
     never a rival.
 * **The ledger is the only instance store**: one row per instance, in the
