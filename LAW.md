@@ -14,8 +14,8 @@ If a step is law, it is **mandatory**. Convenience is not a reason to skip it.
 | `/console` is perimeter 2 | Put the client shop in Helm |
 | Bricks are referenced, not copied | Fork Containerfiles into the universe |
 | Voice in `/console` | Revive `/talk` or `/voice` |
-| **Parent repairs Child ($K+1 \rightarrow K$)** | Let an agent modify its own active infrastructure in-flight |
-| **Parent holds SSH authority ($K+1 \rightarrow K$)** | Pass private keys to children or mutate prod directly |
+| <a id="law-parent-repairs-child"></a>**Parent repairs Child ($K+1 \rightarrow K$)** | Let an agent modify its own active infrastructure in-flight |
+| <a id="law-parent-holds-ssh-authority"></a>**Parent holds SSH authority ($K+1 \rightarrow K$)** | Pass private keys to children or mutate prod directly |
 | **TEST rebuilt clean-sheet from zero** | Retain dirty artifacts or unverified caches during validation |
 | **Quality Gate automated check** | Mark a job COMPLETED without test proof |
 | **Simple mode is 100% jargon-free** | Expose P1/P2/P3/Maestro/Tokens to business owners |
