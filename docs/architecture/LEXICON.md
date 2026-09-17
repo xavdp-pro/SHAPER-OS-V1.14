@@ -17,7 +17,12 @@
 > Helm names the one human interface to an ecosystem, whoever holds it; root
 > has two strata, the master root and a jurisdiction root; the pilot level is
 > proven in a demo instance, never declared. `KovZu` is retired and
-> `Control Hub` refused, both as synonyms of Helm.
+> `Control Hub` refused, both as synonyms of Helm. Same day, one word one
+> meaning: PodMesh, which had called its per-host agent a maker and its active
+> manager replica a governor, now says *PodMesh node* and *active manager* in
+> its prose, code and identifiers (podmesh `9dec49c`, `1ab9cf8`, `531d5ed`, with
+> a lexicon test); Rule 11 states those positive names, and governor and maker
+> keep their Rule 37 meaning only.
 
 ## The three grammar rules (they held at every scale)
 

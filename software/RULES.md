@@ -736,13 +736,11 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   — no such recipe ships, and PodMesh knows no maker or governor today
   (`doctrine/CONVERGENCE-STATE.md`, Rule 11 gap). Where PodMesh is not
   installed, a universe born by a recipe or by hand, in either shape, is fully
-  conformant. PodMesh is never a source of authority. **PodMesh's "maker" and
-  "governor" are neither**: PodMesh names its per-host agent a maker, and calls
-  a governor the replica whose host holds a live, unsuperseded activation lease
-  on the manager resource under an externally issued epoch; in this tree they
-  are *the PodMesh node* and *the active PodMesh manager* ("manager actif"), because both nouns
-  are closed by Rule 37 — a maker is one per machine and executes frozen
-  recipes, a governor holds a ledger and never dials out. This rule names the
+  conformant. PodMesh is never a source of authority. **PodMesh's roles are the PodMesh
+  node** (its per-host agent) **and the active PodMesh manager** ("manager
+  actif": the replica whose host holds a live, unsuperseded activation lease on
+  the manager resource under an externally issued epoch); *governor* and
+  *maker* are Rule 37 words and name no PodMesh role. This rule names the
   shape of containment, never the tool that produces it. PodMesh's own
   contracts are not canon, and a promise PodMesh has not proven — production
   high availability, the loss of a real host, moving a universe that carries
