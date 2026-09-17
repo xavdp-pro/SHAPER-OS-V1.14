@@ -81,7 +81,9 @@ address — and a maker that serves several ledgers reads a table of addresses
    durability is evidence and never resumption.
    *Today the governor derives work from state and deadline only; drift of a
    running instance is not observed. TARGET: the maker declares at every poll
-   the instances it actually runs (by row id, from `lxc list`), the governor
+   the instances it actually runs (by row id, from its host kind's own listing:
+   `lxc list`, `pct list`, or PodMesh's universe listing for the `nested`
+   shape), the governor
    re-dates PURRING on each declaration, and a missing instance becomes stamp
    work.*
 3. **It hears the silences.** It dates every maker's last call. Absence beyond
@@ -223,6 +225,27 @@ interpret, it does not improvise.
 of the fractal — not outside it. What is outside the fractal is the root power
 on the host that it holds in its vault.**
 
+**Both universe shapes are the maker's** (Rule 11, amended 16 September 2026).
+The maker is not an LXC tool. It stamps, validates, adopts and reaps `lxc`
+universes through `lxd`, `proxmox` or `liblxc` recipes, and `nested` universes —
+rootful Podman containers carrying their own Podman — through `nested` recipes.
+Where PodMesh is installed, a `nested` recipe is the hop that invokes PodMesh's
+typed operations for the work the ledger declares, and PodMesh then observes,
+backs up and may move the universe; where it is not, the recipe drives Podman
+itself (Rule 36). The maker stays the hand of its machine and PodMesh its Podman
+tooling: PodMesh is never a governor and holds no ledger. PodMesh states the
+same split from its side — the governor owns intent and the registry, one maker
+per host orchestrates local PodMesh mechanics. The operator put the whole
+chain in one sentence on 17 September 2026: governors queue the universes to
+create, destroy or pause according to SaaS billing; the master root prepares in
+advance every image to deploy and specialise; makers deploy them, with PodMesh
+where the cluster uses it, straight into the cluster's continuity and recovery
+plans; each client's web interface shows its own park of universes. *TARGET:
+pausing is not one of the four work kinds of §5 yet; only the `lxd-*`
+recipes ship; no `nested-*` recipe exists, and the maker integration is steps 6
+and 14 of PodMesh's implementation plan, not implemented
+([`CONVERGENCE-STATE.md`](./CONVERGENCE-STATE.md), Rule 11 row).*
+
 ### 4.2 The twelve invariants (the law of `_maker-template/INTENT.md`)
 
 1. **Nothing can open a connection to it.** No port, no certificate. It calls
@@ -298,6 +321,11 @@ governor.*
 
 ### 4.4 The maker lives in an LXC — ruled, not yet built
 
+*Ruled when the LXC was the only universe container. Since Rule 11's amendment
+of 16 September 2026 a universe takes either shape; whether the maker's own
+universe may be `nested` is to ratify by the operator. What the ruling protects
+— hosts interchangeable, a machine replaced by a restoration — holds for both.*
+
 Ruled by the operator on 31 August: *"more practical, and the hosts become
 completely interchangeable."* The maker is a universe holding, in its vault,
 the power to act on its own host.
@@ -340,7 +368,7 @@ almost, even on a VPS."*
 reason the maker holds root on its host, from its own universe. The sharing,
 in one line each: **the forge repairs bricks inside a living universe** (podman
 level; drift at brick level); **the maker births and ends universes from
-matrices** (LXC level; gap at instance level). The forge repairs what lives;
+matrices** (universe-container level, `lxc` or `nested`; gap at instance level). The forge repairs what lives;
 the maker gives birth. The lexicon's page test follows (§10): *who repairs?* —
 the forge, inside a universe; *who births?* — the maker, from a row.
 
@@ -349,8 +377,9 @@ the forge, inside a universe; *who births?* — the maker, from a row.
 ## 5. The recipe
 
 A recipe is `<hostKind>-<workKind>.sh` — `lxd-*.sh` (shipped), `proxmox-*.sh`
-(not yet written), and a third host kind whose token must not read as the LXD
-CLI: `liblxc` (§8.4, D2). It receives **typed positional arguments** —
+(not yet written), a third host kind whose token must not read as the LXD
+CLI: `liblxc` (§8.4, D2), and `nested-*.sh` for the `nested` shape of Rule 11,
+the hop to PodMesh where it is installed (not yet written, §4.1). It receives **typed positional arguments** —
 `rowId klass matrix digest account env` — plus the row's `params` as
 `SHAPER_PARAM_<KEY>` variables on an environment the poller constructs (PATH,
 HOME, LANG, LC_ALL and TMPDIR, the operator's `SHAPER_*` — never a
