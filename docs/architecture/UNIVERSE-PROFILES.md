@@ -174,7 +174,7 @@ for one is a deliberate act rather than a surprise at deploy time.
 | **`+pdf-toolkit`** | `+pdf` | `brick-pdf` *(TARGET)* | Multi-page PDF splitting, barcode tagging, and digital signature |
 | **`+documents`** | `+dms` | `ged`, `qdrant`, `@shaper/pkg-rag` | Full document ingestion, OCR, and 384d semantic vector search |
 | **`+data`** | `+db` | `mariadb` | Relational database state that outlives the execution run |
-| **`+web`** | `+cockpit` | `helm`, `auth` | Operator `/console` cockpit and authenticated browser interface |
+| **`+web`** | `+cockpit` | `helm`, `auth` | Helm (`/console`), the pilot's conversational interface, and authenticated browser interface |
 | **`+public`** | `+online` | `tunnel` (Cloudflare Zero Trust) | Public HTTPS routing with **zero open inbound ports** |
 | **`+intake`** | `+mail` | `@shaper/pkg-mail-agent` | Automatic inbound IMAP mail listening & background job intake |
 | **`+parent`** | `+supervisor` | `@shaper/pkg-supervisor`, SSH authority | Supervisor role: grades child vitals (R23) and performs repairs |

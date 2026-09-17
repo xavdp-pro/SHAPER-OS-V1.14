@@ -3,7 +3,7 @@
 > **Scan**: 2026-08-19 · workspace `REMOTE2/`  
 > **Canonical law**: [`PERIMETERS.md`](./PERIMETERS.md) — **P1 / P2 / P3** taxonomy.  
 > **Doc index**: [`DOC-INDEX.md`](./DOC-INDEX.md).  
-> **Out of UI scope**: `/talk` and `/voice` **removed** (redirect to `/console`). Operator voice **inside** `/console` = **P2**.  
+> **Out of UI scope**: `/talk` and `/voice` **removed** (redirect to `/console`). Helm voice **inside** `/console` = **P2**.  
 > **Convention**: objective (why) ↔ feature (what / where).  
 > **Status**: `live` · `partial` · `vision` · `retired` · `absent` (doc/script promised but not in the repo).
 
@@ -151,7 +151,7 @@
 
 | Objective | Feature | Status |
 | :--- | :--- | :--- |
-| Operator console | `/console` · CLI chat · timeline | live |
+| Helm (operator pilot today) | `/console` · CLI chat · timeline | live |
 | Admin | `/admin/{maestro,socle,agent,cli,briefing,voices,users}` | live |
 | i18n | FR / EN / ES | live |
 

@@ -87,7 +87,7 @@ Every component, package, brick, or app MUST be classified into **exactly one** 
 
 * **Rule 0F alignment**: Helm is **P2**, whoever holds it: perimeter is the layer, never the owner, so a client pilot at the Helm does not make it P3. Client ERPs, scrapers and human-to-human business chat are **P3** — never merged into Helm.
 * **Test universes** (`UNIV7`, `UNIV8`, `UNIV9`) prove **P1+P2** — they are not P3 verticals.
-* **Removed UI**: `/talk` and `/voice` redirect to `/console`. Operator voice STT/TTS inside `/console` remains **P2**.
+* **Removed UI**: `/talk` and `/voice` redirect to `/console`. Helm voice STT/TTS inside `/console` remains **P2** (wording aligned with Rule 0F on 17 September 2026: Helm is not an operator-only surface).
 
 ---
 
@@ -740,7 +740,7 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
   "governor" are neither**: PodMesh names its per-host agent a maker, and calls
   a governor the replica whose host holds a live, unsuperseded activation lease
   on the manager resource under an externally issued epoch; in this tree they
-  are *the PodMesh node* and *the active PodMesh replica*, because both nouns
+  are *the PodMesh node* and *the active PodMesh manager* ("manager actif"), because both nouns
   are closed by Rule 37 — a maker is one per machine and executes frozen
   recipes, a governor holds a ledger and never dials out. This rule names the
   shape of containment, never the tool that produces it. PodMesh's own

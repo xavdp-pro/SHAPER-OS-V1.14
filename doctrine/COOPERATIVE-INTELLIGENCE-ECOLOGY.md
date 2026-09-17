@@ -67,7 +67,7 @@ The same pattern is intended to hold at several scales:
 | Person | Dignity, understanding, consent, and meaningful control | Simple language, visible consequence, role and scope boundaries, escalation |
 | AI system | Useful initiative without invented authority | Narrow context, named mandate, scoped capability, evidence, refusal and escalation |
 | Business component | A clear purpose and a recoverable lifecycle | Declared contract, isolated state, explicit integration, independent verification |
-| Customer galaxy | A company can grow without becoming an opaque monolith | Components can work alone, connect deliberately, and be specialized by contract |
+| Customer jurisdiction | A company can grow without becoming an opaque monolith | Components can work alone, connect deliberately, and be specialized by contract |
 | Infrastructure | Continuity when a component or host fails | Parent repair, external verification, backups, restoration, and out-of-band recovery |
 | Commons | Durable collaboration beyond one vendor or one project | Open contracts, provenance, portability, honest limits, and reusable knowledge |
 
@@ -145,7 +145,7 @@ ago?” and receive a useful, sourced answer without first learning which screen
 filter, dashboard, or report contains it.
 
 Web interfaces remain essential, but they are **operational reflections** of the
-customer galaxy rather than a competing center of truth. They make the relevant
+customer's jurisdiction rather than a competing center of truth. They make the relevant
 part of the system visible and usable: current work, customer records, calls,
 documents, queues, permissions, history, evidence, plans, and approved actions.
 An interface may initiate a governed request, but the resulting fact belongs in

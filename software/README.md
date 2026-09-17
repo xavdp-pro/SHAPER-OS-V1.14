@@ -313,7 +313,7 @@ Shaper OS is the **technical floor** you do not rebuild for every project:
 - **Audit log** (who did what, when)
 - **Job queue** + **scheduler** (background work, beats, follow-ups)
 - **AI bridge** wired to **your** business rules (`ctx-universe.md`)
-- Optional **operator console** + voice (`/console`) — for you, not for your end customers
+- Optional **Helm** + voice (`/console`) — the one conversational interface for every pilot, bounded by jurisdiction and pilot level (Rule 0F); today only the operator holds it
 
 On that floor you — or an IDE agent — **shape the tool you lack today**:
 

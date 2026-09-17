@@ -140,7 +140,7 @@ An autonomous agent operating within the Shaper ecosystem must **NEVER confuse w
 | • Session, timeline and auth management  | • Durable software bricks          |
 | • Local sovereign mini-GED (/data/ged)   | • Isolated Podman sandboxes (--rm) |
 | • The `/console` cockpit interface (P2)  | • Dedicated volumes (/data/<slug>) |
-| • Operator voice inside `/console` (P2)  | • `market-intelligence`, CRM (P3)  |
+| • Helm voice inside `/console` (P2)      | • `market-intelligence`, CRM (P3)  |
 | • Stays INSIDE Helm's body               | • Deployed ON the host system      |
 +------------------------------------------+------------------------------------+
 ```
@@ -156,7 +156,7 @@ An autonomous agent operating within the Shaper ecosystem must **NEVER confuse w
   Helm over different jurisdictions.
 * **What lives there** (all **P2** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)):
   1. The prompt engine, the context awareness (`sessionPrime.js`, `agentSkills.js`).
-  2. The operator voice pipeline **inside `/console`** (Deepgram STT/TTS, Groq ack) — **not** the retired `/talk` route.
+  2. The Helm voice pipeline **inside `/console`** (Deepgram STT/TTS, Groq ack) — **not** the retired `/talk` route.
   3. Authentication, roles, folder-based conversation management and archiving.
   4. The local Mini-GED (`/data/ged/`) and the traceability of attachments.
   5. The delegation queue and the Maestro scheduler (`:8640`, `:8630`).

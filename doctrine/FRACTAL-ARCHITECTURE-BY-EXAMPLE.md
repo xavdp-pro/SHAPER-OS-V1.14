@@ -72,7 +72,7 @@ flowchart TD
   - `brick-logger` keeps the local JSONL evidence of everything that happened.
   - `brick-queue` carries asynchronous work so that nothing is lost between a decision and its execution.
 * **Perimeter 2 (Execution Agent and Helm)**:
-  - **Helm remains intact in its original role**: the backup technical control tower for the operator — access to containers, a console when one is needed.
+  - **Helm** is the one conversational interface for every pilot (Rule 0F): the operator uses it as the technical backstop — access to containers, a console when one is needed — and a client pilot holds it over their own jurisdiction, at their proven pilot level.
   - The local `brick-maestro` paces the universe's declared `task-*` entries.
 * **Perimeter 3 (Dedicated Business Interface)**:
   - **No visible terminal, no raw logs for the end user.**
@@ -109,7 +109,7 @@ To keep the system hyper-simple and unbreakable, each entity has a strict mandat
 | **Platform universe** | Billing, provisioning customer universes, quotas, global lifecycle. | Does not touch the business records held by a child. |
 | **Fleet manager universe (parent)** | Arbitration across the fleet, consolidated reporting, updating agent contexts. | Does not store the master secrets of another operator. |
 | **Child universe** | Execution of its own declared tasks, and nothing else. | Does not attempt to administer the host's global infrastructure. |
-| **Helm (`/console`)** | Universal technical administration and monitoring foundation. | Never morphs into a public-facing business application. |
+| **Helm (`/console`)** | The conversational interface of every pilot, bounded by jurisdiction and pilot level. | Never morphs into a public-facing business application, and never answers outside its jurisdiction. |
 | **P3 business interface** | Pure user experience, tailored to one trade. | Never displays a terminal or dev complexity to the end user. |
 
 ---

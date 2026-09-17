@@ -4,7 +4,7 @@ HTTP + SSE bridge in front of the [OpenCode](https://opencode.ai) CLI, on the
 **same contract** as `cursor-agent-bridge`, `antigravity-bridge` and
 `claude-bridge`.
 
-It lets an operator console (the catalogue's `brick-helm` cockpit, or any
+It lets Helm (the catalogue's `brick-helm`, or any
 client of the shared bridge contract) drive OpenCode like any other CLI agent,
 with no application-side code specific to it.
 
