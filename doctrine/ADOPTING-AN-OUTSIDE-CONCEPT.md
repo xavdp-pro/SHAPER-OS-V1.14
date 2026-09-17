@@ -10,6 +10,19 @@
 allegiance.** A concept enters here as a working tool, judged by what it produces, and
 never as an argument from its origin.
 
+## Why we go and look at all
+
+Three sources feed this system, and none of them is ranked above the others by origin:
+what the operator thinks, what the agents derive, and what someone has already studied
+properly. The third is not a lesser source. When a question has been worked on seriously
+elsewhere and the result is usable, **we take it instead of circling the subject for
+years** — the operator's own words, 17 September 2026: *"quand c'est prêt, c'est prêt, on
+va le chercher, on l'adapte, on garde la substance et on est bon"* — when it is ready, it
+is ready: we go and get it, adapt it, keep the substance, and that is enough.
+
+What earns a concept its place is never who thought of it. It is whether it survives the
+four conditions below and produces something we can run.
+
 ## The four conditions
 
 1. **Substance, not vocabulary.** Take the mechanism — what it makes visible, what it
