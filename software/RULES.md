@@ -827,6 +827,23 @@ Never tell a client or write in this repo that restore is “under 120 seconds�
     **QUARANTINE** removes a suspect container from active service while
     keeping it for inspection, without pretending a `podman exec` cleanup
     has restored trust nothing has actually verified.
+    Two conditions bind the four (amended 17 September 2026, operator
+    decision, from the same corpus):
+    **The cause is closed before anything is rebuilt.** A component whose
+    integrity is doubtful is rebuilt only once the path that compromised it
+    is understood well enough not to be rebuilt with it; otherwise the
+    sequence is clean, put back, reinfect, clean — the operator has paid for
+    that cycle on a mail server, and a rebuild that reopens the same door is
+    a repair with extra steps.
+    **The incident order, which is not the development order.** `DEV → TEST
+    → PROD` (Rule 10) says where a version stands in its life; the incident
+    order says whether an instance is still trusted, and it runs: suspect
+    noticed → privileges frozen or reduced → evidence captured → QUARANTINE
+    → cause identified → source CORRECTed → REBUILD from a known-good image
+    → tested → counter-view → put back in service → observed → the old
+    instance destroyed or archived deliberately. QUARANTINE is a state of
+    trust, never a fourth environment, and a component in it never returns
+    to service as it is.
     `_maker-template/recipes/podman-brick.service.example` is the checked
     shape: every start (`ExecStartPre=-podman rm -f`, then a fresh
     `podman run`) is a rebuild of the whole container, never a patch

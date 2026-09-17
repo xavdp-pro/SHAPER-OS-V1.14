@@ -1,6 +1,6 @@
 # 🏛️ SHAPER-OS — Doctrinal Corpus & Strategic Frame
 
-This directory gathers the **13 founding reference documents** and the convergence state of SHAPER-OS, formalised and locked during the August–September 2026 sessions. It serves as **shared context, doctrinal compass, hardware operations guide and security chain** for the human and for every AI agent (Claude Code, Cursor, Antigravity, OpenCode).
+This directory gathers the **15 founding reference documents** and the convergence state of SHAPER-OS, formalised and locked during the August–September 2026 sessions. It serves as **shared context, doctrinal compass, hardware operations guide and security chain** for the human and for every AI agent (Claude Code, Cursor, Antigravity, OpenCode).
 
 ---
 
@@ -22,6 +22,8 @@ This directory gathers the **13 founding reference documents** and the convergen
 | **11** | [`MAKER-AND-GOVERNOR.md`](./MAKER-AND-GOVERNOR.md) | **The two organs of the fractal**: the governor writes what should exist, the maker makes it true, the gap between the ledger and what makers report is the only source of work. Ledger, recipes, matrices, one maker per machine, the fractal's levels — with a Windows fleet manager (WMANAGER) as the worked example. |
 | **12** | [`THE-KERNEL-IS-CONSULTED-NOT-CARRIED.md`](./THE-KERNEL-IS-CONSULTED-NOT-CARRIED.md) | **How to use a philosophical corpus without diluting a running agent**: a rich cognitive framework (`doctrine/kernel/`) is read once by whoever designs a component and never loaded into a live agent's context — the same discipline `INTENT.md` already proved, one level up. |
 | **13** | [`COOPERATIVE-INTELLIGENCE-ECOLOGY.md`](./COOPERATIVE-INTELLIGENCE-ECOLOGY.md) | **Why SHAPER exists**: human-guided cooperation among people, AI systems, business components, organizations, and infrastructure — freedom with guardrails, repair, evidence, specialization, and shared prosperity. |
+| **14** | [`A-LIVING-SYSTEM.md`](./A-LIVING-SYSTEM.md) | **What the rules are collectively for**: immunity is one function of a living system that perceives, holds its axis, orients itself, acts, protects itself, leaves its own loops, learns and transforms without losing integrity — with the stop condition that ends a loop, and the line between enough control to create and so much that nothing emerges. |
+| **15** | [`ADOPTING-AN-OUTSIDE-CONCEPT.md`](./ADOPTING-AN-OUTSIDE-CONCEPT.md) | **How an outside concept enters here**: keep the substance, state it plainly in our own words, carry no allegiance, and judge it by the mechanism it produces. Facts keep their citation; methods leave their origin in the operator's library. |
 
 ---
 
