@@ -13,7 +13,7 @@ Give a Linux operator and an IDE agent enough intent to **install**, **prove**, 
 3. Secrets stay local. Never commit `.env`, vault files, or tunnel tokens.
 4. First path: units (`npm test`) → images → deploy → health → **live tests** (`npm run test:live`) → voice/text proof. No skip. Live tests run **after** the stack is up, not before.
 5. Generic bricks are reused; a universe only **specializes**. Never copy Containerfiles or packages into a universe.
-6. Operator cockpit (`/console`) is perimeter 2. Client shops and CRM are perimeter 3 — never merged into the cockpit. Voice lives in `/console` if Helm is on — never revive `/talk` or `/voice`.
+6. Helm (`/console`), the conversational interface for every pilot, is perimeter 2 whoever holds it, set by jurisdiction and pilot level (Rule 0F). Client shops and CRM are perimeter 3 — never merged into Helm. Voice lives in `/console` if Helm is on — never revive `/talk` or `/voice`.
 7. Laptop install is **DEV**. TEST rebuilds from scratch then is destroyed. PROD is created once and updated by **git tag**, not by vibe on the live box.
 8. Mail and real customer data used in TEST/DEV must never be production mailboxes.
 9. **Engine discovery at deployment**: at every stack deployment the deploying agent enumerates the engines actually reachable from the target host, sends a bounded ping, measures, and selects the cheapest one satisfying the brick's declared depth and throughput — recording the measurement with the choice. **No model name is written here**: naming one would date this file the day its vendor ships a successor. Ultra-fast engines stay reserved for acknowledgment and voice micro-tasks and are never exposed as general agent chat models.

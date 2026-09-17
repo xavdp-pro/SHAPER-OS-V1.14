@@ -88,7 +88,7 @@ flowchart TB
 
 ## 📱 2. `brick-softphone` — WebRTC Responsive Softphone (Desktop & Mobile)
 
-* **Perimeter:** P2 (Operator Cockpit / Agent UI).
+* **Perimeter:** P2 (Helm / Agent UI).
 * **Port:** `:8660` (or embedded inside Helm cockpit).
 * **Role:** Lightweight, zero-install WebRTC softphone client running on Desktop and Mobile browsers (PWA):
   - Inbound and outbound phone calls with crystal-clear Opus audio.
@@ -102,7 +102,7 @@ flowchart TB
 
 ## 📬 3. `brick-webmail` — Sovereign Responsive Webmail UI
 
-* **Perimeter:** P2 (Operator Cockpit) / P3 (Corporate Mail Portal).
+* **Perimeter:** P2 (Helm) / P3 (Corporate Mail Portal).
 * **Port:** `:8652`.
 * **Role:** Sovereign, ultra-responsive webmail interface:
   - Multi-account IMAP / SMTP support with zero reliance on Google Workspace or Outlook 365.
@@ -140,7 +140,7 @@ flowchart TB
 
 ## 🎙️ 6. `brick-voice` — Local Whisper STT & Low-Latency Voice Synthesis
 
-* **Perimeter:** P2 (Operator Cockpit Voice) / P3 (Field Worker Audio Notes).
+* **Perimeter:** P2 (Helm voice) / P3 (Field Worker Audio Notes).
 * **Port:** `:8670`.
 * **Role:** Speech-to-Text (STT) transcription via Whisper / Faster-Whisper + Text-to-Speech (TTS) via Piper / XTTS. Provides low-latency streaming acknowledgment for voice-first interactions ($< 500$ ms).
 * **Cognition:** `D1` (audio transcription) + `T0` (voice streaming throughput $\ge 500$ tok/s).

@@ -155,3 +155,34 @@ test('the rig is distinguished from the class, and no brick smuggled itself in',
     'steward is a brick (brick-steward): Rule 37 says new bricks are not new nouns',
   );
 });
+
+// The amendment of 17 September 2026 (one Helm for every pilot). The operator
+// described customers shaping their universe from Helm, while a website brief
+// of the same day reserved Helm for operators and invented "Control Hub" for
+// customers, and Rule 0F still called the cockpit KovZu: three names, two
+// authority models, one surface. Four words entered to end it. Each must sit in
+// Rule 37's clause and in the page's table with the failure it prevents; Rule
+// 0F must no longer present KovZu as a living cockpit; and neither retired
+// synonym may come back as a lexicon row.
+test('Helm, jurisdiction, root and pilot level are sealed, and their synonyms stay out', () => {
+  const clause = bulletOf(ruleText('rule-37'), 'Lexicon closure');
+  const rows = lexiconRows();
+  const missing = [];
+  for (const word of ['Helm', 'jurisdiction', 'root', 'pilot level']) {
+    if (!clause.includes(`**${word}**`)) missing.push(`${word}: Rule 37's lexicon-closure clause does not name it`);
+    const sentence = rows.get(word);
+    if (!sentence) { missing.push(`${word}: not a row of the lexicon's table`); continue; }
+    if (!/prevents/i.test(sentence)) missing.push(`${word}: its row does not say what failure it prevents (Rule 37)`);
+  }
+  const root = rows.get('root') || '';
+  for (const stratum of ['master root', 'jurisdiction root']) {
+    if (!root.includes(stratum)) missing.push(`root: its row does not name the stratum "${stratum}"`);
+  }
+  for (const synonym of ['KovZu', 'Control Hub']) {
+    if (rows.has(synonym)) missing.push(`${synonym}: a retired synonym of Helm came back as a lexicon row`);
+  }
+  const rule0f = ruleText('rule-0f');
+  if (/KovZu is the/i.test(rule0f)) missing.push('Rule 0F still presents KovZu as a living cockpit');
+  if (!/jurisdiction/.test(rule0f) || !/pilot level/.test(rule0f)) missing.push('Rule 0F does not set Helm by jurisdiction and pilot level');
+  assert.deepEqual(missing, [], `the Helm amendment is not sealed:\n  ${missing.join('\n  ')}`);
+});

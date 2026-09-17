@@ -15,9 +15,9 @@
 | :--- | :--- | :--- | :--- |
 | **P1 — Minimal socle** | Sovereign boot: secrets, audit, auth, generic jobs | vault, logger, auth, db, queue | live |
 | **P2 — Agentic** | Beats, bridges, cockpit, organism memory | maestro, agent, mail-agent, bridges, helm, ged, rag | live (rag/qdrant partial) |
-| **P3 — Business / clients** | Durable tools outside the socle and outside KovZu | market-intelligence, enterprise-chat, ocr, univ-* | vision |
+| **P3 — Business / clients** | Durable tools outside the socle and outside Helm | market-intelligence, enterprise-chat, ocr, univ-* | vision |
 
-- Helm `/console` = **P2**. **`enterprise-chat`** = **P3** (client-portal chat, ≠ KovZu).
+- Helm `/console` = **P2**. **`enterprise-chat`** = **P3** (human-to-human client-portal chat, ≠ Helm). A client pilot at the Helm stays P2 (Rule 0F).
 - **`market-intelligence`** = **P3** (business watch / scraper).
 - UNIV7/8/9 = **P1+P2** sandboxes, not P3.
 
@@ -142,7 +142,7 @@
 
 ---
 
-## 3. P2 — Helm / KovZu cockpit
+## 3. P2 — Helm
 
 **Removed**: `/talk`, `/voice` → redirect to `/console`.  
 **Active**: voice inside `/console` (STT/TTS, Groq ack).
@@ -215,7 +215,7 @@
 | Objective | Feature | Status |
 | :--- | :--- | :--- |
 | Market watch | `market-intelligence` | vision |
-| Client-portal chat | `enterprise-chat` (**≠** KovZu) | vision |
+| Client-portal chat | `enterprise-chat` (**≠** Helm) | vision |
 | Business OCR | `ocr-engine` | vision |
 | RBAC showcase | `wikiuniv-v1` | vision |
 | Vertical ERPs | univ-sinistre, artisan, immo | vision |
@@ -223,7 +223,7 @@
 | Helm Desk | mobile → desktop WS (phase 4) | vision |
 | Scaffold tooling | `shaper-tool-scaffold.mjs` (writes `packages/pkg-<slug>` + `bricks/brick-<slug>`, from a universe class repository, never from the base), `shaper-sandbox.sh` | live |
 
-**Protocol**: sandbox → dedicated brick → volume `/data/<slug>/` → never inside KovZu.
+**Protocol**: sandbox → dedicated brick → volume `/data/<slug>/` → never inside Helm.
 
 ---
 
@@ -245,7 +245,7 @@
 | Objective | Status |
 | :--- | :--- |
 | P1 socle operational | live |
-| P2 agentic + KovZu | live (rag/qdrant partial) |
+| P2 agentic + Helm | live (rag/qdrant partial) |
 | P3 business | vision |
 | Talk `/talk` | **retired** |
 | Talk doc (SPEC_ZEPHIR) | **removed in V1.11** — voice lives in `/console` |
@@ -261,5 +261,5 @@
 | Packages | `packages/` |
 | Bricks | `bricks/` |
 | Graph | `topology.json` |
-| KovZu | `bricks/brick-helm/` |
+| Helm | `bricks/brick-helm/` |
 | Sandboxes | `UNIV7/` `UNIV8/` `UNIV9/` |

@@ -22,7 +22,7 @@ To avoid any confusion as the system evolves, every action, brick or test must b
 | Perimeter | Content | Examples |
 | :--- | :--- | :--- |
 | **P1** | Minimal socle | vault, logger, auth, queue, db |
-| **P2** | Agentic + KovZu | maestro, bridges, helm, ged, rag |
+| **P2** | Agentic + Helm | maestro, bridges, helm, ged, rag |
 | **P3** | Client business tools | market-intelligence, enterprise-chat, univ-sinistre |
 
 ---

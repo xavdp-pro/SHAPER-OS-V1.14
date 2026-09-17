@@ -344,7 +344,7 @@ Same bricks underneath. New **universe** = new manifest + data + your rules — 
 
 **Duplicate** a proven setup for a second brand or client. **Rebuild TEST from zero** to prove disaster recovery. **Tag PROD** when tests are green.
 
-Client-facing shops and portals stay **your apps** (perimeter 3). The operator cockpit stays **yours** (perimeter 2). Secrets and boot stay **boring and reliable** (perimeter 1).
+Client-facing shops and portals stay **your apps** (perimeter 3). Helm, the conversational interface you and your clients pilot within their jurisdiction, stays perimeter 2. Secrets and boot stay **boring and reliable** (perimeter 1).
 
 ---
 

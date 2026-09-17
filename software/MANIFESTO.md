@@ -124,7 +124,7 @@ To maximize innovation velocity without corrupting the canonical standard, SHAPE
 
 ---
 
-## 7. The Fundamental Duality: The KovZu "Belly" vs the Shaper OS "Way"
+## 7. The Fundamental Duality: The Helm "Belly" vs the Shaper OS "Way"
 
 An autonomous agent operating within the Shaper ecosystem must **NEVER confuse what belongs inside its own organism with what must be built as a sovereign tool for the human user**.
 
@@ -132,7 +132,7 @@ An autonomous agent operating within the Shaper ecosystem must **NEVER confuse w
 +-------------------------------------------------------------------------------+
 |                       THE FUNDAMENTAL SHAPER OS DUALITY                       |
 +-------------------------------------------------------------------------------+
-|   THE KOVZU "BELLY" (The Organism)       |   THE SHAPER OS "WAY" (The Tool)   |
+|   THE HELM "BELLY" (The Organism)        |   THE SHAPER OS "WAY" (The Tool)   |
 +------------------------------------------+------------------------------------+
 | • What we develop to extend and enrich   | • What the agent develops as a     |
 |   the agent itself                       |   real tool for the human          |
@@ -141,29 +141,32 @@ An autonomous agent operating within the Shaper ecosystem must **NEVER confuse w
 | • Local sovereign mini-GED (/data/ged)   | • Isolated Podman sandboxes (--rm) |
 | • The `/console` cockpit interface (P2)  | • Dedicated volumes (/data/<slug>) |
 | • Operator voice inside `/console` (P2)  | • `market-intelligence`, CRM (P3)  |
-| • Stays INSIDE KovZu's body              | • Deployed ON the host system      |
+| • Stays INSIDE Helm's body               | • Deployed ON the host system      |
 +------------------------------------------+------------------------------------+
 ```
 
-### 7.1 The KovZu "Belly": The Assistant's Organism
+### 7.1 The Helm "Belly": The Assistant's Organism
 * **Definition**: Everything that enriches the intelligence, memory, ergonomics, voice perception and responsiveness of the Zephir assistant.
-* **Conversational entry point**: Helm is the conversational agentic entry point
-  of the internal SHAPER OS control plane. It receives intent, explains the
-  bounded next action, and uses declared Runtime capabilities; it is never the
-  source of authority or a permanent root remote control.
+* **One interface for every pilot** (Rule 0F, amended 17 September 2026; the
+  organism was called KovZu before): Helm is the conversational interface
+  between a human and the ecosystem in their charge. It is set by a
+  jurisdiction and a pilot level, receives intent, explains the bounded next
+  action and uses declared Runtime capabilities; it is never the source of
+  authority. The master root and a client's jurisdiction root use the same
+  Helm over different jurisdictions.
 * **What lives there** (all **P2** — see [`docs/PERIMETERS.md`](./docs/PERIMETERS.md)):
   1. The prompt engine, the context awareness (`sessionPrime.js`, `agentSkills.js`).
   2. The operator voice pipeline **inside `/console`** (Deepgram STT/TTS, Groq ack) — **not** the retired `/talk` route.
   3. Authentication, roles, folder-based conversation management and archiving.
   4. The local Mini-GED (`/data/ged/`) and the traceability of attachments.
   5. The delegation queue and the Maestro scheduler (`:8640`, `:8630`).
-* **Golden rule**: What enters KovZu's belly does **NOT** turn into an external third-party tool. It is an integral part of the assistant's body, making it more powerful in the service of the human.
+* **Golden rule**: What enters Helm's belly does **NOT** turn into an external third-party tool. It is an integral part of the assistant's body, making it more powerful in the service of the human.
 
 ### 7.2 The Shaper OS "Way": The Forge of Durable Tools for the Human
 * **Definition**: When a user asks the agent to create an ERP, a CRM, a custom dashboard, an automation robot or a business service, the agent **never codes it inside its own belly**.
 * **The Shaper OS Way execution protocol**:
   1. **Phase 1: Prototyping in an Isolated Sandbox (Zero Pollution)**:
-     The agent launches an ephemeral compute container via `bash scripts/shaper-sandbox.sh` to compile, test and run heavy scripts with no risk of altering KovZu.
+     The agent launches an ephemeral compute container via `bash scripts/shaper-sandbox.sh` to compile, test and run heavy scripts with no risk of altering Helm.
   2. **Phase 2: Scaffolding a Standardised Durable Brick**:
      The agent generates a standalone brick with `node scripts/shaper-tool-scaffold.mjs create --slug <slug> --name "<Name>" --desc "<what it does>" [--port <port>]`, run from the root of the universe class repository — never from the base, where the scaffold halts:
      - Source package: `packages/pkg-<slug>/` (`@shaper/pkg-<slug>`, with a test that binds a real socket)
@@ -175,6 +178,6 @@ An autonomous agent operating within the Shaper ecosystem must **NEVER confuse w
 
 ### 7.3 The Agent's Instant Decision Rule
 Before any action, the agent must ask itself:
-> **"Does this request concern my own cognitive/voice/document capabilities (the KovZu Belly), or is it a durable working tool meant for the human's activity (the Shaper OS Way)?"**
-* If **Belly** $\rightarrow$ Modify/extend the internal KovZu modules (`bricks/brick-helm`, `packages/*`).
+> **"Does this request concern my own cognitive/voice/document capabilities (the Helm Belly), or is it a durable working tool meant for the human's activity (the Shaper OS Way)?"**
+* If **Belly** $\rightarrow$ Modify/extend the internal Helm modules (`bricks/brick-helm`, `packages/*`).
 * If **Shaper OS Way** $\rightarrow$ Use `shaper-sandbox.sh` to prototype and `shaper-tool-scaffold.mjs` to deliver a real containerised tool.

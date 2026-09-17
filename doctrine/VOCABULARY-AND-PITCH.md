@@ -105,7 +105,7 @@ Say: sovereignty, autonomy, custom-built. Three memorable words that justify the
 ### Architecture
 SHAPER-OS-V1.13 is a three-perimeter architecture:
 - P1: Sovereign foundation — infrastructure deployable in cloud, hybrid, or on-premise depending on client compliance constraints.
-- P2: Agentic layer — multi-agent orchestration. Maestro as supervisor, KovZu as execution agent. Role separation for planning / execution / verification. Interoperable with multiple dev environments: Cursor, Claude Code, OpenCode, Antigravity/Gemini, depending on the task.
+- P2: Agentic layer — multi-agent orchestration. Maestro as supervisor, Helm as the conversational interface. Role separation for planning / execution / verification. Interoperable with multiple dev environments: Cursor, Claude Code, OpenCode, Antigravity/Gemini, depending on the task.
 - P3: Specific client tools, built on this foundation for a precise business use case.
 
 The frontend exposes a Simple/Technical toggle to adapt the displayed granularity to the audience.

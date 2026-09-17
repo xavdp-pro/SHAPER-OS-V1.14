@@ -67,6 +67,23 @@ the doctrine page names as TARGET; none is a promise anywhere else.
 
 ---
 
+## Helm for every pilot — the gaps declared on 17 September 2026
+
+Verified by reading `brick-helm` in the catalogue (`app/server`), where roles are
+`admin`, `operator`, `user` and the control scope is read from the environment
+of one deployment (`controlScope.js`). Rules 0F, 24 and 37 were amended the same
+day; each line is a gap the rules name as TARGET, promised nowhere else.
+
+| Rule | Subject | Status | What the code actually does |
+| :---: | :--- | :---: | :--- |
+| **0F / 37** | Jurisdiction | ⬜ | No jurisdiction object exists. Helm's scope is one deployment's environment, not a granted set of universes and pods, and nothing nests one jurisdiction inside another. TARGET: Runtime resolves the pilot's jurisdiction on every request, and Helm answers nothing outside it. |
+| **37** | Pilot level | ⬜ | No pilot level is stored, read or proven. `grep -rn "pilotLevel\|jurisdiction"` over the catalogue finds nothing. TARGET: a per-person record of validated levels, written only by pilot training in a `demo` instance, read by Helm before it executes. |
+| **0F** | A client at the Helm | ⬜ | `brick-helm` runs as an operator console. No client pilot holds it today, and none may before jurisdiction and pilot level are enforced by code. |
+| **24 / 37** | Master root and jurisdiction root | 🟡 | The master root exists in practice: the founding tandem, root from underneath the hosts, directs the governor and makers. No jurisdiction root has been granted. The boundary that keeps a jurisdiction root off hosts, governor and makers binds by reading until a client pilot exists. |
+| **0F** | Blank universe | ⬜ | Not offered. No class, recipe or backup contract describes an empty universe granted to an infrastructure client. |
+
+---
+
 ## The one live gap to close
 
 **Rule 22 — the fallback embedding.** It is the only place where the code today does what a rule explicitly forbids. Two acceptable ways out, to be decided:

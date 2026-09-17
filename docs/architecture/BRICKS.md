@@ -91,7 +91,7 @@ measurement from the target host, never by a published ranking alone.
 
 | Brick / package | Role | Status |
 | :--- | :--- | :--- |
-| `brick-helm` | Operator cockpit `/console` + voice (8650) | Live — perimeter 2 only, never a client-facing UI (Rule 0F) |
+| `brick-helm` | Helm, `/console` + voice (8650) | Live as an operator console — perimeter 2; jurisdiction and pilot level for client pilots are TARGET (Rule 0F) |
 | `@shaper/pkg-auth` | Bearer verification, executed inside the service it protects | Live — a package, not a brick: it has no port, no lifecycle and no image |
 | `@shaper/pkg-supervisor` | Ingests vitals, grades child health (`nominal`/`degraded`/`failing`) | Live — required for a parent universe, not for a leaf |
 | `brick-ged` | Sovereign document hub, content-addressable storage | Live |

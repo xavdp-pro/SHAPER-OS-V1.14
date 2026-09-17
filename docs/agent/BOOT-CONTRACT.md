@@ -196,7 +196,7 @@ exists so that the corpus stays readable by every agent that follows you.
 - Skip `npm test`, `npm run test:live`, or the closed-loop verification scripts
 - Commit `.env`, vault files, tunnel tokens, or `*.enc`
 - Put default API keys in shell scripts
-- Merge a client-facing UI into the operator cockpit (Rule 0F)
+- Merge a client business tool into Helm (Rule 0F)
 - Use production mailboxes in DEV or TEST (Rule 9)
 - Copy `packages/` or a brick `Containerfile` into a universe folder (Rule 32)
 - Self-mutate an active runtime you are running inside (Rule 23)

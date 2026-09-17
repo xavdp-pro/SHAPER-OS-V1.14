@@ -464,7 +464,7 @@ async function runAgent(name, message, opts = {}) {
       broadcast({ type: 'thinking', conversation: conv, composer_id: sessionID, delta: 'Analyse du contexte et initialisation...' });
       setTimeout(() => {
         const reply = message.includes('bonjour') || message.includes('Bonjour') || message.includes('Zephir') || message.includes('Salue')
-          ? 'Bonjour ! Je suis Zephir sur KovZu, votre copilote opérationnel prêt à piloter vos dossiers et exécuter vos tâches en toute souveraineté.'
+          ? 'Bonjour ! Je suis Zephir sur Helm, votre copilote opérationnel prêt à piloter vos dossiers et exécuter vos tâches en toute souveraineté.'
           : `Requête prise en compte avec succès : ${message.slice(0, 100)}`;
         st.fullText = reply;
         broadcast({ type: 'response', conversation: conv, composer_id: sessionID, delta: reply, text: reply });

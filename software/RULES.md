@@ -82,10 +82,10 @@ Every component, package, brick, or app MUST be classified into **exactly one** 
 | Perimeter | Objective | Examples |
 | :--- | :--- | :--- |
 | **P1 — Minimal socle** | Secrets, audit, auth, generic jobs, boot — zero business logic, zero mandatory LLM | `@shaper/pkg-vault`, `@shaper/pkg-logger`, `@shaper/pkg-auth`, `@shaper/pkg-queue`, `@shaper/pkg-db` |
-| **P2 — Agentic** | Deterministic beats, bridges, operator cockpit (KovZu organism) | `@shaper/pkg-maestro`, `@shaper/pkg-mail-agent`, bridges, `brick-helm`, `@shaper/pkg-ged-engine`, `@shaper/pkg-rag` |
+| **P2 — Agentic** | Deterministic beats, bridges, Helm and the assistant organism behind it | `@shaper/pkg-maestro`, `@shaper/pkg-mail-agent`, bridges, `brick-helm`, `@shaper/pkg-ged-engine`, `@shaper/pkg-rag` |
 | **P3 — Business / client tools** | Persistent vertical apps **outside** P1+P2 — separate port, volume, lifecycle | `market-intelligence`, `enterprise-chat`, `univ-sinistre`, CRM POC |
 
-* **Rule 0F alignment**: KovZu / Helm is **P2 only**. Client ERPs, scrapers, and scoped client chat are **P3** — never merged into the cockpit.
+* **Rule 0F alignment**: Helm is **P2**, whoever holds it: perimeter is the layer, never the owner, so a client pilot at the Helm does not make it P3. Client ERPs, scrapers and human-to-human business chat are **P3** — never merged into Helm.
 * **Test universes** (`UNIV7`, `UNIV8`, `UNIV9`) prove **P1+P2** — they are not P3 verticals.
 * **Removed UI**: `/talk` and `/voice` redirect to `/console`. Operator voice STT/TTS inside `/console` remains **P2**.
 
@@ -152,15 +152,48 @@ SHAPER OS uses **two complementary layers** — never one replacing the other:
 
 ---
 
-### Rule 0F: Strict Distinction Between Operator Cockpit (KovZu / SHAPER-OS) and Client-Facing Tools
+<a id="rule-0f"></a>
+### Rule 0F: Helm Is the One Human Interface to an Ecosystem; Business Tools Stay Distinct Applications
 
-* **KovZu is the Operator & Sovereign Cockpit Only**:
-  * The KovZu / Helm-v2 web console is strictly the **internal operating system cockpit** for the human administrator/operator, supervisor, and autonomous AI agents (OpenCode, Maestro, Zephir).
-  * KovZu provides agent control, timelines, live audio orchestration, system logs, vault secrets, database engines, and universe administration.
-* **Client Tools are Strictly Distinct Applications**:
-  * Any client-facing software, vertical business portals, customer dashboards, mini-apps, external deliverable widgets, or end-user interfaces (e.g. `univ-sinistre`, `univ-immo`, customer tracking UI) MUST BE built, deployed, and served as **standalone, distinct applications/containers**.
-  * Client tools MUST NEVER pollute, overload, or be merged into the KovZu operator console.
-  * KovZu acts as the engine, API provider, and intelligence orchestrator behind the scenes, while client tools consume standard REST/SSE/WebSocket endpoints with their own distinct UX, authentication boundaries, and client branding.
+* **Amended 17 September 2026 (operator decision: one Helm for every pilot)**:
+  this rule first reserved the cockpit, then called KovZu, for internal
+  operators and sent every customer to a separate portal. Two names for one
+  conversational surface grew two authority models: on 16 September a website
+  brief named the customer's surface "Control Hub", distinct from Helm, on the
+  same day the operator described customers shaping their universe from Helm.
+  The separation that protects the system was never *operator versus client*;
+  it is *the interface versus the business tools*. **KovZu is retired as a
+  name** (it survives only in history and in Rule 19's list of words simple
+  mode never shows), and **`Control Hub` does not enter**.
+* **Helm is the conversational interface between a human and the ecosystem in
+  their charge**: web and mobile web, text and voice. A pilot asks; Helm
+  answers, prepares and, within authority, acts, over the universes of that
+  pilot's jurisdiction and nothing else.
+* **Two settings, and no third** (Rule 37): its **jurisdiction**, the universes
+  it may see and act upon down to their constituent pods, and the
+  **pilot level**, what the person at the Helm has validated. The master root and a
+  client's jurisdiction root use the same Helm; what differs between them is
+  the jurisdiction, never a second product.
+* **Helm is never the authority**: it sends a requested operation to Runtime,
+  which checks root and mandate, correlates the operation and writes the
+  evidence (`univ-helm-core`). A structural change is materialised by a maker
+  under the master root (Rule 36), never by Helm itself.
+* **What a class does not offer becomes a proposal to the class**: a
+  jurisdiction root at the shaping level adds, configures or removes what its
+  classes offer. A feature no class offers becomes a change to the class, made
+  by the class's makers, never an exception inside one instance (divergence is
+  Rule 33's fork). A **blank universe** (TARGET, not offered: a universe
+  granted without class content to an infrastructure client) is the one place
+  where a jurisdiction root builds what it wants, bounded by its backup
+  contract.
+* **Client business tools are strictly distinct applications** (unchanged since
+  the first reading): ERPs, vertical business portals, customer dashboards,
+  human-to-human business chat (`enterprise-chat`), mini-apps and external
+  widgets (e.g. `univ-sinistre`, `univ-immo`) are built, deployed and served as
+  **standalone, distinct applications/containers**, with their own UX,
+  authentication boundaries and branding. They never pollute, overload or merge
+  into Helm; Helm and the agentic organism behind it (P2) are the engines and
+  endpoints they consume.
 
 ---
 
@@ -207,7 +240,7 @@ SHAPER OS uses **two complementary layers** — never one replacing the other:
     concrete engine is a deployment-time decision, recorded with the measurement
     that justified it.
 * **Bridge Compatibility Invariant**:
-  * Every CLI runtime connects to the universal KovZu / Helm cockpit and receives identical context digests (`_kovzu/CONTEXT.md`, `topology.json`, persistent memory).
+  * Every CLI runtime connects to Helm and receives identical context digests (the universe context file, `topology.json`, persistent memory).
 
 ---
 
@@ -1065,6 +1098,7 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
 ### Rule 24: Root Guardian Law (Sentinel / Human Repairs Root)
 * **Out-of-Band Root Supervision**:
   * For the Root Universe of a fractal tree (Level $N$, with no parent in the tree), integrity monitoring and emergency patching are performed by a **Sentinel Sidecar Agent** or by the **Human Operator using an external IDE (Cursor, Antigravity, Claude Code)** via an isolated control channel.
+* **The root universe is the master root's** (amended 17 September 2026, one Helm for every pilot): the tree has one top, held by the **master root** of Rule 37 — the founding tandem of a human Steward and the root agent under their direct control, root from underneath every host (Rule 36). Its own universes carry the governor and the makers, which take direction from it alone. It grants every jurisdiction. A **jurisdiction root** holds full power inside what it was granted, down to the pods of its universes, yet it is never the root universe of this rule: it sits under a parent, reaches no host, and is repaired from above like any child (Rule 23).
 
 ---
 
@@ -1325,12 +1359,14 @@ rule is what killed the synonyms, and it keeps them dead.*
   sovereign fork (Rule 33) keeps its own mirrored fleet map — a client's PRA
   never hinges on the vendor's repo.
 * **Lexicon closure**: the vocabulary of this architecture is the prefix table
-  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus nineteen words —
+  (Rule 1, canonical in `docs/architecture/NAMING.md`) plus twenty-three words —
   class, instance, ledger, drift, PURRING (and its state machine), status.json,
   board, fleet map, forge, forkedFrom, the mirror rule, source/perimeter, and,
   by the amendment of 2 September 2026 (maker-and-governor verdict, §10),
   governor, maker, matrix, REAPED, and, by the amendment of 4 September 2026,
-  rig, tool, and, by the amendment of 16 September 2026 (Rule 11), shape.
+  rig, tool, and, by the amendment of 16 September 2026 (Rule 11), shape, and,
+  by the amendment of 17 September 2026 (one Helm for every pilot, Rule 0F),
+  Helm, jurisdiction, root, pilot level.
   A new noun enters only by amending this
   rule, with the failure it prevents written beside it — as here:
   * **governor** — the universe that holds a ledger and makes it respected:
@@ -1369,6 +1405,50 @@ rule is what killed the synonyms, and it keeps them dead.*
     and how a host builds it, so that a machine offering LXD and rootful
     Podman cannot be described, and a class cannot say which container it
     needs.
+  * **Helm** — the conversational interface between a human and the
+    ecosystem in their charge, web or mobile web, text or voice, set by a
+    jurisdiction and a pilot level and by nothing else; it sends requests to
+    Runtime and never holds authority (Rule 0F). `brick-helm` implements it
+    and `univ-helm-core` specifies it: the word names that contract across
+    classes, not one brick, which is why it enters where `steward` did not.
+    *Prevents*: KovZu, Helm and "Control Hub" naming one surface under three
+    authority models, so that an operator's cockpit and a client's portal
+    were designed twice and a customer's question had no defined boundary.
+  * **jurisdiction** — the universes a pilot is in charge of, down to their
+    constituent pods, granted by the root above; Helm sees nothing and answers
+    for nothing outside it. Jurisdictions nest: a root may grant a narrower
+    jurisdiction inside its own, never a wider one. *Prevents*: "tenant",
+    "galaxy", "portfolio" and "scope" naming four perimeters for one question —
+    what may this person see and change? — and a client's agent answering
+    with another client's universe.
+  * **root** — full power over a jurisdiction, held by a human–agent tandem,
+    reaching underneath its universes to their pods. Two strata, never more.
+    The **master root** is the founding tandem at the top of the fractal: root
+    from underneath every host (Rule 36), sole director of the governor and
+    the makers, keeper of matrices and backup contracts, grantor of every
+    jurisdiction, and the holder of Rule 24's root universe. A **jurisdiction
+    root** is the tandem a jurisdiction is granted to (a client and its agent
+    at the Helm of their Workspace or Vox): full power inside it; none over a
+    host, the governor, a maker, a matrix, a class repo, another jurisdiction
+    or its own backup contract. *Prevents*: "root" meaning only the top of the
+    tree, so that a client entrusted with their own universe was either denied
+    the power they are given or silently handed the host beneath it.
+  * **pilot level** — what a person at the Helm has validated for one class,
+    from E0 to E5: familiar work, ask Helm, delegate once, pilot, standing
+    mandate, shape the environment. It is proven by pilot training in a `demo`
+    instance of that class, never declared, and a level proven on one class
+    says nothing about another. Root and mandate say what a pilot may do; the level says what
+    Helm executes directly for that person, and above it Helm prepares the
+    change and routes it for validation instead of acting. *Prevents*:
+    authority read as competence — a jurisdiction root applying to production
+    a change they could not yet name, because owning a universe was taken for
+    knowing how to steer it.
+  What the amendment of 17 September 2026 keeps out: `KovZu` and
+  `Control Hub` (a retired and a refused synonym of Helm); `pilot training`
+  and `blank universe` (an activity inside a `demo` instance and a TARGET
+  offer, described where they live, not nouns of the tree); `Steward`, which
+  names the human of a root tandem in the architecture documents and remains
+  `brick-steward` here.
   What does not enter: `stamp`, `reap`, `validate`, `adopt` — kinds of work,
   a table in `pkg-governor`, not nouns of the language. New bricks are not
   new nouns — `brick-forge`, `brick-scraper`, `brick-sso` are the prefix
@@ -1381,7 +1461,8 @@ rule is what killed the synonyms, and it keeps them dead.*
   truth?* (the ledger) — *who repairs?* (the forge, on drift, inside a
   universe) — *who births?* (the maker, from a row) — *is everything fine?*
   (the board, rendering status.json) — *how is it all recreated?* (the fleet
-  map + R2, Rule 16). A vocabulary that cannot fit on one page has already
+  map + R2, Rule 16) — *who may act here?* (the root of this jurisdiction,
+  through Helm, at its pilot level). A vocabulary that cannot fit on one page has already
   failed them both. `docs/architecture/LEXICON.md` is that page, and the test
   `lexicon-and-code-agree.test.js` holds it, this rule and `pkg-governor`'s
   states to one set of names.

@@ -39,7 +39,7 @@ You draw the fence **before** you design or deploy a component. Every brick, pac
 
 ### Why fences
 
-Without them, the operator cockpit fills up with invoices, client chat, and scrapers. Secrets start containing business rules. The agent that should only store passwords starts “knowing” your customers.
+Without them, Helm fills up with invoices, client chat, and scrapers. Secrets start containing business rules. The agent that should only store passwords starts “knowing” your customers.
 
 The fence is there so:
 
@@ -52,7 +52,7 @@ The fence is there so:
 | Perimeter | Plain name | Allowed to do | Forbidden |
 | :--- | :--- | :--- | :--- |
 | **1** | Foundation | Secrets, audit, auth, generic jobs, boot | Business rules, CRM schemas, “send this invoice”, a required LLM |
-| **2** | Agent layer | Wake agents on a clock or a job; operator cockpit and memory | Client-facing shops, portals, “the product for the customer” |
+| **2** | Agent layer | Wake agents on a clock or a job; Helm and memory | Client-facing shops, portals, “the product for the customer” |
 | **3** | Business apps | Invoices, CRM, client chat, vertical tools — own port, own volume, own life | Living inside `/console`; teaching vault what a “client” is |
 
 The software repo shortens these to **P1 / P2 / P3** (*P* = perimeter). Same three fences.

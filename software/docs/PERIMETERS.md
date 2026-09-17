@@ -12,7 +12,7 @@ Every component, package, brick, or app MUST be classified into exactly one peri
 ```mermaid
 flowchart TB
     P1["<b>PERIMETER 1 — MINIMAL SOCLE</b><br/>Sovereign OS kernel: secrets, audit, auth, boot, jobs<br/><i>Zero business logic. Zero mandatory LLM.</i>"]
-    P2["<b>PERIMETER 2 — AGENTIC</b><br/>Deterministic agent orchestration + operator cockpit<br/><i>Maestro beats, bridges, queue → inject</i>"]
+    P2["<b>PERIMETER 2 — AGENTIC</b><br/>Deterministic agent orchestration + Helm<br/><i>Maestro beats, bridges, queue → inject</i>"]
     P3["<b>PERIMETER 3 — BUSINESS / CLIENT TOOLS</b><br/>Persistent vertical apps outside P1+P2<br/><i>CRM, market intel, client chat, trade OCR, ERP plugins</i>"]
 
     P1 --> P2 --> P3
@@ -28,8 +28,8 @@ flowchart TB
 **Golden rules**
 
 1. **P1 never knows P3** — socle bricks have zero knowledge of verticals (Rule 1: brick isolation).
-2. **P2 is the organism, not the product** — Helm/KovZu, GED/RAG memory, Maestro tasks enrich the assistant; they do not replace client-facing ERPs (Rule 0F).
-3. **P3 is built via the Shaper Way** — sandbox → `shaper-tool-scaffold.mjs` (run in the universe class repository, never in the base) → `packages/pkg-<slug>` + `bricks/brick-<slug>`, its own port, and state in a volume the universe owns (`vol-<universe>-<slug>`, mounted at `/data/<slug>` inside the container — never a host path); never merged into KovZu’s belly.
+2. **P2 is the organism, not the product** — Helm, GED/RAG memory, Maestro tasks enrich the assistant; they do not replace client-facing ERPs (Rule 0F).
+3. **P3 is built via the Shaper Way** — sandbox → `shaper-tool-scaffold.mjs` (run in the universe class repository, never in the base) → `packages/pkg-<slug>` + `bricks/brick-<slug>`, its own port, and state in a volume the universe owns (`vol-<universe>-<slug>`, mounted at `/data/<slug>` inside the container — never a host path); never merged into Helm’s belly.
 4. **Perimeter means LAYER, never OWNER** *(V1.13, Rule 37)* — a brick that
    exists for a single client can still be P1: a fork's hardened SSO brick is
    socle-layer even though one owner demanded it. Who a brick belongs to is
@@ -79,7 +79,7 @@ flowchart TB
 | `@shaper/pkg-bridge-agy` / `brick-bridge-agy` | Antigravity CLI bridge (Rule 8) | ✅ |
 | `@shaper/pkg-bridge-opencode` / `brick-bridge-opencode` | OpenCode CLI bridge (free tier) | ✅ |
 | `opencode-bridge` | Vendored OpenCode HTTP/SSE server | ✅ |
-| `brick-helm` (KovZu) | Operator cockpit: `/console`, admin socle/maestro | ✅ |
+| `brick-helm` (Helm) | The conversational interface (Rule 0F): `/console`, admin socle/maestro; jurisdiction and pilot level are TARGET | ✅ |
 | `@shaper/pkg-ged-engine` / `brick-ged` | Operator document hub (`/data/ged`) | ✅ (organism) |
 | `@shaper/pkg-rag` + `brick-qdrant` | Semantic memory for the organism | ✅ partial |
 | `codex-v1` (planned) | Versioned agent context registry | ❌ plan only |
@@ -97,7 +97,7 @@ flowchart TB
 
 ## Perimeter 3 — Business / Client Tools
 
-**Objective**: Deliver persistent tools for human business activity — separate lifecycle, branding, port, and data from KovZu.
+**Objective**: Deliver persistent tools for human business activity — separate lifecycle, branding, port, and data from Helm.
 
 Built only via:
 
@@ -118,7 +118,7 @@ not touch the base's `topology.json`.
 | Planned package / universe | Purpose | Perimeter |
 | :--- | :--- | :--- |
 | `market-intelligence` | Stealth scraper, market benchmark | **P3** |
-| `enterprise-chat` | Scoped SSE/WebSocket chat for **client portals** (not KovZu) | **P3** |
+| `enterprise-chat` | Scoped SSE/WebSocket human-to-human chat for **client portals** (not Helm) | **P3** |
 | `ocr-engine` | PDF OCR + entity extraction for quotes/invoices | **P3** |
 | `wikiuniv-v1` | Showcase + RBAC portal | **P3** |
 | `univ-sinistre`, `univ-artisan`, `univ-immo` | Vertical ERP universes | **P3** |
@@ -129,7 +129,7 @@ not touch the base's `topology.json`.
 
 Reusable **real-time chat brick** (SSE/WebSocket) scoped per tenant / universe / dossier — embedded in P3 apps (CRM extranet, BTP client portal, etc.).
 
-It is **not** Helm `/console` (P2). KovZu chat streams to CLI bridges; `enterprise-chat` would stream human-to-human or human-to-service messages inside a business product.
+It is **not** Helm `/console` (P2). Helm chat streams to CLI bridges; `enterprise-chat` would stream human-to-human or human-to-service messages inside a business product.
 
 ### What is `market-intelligence`?
 
@@ -171,9 +171,9 @@ Before any task, ask:
 
 1. **Does this strengthen secrets, audit, boot, or generic jobs?** → **P1**
 2. **Does this schedule, inject, observe, or enrich the operator/agent organism?** → **P2**
-3. **Does this deliver a persistent business tool for an end user or client?** → **P3** (scaffold outside KovZu)
+3. **Does this deliver a persistent business tool for an end user or client?** → **P3** (scaffold outside Helm)
 
-When in doubt: **P1 < P2 < P3** — never pull P3 logic into P1 or KovZu’s belly.
+When in doubt: **P1 < P2 < P3** — never pull P3 logic into P1 or Helm’s belly.
 
 ---
 
@@ -185,5 +185,5 @@ When in doubt: **P1 < P2 < P3** — never pull P3 logic into P1 or KovZu’s bel
 | [`topology.json`](../topology.json) | P1+P2 dependency graph |
 | [`docs/DOC-INDEX.md`](./DOC-INDEX.md) | Documentation index & read order |
 | [`docs/FUNCTIONAL-INVENTORY.md`](./FUNCTIONAL-INVENTORY.md) | Parallel objectives / features by component |
-| [`MANIFESTO.md`](../MANIFESTO.md) | KovZu belly vs Shaper Way |
+| [`MANIFESTO.md`](../MANIFESTO.md) | Helm belly vs Shaper Way |
 | [`docs/UNIVERSE-ARCHITECTURE.md`](./UNIVERSE-ARCHITECTURE.md) | Universe manifest fractal model |

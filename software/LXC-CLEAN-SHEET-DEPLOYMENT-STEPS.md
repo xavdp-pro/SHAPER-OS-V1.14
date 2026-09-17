@@ -1,13 +1,13 @@
 # 📋 Official Step List: Blank LXC Deployment & Agent Takeover
 
-> **Perimeter law**: Deployed stack = **P1 socle + P2 agentic** (KovZu Helm). P3 client tools are out of scope here.  
+> **Perimeter law**: Deployed stack = **P1 socle + P2 agentic** (Helm). P3 client tools are out of scope here.  
 > See [`docs/PERIMETERS.md`](./docs/PERIMETERS.md).
 
 > **The slug belongs to the operator.** This procedure is generic: wherever you
 > read `<univ_slug>`, substitute the name of your universe. No concrete
 > universe ships with this repository — see [`universes/README.md`](./universes/README.md).
 
-This document details the exact, chronological sequence that brings up a complete Shaper OS / KovZu universe on a **blank LXC** container (Debian 13, as Rule 11 states; Debian 12 and Ubuntu 24.04 remain usable), up to the **autonomous takeover by the AI agent**.
+This document details the exact, chronological sequence that brings up a complete Shaper OS universe with its Helm on a **blank LXC** container (Debian 13, as Rule 11 states; Debian 12 and Ubuntu 24.04 remain usable), up to the **autonomous takeover by the AI agent**.
 
 ---
 
@@ -132,7 +132,7 @@ Coordinated launch of the cluster with `universes/<univ_slug>/deploy/podman-up.s
 * 🎼 **`<univ_slug>-maestro`** (:8630) — Orchestrator and state supervision
 * 📂 **`<univ_slug>-ged`** (:8660) — Sovereign document hub and OCR
 * 🧠 **`<univ_slug>-qdrant`** (:6333) — Semantic vector database
-* 🎛️ **`<univ_slug>-helm`** (:8650) — KovZu universal steering cockpit
+* 🎛️ **`<univ_slug>-helm`** (:8650) — Helm, the conversational interface (Rule 0F)
 * 🌐 **`<univ_slug>-tunnel`** — Secured remote access gateway
 * 🤖 **`<univ_slug>-bridge-opencode`** (:4440) — AI agent runtime
 

@@ -116,19 +116,25 @@ This is not a promise that an AI is morally reliable by nature. It is an
 architecture designed so that useful cooperation does not depend on that
 assumption.
 
-### Helm: the conversational agentic entry point
+### Helm: the conversational interface for every pilot
 
-**Helm is the conversational agentic entry point of SHAPER OS.** It receives
-an operator's or authorized system's expressed intent, gathers the declared
+**Helm is the conversational interface between a human and the ecosystem in
+their charge.** It receives a pilot's expressed intent, gathers the declared
 context, explains the possible next action, and routes a permitted request
-toward Runtime and the relevant capability. It is the entry point into the
-internal control plane, not the source of authority and not a permanent root
-remote control.
+toward Runtime and the relevant capability. It is not the source of authority.
 
-The customer-facing **SHAPER Control Hub** remains a separate P3 business
-application. It may offer conversation and guided control to a customer or
-employee through governed contracts, but it does not merge into Helm, inherit
-the provider cockpit's identity, or expose the internal control plane directly.
+Two settings bound it: the **jurisdiction**, the universes the pilot is in
+charge of, and the **pilot level**, what that person has validated in pilot
+training. The founding tandem at the top of the fractal holds the master root;
+a customer given Helm over their Workspace or Vox holds the root of that
+jurisdiction, with full power inside it and none over the hosts, the governor
+or the makers beneath it (Rules 0F, 24 and 37, amended 17 September 2026).
+
+An earlier reading of this section, written the day before, kept a separate
+customer portal called "SHAPER Control Hub" beside an internal Helm. The
+operator decided against two surfaces for one conversation: the name does not
+enter. Human-to-human business chat and vertical business tools remain distinct
+P3 applications.
 
 ## Conversation first, interfaces as operational reflections
 

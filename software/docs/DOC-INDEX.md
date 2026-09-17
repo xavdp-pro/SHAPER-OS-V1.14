@@ -11,7 +11,7 @@
 | 5 | [`FUNCTIONAL-INVENTORY.md`](./FUNCTIONAL-INVENTORY.md) | Parallel objectives / features catalogue |
 | 6 | [`UNIVERSE-ARCHITECTURE.md`](./UNIVERSE-ARCHITECTURE.md) | Universe manifest fractal model |
 | 7 | [`GOVERNANCE-FRACTAL.md`](./GOVERNANCE-FRACTAL.md) | Deploy levels 0–3 + P1/P2/P3 mapping |
-| 8 | [`../MANIFESTO.md`](../MANIFESTO.md) | KovZu belly vs Shaper Way (P2 vs P3) |
+| 8 | [`../MANIFESTO.md`](../MANIFESTO.md) | Helm belly vs Shaper Way (P2 vs P3) |
 | 9 | [`TOPOLOGY-INTENT.md`](./TOPOLOGY-INTENT.md) | Topology manifest protocol |
 
 ### Doctrine corpus (canonical, lives at the repository root)
@@ -45,7 +45,7 @@ are the originals.
 | [`../../docs/COGNITION.md`](../../docs/architecture/COGNITION.md) | Required reasoning depth and throughput |
 | [`../../docs/BRICKS.md`](../../docs/architecture/BRICKS.md) | Brick taxonomy |
 
-### Helm / KovZu (P2 cockpit)
+### Helm (P2, Rule 0F)
 
 | Document | Role |
 | :--- | :--- |
