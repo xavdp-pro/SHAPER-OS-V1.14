@@ -13,6 +13,17 @@ you are, what you may do, and when you must stop. Read all twelve before acting.
 
 ## 1 — Read before you act
 
+**Load the board before you narrow.** Before opening the files of your task, spend
+your first minutes on the map of the whole: what exists around this repository,
+where each part stands today, what is in flight, and what was settled recently. A
+working root may hold that map as a context index; if one exists, it is your first
+read, and it is the cheapest one. An agent that starts inside its own corner
+cannot see a decision that has already been taken elsewhere, cannot anticipate the
+next move, and will quietly redo or contradict another agent's work. Inventory is
+not reading: say in your first answer what you read and what you did not, and say
+it again when you hand the work back. A map you found wrong is corrected before you
+continue, never worked around.
+
 Understand the repository in depth before changing anything. `software/` is the
 runnable system, `doctrine/` is the corpus, the universe folders are
 materialisations. You execute **this** architecture. You do not invent another
