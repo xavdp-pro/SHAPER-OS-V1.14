@@ -245,8 +245,8 @@ command names: the universe slug, and a universe already derived from
 On a fresh LXC container:
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git /root/SHAPER-OS-V1.13
-cd /root/SHAPER-OS-V1.13
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.14.git /root/SHAPER-OS-V1.14
+cd /root/SHAPER-OS-V1.14
 UNIV_SLUG=<univ_slug> bash software/scripts/shaper-lxc-bootstrap.sh
 ```
 
@@ -290,8 +290,8 @@ The message says nothing about nesting, which is why it belongs here.
 
 ```bash
 apt-get install -y podman nftables git curl jq nodejs npm openssh-server rsync
-git clone --depth 1 https://github.com/xavdp-pro/SHAPER-OS-V1.13.git
-cd SHAPER-OS-V1.13/software
+git clone --depth 1 https://github.com/xavdp-pro/SHAPER-OS-V1.14.git
+cd SHAPER-OS-V1.14/software
 TAG="v1.7.1-$(git -C .. rev-parse --short HEAD)"
 for b in vault logger queue maestro bridge-opencode; do
   podman build -q -f bricks/brick-$b/Containerfile -t "localhost/shaper-$b:$TAG" .

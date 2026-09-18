@@ -4,11 +4,11 @@
 
 | Clone into | Remote |
 | :--- | :--- |
-| `SHAPER-OS-V1.13/` (any folder name) | `https://github.com/xavdp-pro/SHAPER-OS-V1.13.git` |
+| `SHAPER-OS-V1.14/` (any folder name) | `https://github.com/xavdp-pro/SHAPER-OS-V1.14.git` |
 
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git
-cd SHAPER-OS-V1.13
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.14.git
+cd SHAPER-OS-V1.14
 ```
 
 Layout after clone:
