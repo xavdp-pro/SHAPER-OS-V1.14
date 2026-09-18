@@ -4,7 +4,7 @@
 > whose behaviour SHAPER's own law defines: vault, logger, queue, maestro, auth,
 > agent, supervisor and the engine bridges. Packaged products — a cockpit, a
 > document hub, a vector store, a database, a firewall — follow an upstream
-> rather than a law, and live in [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13).
+> rather than a law, and live in [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.14) (a private repository).
 >
 > The criterion is not size and not usefulness: **who wrote the behaviour.** A
 > brick that implements the doctrine is maintained with the doctrine. A brick that

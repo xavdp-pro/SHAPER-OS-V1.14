@@ -115,7 +115,7 @@ Tunnel token → `<univ_slug>-dev/sav/tunnel/token` (not git).
    - Copy [`manifest.tier-a.json`](../../manifest.tier-a.json) → `<univ_slug>-dev/manifest.json`
    - Copy [`examples/universe-AGENT-DEPLOY.md`](../../examples/universe-AGENT-DEPLOY.md) → `AGENT-DEPLOY.md`; lifecycle = **dev**
    - Copy [`software/universes/_template/deploy/podman-up.sh`](../../software/universes/_template/deploy/podman-up.sh) → `<univ_slug>-dev/deploy/podman-up.sh`
-   - Tier-b later: the `agent +web +public` manifest, in the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13) catalogue — `brick-helm` is a catalogue brick, and nothing in this repository switches it on
+   - Tier-b later: the `agent +web +public` manifest, in the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.14) (a private repository) catalogue — `brick-helm` is a catalogue brick, and nothing in this repository switches it on
 7. Start (from repo root):
 
    ```bash

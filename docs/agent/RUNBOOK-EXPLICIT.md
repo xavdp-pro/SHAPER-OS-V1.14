@@ -389,7 +389,7 @@ does not have to guess what you guessed.
 3. The human pastes the value into `.env`, `software/.env`, or
    `sav/tunnel/token`. Never into the chat, never into Git.
 4. Deploy tier-b — the `agent +web +public` manifest from the
-   [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13)
+   [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.14) (a private repository)
    catalogue; this repository ships no tier-b manifest and no switch that
    turns the cockpit on — then run the closed-loop tests of whatever bricks
    this universe assembles. For catalogue bricks (`brick-helm` among them)

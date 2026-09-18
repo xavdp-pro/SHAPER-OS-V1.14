@@ -57,7 +57,7 @@ flowchart TB
 | `@shaper/pkg-vault` / `brick-vault` | AES-256-GCM secrets | ✅ |
 | `@shaper/pkg-logger` / `brick-logger` | JSONL append-only audit | ✅ |
 | `@shaper/pkg-auth` | Stateless Bearer, in-process | ✅ |
-| `@shaper/pkg-db` / `brick-mariadb` | Turbinobash DB config resolver | ➡️ catalogue (`SHAPER-OS-BRICKS-V1.13`, v1.13.1), not in `software/bricks/` |
+| `@shaper/pkg-db` / `brick-mariadb` | Turbinobash DB config resolver | ➡️ catalogue (`SHAPER-OS-BRICKS`, a private repository), not in `software/bricks/` |
 | `@shaper/pkg-queue` / `brick-queue` | Async jobs, opaque payload — JSONL evidence survives a crash, execution does not (see its INTENT) | ✅ |
 | `@shaper/waf` | Edge WAF (deterministic) | ❌ planned |
 | `log-sentinel` | System telemetry | ❌ planned |
@@ -82,9 +82,9 @@ flowchart TB
 | `@shaper/pkg-bridge-agy` / `brick-bridge-agy` | Antigravity CLI bridge (Rule 8) | ✅ |
 | `@shaper/pkg-bridge-opencode` / `brick-bridge-opencode` | OpenCode CLI bridge (free tier) | ✅ |
 | `opencode-bridge` | Vendored OpenCode HTTP/SSE server | ✅ |
-| `brick-helm` (Helm) | The conversational interface (Rule 0F): `/console`, admin socle/maestro; jurisdiction and pilot level are TARGET | ➡️ catalogue (`SHAPER-OS-BRICKS-V1.13`, v1.13.1), not in `software/bricks/` |
-| `@shaper/pkg-ged-engine` / `brick-ged` | Operator document hub (`/data/ged`) | ➡️ catalogue (`SHAPER-OS-BRICKS-V1.13`, v1.13.1), not in `software/bricks/` |
-| `@shaper/pkg-rag` + `brick-qdrant` | Semantic memory for the organism | ➡️ catalogue (`SHAPER-OS-BRICKS-V1.13`, v1.13.1), not in `software/bricks/` |
+| `brick-helm` (Helm) | The conversational interface (Rule 0F): `/console`, admin socle/maestro; jurisdiction and pilot level are TARGET | ➡️ catalogue (`SHAPER-OS-BRICKS`, a private repository), not in `software/bricks/` |
+| `@shaper/pkg-ged-engine` / `brick-ged` | Operator document hub (`/data/ged`) | ➡️ catalogue (`SHAPER-OS-BRICKS`, a private repository), not in `software/bricks/` |
+| `@shaper/pkg-rag` + `brick-qdrant` | Semantic memory for the organism | ➡️ catalogue (`SHAPER-OS-BRICKS`, a private repository), not in `software/bricks/` |
 | `codex-v1` (planned) | Versioned agent context registry | ❌ plan only |
 | Claude bridge at socle | `@shaper/bridge-claude` | ❌ Helm routes only |
 

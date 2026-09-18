@@ -64,7 +64,7 @@ improvements found there travel back upstream.
    "brick-ged": {
      "source": "catalogue", "perimeter": "P2",
      "package": "@shaper/pkg-ged-engine", "image": "img-ged",
-     "intent": "SHAPER-OS-BRICKS-V1.13/bricks/brick-ged/INTENT.md",
+     "intent": "SHAPER-OS-BRICKS-V1.14/bricks/brick-ged/INTENT.md",
      "role": "Document memory of this universe"
    }
    ```

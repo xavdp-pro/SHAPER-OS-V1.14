@@ -37,5 +37,5 @@ sit in this table with nothing to build; they are packages, and they live in
 ---
 
 **Not here.** `helm`, `ged`, `qdrant`, `mariadb`, `pipeline` and `waf` are packaged
-products with their own upstreams, and they live in the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.13) catalogue. This
+products with their own upstreams, and they live in the [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.14) (a private repository) catalogue. This
 repository ships the base: the bricks whose behaviour SHAPER's own law defines.
