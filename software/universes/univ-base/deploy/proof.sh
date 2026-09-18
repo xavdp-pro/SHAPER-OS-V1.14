@@ -3,9 +3,9 @@
 # Proves a universe is alive — and prints what it observed, not what it hoped.
 # Layout-agnostic since V1.13.2: works from any universe deploy/ directory.
 #
-# Rule 33: declaring, materialising and proving are three separate acts. This
-# script performs the third and only the third. It starts nothing and repairs
-# nothing; if a brick is down, that is the finding.
+# Rule 0G (no fake, no fallback): declaring, materialising and proving are three
+# separate acts. This script performs the third and only the third. It starts
+# nothing and repairs nothing; if a brick is down, that is the finding.
 set -euo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
