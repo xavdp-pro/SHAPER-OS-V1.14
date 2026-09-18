@@ -37,7 +37,7 @@ To keep traceability across Git, Podman, log files and databases:
 | **Universe folder** | `SHAPER-OS/universes/<univ_slug>/` | `universes/_template/` |
 | **Model brick** | `brick-<name>` | `brick-helm`, `brick-mariadb`, `brick-vault` |
 | **Socle NPM package** | `@shaper/<name>` | `@shaper/pkg-queue`, `@shaper/pkg-maestro`, `@shaper/pkg-db` |
-| **Podman image** | `localhost/shaper-<name>:latest` | `localhost/shaper-helm:latest` |
+| **Podman image** | `localhost/shaper-<name>:<tag>`, pinned by digest in `cfg-image-lock.json` — **never `:latest`** (Rule 11; `docs/proof/proof-univ-base-v1.12.md`) | `localhost/shaper-helm:v1.13.1` |
 | **Active Podman container** | `<univ_slug>-<brick>` | `<univ_slug>-helm`, `<univ_slug>-mariadb`, `<univ_slug>-vault` |
 | **Standardised ports** | `:8610` Vault<br>`:8620` Logger<br>`:8630` Maestro<br>`:8640` Queue<br>`:8650` Helm<br>`:4440` Bridge OpenCode<br>`:3306` MariaDB | Fixed port per universe or localhost bind |
 

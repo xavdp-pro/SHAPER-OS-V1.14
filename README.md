@@ -485,8 +485,8 @@ by reading it.
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/xavdp-pro/SHAPER-OS-V1.13.git
-cd SHAPER-OS-V1.13
+git clone https://github.com/xavdp-pro/SHAPER-OS-V1.14.git
+cd SHAPER-OS-V1.14
 ```
 
 ### 2. Keys, units, images
@@ -536,7 +536,7 @@ bash deploy/podman-up.sh    # SHAPER_REGISTRY and SHAPER_IMAGE_TAG must still be
 ```
 
 `univ-base` is the canonical universe of this repository: vault, logger, queue,
-maestro, agent-runtime and one bridge — the six bricks every other universe
+maestro and one bridge — the five bricks every other universe
 starts from. It runs on `127.0.0.1` and needs no domain, no account and no
 catalogue brick. It reads **its own** `cfg-univ-base.env`, never `software/.env`:
 a universe's configuration lives with the universe.
