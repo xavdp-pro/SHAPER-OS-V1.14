@@ -4,7 +4,7 @@
 
 | Priority | Document | Role |
 | :---: | :--- | :--- |
-| 1 | [`PERIMETERS.md`](./PERIMETERS.md) | **Canonical law** — P1 / P2 / P3 taxonomy |
+| 1 | [`PERIMETERS.md`](./PERIMETERS.md) | The P1 / P2 / P3 taxonomy every component is classified into. Binding through Rule 0A; the binding texts themselves are listed in [`../../AGENTS.md`](../../AGENTS.md) |
 | 2 | [`../README.md`](../README.md) | Repository layout, quickstart, package list |
 | 3 | [`../RULES.md`](../RULES.md) | Engineering invariants |
 | 4 | [`../topology.json`](../topology.json) | Boot graph (P1+P2 nodes; see PERIMETERS for strict P1) |
@@ -67,15 +67,14 @@ are the originals.
 
 ---
 
-## Hors dépôt
+## Outside this repository
 
-La correspondance entre agents (handoffs, briefs de test), les journaux de session datés et
-les rapports de validation ponctuels ne vivent **pas** dans ce dépôt : ils décrivent un
-moment de travail, pas le système. Ils sont rangés dans `REMOTE3/Travaux/`
-(`handoffs/`, `journaux/`, `rapports/`).
+Correspondence between agents (handoffs, test briefs), dated session journals and one-off
+validation reports do **not** live here: they describe a moment of work, not the system.
+They are filed under `REMOTE3/Travaux/` (`handoffs/`, `journaux/`, `rapports/`).
 
-Ce dépôt ne contient que ce qui décrit **SHAPER-OS lui-même** : la loi, la doctrine, les
-intents, l'architecture et le code.
+This repository holds only what describes **SHAPER OS itself**: the law, the doctrine, the
+intents, the architecture and the code.
 
 ## What left this index in V1.11
 

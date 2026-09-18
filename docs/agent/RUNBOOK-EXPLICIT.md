@@ -198,8 +198,8 @@ hyphens only (Rule 1).
 
 **Where the universe directory goes.** `<univ_slug>-dev/` at the repository
 top level (a sibling of `software/`, inside the clone) is the default — one
-concrete example: repo at `/root/SHAPER-OS-V1.13`, universe at
-`/root/SHAPER-OS-V1.13/<univ_slug>-dev/`. The repo's own test suite only
+concrete example: repo at `/root/SHAPER-OS-V1.14`, universe at
+`/root/SHAPER-OS-V1.14/<univ_slug>-dev/`. The repo's own test suite only
 checks manifests the repo ships (tracked files), so your workspace inside the
 clone does not break `npm test` (fixed in V1.13.1 — beta finding F12). A
 universe carrying real work belongs **outside** the repository — this one is

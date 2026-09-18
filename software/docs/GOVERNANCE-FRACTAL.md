@@ -33,7 +33,7 @@ To keep traceability across Git, Podman, log files and databases:
 
 | Element | Naming rule | Valid example |
 |---|---|---|
-| **Universe** | `UNIV<N>` (uppercase) | `UNIV8`, `UNIV9` |
+| **Universe** | `univ-<project>-<class>`, lowercase (Rule 1) | `univ-vox1-dev`, `univ-clinic0` |
 | **Universe folder** | `SHAPER-OS/universes/<univ_slug>/` | `universes/_template/` |
 | **Model brick** | `brick-<name>` | `brick-helm`, `brick-mariadb`, `brick-vault` |
 | **Socle NPM package** | `@shaper/<name>` | `@shaper/pkg-queue`, `@shaper/pkg-maestro`, `@shaper/pkg-db` |

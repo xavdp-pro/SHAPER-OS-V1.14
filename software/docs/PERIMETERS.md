@@ -1,7 +1,10 @@
 # SHAPER OS — Three Perimeters (Canonical Taxonomy)
 
 > **Intent Classification**: GENERIC INTENT (Universal / Parameterized Blueprint)  
-> **Status**: Foundational law — supersedes the obsolete README “Layer 1–4” layout.
+> **Status**: Canonical taxonomy, binding through Rule 0A — supersedes the obsolete
+> README “Layer 1–4” layout. It is not itself one of the binding texts: those are listed
+> in [`../../AGENTS.md`](../../AGENTS.md) (RULES.md, LAW.md, the boot contract, and the
+> universe's own INTENT + manifest).
 
 Every component, package, brick, or app MUST be classified into exactly one perimeter before design or deploy.
 
