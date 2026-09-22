@@ -143,7 +143,7 @@ describe('@shaper/pkg-vault-engine Unit & Integration Tests', () => {
     let server;
     let client;
     const PORT = 8529;
-    const TOKEN = 'gbs-test-token-777';
+    const TOKEN = 'test-vault-token-777';
 
     before(async () => {
       server = createVaultServer({
@@ -216,5 +216,23 @@ describe('vault master key is never defaulted', () => {
   it('ships no default key literal in its source', () => {
     const src = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
     assert.doesNotMatch(src, /default-.*vault.*key|vault-key-change-in-prod/i);
+  });
+});
+
+// --- Non-regression (Rule 29): reusable package metadata must not turn one
+// deployment's provenance into a requirement or identity for every universe.
+describe('generic package identity', () => {
+  it('contains no client or infrastructure-owner identity in its package metadata', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+    );
+    const publicIdentity = JSON.stringify({
+      description: packageJson.description,
+      keywords: packageJson.keywords,
+      author: packageJson.author
+    });
+
+    assert.doesNotMatch(publicIdentity, /\b(?:gbs|xavier|de poorter)\b/i);
+    assert.equal(Object.hasOwn(packageJson, 'author'), false);
   });
 });

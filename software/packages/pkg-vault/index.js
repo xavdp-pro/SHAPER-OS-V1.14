@@ -86,7 +86,7 @@ export function decryptSecret(record, masterKey) {
 }
 
 /**
- * Validates a Mailbox configuration object against GBS standard (MAIL-AGENT-SOCLE-SPEC §4).
+ * Validates a mailbox configuration object against the declared mailbox contract.
  * @param {object} data 
  * @returns {{ valid: boolean, errors: string[] }}
  */

@@ -213,8 +213,8 @@ export class AgyBridgeServer {
     //
     // Without this, Node raises an unhandled 'error' event and the whole bridge
     // dies — taking every other conversation with it, and leaving the queue
-    // watching a stream that will never speak again. Observed on gbs-test: one
-    // wrong mount path, and the bridge process was gone.
+    // watching a stream that will never speak again. One clean-sheet failure
+    // showed that a wrong mount path can end the bridge process.
     //
     // The run ends, the reason travels on the same channel as any other
     // outcome, and the bridge stays up to serve the next request.

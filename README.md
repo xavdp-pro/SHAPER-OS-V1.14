@@ -7,8 +7,12 @@
 # SHAPER OS V1.14
 
 > **Current release tag:** [`v1.14.4`](https://github.com/xavdp-pro/SHAPER-OS-V1.14/releases/tag/v1.14.4)
-> (univ-base proof tooling and gbs-test evidence). The [workplan](docs/V1.14-WORKPLAN.md)
+> (univ-base proof tooling and a clean-sheet evidence run). The [workplan](docs/V1.14-WORKPLAN.md)
 > still tracks operating-contract qualification and multi-engine campaigns beyond that slice.
+
+> **Scope:** this is a reusable generic base. Historical machine labels in
+> dated evidence identify where an observation happened; they do not define a
+> customer, deployment target, or commercial affiliation.
 
 > **The Sovereign Operating System of Standardized Bricks & Intentions — Where Humans Formulate Vision and AI Agents Build & Operate**
 

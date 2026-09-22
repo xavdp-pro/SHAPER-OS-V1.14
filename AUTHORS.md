@@ -19,7 +19,7 @@ infrastructure, and the discipline that made everything below provable.
 | Claude Opus 5 | [@claude](https://github.com/claude) | Quality bench (T2, T3), vault halt, proof standard, V1.14 canon and catalogue doctrine |
 | OpenAI Codex GPT-6 Astra | OpenAI Codex | Bridge contract, Rule 0 formalisation, decision-hygiene docs, universe fixes |
 | OpenAI Codex GPT-5.6 Sol | OpenAI Codex | Diagnosis and implementation passes on the executable kit |
-| Cursor Composer 2.5 | [@cursoragent](https://github.com/cursoragent) | gbs-test proof helpers, registry path, bridge deploy, cross-repo doc links |
+| Cursor Composer 2.5 | [@cursoragent](https://github.com/cursoragent) | Clean-sheet proof helpers, registry path, bridge deploy, cross-repo doc links |
 | Gemini Flash 3.7 (Antigravity) | Google Antigravity | Deployment testing and architecture review sessions |
 | Gemini Flash 3.8 (Antigravity) | Google Antigravity | Deployment testing and follow-on review sessions |
 
