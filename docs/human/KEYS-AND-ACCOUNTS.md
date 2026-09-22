@@ -56,7 +56,7 @@ required variable that is missing **halts the script, which names it**.
 | `REGISTRY_PASS` | `push-images-to-registry.sh` | **Yes** | The registry password; it reaches `podman login` on stdin, never on a command line |
 | `PRA_ENCRYPTION_KEY` | `backup-pra-sync.sh` | **Yes** | The key the off-site archive is encrypted with. Generated for backups only (`openssl rand -hex 32`); the script **refuses** a value equal to `VAULT_MASTER_KEY`, whether exported or found in a `.env` on disk |
 | `PRA_DEST_HOST` | `backup-pra-sync.sh` | No | Where the encrypted archive is `rsync`ed; unset, it stays in `data/backups/` and the script says so |
-| `MYSQL_USER` | `backup-local.sh`, `snapshot-universe.sh` | No | Set, it declares that this universe has a database to dump. Unset, both scripts print `SKIP` and report `"database":"skipped"` — never an empty dump passed off as one |
+| `MYSQL_USER` | `backup-local.sh`, `snapshot-universe.sh` | No | Identifies one functional Podman's private database for this dump. The current scripts accept one database per invocation; qualification must invoke them once per function. Unset prints `SKIP` and never passes an empty dump off as one |
 | `MYSQL_PASSWORD` | `backup-local.sh`, `snapshot-universe.sh` | With `MYSQL_USER` | Travels in `MYSQL_PWD`, never on a command line |
 | `MYSQL_DATABASE` | `backup-local.sh`, `snapshot-universe.sh` | No | One schema to dump; unset, `--all-databases` |
 | `MYSQL_HOST`, `MYSQL_PORT` | `backup-local.sh`, `snapshot-universe.sh` | No | Default to `127.0.0.1` and `3306` inside the scripts |
@@ -64,7 +64,7 @@ required variable that is missing **halts the script, which names it**.
 The example files are the record of the **names**, and declare every
 variable above **empty**:
 [`examples/universe.env.example`](../../examples/universe.env.example) for the
-universe's own database (Rule 26: one MariaDB per universe),
+functional Podman's own database (Rule 26: one isolated MariaDB per function),
 [`software/.env.example`](../../software/.env.example) for the PRA key and
 the registry account. The **values** live in the shell — or the cron
 environment — that runs the script, never in a tracked file. From

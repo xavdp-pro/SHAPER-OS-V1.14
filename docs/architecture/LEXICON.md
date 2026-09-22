@@ -46,7 +46,7 @@
 | :--- | :--- |
 | **class** | A universe model: one git repo, versioned, tagged (`univ-boutik-shop`) |
 | **instance** | One materialisation of a class: ledger row + vault + volumes — never a repo |
-| **ledger** | THE desired-state table: one row per instance (`id`, `account`, `klass`, `matrix`, `digest`, `machine`, `env`, `state`, `params`, `deadlineAt`, `createdAt`, `updatedAt`, `events[]`) in the governing universe's database; the R2 bucket is derivable (`r2://<id>`), never a column. The contract ships with `pkg-governor` (BINDING). *The only allowed name — "placement" survives only as the machine column* |
+| **ledger** | THE desired-state table: one row per instance (`id`, `account`, `klass`, `matrix`, `digest`, `machine`, `env`, `state`, `params`, `deadlineAt`, `createdAt`, `updatedAt`, `events[]`) in the governor functional Podman's own private MariaDB; the R2 bucket is derivable (`r2://<id>`), never a column. The contract ships with `pkg-governor` (BINDING). *The only allowed name — "placement" survives only as the machine column* |
 | **drift** | Any gap between the ledger and what actually runs — the sole repair trigger (Rule 27 governs the ladder) |
 | **PURRING** | The **dated** healthy state written on every on-time beat when observed == desired. One state machine everywhere: `DESIRED → RECONCILING → PURRING → DEGRADED`, plus the terminal `REAPED`. DEGRADED rests and never self-clears: it is left by its account's new ask where a robot may end (dev, test, demo), by human action alone in prod (Rule 27) |
 | **REAPED** | The terminal end of a row: a maker ended the universe on the row's deadline and looked, or a human did. *Prevents*: a reaped row still counted as living, blocking its account and pinning its matrix |

@@ -11,15 +11,17 @@
 # (`tb mysql sudo/user/create $app`, `sudo/db/create $app`). See
 # software/RULES.md#rule-11-a-brick-runs-as-its-own-class-not-root.
 #
-# <class> is the class id (a-z0-9-, matches the universe's own name and
-# the database's own name/user — one identity in three places). <uid> is a
+# <functional-slug> is the functional identity (a-z0-9-), reused as the Linux
+# system account, MariaDB account and MariaDB database — one identity in four
+# places. It is not necessarily the universe name or the prefixed container
+# runtime name. <uid> is a
 # FIXED numeric id, not whatever a bare `useradd` would pick: the deploy
 # script must chown host-side bind-mounted files (a passwd file, a declared
 # volume) to this exact id without asking the built image what it chose.
 # 10001 is proven; a class is free to pick its own as long as it is fixed
 # and stays out of the host's own system-account range (< 1000).
 #
-# Build: podman build -t localhost/<class>-app:1 -f Containerfile <context>
+# Build: podman build -t localhost/<functional-slug>-app:1 -f Containerfile <context>
 
 FROM docker.io/library/node:22-slim AS builder
 WORKDIR /build
@@ -31,20 +33,20 @@ RUN npm prune --omit=dev --no-audit --no-fund
 
 FROM docker.io/library/node:22-slim
 
-# The account IS the class: same spelling as the LXC universe, the database
-# name and the database user (see the same anchor in RULES.md). -m creates
-# and chowns the home dir; -d fixes it at /apps/<class>, the same absolute
+# The account IS the functional identity: same spelling as the database name
+# and database user (see the same anchor in RULES.md). -m creates and chowns
+# the home dir; -d fixes it at /apps/<functional-slug>, the same absolute
 # path db.js and instanceIdentity.js already derive their app name from.
-RUN useradd -u <uid> -m -s /bin/bash <class> -d /apps/<class>
+RUN useradd -u <uid> -m -s /bin/bash <functional-slug> -d /apps/<functional-slug>
 
-WORKDIR /apps/<class>/app
+WORKDIR /apps/<functional-slug>/app
 # --chown at COPY time, not a RUN chown after: a RUN chown -R walks and
 # rewrites every inode a second time, on every layer, for no gain a
 # COPY --chown does not already give for free at build time.
-COPY --from=builder --chown=<class>:<class> /build/dist ./dist
-COPY --from=builder --chown=<class>:<class> /build/node_modules ./node_modules
-COPY --from=builder --chown=<class>:<class> /build/src ./src
-COPY --from=builder --chown=<class>:<class> /build/package.json ./package.json
+COPY --from=builder --chown=<functional-slug>:<functional-slug> /build/dist ./dist
+COPY --from=builder --chown=<functional-slug>:<functional-slug> /build/node_modules ./node_modules
+COPY --from=builder --chown=<functional-slug>:<functional-slug> /build/src ./src
+COPY --from=builder --chown=<functional-slug>:<functional-slug> /build/package.json ./package.json
 
 ENV NODE_ENV=production
 EXPOSE <port>
@@ -53,5 +55,5 @@ EXPOSE <port>
 # crm-app, port 80 — never by dropping this line back to root: the
 # capability is scoped to exactly the one privilege the process needs, root
 # is every privilege the kernel has.
-USER <class>
+USER <functional-slug>
 CMD ["node", "src/server.js"]

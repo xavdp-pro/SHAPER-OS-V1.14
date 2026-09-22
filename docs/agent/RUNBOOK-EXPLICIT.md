@@ -213,6 +213,41 @@ first and used the human's request as an implicit intention. Copy
 `software/universes/_template/INTENT.md`, state in it what this universe is for
 and its four to six invariants, and only then run the commands below.
 
+**Inventory the functional Podmans before building.** For every functional
+Podman declared by the manifest, write down one `<functional-slug>` and verify
+that the build and deployment materialise all four equal identities:
+
+1. function identity: `<functional-slug>`;
+2. Linux system account: `<functional-slug>`;
+3. MariaDB account: `<functional-slug>`;
+4. MariaDB database: `<functional-slug>`.
+
+The generated password must be read from
+`/apps/<functional-slug>/etc/mysql/localhost/passwd`, owned by that system
+account and mode `0600`. Every functional Podman owns a different MariaDB and
+volume. A missing identity, a mismatched `MYSQL_USER` or `MYSQL_DATABASE`, a
+shared database, or a SQLite/CSV/JSONL substitute means **STOP**: the universe
+has not been born under Rules 4 and 26. A disposable DEV scaffold must say so
+explicitly and cannot proceed to test, demo or production qualification.
+
+**Do not administer MariaDB as the application.** The application process runs
+as `<functional-slug>` and connects only to the database of the same name. For
+creation, migrations, grants, inspection and repair, the authorised agent uses
+the local MariaDB `root` command-line path. Do not log in with the application's
+user and password to perform administrative work, and never expose the MariaDB
+root credential to the application. Root database privileges remain bounded by
+the operation and universe mandate.
+
+**The human-agent shaping order is fixed.** The human supplies the intention,
+boundaries and expected durable facts. The agent then derives the slug and
+materialises the system account, MariaDB instance, schema, application grants,
+volume, backup and proofs. Root is a technical execution path, not permission
+to change the intention. Schema operations must be idempotent and correlated;
+an operation against existing data takes the declared backup first. Before
+qualification, prove all four outcomes: the confined application succeeds, a
+different function's credential is refused, the local root CLI can inspect and
+repair under mandate, and restore reproduces the durable facts.
+
 - **Trap — a behaviour that differs by environment is a declared value.**
   Write it in the manifest or the env file (`environment`, an explicit flag),
   never as an inference from another variable such as `NODE_ENV`: the day dev

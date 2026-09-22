@@ -121,7 +121,8 @@ and says so** (the amendments land in Rule 37 and Rule 27 in this release):
   will.
 
 The ledger is **the table of desired state and of what was reported about it,
-one row per instance** — in the database of the governing universe. It is the
+one row per instance** — in the governor functional Podman's own private
+MariaDB. It is the
 only store of instances: a class has a git repository; an instance never does.
 An instance is a row, a vault and volumes.
 

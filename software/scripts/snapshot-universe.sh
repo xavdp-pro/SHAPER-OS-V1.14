@@ -54,7 +54,7 @@ echo "[snapshot] Creating snapshot for ${UNIV_NAME} (tag: ${SNAPSHOT_TAG})..."
 # database says SKIP instead of pretending. Same contract as backup-local.sh.
 DB_STATUS="skipped"
 if [[ -z "${MYSQL_USER:-}" ]]; then
-  echo "[snapshot] SKIP database dump: MYSQL_USER is not set — this universe declares no database (set MYSQL_USER and MYSQL_PASSWORD to include one)."
+  echo "[snapshot] SKIP database dump: MYSQL_USER is not set — no functional database owner was selected (set MYSQL_USER and MYSQL_PASSWORD to include one)."
 else
   : "${MYSQL_PASSWORD:?MYSQL_USER is set but MYSQL_PASSWORD is not — supply the database password; this repository ships none}"
   if command -v mariadb-dump >/dev/null 2>&1; then

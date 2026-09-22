@@ -82,8 +82,8 @@ flowchart TD
 > 3. **Progressive Rollout**: If green $\rightarrow$ deployment to 10%, then 100% of the fleet.
 > 4. **Automatic Rollback**: At the first anomaly detected on the canary, immediate cancellation without touching other children.
 
-### Rule 26 — Complete Database Isolation (MariaDB per Universe)
-> **Statement:** To uphold the promise of zero domino effect, each Universe possesses its own isolated MariaDB instance/database. The central Super-SaaS database contains only the node inventory registry and global billing.
+### Rule 26 — Complete Database Isolation (MariaDB per Functional Podman)
+> **Statement:** To uphold the promise of zero domino effect, every functional Podman possesses its own isolated MariaDB instance, credentials, storage, migrations and recovery proof. No universe-wide database is shared between functions. A central SaaS function may keep inventory and billing only in its own private database.
 
 ### Rule 27 — Reconciliation Convergence Guard (Anti-Runaway)
 > **Statement:** A reconciliation loop that cannot give up becomes the outage itself. The engine strictly bounds its corrective action:

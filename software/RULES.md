@@ -424,7 +424,7 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
 ---
 
 <a id="rule-4"></a>
-### Rule 4: Standard Turbinobash Layout & On-Demand Database Isolation
+### Rule 4: Standard Turbinobash Layout & Per-Functional-Podman Database Isolation
 * **Plesk-like CLI Hosting Heritage**: SHAPER OS inherits the battle-tested, sovereign hosting philosophy of **Turbinobash (`tb`)**—a lightweight, CLI-first alternative to bloated control panels (like Plesk or cPanel) providing zero-friction app deployment, reverse-proxying, user isolation, and automated database provisioning.
 * **Official Turbinobash Documentation & Repositories**:
   * Core Hosting Engine: [https://github.com/xavdp-pro/turbinobash-web](https://github.com/xavdp-pro/turbinobash-web)
@@ -438,12 +438,43 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
   ├── sav/               # Persistent volumes (bind-mounted into Podman) — MUST be backed up
   └── nosav/             # Cache, node_modules, image layers, bulky regenerable files — EXCLUDED from backups
   ```
-* **On-Demand Isolated Database Convention (`user = database = slug`)**:
-  * **On-Demand Only**: A container or service instantiates a MariaDB database **strictly if and only if it requires relational state storage**.
-  * **Strict Isolation Invariant**: Whenever a database is required, it must follow `user = database = <slug>`. No shared default credentials.
+* **Mandatory Functional-Podman Database Convention**:
+  * **Every Functional Podman Owns One**: Every application, telephony, agent,
+    queue, logger, vault or other functional Podman materialises its own MariaDB
+    instance inside that Podman's security and lifecycle boundary. A universe
+    therefore contains as many independent MariaDB instances as functional Podmans.
+  * **Never Shared**: No universe-wide MariaDB exists. A Podman never reads or
+    writes another Podman's database, even inside the same universe, and no parent,
+    child or peer universe crosses that boundary.
+  * **One Name Everywhere**: the functional slug is the function identity, the
+    Linux system account, the MariaDB account and the MariaDB database name:
+    `<functional-slug> = system-user = database-user = database`. The Podman
+    container may retain its canonical prefixed runtime name; that runtime name
+    does not replace or alter the functional identity. No alias and no default
+    credential may break this equality.
+  * **Private and Self-Contained**: The database is reachable only from its owning
+    Podman's function. Its volume, credentials, migrations, backup and restore proof
+    travel with that function's contract.
+  * **Separate Application and Administrative Paths**: the application process
+    runs as `<functional-slug>` and connects only as the matching MariaDB user to
+    the matching database. An authorised creation, development or operations agent
+    administers MariaDB through the local `root` command-line path and has the
+    database privileges required by its mandate. The agent never administers the
+    server with the application's login or password; the application never receives
+    the MariaDB root credential. Root authority does not widen the agent's universe
+    mandate or permit cross-function data use.
   * **Password Resolution Order**:
-    1. Primary source of truth: read directly from `/apps/<slug>/etc/mysql/localhost/passwd`.
-    2. Fallback (Dev / CI testing): read from `process.env.MYSQL_PASSWORD`.
+    1. Primary source of truth: read directly from
+       `/apps/<functional-slug>/etc/mysql/localhost/passwd`. It contains the
+       generated MariaDB password, is mode `0600`, belongs to the functional
+       system account, and is never committed, logged or baked into an image.
+    2. Fallback (disposable Dev / CI only): read from
+       `process.env.MYSQL_PASSWORD`. This fallback never qualifies an artefact
+       for test, demo or production promotion.
+  * **Born With the Function**: MariaDB and the four-way identity above are
+    materialised when the functional Podman is born, even before the function
+    has durable rows. SQLite, CSV and JSONL may be declared as disposable DEV
+    scaffolding only; they never satisfy the database or promotion gate.
 * **Continuous Architectural Traceability**: Document every architectural choice with *What* (concise description) and *Why* (business rationale).
 
 ---
@@ -990,11 +1021,21 @@ This set is **enough**. Missing a level is a hole. Same idea as turbinobash-web 
 | :--- | :--- | :--- |
 | **1. Infra — entire container** | The universe container as a whole — the LXC/CT (or VM), or the outer Podman container of a `nested` universe | Host snapshot (`vzdump` / ZFS / Proxmox). For `nested`, TARGET (Rule 11 gap, `doctrine/CONVERGENCE-STATE.md`): an export of the stopped outer container plus its declared volumes is the floor; a checkpoint of a container carrying an inner Podman has been restored once, with the inner runtime repaired by hand (vzcriu kit); PodMesh recovery points exist in its development tree only. Never a level this table counts as covered until proven. Recovers the machine, not a substitute for inner levels. |
 | **2. Files — persistent volumes** | Only what must survive a recreate | Archive **Podman bind-mounts** (`<univ>/sav/*`, `/data/<slug>/` persistent volumes) as **`tar.bz2`** (pbzip2), like turbinobash app backups. **Exclude `nosav/`**, caches, image layers, `node_modules`. |
-| **3. Database** | Relational / vector state, consistent | `mariadb-dump` — the official MariaDB image ships `mariadb` and `mariadb-dump`, not `mysql` and `mysqldump`; a script falls back to `mysqldump` only where that name still exists (proven on terrain, 1 September 2026: two calls in one file disagreed on the name before they were made to agree). Plus Qdrant snapshot, JSONL rotate if needed. Do not rely on a live volume tar alone for a crash-consistent DB. |
+| **3. Databases** | Every functional Podman's relational / vector state, consistent and separate | Run `mariadb-dump` independently for every functional Podman's private MariaDB — the official image ships `mariadb` and `mariadb-dump`, not `mysql` and `mysqldump`; a script falls back to `mysqldump` only where that name still exists. Plus Qdrant snapshots and JSONL rotation where declared. A recovery point is incomplete if one functional database is omitted, and no live volume tar substitutes for a crash-consistent dump. |
 | **4. Git** | Code and architecture | Immutable tagged repo. Never treat git as a data backup. |
 | **5. S3 / R2** | Off-site copy of 2+3 (and optionally 1) | Encrypted archives (AES-256-GCM), cold bucket (Cloudflare R2 / Glacier-class). Copies **the tar.bz2 and dumps**, not a second git clone pretending to be backup. |
 
 **Files (level 2) are the volumes, not the overlay.** Recreating the Podman container from a tagged image + restoring `sav/*.tar.bz2` + DB dump **is** the inner restore. Level 1 is the outer safety net (CT gone). With 1–5 together, PCA/PRA data path is covered.
+
+**The object key is derived, never improvised.** Each function-owned database
+recovery point is stored below
+`r2://<instance-id>/functions/<functional-slug>/mariadb/<recovery-point-id>/`.
+That prefix contains the encrypted `mariadb-dump`, a manifest naming the
+universe instance, functional slug, schema/version and capture time, the
+plaintext artefact digest recorded before encryption, and the restore receipt.
+The encryption key never travels in that prefix (Rule 12). This derivation lets
+an agent enumerate the manifest and restore the correct database without
+learning an application's internal layout.
 
 <a id="rule-16-archive-hygiene-scope"></a>
 Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2` that leaves the host.
@@ -1130,9 +1171,33 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
 
 ---
 
-### Rule 26: Complete Database Isolation (MariaDB per Universe)
+### Rule 26: Complete Database Isolation (MariaDB per Functional Podman)
 * **Zero Domino Effect on Data**:
-  * To guarantee total blast radius isolation, each Universe operates its own isolated MariaDB database/instance.
+  * To guarantee total blast-radius isolation, each functional Podman operates
+    its own MariaDB instance inside its own security, storage and lifecycle
+    boundary. There is no shared database at universe level.
+  * Asterisk, Helm, Vault, Logger, Queue and every other functional Podman each
+    own a different MariaDB instance and credentials. A failure, migration or
+    compromise of one database must not reach another function.
+  * A functional Podman's birth and qualification fail when its MariaDB is
+    absent, unhealthy, reachable outside its boundary, non-persistent, or lacks
+    a successful restore proof. CSV, JSONL, SQLite or another Podman's database
+    cannot substitute for this gate.
+  * Qualification also fails unless the running function uses the Linux account
+    named by its functional slug, its MariaDB account and database use that same
+    slug, the password is read from
+    `/apps/<functional-slug>/etc/mysql/localhost/passwd` with mode `0600`, and
+    credentials belonging to another functional Podman are refused.
+  * Database administration proof uses the local MariaDB root CLI path; application
+    behavior proof uses only the confined functional account. Passing one path does
+    not prove the other.
+  * **Legacy transition**: an already-running instance that predates this
+    invariant may continue unchanged while it remains serviceable; its existing
+    SQLite, CSV or JSONL store is recorded as technical debt, not presented as
+    compliance. No forced in-place migration is implied. The gate becomes
+    mandatory when that functional Podman is rebuilt, replaced, rematerialised
+    or promoted: the new artefact must carry its private MariaDB and pass the
+    complete qualification above before it takes over.
   * The Central SaaS database holds exclusively the node inventory registry and global billing data.
 
 ---
@@ -1177,12 +1242,12 @@ Rule 12 (archive hygiene: no autoindex, basic auth, TLS) applies to any `tar.bz2
 ### Rule 30: Snapshot Before Migration (Data-Bearing Changes Are Not Canary-able)
 * **Why This Rule Is Separate from Rule 25**: The canary protects against a bad configuration, because a configuration can be rolled back. A database migration **carries data**: rolling back the code does not bring back a dropped column. Progressive rollout is necessary here but not sufficient.
 * **The Non-Negotiable Sequence**:
-  1. **Full snapshot first** — the universe's MariaDB dump plus its `sav/` volumes, taken immediately before the change, never a nightly backup "close enough".
+  1. **Full snapshot first** — the owning functional Podman's MariaDB dump plus its persistent volumes, taken immediately before the change, never a nightly backup "close enough".
   2. **Verified restore** — the snapshot is restored into an ephemeral sandbox and proven loadable. An unverified backup is not a backup (Rule 0G).
   3. **Only then** apply the migration, canary first per Rule 25.
   4. **Rollback = restore the snapshot**, not "run the reverse script".
 * **Preferred Refinement (Expand / Contract)**: where feasible, make the change non-destructive in stages — add the new column, write to both, migrate readers, and only drop the old column in a later release once every universe in the fleet is confirmed migrated. Destructive and reversible steps never travel in the same deployment.
-* **Fleet Scope**: a schema change across N per-universe databases (Rule 26) is N migrations, each with its own snapshot. One shared migration transaction across the fleet is forbidden — it would recreate the common point of failure Rule 26 exists to remove.
+* **Fleet Scope**: a schema change affecting N functional Podmans is N independent migrations, each with its own snapshot. One shared migration transaction across functions or the fleet is forbidden — it would recreate the common point of failure Rule 26 exists to remove.
 
 ---
 
@@ -1331,7 +1396,7 @@ rule is what killed the synonyms, and it keeps them dead.*
     surface; every board, cockpit tile or STATE file is a rendering of it,
     never a rival.
 * **The ledger is the only instance store**: one row per instance, in the
-  governing universe's database (Rule 26). The row (amended 2 September
+  governor functional Podman's own private database (Rule 26). The row (amended 2 September
   2026, maker-and-governor verdict): `id`, `account`, `klass`, `matrix`,
   `digest`, `machine`, `env`, `state`, `params`, `deadlineAt`, `createdAt`,
   `updatedAt`, `events[]`. What changed from the first reading (class, tag,
@@ -1355,9 +1420,9 @@ rule is what killed the synonyms, and it keeps them dead.*
   its `STATES`, its `EVENT_TRANSITIONS` and its work kinds — stamp, reap,
   validate, adopt); it no longer waits for `brick-forge`, which never
   carried it. A standalone universe governs itself: its ledger lives in its
-  own database — which means a standalone class that will hold its own
-  ledger takes the `+data` profile option (the default `agent` profile
-  carries no database brick). The package's JSONL journal is its reference
+  own database inside the governor Podman's boundary. Every functional Podman
+  carries its own mandatory MariaDB under Rules 4 and 26; `+data` is therefore
+  only a retired compatibility alias and never a shared universe database. The package's JSONL journal is its reference
   adapter, not the database this rule names: the gap is recorded in
   `doctrine/CONVERGENCE-STATE.md` until a governor binds its own.
   "placement" survives only as the name of the machine-assignment column.

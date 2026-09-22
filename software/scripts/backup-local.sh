@@ -63,12 +63,14 @@ echo "[backup-local] Starting local backup: ${SNAPSHOT_NAME}..."
 #     an empty .sql and the archive shipped it as the database — a failing
 #     dump now fails the backup, an empty dump too, and a universe with no
 #     database says SKIP in so many words instead of pretending.
-# The universe declares a database by setting MYSQL_USER (Rule 26: one MariaDB
-# per universe). MYSQL_DATABASE narrows the dump to one schema; without it,
-# every database the user can see is dumped.
+# One functional Podman declares its private database by setting MYSQL_USER
+# (Rule 26: one isolated MariaDB per functional Podman). This script covers
+# one owner per invocation; the universe backup must invoke it independently
+# for every function. MYSQL_DATABASE narrows the dump to one schema; without
+# it, every database that function's identity can see is dumped.
 DB_STATUS="skipped"
 if [[ -z "${MYSQL_USER:-}" ]]; then
-  echo "[backup-local] SKIP database dump: MYSQL_USER is not set — this universe declares no database (set MYSQL_USER and MYSQL_PASSWORD to include one)."
+  echo "[backup-local] SKIP database dump: MYSQL_USER is not set — no functional database owner was selected (set MYSQL_USER and MYSQL_PASSWORD to include one)."
 else
   : "${MYSQL_PASSWORD:?MYSQL_USER is set but MYSQL_PASSWORD is not — supply the database password; this repository ships none}"
   if command -v mariadb-dump >/dev/null 2>&1; then
@@ -76,7 +78,7 @@ else
   elif command -v mysqldump >/dev/null 2>&1; then
     DUMP_CMD="mysqldump"
   else
-    echo "[backup-local] MYSQL_USER is set but neither mariadb-dump nor mysqldump is installed — install mariadb-client, or unset MYSQL_USER if this universe has no database." >&2
+    echo "[backup-local] MYSQL_USER is set but neither mariadb-dump nor mysqldump is installed — install mariadb-client, or unset MYSQL_USER when no functional database owner is selected." >&2
     exit 1
   fi
   MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"

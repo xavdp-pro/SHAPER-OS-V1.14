@@ -10,6 +10,11 @@
 A profile is a **floor, not a cage.** It says where to start. What you add on top
 is the work.
 
+Every functional Podman in every floor owns its own isolated MariaDB instance
+under Rules 4 and 26. There is no database shared at universe level. Tables below
+omit the repeated per-function database for readability. `+data` survives only
+as a compatibility alias for older formulas; it never creates a shared database.
+
 ---
 
 ## 🧭 The 3 Ways to Prompt a Universe
@@ -96,6 +101,7 @@ exist, never so that one can be requested by mistake.
 
 ```
 logger                                    :8620
+└── private MariaDB                       internal to the logger boundary
 ```
 
 Plus whatever service it watches (a website, a store, a database). The `logger`
@@ -114,7 +120,9 @@ queue    :8640      asynchronous work, and the answer persisted
 maestro  :8630      autonomous heartbeat / scheduled beats
 ```
 
-Boot order: `vault ∥ logger → bridge → queue → maestro`.
+Each listed functional Podman carries its own private MariaDB. Boot order remains
+`vault ∥ logger → bridge → queue → maestro`; each function becomes ready only
+after its own database is ready.
 
 **This is the default.** When nobody names a profile, this is what gets built.
 It is what `manifest.tier-a.json` has always declared; `tier-a` stays as an alias.
@@ -145,7 +153,7 @@ copied here:
 | Option | Adds | What it buys |
 | :--- | :--- | :--- |
 | **`+documents`** | `brick-ged`, `brick-qdrant`, `@shaper/pkg-rag` | It knows things beyond the current task |
-| **`+data`** | `brick-mariadb` | Relational state that outlives the run |
+| **`+data`** | compatibility alias; each functional Podman already owns MariaDB | No topology change; never creates a shared universe database |
 | **`+web`** | `brick-helm` | A human who is not at a terminal can drive it |
 | **`+intake`** | `@shaper/pkg-mail-agent` | Work arrives on its own |
 
@@ -173,7 +181,7 @@ for one is a deliberate act rather than a surprise at deploy time.
 | **`+social`** | `+avis` | `brick-social-feed` *(TARGET)* | Customer reviews ingestion (Google/Trustpilot) & sentiment analysis |
 | **`+pdf-toolkit`** | `+pdf` | `brick-pdf` *(TARGET)* | Multi-page PDF splitting, barcode tagging, and digital signature |
 | **`+documents`** | `+dms` | `ged`, `qdrant`, `@shaper/pkg-rag` | Full document ingestion, OCR, and 384d semantic vector search |
-| **`+data`** | `+db` | `mariadb` | Relational database state that outlives the execution run |
+| **`+data`** | `+db` | compatibility alias | No topology change; every functional Podman already owns its database |
 | **`+web`** | `+cockpit` | `helm`, `auth` | Helm (`/console`), the pilot's conversational interface, and authenticated browser interface |
 | **`+public`** | `+online` | `tunnel` (Cloudflare Zero Trust) | Public HTTPS routing with **zero open inbound ports** |
 | **`+intake`** | `+mail` | `@shaper/pkg-mail-agent` | Automatic inbound IMAP mail listening & background job intake |

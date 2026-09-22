@@ -116,7 +116,7 @@ it is not part of this universe.
 
 | Brick | Role | Lifecycle rule |
 | :--- | :--- | :--- |
-| `brick-mariadb` | Per-universe relational database | One database per universe, never shared (Rule 26). Snapshot before any migration (Rule 30) |
+| `brick-mariadb` | Per-functional-Podman relational substrate | One private MariaDB per functional Podman, never shared inside or across universes (Rule 26). Snapshot before any migration (Rule 30) |
 | Volumes | Persistent state of any brick | Declared per universe (Rule 31), backed up at multiple levels (Rule 16) |
 
 Principle 9: code is disposable, data is not. You may destroy a universe. You

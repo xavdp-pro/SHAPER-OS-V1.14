@@ -65,7 +65,7 @@ statement is [`doctrine/COOPERATIVE-INTELLIGENCE-ECOLOGY.md`](../doctrine/COOPER
 8. **Law of Turbinobash Sovereign Hosting & CLI Plesk-like Conventions**:
    - Every deployable application or brick adheres to the battle-tested **Turbinobash (`tb`)** hosting architecture: a sovereign, CLI-first Plesk/cPanel-like infrastructure engine.
    - **Canonical Hierarchy**: `/apps/<slug>/` (or `<univ>/`) containing `app/` (code, git), `log/` (JSONL), `sav/` (persistent Podman volumes — backed up as `tar.bz2`), `nosav/` (cache — excluded).
-   - **On-Demand Isolated Database**: MariaDB databases are provisioned strictly on-demand following `user = database = slug`, reading passwords from `/apps/<slug>/etc/mysql/localhost/passwd` (with fallback to `process.env.MYSQL_PASSWORD` in dev/CI).
+   - **Mandatory Function-Owned Database**: every functional Podman provisions its own private MariaDB following `user = database = functional-podman-slug`, reading passwords from `/apps/<slug>/etc/mysql/localhost/passwd` (with fallback to `process.env.MYSQL_PASSWORD` in dev/CI). No function shares a database or table with another.
    - **Official Turbinobash Repositories for AI Agent Reference**:
      * Core Hosting Engine: [https://github.com/xavdp-pro/turbinobash-web](https://github.com/xavdp-pro/turbinobash-web)
      * LXC & Containers Module: [https://github.com/xavdp-pro/turbinobash-web-lx](https://github.com/xavdp-pro/turbinobash-web-lx)

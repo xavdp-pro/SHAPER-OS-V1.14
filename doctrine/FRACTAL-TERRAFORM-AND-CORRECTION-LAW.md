@@ -203,14 +203,14 @@ The canary protects against bad configuration, because configuration can be repl
 
 The sequence is non-negotiable:
 
-1. **Full snapshot first** — MariaDB dump of the universe *and* `sav/` volumes, taken immediately prior to the change. Not the nightly backup "which should be enough".
+1. **Full snapshot first** — the owning functional Podman's private MariaDB dump *and* its persistent volumes, taken immediately prior to the change. Not the nightly backup "which should be enough".
 2. **Verified restore** — the snapshot is loaded into an ephemeral sandbox and proven operational. An unverified backup is not a backup (Rule 0G).
 3. **Only then**, apply the migration, canary leading the way (Rule 25).
 4. **Rollback means restoring the snapshot** — never "running the down script".
 
 **Preferred refinement (expand / contract)**: whenever possible, make changes non-destructive in phases — add the column, write to both, migrate readers, and only drop the old column in a later release once the entire fleet is confirmed migrated. A destructive step and a reversible step never travel in the same deployment.
 
-**At fleet scale**: a schema change across N databases per universe (Rule 26) means N migrations, each with its own snapshot. A shared migration transaction across the fleet is forbidden — it would recreate the single point of failure that Rule 26 was established to eliminate.
+**At fleet scale**: a schema change across N functional Podman databases (Rule 26) means N independent migrations, each with its own snapshot. A shared migration transaction across functions or the fleet is forbidden — it would recreate the single point of failure that Rule 26 was established to eliminate.
 
 ---
 

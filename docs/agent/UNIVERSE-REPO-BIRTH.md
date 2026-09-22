@@ -44,6 +44,15 @@ improvements found there travel back upstream.
 
 ## The birth procedure
 
+The human-agent tandem shapes the universe in one direction. The human states
+the intention, boundaries and expected durable facts. The agent materialises
+the functional identities, schema, least-privilege application grants, volumes,
+backup and proof. Administrative root access is a tool for that materialisation,
+not authority to alter the human intention. Every schema operation is
+idempotent, correlated in the evidence trail, preceded by the declared backup
+when it touches existing data, and followed by persistence and restore proof.
+The MariaDB root path stays local and outside the application environment.
+
 1. **`git init`** a fresh repository named for the class:
    `univ-<projet>-<classe>` (Rule 1 — projet is one word; a single-class
    project takes `-core`) — never a copy of the base with folders deleted.
@@ -77,10 +86,28 @@ improvements found there travel back upstream.
    to the catalogue when its INTENT can be written without the business
    word.** A brick whose intent cannot avoid naming the client or the
    vertical is `source: native` and stays in the class repo (Rule 37).
-5. **Secrets exist only in the vault.** No `.env` is ever tracked; every
+5. **Materialise every functional identity at birth.** Inventory every
+   functional Podman in the manifest. For each one, use one functional slug as
+   its function identity, Linux system account, MariaDB account and MariaDB
+   database name. Materialise its own MariaDB inside that function's security,
+   storage and lifecycle boundary, and create
+   `/apps/<functional-slug>/etc/mysql/localhost/passwd` as a generated secret
+   owned by that account with mode `0600`. A function without this database is
+   not born and cannot be packaged. SQLite, CSV or JSONL may be labelled as
+   disposable DEV scaffolding, but never as compliance or promotion evidence.
+   The application runs and connects as the confined functional account. The
+   authorised maker or operations agent performs schema creation, grants,
+   migrations and repair through the local MariaDB `root` CLI path; it never
+   uses the application's credential as an administrative credential, and the
+   application never receives the root credential.
+   Qualification exercises both paths: the application succeeds through its
+   confined account, another function's credential is refused, the local root
+   path can inspect and repair under mandate, and a restore reproduces the
+   durable facts.
+6. **Secrets exist only in the vault.** No `.env` is ever tracked; every
    fallback of the shape `process.env.X || '<a real value>'` is a committed
    credential with extra steps (Boot Contract 10b).
-6. **Carry the law without carrying the base.** The universe repository runs
+7. **Carry the law without carrying the base.** The universe repository runs
    the verifier in its CI, on a clean clone. **The sanctioned channel today**:
    CI clones the base at the tag LINEAGE.md names, beside the class repo, and
    runs `node ../SHAPER-OS-V1.13/software/packages/pkg-verify/verify.mjs
@@ -89,11 +116,11 @@ improvements found there travel back upstream.
    a registry yet; when it is, the pinned package replaces the clone.) The
    checks are generic and need no configuration. `RULES.md` still binds by
    reading; the verifier is the part that binds by machine.
-7. **Live by the suffix discipline** (Rule 36): `-dev` ephemeral, `-test`
+8. **Live by the suffix discipline** (Rule 36): `-dev` ephemeral, `-test`
    rebuilt clean-sheet and destroyed after its verdict, `-prod` permanent —
    promoted only through the canary protocol, operated by the parent, never by
    the universe on itself (Rule 23).
-8. **Register the class in its scope's fleet map** —
+9. **Register the class in its scope's fleet map** —
    [`docs/architecture/FLEET.md`](../architecture/FLEET.md): one entry in
    `<scope>-fleet/fleet.yml` (name, repo, tag, `governedBy`). Today this is a
    manual PR; `shaper new` will automate it (TARGET). The registration guard

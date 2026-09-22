@@ -71,16 +71,16 @@ What spikes in real life?
 
 To avoid scattering across 10 different storage engines (SQLite, Redis, in-memory Maps):
 
-1. **MariaDB is the single engine — but one database per universe (Rule 26)**:
+1. **MariaDB is the standard engine — one isolated instance per functional Podman (Rule 26)**:
 
 | Data | Where it lives | Why |
 | :--- | :--- | :--- |
-| `shaper_queue_jobs` (async tasks) | **Universe database** | Persistence across reboot without exposing one client's jobs to another. |
-| `shaper_vault_secrets` / AES-256 encrypted files | **Universe database** | A secret never leaves the perimeter of its owner. |
-| `observed-state` (observed state, Rule 27) | **Universe database**, read from outside by parent | Parent diagnoses without the child writing to the parent. |
-| `shaper_nodes_topology` (VPS inventory) | **Central database** | Sole legitimately global data, along with billing. |
+| `shaper_queue_jobs` (async tasks) | **Queue Podman's private MariaDB** | Persistence across reboot without exposing Queue state to another function. |
+| `shaper_vault_secrets` / AES-256 encrypted material | **Vault Podman's private MariaDB** | A secret never leaves the Vault function's boundary. |
+| `observed-state` (Rule 27) | **Governor or observer Podman's private MariaDB**, exposed only through its typed read contract | A parent diagnoses without direct database access. |
+| `shaper_nodes_topology` (VPS inventory) | **Central governor Podman's private MariaDB** | Inventory and billing stay owned by that one function, not a database shared by other functions. |
 
-   > **Forbidden**: a single database shared across the 50 stores. It would be a common point of failure, and the "zero domino effect" promise of section 3 would become false at the data tier.
+   > **Forbidden**: a database shared by two functions, even inside one universe, or by several stores. Either form creates a common point of failure and makes the "zero domino effect" promise false at the data tier.
 2. **Restart tolerance**:
    - If a VPS reboots, MariaDB reloads the exact state of jobs. `PENDING` or `IN_PROGRESS` tasks are resumed without transactional loss.
 
