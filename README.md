@@ -7,8 +7,12 @@
 # SHAPER OS V1.14
 
 > **Current release tag:** [`v1.14.4`](https://github.com/xavdp-pro/SHAPER-OS-V1.14/releases/tag/v1.14.4)
-> (univ-base proof tooling and gbs-test evidence). The [workplan](docs/V1.14-WORKPLAN.md)
+> (univ-base proof tooling and a clean-sheet evidence run). The [workplan](docs/V1.14-WORKPLAN.md)
 > still tracks operating-contract qualification and multi-engine campaigns beyond that slice.
+
+> **Scope:** this is a reusable generic base. Historical machine labels in
+> dated evidence identify where an observation happened; they do not define a
+> customer, deployment target, or commercial affiliation.
 
 > **The Sovereign Operating System of Standardized Bricks & Intentions — Where Humans Formulate Vision and AI Agents Build & Operate**
 
@@ -20,6 +24,14 @@ fees and without lock-in. You describe what you want in plain language. An AI
 agent builds it, runs it, watches it, and repairs it, inside strict rules that
 stop it from improvising where it matters. You stay the owner: of the machine,
 of the data, and of every decision the agent is not allowed to take alone.
+
+**A framework that earns evidence in use.** SHAPER OS is not a claim that every
+business capability is already proven. It gives a human-agent tandem a repeatable
+way to create and shape a concrete system: declare the intent, materialize it,
+exercise the delivered path, observe the resulting state, and retain evidence.
+A capability is proven only for the target, version, and scenario that actually
+produced that evidence; implementation, tests, deployment, and human acceptance
+remain separate facts.
 
 ---
 

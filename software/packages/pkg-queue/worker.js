@@ -109,9 +109,9 @@ function followViaSse({ fetchImpl, target, conversation, headers }) {
   // Subscribing happens *before* injecting, so a short run cannot finish before
   // anyone listens. The cost of that ordering: if the subscription itself fails,
   // the rejection exists before anything awaits it — and an unhandled rejection
-  // kills the process. Observed on gbs-test, where one unreachable bridge took
-  // down the whole queue: ECONNREFUSED, and the most critical brick in the
-  // control plane was gone.
+  // kills the process. A clean-sheet failure showed that one unreachable bridge
+  // can take down the whole queue: ECONNREFUSED, and the most critical brick in
+  // the control plane is gone.
   //
   // A bridge we cannot reach is exactly the case the design already has a word
   // for: unobservable. So it returns that, and the job stays RUNNING with the
