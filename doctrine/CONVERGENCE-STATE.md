@@ -31,7 +31,7 @@ A line older than the tree it describes is a warning, not a fact.
 
 | Rule | Subject | Status | What the code actually does |
 | :---: | :--- | :---: | :--- |
-| **0 → 0K** | Engineering conventions, perimeters, native tests | ✅ | Applied. 558/558 unit tests green, 116 suites (18 September 2026). |
+| **0 → 0K** | Engineering conventions, perimeters, native tests | ✅ | Applied. 560/560 tests green, 117 suites (23 September 2026). |
 | **1 → 18** | Naming, git, Podman, disaster recovery, backups, TTS, admin | ✅ | Applied. |
 | **19** | Simple / Technical toggle | ⬜ | No `viewMode` anywhere. The 63 components are `brick-helm`'s and now live in the catalogue repository; none of them carries one. Simple mode does not exist yet. |
 | **20** | Typed quality gate | 🟡 | `validateQualityGate` is real and tested (arithmetic, file, columns, dry run). **Non-binding by default**: `QUALITY_GATE_ENFORCE=1` turns it on per universe. A deliverable with no contract is recorded as `NEEDS_CONTRACT` and passes — a declared step, not the target. |
@@ -53,15 +53,13 @@ A line older than the tree it describes is a warning, not a fact.
 
 ## Rule 2 authorship declaration — 23 September 2026
 
-The provenance test previously accepted only Git-parsed `Co-Authored-By`
-trailers. Commit `2ee0b84` already named its actual agent, but a committing
-adapter wrote literal `\n` separators into the message body, so Git did not
-parse that declaration as a trailer. This was a formatting failure, not absent
-authorship. Rule 2 now prefers a normal Git trailer while accepting an exact
-declaration in the message body, review-only agent assistance, or an explicit
-human-only declaration. The test rejects missing, malformed and contradictory
-declarations without rewriting shared history. This amendment changes the
-recording format, not the obligation to identify contributors truthfully.
+Commit `2ee0b84722e30de274369f1e976c7d0d17f4eba6` names its actual agent,
+but its committing adapter wrote literal `\n` separators into the message body.
+Git does not parse that declaration as a trailer. The provenance guard exempts
+this one historical SHA without rewriting shared history. All other commits
+must have Git-parsed `Co-Authored-By`, `Agent-Assisted-By`, or
+`No-Agent-Assistance: true` trailers. Missing, malformed, and contradictory
+declarations fail; the malformed format is not accepted for future commits.
 
 ---
 

@@ -3,7 +3,7 @@
 SHAPER OS is the work of a human-and-agents tandem. The human held the
 intent, the rulings and the final word; the agents synthesized, tested,
 broke, and repaired. Per-commit authorship is declared in the commit message:
-normal Git trailers are preferred, and a wholly human commit says so explicitly.
+normal Git trailers are required, and a wholly human commit says so explicitly.
 This page is the whole team.
 
 ## Architect & Operator

@@ -165,7 +165,7 @@ A domain is never invented, and never inherited from whoever wrote the file.
 
 **Every commit you produce names your contribution.** The human is the author.
 If you wrote the change, use `Co-Authored-By`; if you only reviewed or advised,
-use `Agent-Assisted-By`. Use a normal Git trailer when possible and include your
+use `Agent-Assisted-By`. Use a normal Git trailer and include your
 engine and version when known (Rule 2). A wholly human commit states
 `No-Agent-Assistance: true`. A history that hides which changes came from an
 agent cannot be audited later.

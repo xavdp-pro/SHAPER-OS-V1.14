@@ -387,11 +387,9 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
   and version when known; do not invent a version when an alias hides it. A
   commit made entirely by a human states `No-Agent-Assistance: true` instead of
   inventing an agent co-author. Several agents may each have their own line.
-  * Put these declarations in normal Git trailers when the committing tool
-    supports them. An exact declaration elsewhere in the commit message also
-    counts, including when a tool emitted literal `\n` separators. Fix the
-    message format on the next commit; do not rewrite shared history solely to
-    satisfy trailer placement.
+  * Put these declarations in normal Git trailers. The provenance guard
+    exempts one named historical commit by its full SHA; this does not change
+    the format required of any other commit.
   * A declaration must be truthful and identify the actual contributor. The
     human-only marker and agent declarations are mutually exclusive.
   * **No vendor is named here on purpose.** Listing two would read as the two
@@ -416,7 +414,7 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
   For a wholly human commit, replace the second message with
   `No-Agent-Assistance: true`; for review-only agent input, use
   `Agent-Assisted-By` with that agent's actual identity.
-* Maintain a clean, linear, and verifiable commit history on `origin/master`.
+* Maintain a clean, linear, and verifiable commit history on `origin/main`.
 
 ---
 
