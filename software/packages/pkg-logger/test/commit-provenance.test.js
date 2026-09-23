@@ -5,14 +5,11 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 /**
- * A commit made with an agent names both parties (Rule 2).
+ * Every commit declares whether an agent contributed (Rule 2).
  *
- * The human is the author — they decided it. The agent is a Co-Authored-By
- * trailer carrying its engine and version. A repository whose doctrine rests on
- * provenance cannot keep a history that hides who wrote what: when a defect
- * surfaces months later, the first useful question is whether it came from a
- * human decision, an agent derivation, or a misunderstanding between the two.
- * That answer cannot be reconstructed afterwards.
+ * Normal Git trailers are preferred. Some tools wrote a truthful declaration
+ * into the commit body using literal newline escapes, so trailer placement is
+ * not the provenance guarantee. The declaration and its contributor are.
  *
  * The rule applies from the commit that introduced it, never retroactively:
  * rewriting shared history to satisfy a new rule would break every clone, and
@@ -28,7 +25,32 @@ function git(...args) {
   return execFileSync('git', ['-C', REPO, ...args], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
 }
 
-test('every commit since the rule names the agent that helped write it', () => {
+const agentPrefix = /^(?:Co-Authored-By|Agent-Assisted-By):/i;
+const agentDeclaration = /^(?:Co-Authored-By|Agent-Assisted-By):[ \t]+.+?[ \t]+<[^<>\s@]+@[^<>\s@]+>[ \t]*$/i;
+const humanOnlyPrefix = /^No-Agent-Assistance:/i;
+const humanOnlyDeclaration = /^No-Agent-Assistance:[ \t]*true[ \t]*$/i;
+
+function hasValidAuthorship(message) {
+  // Literal backslash-n separators occur in commits from some CLI adapters.
+  const lines = message.replace(/\\r\\n|\\n/g, '\n').split(/\r?\n/).map((line) => line.trim());
+  const agentLines = lines.filter((line) => agentPrefix.test(line));
+  const humanOnlyLines = lines.filter((line) => humanOnlyPrefix.test(line));
+  if (agentLines.some((line) => !agentDeclaration.test(line))) return false;
+  if (humanOnlyLines.some((line) => !humanOnlyDeclaration.test(line))) return false;
+  return (agentLines.length > 0) !== (humanOnlyLines.length > 0);
+}
+
+test('authorship declarations preserve provenance across supported message formats', () => {
+  assert.equal(hasValidAuthorship('Change\n\nCo-Authored-By: Example Agent 1.0 <noreply@example.invalid>'), true);
+  assert.equal(hasValidAuthorship('Change\\n\\nCo-Authored-By: Example Agent 1.0 <noreply@example.invalid>'), true);
+  assert.equal(hasValidAuthorship('Change\n\nAgent-Assisted-By: Example Agent <noreply@example.invalid>'), true);
+  assert.equal(hasValidAuthorship('Change\n\nNo-Agent-Assistance: true'), true);
+  assert.equal(hasValidAuthorship('Change'), false);
+  assert.equal(hasValidAuthorship('Change\n\nCo-Authored-By: unspecified'), false);
+  assert.equal(hasValidAuthorship('Change\n\nNo-Agent-Assistance: true\nCo-Authored-By: Example Agent <noreply@example.invalid>'), false);
+});
+
+test('every commit since the rule declares agent involvement or human-only authorship', () => {
   let range;
   try {
     git('cat-file', '-e', `${RULE_STARTS_AFTER}^{commit}`);
@@ -37,7 +59,7 @@ test('every commit since the rule names the agent that helped write it', () => {
     return; // shallow clone or grafted history: nothing to check here
   }
 
-  const raw = git('log', '--format=%H%x1f%s%x1f%(trailers:key=Co-Authored-By,valueonly)%x1e', range);
+  const raw = git('log', '--format=%H%x1f%s%x1f%B%x1e', range);
   const commits = raw.split('\x1e').map((c) => c.trim()).filter(Boolean);
   if (commits.length === 0) return;
 
@@ -45,14 +67,15 @@ test('every commit since the rule names the agent that helped write it', () => {
   const releaseSeal = /^v\d+\.\d+\.\d+:/;
   const unsigned = commits
     .map((c) => c.split('\x1f'))
-    .filter(([, subject, trailer]) => !releaseSeal.test(subject || '') && !String(trailer || '').trim())
+    .filter(([, subject, message]) => !releaseSeal.test(subject || '') && !hasValidAuthorship(message || ''))
     .map(([sha, subject]) => `${sha.slice(0, 7)}  ${subject}`);
 
   assert.deepEqual(
     unsigned,
     [],
-    'These commits do not say which agent helped write them (Rule 2). Add a '
-    + 'trailer such as "Co-Authored-By: <engine and version> <noreply@vendor>" '
-    + 'and amend:\n  ' + `${unsigned.join('\n  ')}\n`,
+    'These commits lack a valid authorship declaration (Rule 2). Use a '
+    + 'Co-Authored-By or Agent-Assisted-By line with an identified contributor, '
+    + 'or No-Agent-Assistance: true for a wholly human commit:\n  '
+    + `${unsigned.join('\n  ')}\n`,
   );
 });

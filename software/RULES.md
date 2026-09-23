@@ -380,15 +380,23 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
 ---
 
 ### Rule 2: Atomic Git Commits per Package & Feature, With Declared Authorship
-* **Every commit produced with an agent names both parties.** The **human** is the
-  commit author — they decided it — and the **agent** is named in a
-  `Co-Authored-By` trailer with its engine and version. A repository whose entire
-  doctrine rests on provenance cannot keep a history that hides who wrote what.
-  * Shape: `Co-Authored-By: <engine and version> <noreply@vendor>`
-  * Several agents on one commit: several trailers.
+* **Every commit declares who contributed.** The **human** is the Git author —
+  they decided it. Name an agent that materially wrote the change with
+  `Co-Authored-By: <agent identity> <email>`. Name an agent that only reviewed or
+  advised with `Agent-Assisted-By: <agent identity> <email>`. Include the engine
+  and version when known; do not invent a version when an alias hides it. A
+  commit made entirely by a human states `No-Agent-Assistance: true` instead of
+  inventing an agent co-author. Several agents may each have their own line.
+  * Put these declarations in normal Git trailers when the committing tool
+    supports them. An exact declaration elsewhere in the commit message also
+    counts, including when a tool emitted literal `\n` separators. Fix the
+    message format on the next commit; do not rewrite shared history solely to
+    satisfy trailer placement.
+  * A declaration must be truthful and identify the actual contributor. The
+    human-only marker and agent declarations are mutually exclusive.
   * **No vendor is named here on purpose.** Listing two would read as the two
     sanctioned ones, and this canon names no engine (Rule 7). Write whichever
-    engine actually wrote the change — that is the whole point of the trailer.
+    agent actually contributed — that is the point of the declaration.
   * `NOTICE.md` already declares AI-assisted authorship for the kit as a whole.
     This is the same statement at the granularity where it is actually useful:
     the change.
@@ -396,13 +404,18 @@ cannot obey is a defect; the amendment names the real repo kinds instead.*
   the first useful question is what produced it — a human decision, an agent
   derivation, or a misunderstanding between the two. An unsigned history answers
   none of them, and the answer cannot be reconstructed afterwards.
-* **Enforced**: the repository suite fails on a commit that carries no agent
-  trailer. It was added the day the operator noticed that some commits declared
-  their agent and others did not — including, by accident, several of mine.
+* **Enforced**: the repository suite fails on a commit with no authorship
+  declaration, malformed attribution, or a human-only marker combined with an
+  agent declaration. It was added the day the operator noticed that some commits
+  declared their agent and others did not — including, by accident, several of
+  mine.
 * Every time a LEGO brick, component, or package is updated and certified, execute an atomic commit immediately:
   ```bash
-  git add <path> && git commit -m "feat(<scope>): descriptive commit message"
+  git add <path> && git commit -m "feat(<scope>): descriptive commit message" -m "Co-Authored-By: <actual agent identity> <actual email>"
   ```
+  For a wholly human commit, replace the second message with
+  `No-Agent-Assistance: true`; for review-only agent input, use
+  `Agent-Assisted-By` with that agent's actual identity.
 * Maintain a clean, linear, and verifiable commit history on `origin/master`.
 
 ---

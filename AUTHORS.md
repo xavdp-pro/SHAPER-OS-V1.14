@@ -2,9 +2,9 @@
 
 SHAPER OS is the work of a human-and-agents tandem. The human held the
 intent, the rulings and the final word; the agents synthesized, tested,
-broke, and repaired. Per-commit credit is in the commit trailers (the law
-requires each commit to name the agent that helped write it); this page is
-the whole team.
+broke, and repaired. Per-commit authorship is declared in the commit message:
+normal Git trailers are preferred, and a wholly human commit says so explicitly.
+This page is the whole team.
 
 ## Architect & Operator
 
@@ -36,7 +36,7 @@ infrastructure, and the discipline that made everything below provable.
 | nemotron (opencode) | — | Deployment testing — run recorded after silent harness risk |
 
 Findings, fixes and merged code from these agents are traceable in
-`docs/TESTING-REPORT.md` and in the git trailers.
+`docs/TESTING-REPORT.md` and in commit authorship declarations.
 
 Architecture and three-strata documentation credit also appears in
 [shaper-three-layers `AUTHORS.md`](https://github.com/xavdp-pro/shaper-three-layers/blob/main/AUTHORS.md).
@@ -47,6 +47,7 @@ The Contributors panel only counts identities GitHub can verify. Agents
 whose co-author convention is published and verified (Claude, Cursor Agent)
 may appear there when their trailer is on commits. Agents without an official
 GitHub identity (Codex without a shared noreply mapping, Muse, Gemini via
-Antigravity, opencode free models) are credited here and in commit trailers —
+Antigravity, opencode free models) are credited here and in commit messages —
 never attributed to look-alike accounts. **Xavier remains the commit author;**
-agents are named in `Co-Authored-By` trailers per Rule 2.
+agents who wrote a change are named as `Co-Authored-By`, while review-only
+assistance is named as `Agent-Assisted-By` under Rule 2.

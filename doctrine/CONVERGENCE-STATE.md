@@ -51,6 +51,20 @@ A line older than the tree it describes is a warning, not a fact.
 
 ---
 
+## Rule 2 authorship declaration — 23 September 2026
+
+The provenance test previously accepted only Git-parsed `Co-Authored-By`
+trailers. Commit `2ee0b84` already named its actual agent, but a committing
+adapter wrote literal `\n` separators into the message body, so Git did not
+parse that declaration as a trailer. This was a formatting failure, not absent
+authorship. Rule 2 now prefers a normal Git trailer while accepting an exact
+declaration in the message body, review-only agent assistance, or an explicit
+human-only declaration. The test rejects missing, malformed and contradictory
+declarations without rewriting shared history. This amendment changes the
+recording format, not the obligation to identify contributors truthfully.
+
+---
+
 ## Maker and governor — the gaps declared on 2 September 2026
 
 Verified by reading `software/packages/pkg-governor/index.js`,
