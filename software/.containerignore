@@ -6,3 +6,4 @@ data
 sav
 log
 coverage
+**/node_modules

@@ -5,10 +5,11 @@
       "pkg-agent-runtime",
       "pkg-auth",
       "pkg-bridge-agy",
+      "pkg-bridge-contract",
       "pkg-bridge-cursor",
       "pkg-bridge-deepseek",
-      "pkg-bridge-contract",
       "pkg-bridge-opencode",
+      "pkg-db",
       "pkg-governor",
       "pkg-logger",
       "pkg-maestro",
@@ -34,7 +35,6 @@
   "catalog": {
     "repository": "SHAPER-OS-BRICKS",
     "packages": [
-      "pkg-db",
       "pkg-ged-engine",
       "pkg-mail-agent",
       "pkg-rag",

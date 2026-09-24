@@ -19,6 +19,7 @@
 
   "minimalSocle": {
     "packages": [
+      "@shaper/pkg-db",
       "@shaper/pkg-vault",
       "@shaper/pkg-logger",
       "@shaper/pkg-queue",
@@ -90,11 +91,11 @@
   },
 
   "packageImports": {
-    "@shaper/pkg-maestro": ["@shaper/pkg-logger", "@shaper/pkg-agent-runtime", "@shaper/pkg-vault"],
+    "@shaper/pkg-maestro": ["@shaper/pkg-db", "@shaper/pkg-logger", "@shaper/pkg-agent-runtime", "@shaper/pkg-vault"],
     "@shaper/pkg-agent-runtime": ["@shaper/pkg-auth"],
-    "@shaper/pkg-vault": [],
-    "@shaper/pkg-queue": [],
-    "@shaper/pkg-logger": [],
+    "@shaper/pkg-vault": ["@shaper/pkg-db", "@shaper/pkg-logger"],
+    "@shaper/pkg-queue": ["@shaper/pkg-db", "@shaper/pkg-logger"],
+    "@shaper/pkg-logger": ["@shaper/pkg-db"],
     "@shaper/pkg-auth": [],
     "@shaper/pkg-db": []
   }
