@@ -3,6 +3,7 @@
   "contractVersion": 1,
   "distribution": "base",
   "buildPackages": [
+    "pkg-db",
     "pkg-logger",
     "pkg-auth",
     "pkg-agent-runtime",
@@ -10,9 +11,13 @@
     "pkg-maestro"
   ],
   "runtimeServices": [],
+  "unit": { "slug": "maestro", "uid": 10630, "schema": "/app/packages/pkg-maestro/sql/schema.sql" },
   "proof": [
     "maestro health",
-    "declared task registered",
+    "private MariaDB identity",
+    "declared schedule materialized",
+    "occurrence ENQUEUED with its Queue job id",
+    "restart creates no second job for the same planned instant",
     "beat evidence in the logger"
   ]
 }

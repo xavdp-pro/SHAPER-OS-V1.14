@@ -57,3 +57,47 @@ export function resolveCheckpointPath(declared, { scheduleDir } = {}) {
   if (!declared || path.isAbsolute(declared)) return declared;
   return path.resolve(scheduleDir, declared);
 }
+
+/**
+ * Reads the universe's declared task schedule for the durable store, with
+ * every companion path resolved as above. A schedule file that is named but
+ * absent or unreadable is a typed refusal, never an empty registry: a Maestro
+ * that silently declares nothing looks idle and healthy while its work stops.
+ *
+ * @param {string} tasksFile - MAESTRO_TASKS_FILE, absolute or relative to the shaper root
+ * @param {object} options
+ * @param {string} options.shaperRoot
+ * @returns {{ tasksPath: string, tasks: object[], warnings: string[] }}
+ */
+export function loadTaskDeclarations(tasksFile, { shaperRoot, exists = fs.existsSync, readFile = fs.readFileSync } = {}) {
+  const tasksPath = path.isAbsolute(tasksFile) ? tasksFile : path.resolve(shaperRoot, tasksFile);
+  if (!exists(tasksPath)) {
+    throw Object.assign(new Error(`MAESTRO_TASKS_FILE ${tasksPath} does not exist`), { code: 'TASKS_FILE_MISSING' });
+  }
+  let raw;
+  try {
+    raw = JSON.parse(readFile(tasksPath, 'utf8'));
+  } catch (err) {
+    throw Object.assign(new Error(`MAESTRO_TASKS_FILE ${tasksPath} is not readable JSON: ${err.message}`), { code: 'TASKS_FILE_INVALID' });
+  }
+  const tasks = Array.isArray(raw) ? raw : raw?.tasks;
+  if (!Array.isArray(tasks)) {
+    throw Object.assign(new Error(`MAESTRO_TASKS_FILE ${tasksPath} holds neither an array nor { "tasks": [...] }`), { code: 'TASKS_FILE_INVALID' });
+  }
+  const scheduleDir = path.dirname(tasksPath);
+  const warnings = [];
+  const resolved = tasks.map((task) => {
+    if (!task || typeof task !== 'object' || Array.isArray(task)) return task;
+    const copy = { ...task };
+    if (copy.contextPath) {
+      const r = resolveContextPath(copy.contextPath, { scheduleDir, shaperRoot, exists });
+      if (!r.found) {
+        warnings.push(`Task ${copy.slug}: declared context "${copy.contextPath}" not found — looked in ${r.tried.join(', ')}`);
+      }
+      copy.contextPath = r.path;
+    }
+    copy.checkpointPath = resolveCheckpointPath(copy.checkpointPath, { scheduleDir });
+    return copy;
+  });
+  return { tasksPath, tasks: resolved, warnings };
+}

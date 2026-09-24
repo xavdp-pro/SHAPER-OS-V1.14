@@ -9,14 +9,20 @@
  * a port, a label — is optional, because a universe declares only what its own
  * work needs. Requiring a field that only mail traffic ever had is how the
  * base stopped being generic in the first place.
+ *
+ * `MaestroScheduler` below keeps its registry, timers and counters in memory:
+ * it is the DEV scaffolding selected explicitly with MAESTRO_STORE=memory. The
+ * brick's default is `DurableMaestro` (durable-scheduler.js), whose schedules
+ * and occurrences live in the unit's private MariaDB.
  */
 
 import http from 'node:http';
 import { EventLogger } from '../pkg-logger/index.js';
-import { vitals, ageSeconds, dependency, writable } from '../pkg-logger/vitals.js';
+import { vitals, ageSeconds } from '../pkg-logger/vitals.js';
+import { TASK_KINDS, parseOccurrenceQuery } from './occurrence.js';
 
 /** Task kinds the base understands. A universe may not invent a fourth here. */
-export const TASK_KINDS = new Set(['generic', 'bridge', 'queue']);
+export { TASK_KINDS };
 
 export class MaestroScheduler {
   constructor({
@@ -219,26 +225,71 @@ export class MaestroScheduler {
 }
 
 /**
+ * A storage failure is an unavailable Maestro (503), never a malformed
+ * request and never an empty answer. A named refusal carries its own status.
+ * @param {Error & { code?: string, status?: number }} err
+ * @returns {number}
+ */
+export function storeErrorStatus(err) {
+  if (!err) return 500;
+  if (err.name === 'UnitDbError') return 503;
+  const code = String(err.code || '');
+  if (/^(ER_|ECONN|PROTOCOL_|POOL_|ETIMEDOUT|EPIPE|EHOSTUNREACH)/.test(code)) return 503;
+  if (err.name === 'ScheduleError') return err.status || 400;
+  return 500;
+}
+
+async function readBody(req) {
+  let body = '';
+  for await (const chunk of req) body += chunk;
+  return body;
+}
+
+/**
  * Creates the HTTP surface of `brick-maestro`.
+ *
+ * The same routes serve both schedulers: the in-memory `MaestroScheduler`
+ * (DEV scaffolding) and the `DurableMaestro` whose truth is its private
+ * MariaDB. Every handler awaits, so a database answer — or its absence — is
+ * what the caller receives.
+ *
  * @param {object} options
  * @param {number} [options.port=8630]
  * @param {string} [options.host='0.0.0.0']
- * @param {MaestroScheduler} [options.scheduler]
+ * @param {MaestroScheduler|object} [options.scheduler]
  * @returns {http.Server}
  */
 export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler = null } = {}) {
   const sched = scheduler || new MaestroScheduler();
 
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     const sendJson = (statusCode, data) => {
+      if (res.headersSent) return;
       res.writeHead(statusCode, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(data));
     };
 
+    try {
+      await route(req, sendJson);
+    } catch (err) {
+      const status = storeErrorStatus(err);
+      sendJson(status, {
+        error: status === 503 ? 'Maestro storage unavailable' : err.message,
+        code: err.code || null,
+        detail: err.message,
+      });
+    }
+  });
+
+  async function route(req, sendJson) {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
 
     if (req.method === 'GET' && (pathname === '/api/health' || pathname === '/health')) {
+      if (typeof sched.health === 'function') {
+        const health = await sched.health();
+        return sendJson(health.ok ? 200 : 503, health.body);
+      }
       return sendJson(200, {
         status: 'ok',
         service: sched.service,
@@ -249,41 +300,57 @@ export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler =
     }
 
     if (req.method === 'GET' && (pathname === '/api/vitals' || pathname === '/vitals')) {
-      try {
-        return sendJson(200, sched.vitals());
-      } catch (err) {
-        return sendJson(500, { error: err.message });
-      }
+      return sendJson(200, await sched.vitals());
     }
 
     if (req.method === 'GET' && pathname === '/api/tasks') {
-      return sendJson(200, { status: 'ok', tasks: sched.listRegisteredTasks() });
+      const includeDisabled = url.searchParams.get('include') === 'disabled';
+      return sendJson(200, { status: 'ok', tasks: await sched.listRegisteredTasks({ includeDisabled }) });
+    }
+
+    if (req.method === 'GET' && pathname === '/api/occurrences') {
+      if (typeof sched.listOccurrences !== 'function') {
+        return sendJson(501, {
+          error: 'occurrences are recorded only with MAESTRO_STORE=mariadb',
+          code: 'NO_DURABLE_STORE',
+        });
+      }
+      const query = parseOccurrenceQuery(url.searchParams);
+      return sendJson(200, { status: 'ok', ...query, occurrences: await sched.listOccurrences(query) });
     }
 
     if (req.method === 'POST' && pathname === '/api/tasks/register') {
-      let body = '';
-      req.on('data', (chunk) => { body += chunk; });
-      req.on('end', () => {
-        try {
-          const entry = sched.registerTask(JSON.parse(body || '{}'));
-          return sendJson(200, { status: 'ok', task: entry });
-        } catch (err) {
-          return sendJson(400, { error: err.message });
-        }
-      });
-      return;
+      let parsed;
+      try {
+        parsed = JSON.parse((await readBody(req)) || '{}');
+      } catch (err) {
+        return sendJson(400, { error: err.message, code: 'INVALID_JSON' });
+      }
+      try {
+        const entry = await sched.registerTask(parsed);
+        return sendJson(200, { status: 'ok', task: entry });
+      } catch (err) {
+        if (storeErrorStatus(err) === 503) throw err;
+        return sendJson(400, { error: err.message, code: err.code || null });
+      }
     }
 
     if (req.method === 'POST' && pathname.startsWith('/api/tasks/') && pathname.endsWith('/tick')) {
-      const slug = pathname.split('/')[3];
-      sched.triggerBeat(slug)
-        .then((result) => sendJson(200, { status: 'ok', result }))
-        .catch((err) => sendJson(500, { error: err.message }));
-      return;
+      const slug = decodeURIComponent(pathname.split('/')[3] || '');
+      try {
+        const result = await sched.triggerBeat(slug);
+        return sendJson(200, { status: 'ok', result });
+      } catch (err) {
+        const status = storeErrorStatus(err);
+        if (status === 503) throw err;
+        return sendJson(status, { error: err.message, code: err.code || null });
+      }
     }
 
     if (req.method === 'POST' && pathname === '/api/scheduler/start') {
-      sched.startScheduler();
+      // The durable scheduler's first tick runs in the background; its
+      // failures are recorded by the scheduler itself, never thrown here.
+      Promise.resolve(sched.startScheduler()).catch(() => {});
       return sendJson(200, { status: 'ok', message: 'Scheduler started' });
     }
 
@@ -292,8 +359,8 @@ export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler =
       return sendJson(200, { status: 'ok', message: 'Scheduler stopped' });
     }
 
-    sendJson(404, { error: 'Not Found' });
-  });
+    return sendJson(404, { error: 'Not Found' });
+  }
 
   server.listen(port, host);
   return server;

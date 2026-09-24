@@ -25,6 +25,59 @@
  */
 import { ingestLog } from '../pkg-logger/ingest-client.js';
 import { readTaskContext } from '../pkg-agent-runtime/context.js';
+import { DEFAULT_JOB_TYPE } from './occurrence.js';
+
+/**
+ * The job a beat asks Queue to hold — one shape for both stores.
+ *
+ * `context` is the snapshot read when the beat became due; the job carries the
+ * text itself, never a path that only exists inside this container.
+ *
+ * @param {object} entry - a registered task
+ * @param {string|null} context
+ * @returns {{ type: string, totalSteps: number, payload: object }}
+ */
+export function beatJobBody(entry, context) {
+  const slug = entry.slug;
+  const message = entry.instruction || entry.beatMessage
+    || `Scheduled beat for ${slug}. Do the work this pod is registered for, then stop.`;
+  return {
+    type: entry.jobType || DEFAULT_JOB_TYPE,
+    totalSteps: 2,
+    payload: {
+      message,
+      conversation: slug,
+      // The pod names its own bridge and model; the queue only carries them.
+      bridgeUrl: entry.bridgeUrl || undefined,
+      model: entry.model || undefined,
+      // Carry an immutable snapshot in the job, never a path that only
+      // exists inside this container. The queue already persists payloads.
+      context: context || undefined,
+    },
+  };
+}
+
+/**
+ * The exact request one occurrence sends to Queue, on every attempt.
+ *
+ * It is serialised once, when the occurrence becomes due, and stored with it:
+ * a retry sends the same bytes under the same key, so Queue can recognise it
+ * and answer with the job it already holds instead of a conflict.
+ *
+ * @param {object} entry - the schedule's normalized declaration
+ * @param {string|null} context
+ * @param {{ occurrenceId: string, scheduleId: string, revision: string, plannedAt: string }} occurrence
+ * @returns {string} JSON text
+ */
+export function occurrenceRequestText(entry, context, { occurrenceId, scheduleId, revision, plannedAt }) {
+  const body = beatJobBody(entry, context);
+  body.payload.occurrenceId = occurrenceId;
+  body.payload.scheduleId = scheduleId;
+  body.payload.scheduleRevision = revision;
+  body.payload.plannedAt = plannedAt;
+  body.idempotencyKey = occurrenceId;
+  return JSON.stringify(body);
+}
 
 /**
  * The pod's still-open job, if it has one.
@@ -35,6 +88,11 @@ import { readTaskContext } from '../pkg-agent-runtime/context.js';
  *
  * A queue we cannot question answers `null`: better to risk one duplicate beat
  * than to silence a pod because its bookkeeping was briefly unreachable.
+ *
+ * Memory mode only (`MAESTRO_STORE=memory`, DEV scaffolding). Listing every job
+ * to guess whether an earlier beat is still open is exactly what the durable
+ * path no longer does: there, the previous occurrence's own Queue job is looked
+ * up by its idempotency key (durable-scheduler.js).
  */
 async function outstandingJob({ fetchImpl, target, headers, conversation }) {
   try {
@@ -59,8 +117,6 @@ export function createQueueBeatHandler({
 
   return async function queueBeatHandler(entry) {
     const slug = entry.slug;
-    const message = entry.instruction || entry.beatMessage
-      || `Scheduled beat for ${slug}. Do the work this pod is registered for, then stop.`;
 
     const headers = { 'Content-Type': 'application/json' };
     if (authToken) headers.Authorization = `Bearer ${authToken}`;
@@ -107,20 +163,7 @@ export function createQueueBeatHandler({
       res = await fetchImpl(`${target}/api/jobs`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          type: 'agent.inject',
-          totalSteps: 2,
-          payload: {
-            message,
-            conversation: slug,
-            // The pod names its own bridge and model; the queue only carries them.
-            bridgeUrl: entry.bridgeUrl || undefined,
-            model: entry.model || undefined,
-            // Carry an immutable snapshot in the job, never a path that only
-            // exists inside this container. The queue already persists payloads.
-            context: context || undefined,
-          },
-        }),
+        body: JSON.stringify(beatJobBody(entry, context)),
       });
     } catch (err) {
       // An unreachable queue is a missed beat, not a failed job. Say which.

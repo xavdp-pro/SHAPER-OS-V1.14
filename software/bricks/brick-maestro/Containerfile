@@ -5,14 +5,29 @@ FROM docker.io/library/node:20-alpine
 ARG SHAPER_SOURCE_REVISION
 LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
 LABEL org.shaper.brick="maestro"
-LABEL org.shaper.build-packages="logger auth agent-runtime vault maestro"
+LABEL org.shaper.build-packages="db logger auth agent-runtime vault maestro"
+
+# The unit runs as its functional account (Rules 4, 11 and 26): the slug is the
+# Linux account, the MariaDB account and the database, and the uid is fixed so
+# the universe can own the passwd file for exactly this process.
+ARG UNIT_UID=10630
+RUN addgroup -S -g "${UNIT_UID}" maestro \
+ && adduser -S -D -H -u "${UNIT_UID}" -G maestro -s /sbin/nologin maestro
 
 WORKDIR /app
+# pkg-db carries the one pinned driver; its lockfile is the only source of it.
+# It sits beside the other packages so pkg-maestro's `../pkg-db/` resolves.
+COPY --from=shaper_base /shaper/packages/pkg-db/ ./packages/pkg-db/
+RUN cd /app/packages/pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
 COPY --from=shaper_base /shaper/packages/pkg-logger/ ./packages/pkg-logger/
 COPY --from=shaper_base /shaper/packages/pkg-auth/ ./packages/pkg-auth/
 COPY --from=shaper_base /shaper/packages/pkg-agent-runtime/ ./packages/pkg-agent-runtime/
 COPY --from=shaper_base /shaper/packages/pkg-vault/ ./packages/pkg-vault/
 COPY --from=shaper_base /shaper/packages/pkg-maestro/ ./packages/pkg-maestro/
+
+# The local JSONL audit is evidence, not state (the state is in MariaDB); its
+# directory belongs to the unit account so the image starts without a mount.
+RUN install -d -o maestro -g maestro -m 0750 /apps/maestro/log
 
 WORKDIR /app/packages/pkg-maestro
 
@@ -20,5 +35,10 @@ EXPOSE 8630
 ENV NODE_ENV=production
 ENV MAESTRO_PORT=8630
 ENV MAESTRO_AUTO_START=0
+ENV MAESTRO_STORE=mariadb
+ENV SHAPER_UNIT_SLUG=maestro
+ENV SHAPER_DB_SOCKET=/run/mysqld/mysqld.sock
+ENV LOG_DIR=/apps/maestro/log
 
+USER maestro
 CMD ["node", "server.js"]

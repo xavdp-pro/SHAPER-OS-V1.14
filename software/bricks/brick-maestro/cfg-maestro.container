@@ -9,15 +9,35 @@ After=network-online.target
 #
 #   sed -e "s|@IMG@|$(digest from cfg-image-lock.json)|" -e "s|%i|<universe>|g"
 #
-# ContainerName and Volume follow docs/architecture/NAMING.md: ctr- is a running
-# container role, vol- a persistent universe-owned volume, and both are prefixed
-# by the universe so two universes on one host never collide.
+# ContainerName follows docs/architecture/NAMING.md: ctr- is a running
+# container role, prefixed by the universe so two universes on one host never
+# collide.
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-maestro
-PublishPort=127.0.0.1:8630:8630
+Network=host
 Environment=MAESTRO_PORT=8630
+Environment=HOST=127.0.0.1
 Environment=MAESTRO_AUTO_START=1
+# The universe identity is part of every occurrence id; the queue is the only
+# place an occurrence goes (there is no direct bridge path in this store).
+Environment=SHAPER_UNIVERSE_ID=%i
+Environment=MAESTRO_QUEUE_URL=http://127.0.0.1:8640
+Environment=LOGGER_URL=http://127.0.0.1:8620
+# The installing universe adds its declared schedule, read-only, e.g.
+#   Volume=<universe dir>/task-schedule.json:/data/univ/task-schedule.json:ro,Z
+#   Environment=MAESTRO_TASKS_FILE=/data/univ/task-schedule.json
+# Without one, Maestro stays idle and creates no work.
+#
+# The unit's private MariaDB (Rules 4 and 26) runs beside it as
+# %i-ctr-maestro-mariadb, provisioned by scripts/provision-unit-mariadb.sh; the
+# socket directory and the passwd file are the only paths the two share. The
+# schedules and occurrences live in that database; log/ keeps the local JSONL
+# audit, which is evidence, not state.
+Volume=/apps/maestro/nosav/run/mysqld:/run/mysqld:z
+Volume=/apps/maestro/etc/mysql/localhost/passwd:/apps/maestro/etc/mysql/localhost/passwd:ro,Z
+Volume=/apps/maestro/log:/apps/maestro/log:Z
+User=10630:10630
 Restart=always
 
 [Install]
