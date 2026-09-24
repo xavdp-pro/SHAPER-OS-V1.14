@@ -1,0 +1,97 @@
+{
+  "$schema": "../../schemas/universe-manifest.schema.json",
+  "universe": "univ-minimal",
+  "parent": null,
+  "environment": "dev",
+  "profile": "minimal",
+  "shape": "lxc",
+  "dataLifecycle": {
+    "personalData": false,
+    "retention": "unlimited — evidence and configuration only; each functional unit's MariaDB rows follow that unit's contract",
+    "onTermination": "destroy every unit's MariaDB datadir, passwd file and the Vault master key; nothing is exported"
+  },
+  "description": "The minimal composition: Vault, Logger, Queue and Maestro, each a functional Podman with its own private MariaDB (Rules 4 and 26). No cognition adapter, no catalogue brick, no domain.",
+  "intent": "./INTENT.md",
+  "tasks": "./task-schedule.json",
+  "configuration": "./cfg-univ-minimal.env.example",
+  "imageLock": "./cfg-image-lock.json",
+  "bricks": {
+    "brick-vault": {
+      "source": "base",
+      "perimeter": "P1",
+      "package": "@shaper/pkg-vault",
+      "image": "img-vault",
+      "intent": "../../bricks/brick-vault/INTENT.md",
+      "role": "Protects secret material and delivers it to authorized callers",
+      "port": 8610,
+      "database": { "engine": "mariadb", "slug": "vault", "uid": 10610, "schema": "/app/sql/schema.sql" },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Deterministic secret storage and decryption. No model, ever."
+      }
+    },
+    "brick-logger": {
+      "source": "base",
+      "perimeter": "P1",
+      "package": "@shaper/pkg-logger",
+      "image": "img-logger",
+      "intent": "../../bricks/brick-logger/INTENT.md",
+      "role": "Records events durably and proves what it received",
+      "port": 8620,
+      "database": { "engine": "mariadb", "slug": "logger", "uid": 10620, "schema": "/app/sql/schema.sql" },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Append-only structured evidence. No model, ever."
+      }
+    },
+    "brick-queue": {
+      "source": "base",
+      "perimeter": "P1",
+      "package": "@shaper/pkg-queue",
+      "image": "img-queue",
+      "intent": "../../bricks/brick-queue/INTENT.md",
+      "role": "Durably holds deferred work until a terminal acknowledgement",
+      "port": 8640,
+      "database": { "engine": "mariadb", "slug": "queue", "uid": 10640, "schema": "/app/sql/schema.sql" },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Delivery is mechanical. Each job carries its own requirement, not the queue."
+      }
+    },
+    "brick-maestro": {
+      "source": "base",
+      "perimeter": "P2",
+      "package": "@shaper/pkg-maestro",
+      "image": "img-maestro",
+      "intent": "../../bricks/brick-maestro/INTENT.md",
+      "role": "Submits one idempotent occurrence to Queue for each due instant of a declared schedule; idle when none is declared",
+      "port": 8630,
+      "database": { "engine": "mariadb", "slug": "maestro", "uid": 10630, "schema": "/app/packages/pkg-maestro/sql/schema.sql" },
+      "specialize": {
+        "how": "MAESTRO_TASKS_FILE points at this universe's task-schedule.json",
+        "file": "./task-schedule.json"
+      },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Time, not orchestration: it computes due instants and submits typed jobs. It never executes work."
+      }
+    }
+  },
+  "bootOrder": [
+    ["brick-vault", "brick-logger"],
+    ["brick-queue"],
+    ["brick-maestro"]
+  ]
+}

@@ -25,6 +25,9 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 /** Floors, as brick keys. A bridge is any `bridge-*`: the engine is swappable. */
 const FLOORS = {
   passive: ['logger'],
+  // The minimal composition (22 September 2026): the four base units, each
+  // with its private MariaDB, and no cognition adapter. `agent` adds the bridge.
+  minimal: ['vault', 'logger', 'queue', 'maestro'],
   agent: ['vault', 'logger', 'bridge-*', 'queue', 'maestro'],
 };
 

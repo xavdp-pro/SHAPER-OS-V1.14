@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "SHAPER OS universe manifest (V1.13)",
-  "description": "A universe declares what it is made of. It never copies a brick, and it never leaves anything about a brick to be guessed: every entry states where the brick comes from (source), which layer it belongs to (perimeter), and \u2014 when it diverged from a standard brick \u2014 what it forked from (Rule 37). The identifier says WHAT; these fields say WHENCE and WHERE.",
+  "description": "A universe declares what it is made of. It never copies a brick, and it never leaves anything about a brick to be guessed: every entry states where the brick comes from (source), which layer it belongs to (perimeter), and — when it diverged from a standard brick — what it forked from (Rule 37). The identifier says WHAT; these fields say WHENCE and WHERE.",
   "type": "object",
   "required": [
     "universe",
@@ -58,7 +58,7 @@
         "channel": {
           "type": "string",
           "minLength": 1,
-          "description": "mobile push, mail, Telegram, or an existing prod-alerting relay \u2014 whatever actually reaches a human out-of-band."
+          "description": "mobile push, mail, Telegram, or an existing prod-alerting relay — whatever actually reaches a human out-of-band."
         },
         "target": {
           "type": "string",
@@ -107,14 +107,17 @@
     },
     "profile": {
       "type": "string",
-      "pattern": "^(passive|agent)( \\+[a-z]+)*$",
-      "description": "A floor (passive|agent) plus options. See docs/architecture/UNIVERSE-PROFILES.md."
+      "pattern": "^(passive|minimal|agent)( \\+[a-z]+)*$",
+      "description": "A floor (passive|minimal|agent) plus options. See docs/architecture/UNIVERSE-PROFILES.md."
     },
     "shape": {
       "type": "string",
-      "enum": ["lxc", "nested"],
+      "enum": [
+        "lxc",
+        "nested"
+      ],
       "default": "lxc",
-      "description": "Rule 11 (16 September 2026): what holds the universe \u2014 an LXC (`lxc`, the default when absent) or a rootful Podman container carrying its own Podman and its bricks (`nested`)."
+      "description": "Rule 11 (16 September 2026): what holds the universe — an LXC (`lxc`, the default when absent) or a rootful Podman container carrying its own Podman and its bricks (`nested`)."
     },
     "description": {
       "type": "string"
@@ -211,7 +214,7 @@
               "fork",
               "native"
             ],
-            "description": "Where this brick comes from (Rule 37). base/catalogue: shipped by that repository, consumed by image+tag. fork: inherited from a standard brick and specialised \u2014 forkedFrom becomes mandatory. native: a P3 brick scaffolded inside this class repo (the shaper-tool-scaffold path). Nothing is inferred from a path."
+            "description": "Where this brick comes from (Rule 37). base/catalogue: shipped by that repository, consumed by image+tag. fork: inherited from a standard brick and specialised — forkedFrom becomes mandatory. native: a P3 brick scaffolded inside this class repo (the shaper-tool-scaffold path). Nothing is inferred from a path."
           },
           "perimeter": {
             "type": "string",
@@ -220,7 +223,7 @@
               "P2",
               "P3"
             ],
-            "description": "Which layer this brick belongs to (Rule 0A, Rule 37). Perimeter means LAYER, never OWNER \u2014 a client-specific brick can be P1."
+            "description": "Which layer this brick belongs to (Rule 0A, Rule 37). Perimeter means LAYER, never OWNER — a client-specific brick can be P1."
           },
           "forkedFrom": {
             "type": "object",
@@ -243,7 +246,7 @@
           "package": {
             "type": "string",
             "pattern": "^@shaper/pkg-[a-z0-9][a-z0-9-]*$",
-            "description": "The pkg- source package this brick is built from, when the base or the catalogue ships one. A brick that wraps a third-party image declares `upstream` instead \u2014 brick-mariadb has no @shaper package, and pretending otherwise would be a lie a test can be made to enforce."
+            "description": "The pkg- source package this brick is built from, when the base or the catalogue ships one. A brick that wraps a third-party image declares `upstream` instead — brick-mariadb has no @shaper package, and pretending otherwise would be a lie a test can be made to enforce."
           },
           "image": {
             "type": "string",
@@ -352,6 +355,37 @@
           "upstream": {
             "type": "string",
             "description": "The third-party image this brick wraps, when it is not built from a pkg- package (e.g. docker.io/library/mariadb:11)."
+          },
+          "database": {
+            "type": "object",
+            "description": "The brick's private database (Rules 4 and 26): every functional Podman owns one MariaDB, never shared. slug is at once the function identity, the Linux account, the MariaDB account and the database; uid is the fixed numeric uid the application runs as; schema is the path, inside the brick's own image, of the idempotent schema the administrative path applies.",
+            "required": [
+              "engine",
+              "slug",
+              "uid",
+              "schema"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "engine": {
+                "type": "string",
+                "enum": [
+                  "mariadb"
+                ]
+              },
+              "slug": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,31}$"
+              },
+              "uid": {
+                "type": "integer",
+                "minimum": 1001
+              },
+              "schema": {
+                "type": "string",
+                "pattern": "^/"
+              }
+            }
           }
         }
       }

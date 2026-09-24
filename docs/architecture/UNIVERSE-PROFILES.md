@@ -95,7 +95,7 @@ exist, never so that one can be requested by mistake.
 
 ---
 
-## 🧱 2. The Two Canonical Floors
+## 🧱 2. The Three Canonical Floors
 
 ### `passive` — it runs, and it can be proven
 
@@ -109,6 +109,23 @@ is the one brick that never leaves, because the currency of SHAPER OS is proof �
 a universe that cannot show what happened is outside the doctrine.
 
 **Nothing reasons here.** No agent, no queue, no clock.
+
+### `minimal` — the four base units, and nothing that reasons
+
+```
+vault    :8610      the secrets
+logger   :8620      the memory and the proof
+queue    :8640      deferred work, held until a terminal acknowledgement
+maestro  :8630      due instants of declared schedules; idle when none is declared
+```
+
+The minimal composition of the functional-unit design (22 September 2026): the
+four base units, each a functional Podman that owns its private MariaDB, and no
+cognition adapter. No unit depends on a model; Maestro creates no work until a
+schedule is declared. `software/universes/univ-minimal` materialises it.
+
+**This is where a universe of the current construction model starts** when it
+must not spend work on an engine. `agent` is this floor plus the bridge.
 
 ### `agent` — it reasons, works in the background, and starts on its own
 
@@ -125,6 +142,7 @@ Each listed functional Podman carries its own private MariaDB. Boot order remain
 after its own database is ready.
 
 **This is the default.** When nobody names a profile, this is what gets built.
+It is `minimal` plus the bridge.
 It is what `manifest.tier-a.json` has always declared; `tier-a` stays as an alias.
 
 ---

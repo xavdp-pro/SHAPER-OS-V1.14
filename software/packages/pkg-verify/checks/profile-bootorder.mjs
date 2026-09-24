@@ -8,7 +8,7 @@ export const readAt = 'docs/architecture/UNIVERSE-PROFILES.md';
 
 // Two agents once received the same words, "the base universe", and built
 // different things. Naming the profile is what ended that — so the name is checked.
-const PROFILE = /^(passive|agent)(\s+\+(documents|data|web|public|parent))*$/;
+const PROFILE = /^(passive|minimal|agent)(\s+\+(documents|data|web|public|parent))*$/;
 
 export function run(root) {
   const findings = [];

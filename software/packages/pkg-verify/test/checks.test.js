@@ -252,6 +252,17 @@ describe('profile-bootorder — a named profile, an explicit start order', () =>
     assert.deepEqual(profileBootorder.run(r), []);
   });
 
+  it('accepts the minimal floor: the four base units without a bridge', () => {
+    const r = repo('profile-minimal', {
+      'manifest.json': JSON.stringify({
+        profile: 'minimal',
+        bricks: { 'brick-vault': {}, 'brick-logger': {}, 'brick-queue': {}, 'brick-maestro': {} },
+        bootOrder: [['brick-vault', 'brick-logger'], ['brick-queue'], ['brick-maestro']],
+      }),
+    });
+    assert.deepEqual(profileBootorder.run(r), []);
+  });
+
   it('rejects a profile outside the defined vocabulary', () => {
     const r = repo('profile-vocab', {
       'manifest.json': JSON.stringify({
