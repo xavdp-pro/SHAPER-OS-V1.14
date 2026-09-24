@@ -37,7 +37,9 @@ sql_as() {
     'read -r pw; MYSQL_PWD="$pw" exec mariadb -S /run/mysqld/mysqld.sock -u "$1" -N -B ${2:+--database="$2"} -e "$3"' \
     _ "$2" "$4" "$5" < "$3" 2>&1
 }
-denied_as() { sql_as "$@" | grep -q 'denied'; }
+# The refusal is read from the client's message, never from a pipeline status:
+# under pipefail a refused client (exit 1) would hide a matching grep.
+denied_as() { local out; out="$(sql_as "$@")"; grep -q 'denied' <<<"$out"; }
 
 mapfile -t UNITS < <(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
 declare -A UID_OF PORT_OF
@@ -95,12 +97,12 @@ gate_unit() {
   check "$s-socket-private" "no other unit's container mounts $rundir" test -z "$leaks"
 
   # Another unit's credential is refused by this unit's database.
-  local refused=0 tried=0
+  local refused=0 tried=0 out
   for other in "${UNITS[@]}"; do
     [[ "$other" == "$s" ]] && continue
     tried=$((tried + 1))
-    sql_as "$s" "$other" "$APPS_ROOT/$other/etc/mysql/localhost/passwd" "" "SELECT 1" | grep -q 'Access denied' \
-      && refused=$((refused + 1))
+    out="$(sql_as "$s" "$other" "$APPS_ROOT/$other/etc/mysql/localhost/passwd" "" "SELECT 1")"
+    grep -q 'Access denied' <<<"$out" && refused=$((refused + 1))
   done
   check "$s-foreign-refused" "$refused/$tried other units' credentials refused" test "$refused" -eq "$tried"
 
