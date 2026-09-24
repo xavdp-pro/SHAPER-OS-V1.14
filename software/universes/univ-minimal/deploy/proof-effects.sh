@@ -17,6 +17,9 @@ record() { jq --arg k "$1" --arg v "$2" '.[$k] = $v' "$NEXT" > "$NEXT.tmp" && mv
 last() { [[ -f "$LAST" ]] && jq -r --arg k "$1" '.[$k] // empty' "$LAST"; }
 
 VAULT_TOKEN="$(cat "$APPS_ROOT/vault/etc/vault/api-token" 2>/dev/null || true)"
+# The other units' checks are functions; they must exist before persistence is read.
+# shellcheck source=/dev/null
+source "$UNIV/deploy/proof-effects-units.sh"
 url() { echo "http://127.0.0.1:${PORT_OF[$1]}"; }
 
 # ── Persistence of the previous run's markers ───────────────────────────────
@@ -27,8 +30,8 @@ else
   prev="$(jq -r '.run' "$LAST")"
   digest="$(last vault_digest)"
   check "vault-persisted" "run $prev's secret row unchanged in vault.secrets" \
-    test "$(rootsql vault vault -e "SELECT SHA2(CONCAT(secret_key,iv,auth_tag,ciphertext),256) FROM secrets WHERE secret_key='proof/last-run'")" = "$digest"
-  [[ "$(type -t persisted_effects)" == function ]] && persisted_effects
+    test -n "$digest" -a "$(rootsql vault vault -e "SELECT SHA2(CONCAT(secret_key,iv,auth_tag,ciphertext),256) FROM secrets WHERE secret_key='proof/last-run'")" = "$digest"
+  persisted_effects
 fi
 
 # ── Vault ───────────────────────────────────────────────────────────────────
@@ -50,7 +53,6 @@ check "vault-token-enforced" "an unauthenticated read is refused (401)" \
 record vault_digest "$(rootsql vault vault -e "SELECT SHA2(CONCAT(secret_key,iv,auth_tag,ciphertext),256) FROM secrets WHERE secret_key='proof/last-run'")"
 
 # ── Logger, Queue, Maestro ──────────────────────────────────────────────────
-# shellcheck source=/dev/null
-[[ -f "$UNIV/deploy/proof-effects-units.sh" ]] && source "$UNIV/deploy/proof-effects-units.sh"
+unit_effects
 
 if (( FAILS == 0 )); then mv "$NEXT" "$LAST"; else rm -f "$NEXT"; fi
