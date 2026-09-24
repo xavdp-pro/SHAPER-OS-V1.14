@@ -5,6 +5,19 @@ import { vitals, ageSeconds, writable } from '../pkg-logger/vitals.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ingestLog } from '../pkg-logger/ingest-client.js';
+import {
+  QueueError,
+  applyJobPatch,
+  newJobRecord,
+  normalizeCreateRequest,
+  normalizeJobPatch,
+  queueErrorStatus,
+  replayOrConflict,
+  requestDigest,
+  validateIdempotencyKey,
+} from './job-contract.js';
+
+export { QueueError, queueErrorStatus } from './job-contract.js';
 
 /**
  * Quality Gate Contract Validator (Rule 20)
@@ -87,10 +100,47 @@ export function validateQualityGate(job, { gedRoot = null, testRunner = null } =
   }
 }
 
+/**
+ * Audit, correlated to the job id and read from outside the queue (Rule 0G).
+ * Fire-and-forget: a logger that is down must never stop work — but it says
+ * so on stderr rather than failing silently (Rule 0K, never silent). Every
+ * store calls it only after the state it reports is recorded.
+ */
+export function auditJobEvent({ loggerUrl, fetchImpl = fetch }, event, job, level = 'INFO') {
+  if (!loggerUrl) return;
+  ingestLog({
+    loggerUrl,
+    pod: 'queue',
+    event,
+    level,
+    correlationId: job.id,
+    data: { jobId: job.id, type: job.type, status: job.status, conversation: job.payload?.conversation },
+    fetchImpl,
+  }).catch((err) => console.error('[queue] audit failed:', err.message));
+}
+
+/** The terminal audit event a job's new state calls for, if any. */
+export function terminalAudit(job) {
+  if (job.status === 'COMPLETED') return ['JOB_COMPLETED', 'INFO'];
+  if (job.status === 'FAILED') return ['JOB_FAILED', 'ERROR'];
+  return null;
+}
+
+/**
+ * The in-process job store: memory, optionally appended to a JSONL file.
+ *
+ * Declared DEV scaffolding (Rules 4 and 26). The brick's durable store is the
+ * unit's private MariaDB (./mariadb-store.js); this one is selected only
+ * explicitly (QUEUE_STORE=memory or QUEUE_STORE=file), never as a fallback,
+ * and never satisfies a database or promotion gate. Its file path still logs
+ * a failed append instead of refusing — that is recorded debt, which is why
+ * it is not a store anything may be promoted on.
+ */
 export class JobQueue extends EventEmitter {
-  constructor({ storageFile = null, enforceQualityGate = false, gedRoot = null, storageAdapter = null, loggerUrl = null, fetchImpl = fetch } = {}) {
+  constructor({ storageFile = null, enforceQualityGate = false, gedRoot = null, loggerUrl = null, fetchImpl = fetch } = {}) {
     super();
     this.jobs = new Map();
+    this.byIdempotencyKey = new Map();
     this.jobCounter = 0;
     this.storageFile = storageFile;
     // The queue is the universe's ledger of work, so it is the queue that must
@@ -102,14 +152,22 @@ export class JobQueue extends EventEmitter {
     this.fetchImpl = fetchImpl;
     this.enforceQualityGate = enforceQualityGate;
     this.gedRoot = gedRoot;
-    this.storageAdapter = storageAdapter; // Optional MariaDB or external adapter
 
     if (this.storageFile) {
       this._hydrateFromDisk();
     }
   }
 
+  get storageKind() {
+    return this.storageFile ? 'file' : 'memory';
+  }
+
+  get persisted() {
+    return Boolean(this.storageFile);
+  }
+
   _hydrateFromDisk() {
+    let unreadable = 0;
     try {
       if (fs.existsSync(this.storageFile)) {
         const lines = fs.readFileSync(this.storageFile, 'utf-8').split('\n').filter(Boolean);
@@ -118,33 +176,24 @@ export class JobQueue extends EventEmitter {
             const job = JSON.parse(line);
             if (job && job.id) {
               this.jobs.set(job.id, job);
+              if (job.idempotencyKey) this.byIdempotencyKey.set(job.idempotencyKey, job.id);
+            } else {
+              unreadable += 1;
             }
           } catch {
-            /* ignore invalid lines */
+            unreadable += 1;
           }
         }
       }
     } catch (err) {
       console.error('[queue] disk hydration failed:', err.message);
     }
+    // DEV scaffolding keeps reading past a torn line, but it says so.
+    if (unreadable) console.warn(`[queue] ${unreadable} unreadable line(s) in ${this.storageFile} were skipped (DEV file store)`);
   }
 
-  /**
-   * Audit, correlated to the job id and read from outside the queue (Rule 0G).
-   * Fire-and-forget: a logger that is down must never stop work — but it says
-   * so on stderr rather than failing silently (Rule 0K, never silent).
-   */
   _audit(event, job, level = 'INFO') {
-    if (!this.loggerUrl) return;
-    ingestLog({
-      loggerUrl: this.loggerUrl,
-      pod: 'queue',
-      event,
-      level,
-      correlationId: job.id,
-      data: { jobId: job.id, type: job.type, status: job.status, conversation: job.payload?.conversation },
-      fetchImpl: this.fetchImpl,
-    }).catch((err) => console.error('[queue] audit failed:', err.message));
+    auditJobEvent(this, event, job, level);
   }
 
   _persistJob(job) {
@@ -157,43 +206,43 @@ export class JobQueue extends EventEmitter {
         console.error('[queue] disk persist error:', err.message);
       }
     }
-    if (this.storageAdapter && typeof this.storageAdapter.saveJob === 'function') {
-      this.storageAdapter.saveJob(job).catch(err => {
-        console.error('[queue] storage adapter error:', err.message);
-      });
-    }
   }
 
-  createJob({ type, payload = {}, totalSteps = 1, contractType = null }) {
-    const jobId = `job-${Date.now()}-${++this.jobCounter}`;
-    const job = {
-      id: jobId,
-      type,
-      payload,
-      contractType: contractType || payload.contractType || null,
-      status: 'PENDING',
-      progress: 0,
-      step: 0,
-      totalSteps,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      result: null,
-      error: null,
-      qualityGateStatus: null,
-    };
+  /**
+   * Accepts a job, or recognises a replay of one (idempotency key).
+   * @returns {{ job: object, duplicate: boolean }}
+   */
+  enqueue(request) {
+    const normalized = normalizeCreateRequest(request);
+    const digest = requestDigest(normalized);
+    if (normalized.idempotencyKey) {
+      const existing = this.findByIdempotencyKey(normalized.idempotencyKey);
+      if (existing) return replayOrConflict(existing, digest, normalized.idempotencyKey);
+    }
 
-    this.jobs.set(jobId, job);
+    const job = newJobRecord(normalized, {
+      id: `job-${Date.now()}-${++this.jobCounter}`,
+      digest,
+      now: new Date(),
+    });
+
+    this.jobs.set(job.id, job);
+    if (job.idempotencyKey) this.byIdempotencyKey.set(job.idempotencyKey, job.id);
     this._persistJob(job);
 
     this._audit('JOB_CREATED', job);
     this.emit('jobCreated', job);
     this.emit('statusChange', job);
-    return job;
+    return { job, duplicate: false };
+  }
+
+  createJob(request) {
+    return this.enqueue(request).job;
   }
 
   runQualityGate(jobId, { gedRoot = this.gedRoot, testRunner = null } = {}) {
     const job = this.jobs.get(jobId);
-    if (!job) throw new Error(`Job ${jobId} not found`);
+    if (!job) throw new QueueError('JOB_NOT_FOUND', `Job ${jobId} not found`);
     const gateResult = validateQualityGate(job, { gedRoot, testRunner });
     job.qualityGateStatus = gateResult.status || (gateResult.passed ? 'PASSED' : 'FAILED');
     if (!gateResult.passed) {
@@ -204,39 +253,33 @@ export class JobQueue extends EventEmitter {
     return gateResult;
   }
 
-  updateJobProgress(jobId, { progress, step, status, result, error, contractType, testRunner }) {
+  /**
+   * @param {string} jobId
+   * @param {object} patch - { progress, step, status, result, error, contractType, testRunner }
+   * @param {{ expectStatus?: string }} [options] - refuse (JOB_STATE_CHANGED) unless the job is in this state
+   */
+  updateJobProgress(jobId, patch, { expectStatus = null } = {}) {
+    const changes = normalizeJobPatch(patch);
     const job = this.jobs.get(jobId);
     if (!job) {
-      throw new Error(`Job ${jobId} not found`);
+      throw new QueueError('JOB_NOT_FOUND', `Job ${jobId} not found`);
+    }
+    if (expectStatus && job.status !== expectStatus) {
+      throw new QueueError('JOB_STATE_CHANGED', `Job ${jobId} is ${job.status}, not ${expectStatus}`, { jobId, status: job.status });
     }
 
-    if (contractType !== undefined) job.contractType = contractType;
-    if (progress !== undefined) job.progress = progress;
-    if (step !== undefined) job.step = step;
-    if (result !== undefined) job.result = result;
-    if (error !== undefined) job.error = error;
-
-    // Quality Gate Enforcement on completion (Rule 20)
-    if (status === 'COMPLETED') {
-      const gateRes = validateQualityGate(job, { gedRoot: this.gedRoot, testRunner });
-      job.qualityGateStatus = gateRes.status || (gateRes.passed ? 'PASSED' : 'FAILED');
-      if (!gateRes.passed) {
-        job.status = 'FAILED';
-        job.error = `Quality Gate Error: ${gateRes.error}`;
-      } else {
-        job.status = 'COMPLETED';
-      }
-    } else if (status !== undefined) {
-      job.status = status;
-    }
-    
-    job.updatedAt = new Date().toISOString();
+    const next = applyJobPatch(job, changes, {
+      gate: (candidate) => validateQualityGate(candidate, { gedRoot: this.gedRoot, testRunner: changes.testRunner }),
+      now: new Date(),
+    });
+    // The job object is updated in place: holders of it see the new state.
+    Object.assign(job, next);
 
     this.jobs.set(jobId, job);
     this._persistJob(job);
 
-    if (job.status === 'COMPLETED') this._audit('JOB_COMPLETED', job);
-    else if (job.status === 'FAILED') this._audit('JOB_FAILED', job, 'ERROR');
+    const terminal = terminalAudit(job);
+    if (terminal) this._audit(terminal[0], job, terminal[1]);
 
     this.emit('jobUpdated', job);
     this.emit('statusChange', job);
@@ -247,12 +290,25 @@ export class JobQueue extends EventEmitter {
     return this.jobs.get(jobId);
   }
 
-  listJobs({ status } = {}) {
-    const allJobs = Array.from(this.jobs.values());
-    if (status) {
-      return allJobs.filter(job => job.status === status);
-    }
+  findByIdempotencyKey(key) {
+    const id = this.byIdempotencyKey.get(key);
+    return id ? this.jobs.get(id) || null : null;
+  }
+
+  listJobs({ status, type } = {}) {
+    let allJobs = Array.from(this.jobs.values());
+    if (status) allJobs = allJobs.filter((job) => job.status === status);
+    if (type) allJobs = allJobs.filter((job) => job.type === type);
     return allJobs;
+  }
+
+  countJobs() {
+    return this.jobs.size;
+  }
+
+  /** Not "persisted: true" — whether the file can actually be written. */
+  storageCheck() {
+    return writable(fs, this.storageFile ? path.dirname(this.storageFile) : null);
   }
 
   static formatSSE(event, data) {
@@ -265,6 +321,41 @@ export class JobQueue extends EventEmitter {
  */
 const STARTED_AT = new Date().toISOString();
 
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+async function readJson(req) {
+  const body = await readBody(req);
+  try {
+    return JSON.parse(body || '{}');
+  } catch (err) {
+    throw new QueueError('INVALID_JSON', err.message);
+  }
+}
+
+/** The body an error answers with; `error` stays the human-readable field. */
+export function errorBody(err, status) {
+  if (status === 503) {
+    return { error: 'Queue storage unavailable', code: err.code || 'DB_UNAVAILABLE', detail: err.message };
+  }
+  const body = { error: err.message, code: err.code || null };
+  if (err.jobId) body.jobId = err.jobId;
+  return body;
+}
+
+/**
+ * @param {object} options
+ * @param {object} [options.queue] - a store: JobQueue (memory/file, DEV) or MariaDbJobQueue.
+ *   When omitted, an in-memory JobQueue is built from the options below — a
+ *   library default for tests and tooling. The brick's entrypoint (server.js)
+ *   always passes the store it selected explicitly.
+ */
 export function createQueueServer({
   port = 8640,
   host = '0.0.0.0',
@@ -275,7 +366,7 @@ export function createQueueServer({
   loggerUrl = null,
 } = {}) {
   const jobQueue = queue || new JobQueue({
-    storageFile: storageFile || process.env.QUEUE_STORAGE_FILE || null,
+    storageFile,
     // Off by default: the gate is opt-in during build-out, enabled per universe
     // via QUALITY_GATE_ENFORCE=1 once its deliverable contracts are declared.
     enforceQualityGate: enforceQualityGate !== null
@@ -293,9 +384,13 @@ export function createQueueServer({
     }
   };
 
+  // Stores emit only after the state is recorded — in MariaDB, after commit —
+  // so a stream reader never sees a job that the store does not hold.
   jobQueue.on('jobCreated', (job) => broadcast('jobCreated', job));
   jobQueue.on('jobUpdated', (job) => broadcast('jobUpdated', job));
   jobQueue.on('statusChange', (job) => broadcast('statusChange', job));
+
+  const lanes = () => Math.max(1, Number(process.env.QUEUE_CONCURRENCY || 1));
 
   const server = http.createServer((req, res) => {
     const sendJson = (statusCode, data) => {
@@ -303,16 +398,41 @@ export function createQueueServer({
       res.end(JSON.stringify(data));
     };
 
+    route(req, res, sendJson).catch((err) => {
+      const status = queueErrorStatus(err);
+      if (status >= 500) console.error(`[brick-queue] ${req.method} ${req.url} → ${status} ${err.code || ''} ${err.message}`);
+      if (res.headersSent) {
+        res.end();
+        return;
+      }
+      sendJson(status, errorBody(err, status));
+    });
+  });
+
+  async function route(req, res, sendJson) {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
 
     if (req.method === 'GET' && (pathname === '/api/health' || pathname === '/health')) {
+      // Health reveals the store and its reachability, never a payload.
+      const db = typeof jobQueue.probe === 'function' ? await jobQueue.probe() : null;
+      if (db && !db.ok) {
+        return sendJson(503, {
+          status: 'unavailable',
+          service: 'brick-queue',
+          storage: jobQueue.storageKind,
+          db,
+          timestamp: new Date().toISOString(),
+        });
+      }
       return sendJson(200, {
         status: 'ok',
         service: 'brick-queue',
-        jobsCount: jobQueue.jobs.size,
+        storage: jobQueue.storageKind || 'memory',
+        ...(db ? { db } : {}),
+        jobsCount: await jobQueue.countJobs(),
         sseClients: sseClients.size,
-        persisted: Boolean(jobQueue.storageFile || jobQueue.storageAdapter),
+        persisted: Boolean(jobQueue.persisted),
         timestamp: new Date().toISOString(),
       });
     }
@@ -321,40 +441,50 @@ export function createQueueServer({
     // `/api/health` above says a process is listening; this says what the brick
     // can prove about itself and about what it depends on.
     if (req.method === 'GET' && pathname === '/api/vitals') {
-      const jobs = jobQueue.listJobs();
+      const storage = await jobQueue.storageCheck();
+      if (storage && storage.ok === false) {
+        // The store is unreachable: say so with the evidence, not with counts
+        // that could not be read.
+        return sendJson(503, vitals({
+          service: 'brick-queue',
+          startedAt: STARTED_AT,
+          signals: { lanesConfigured: lanes(), sseClients: sseClients.size },
+          checks: { storage },
+        }));
+      }
+      const jobs = await jobQueue.listJobs();
       const pending = jobs.filter((j) => j.status === 'PENDING');
       const oldestPending = pending
         .map((j) => ageSeconds(j.createdAt))
         .filter((a) => a !== null)
         .sort((a, b) => b - a)[0] ?? null;
 
-      return writable(fs, jobQueue.storageFile ? path.dirname(jobQueue.storageFile) : null)
-        .then((storage) => sendJson(200, vitals({
-          service: 'brick-queue',
-          startedAt: STARTED_AT,
-          signals: {
-            lanesConfigured: Math.max(1, Number(process.env.QUEUE_CONCURRENCY || 1)),
-            jobsHeld: jobs.length,
-            pending: pending.length,
-            running: jobs.filter((j) => j.status === 'RUNNING').length,
-            // A job waiting far longer than the cadence is lateness you can see.
-            oldestPendingAgeSeconds: oldestPending,
-            completedSinceStart: jobs.filter((j) => j.status === 'COMPLETED').length,
-            failedSinceStart: jobs.filter((j) => j.status === 'FAILED').length,
-            sseClients: sseClients.size,
-          },
-          checks: {
-            // Not "persisted: true" — whether the file can actually be written.
-            storage,
-          },
-        })))
-        .catch((err) => sendJson(500, { error: err.message }));
+      return sendJson(200, vitals({
+        service: 'brick-queue',
+        startedAt: STARTED_AT,
+        signals: {
+          lanesConfigured: lanes(),
+          jobsHeld: jobs.length,
+          pending: pending.length,
+          running: jobs.filter((j) => j.status === 'RUNNING').length,
+          // A job waiting far longer than the cadence is lateness you can see.
+          oldestPendingAgeSeconds: oldestPending,
+          completedSinceStart: jobs.filter((j) => j.status === 'COMPLETED').length,
+          failedSinceStart: jobs.filter((j) => j.status === 'FAILED').length,
+          sseClients: sseClients.size,
+        },
+        checks: {
+          // Not "persisted: true" — whether the store can actually be written
+          // (file) or answers right now (MariaDB).
+          storage,
+        },
+      }));
     }
 
     // What this universe can absorb, measured rather than declared.
     if (req.method === 'GET' && pathname === '/api/capacity') {
-      return sendJson(200, capacityReport(jobQueue.listJobs(), {
-        lanes: Math.max(1, Number(process.env.QUEUE_CONCURRENCY || 1)),
+      return sendJson(200, capacityReport(await jobQueue.listJobs(), {
+        lanes: lanes(),
         windowSeconds: Number(url.searchParams.get('window') || 3600),
       }));
     }
@@ -381,30 +511,34 @@ export function createQueueServer({
 
     if (req.method === 'GET' && pathname === '/api/jobs') {
       const status = url.searchParams.get('status') || undefined;
+      const key = url.searchParams.get('idempotencyKey');
+      if (key !== null) {
+        const job = await jobQueue.findByIdempotencyKey(validateIdempotencyKey(key));
+        return sendJson(200, {
+          status: 'ok',
+          jobs: job && (!status || job.status === status) ? [job] : [],
+        });
+      }
       return sendJson(200, {
         status: 'ok',
-        jobs: jobQueue.listJobs({ status }),
+        jobs: await jobQueue.listJobs({ status }),
       });
     }
 
     if (req.method === 'POST' && pathname === '/api/jobs') {
-      let body = '';
-      req.on('data', (chunk) => { body += chunk; });
-      req.on('end', () => {
-        try {
-          const parsed = JSON.parse(body || '{}');
-          const job = jobQueue.createJob({
-            type: parsed.type,
-            payload: parsed.payload,
-            totalSteps: parsed.totalSteps,
-            contractType: parsed.contractType,
-          });
-          return sendJson(201, { status: 'ok', job });
-        } catch (err) {
-          return sendJson(400, { error: err.message });
-        }
+      const parsed = await readJson(req);
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new QueueError('INVALID_JOB_REQUEST', 'a job request is a JSON object');
+      }
+      const { job, duplicate } = await jobQueue.enqueue({
+        type: parsed.type,
+        payload: parsed.payload,
+        totalSteps: parsed.totalSteps,
+        contractType: parsed.contractType,
+        idempotencyKey: parsed.idempotencyKey,
       });
-      return;
+      // A replay answers with the original job and creates nothing.
+      return sendJson(duplicate ? 200 : 201, { status: 'ok', job, duplicate });
     }
 
     const jobMatch = pathname.match(/^\/api\/jobs\/([^/]+)$/);
@@ -412,30 +546,20 @@ export function createQueueServer({
       const jobId = decodeURIComponent(jobMatch[1]);
 
       if (req.method === 'GET') {
-        const job = jobQueue.getJob(jobId);
+        const job = await jobQueue.getJob(jobId);
         if (!job) return sendJson(404, { error: `Job "${jobId}" not found.` });
         return sendJson(200, { status: 'ok', job });
       }
 
       if (req.method === 'PATCH' || req.method === 'POST') {
-        let body = '';
-        req.on('data', (chunk) => { body += chunk; });
-        req.on('end', () => {
-          try {
-            const parsed = JSON.parse(body || '{}');
-            const job = jobQueue.updateJobProgress(jobId, parsed);
-            return sendJson(200, { status: 'ok', job });
-          } catch (err) {
-            const statusCode = err.message.includes('not found') ? 404 : 400;
-            return sendJson(statusCode, { error: err.message });
-          }
-        });
-        return;
+        const parsed = await readJson(req);
+        const job = await jobQueue.updateJobProgress(jobId, parsed);
+        return sendJson(200, { status: 'ok', job });
       }
     }
 
     sendJson(404, { error: 'Not Found' });
-  });
+  }
 
   server.listen(port, host);
   server.jobQueue = jobQueue;

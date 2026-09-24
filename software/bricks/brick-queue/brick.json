@@ -2,14 +2,15 @@
   "brick": "queue",
   "contractVersion": 1,
   "distribution": "base",
-  "buildPackages": [
-    "pkg-logger",
-    "pkg-queue"
-  ],
+  "buildPackages": ["pkg-db", "pkg-logger", "pkg-queue"],
   "runtimeServices": [],
+  "unit": { "slug": "queue", "uid": 10640, "schema": "/app/sql/schema.sql" },
   "proof": [
     "queue health",
+    "private MariaDB identity",
     "job persistence across restart",
+    "idempotent enqueue under one key",
+    "transition history committed with each change",
     "dispatch to a bridge"
   ]
 }

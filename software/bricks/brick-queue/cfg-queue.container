@@ -15,10 +15,16 @@ After=network-online.target
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-queue
-PublishPort=127.0.0.1:8640:8640
+Network=host
 Environment=QUEUE_PORT=8640
-Environment=QUEUE_STORAGE_FILE=/data/queue/jobs.jsonl
-Volume=vol-%i-queue:/data/queue:Z
+Environment=HOST=127.0.0.1
+# The unit's private MariaDB (Rules 4 and 26) runs beside it as
+# %i-ctr-queue-mariadb, provisioned by scripts/provision-unit-mariadb.sh; the
+# socket directory and the passwd file are the only paths the two share. Jobs
+# live there, so this unit mounts no volume of its own.
+Volume=/apps/queue/nosav/run/mysqld:/run/mysqld:z
+Volume=/apps/queue/etc/mysql/localhost/passwd:/apps/queue/etc/mysql/localhost/passwd:ro,Z
+User=10640:10640
 Restart=always
 
 [Install]

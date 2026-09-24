@@ -5,14 +5,18 @@
 
 ## 1. Declarative Objective
 
-In-memory async job queue — no external broker.
+Durable async job queue — no external broker. Jobs live in the unit's own
+private MariaDB; the package intent states the contract
+([`pkg-queue/INTENT.md`](../../packages/pkg-queue/INTENT.md#private-mariadb)).
 
 ## 2. Invariants
 
 1. Lifecycle: `PENDING` → `RUNNING` → `COMPLETED` | `FAILED`.
-2. Ephemeral — no persistence in this brick.
-3. Localhost or mesh bind only.
-4. Podman Quadlet lifecycle.
+2. The Queue's durable state lives in its own private MariaDB (Rules 4 and 26): account, database and Linux user are all `queue`, uid fixed at `10640`; the database has no TCP listener and is reached only through a socket directory mounted into this unit's two containers. A job state change is reported only after it commits; the image selects that store by default (`QUEUE_STORE=mariadb`) and never falls back to memory or a file.
+3. The application password (`/apps/queue/etc/mysql/localhost/passwd`) is `0600`, owned by the `queue` account, mounted read-only, never in an image, a log or a dump. The schema (`/app/sql/schema.sql` in the image) is applied by the universe's administrative path, never by the application.
+4. Localhost or mesh bind only.
+5. Podman Quadlet lifecycle.
+6. One instance per universe.
 
 ---
 
@@ -20,6 +24,28 @@ In-memory async job queue — no external broker.
 
 Recorded here rather than only in the code, so the next universe inherits the
 lesson instead of the bug (Rule 29, applied to intent as well as to tests).
+
+* **This intent and the package's once disagreed about persistence.** It said
+  "ephemeral — no persistence" while the package appended every change to a
+  JSONL file and read it back at boot. A reader could not tell which to build.
+  There is now one answer — the unit's private MariaDB — stated here and
+  detailed in the package intent.
+
+* **A logged write is not a durable write.** The JSONL store logged a failed
+  append and still answered success, and skipped any line it could not parse
+  at boot. A job could be acknowledged and never exist. The MariaDB store
+  answers only after `COMMIT`, refuses with 503 when the database is gone, and
+  refuses to start on a row it cannot read.
+
+* **A retried enqueue is not a new job.** Without an idempotency key, a
+  producer that lost the answer to its `POST` and asked again created a second
+  job. A key now names the request; the `UNIQUE` constraint, not a pre-check,
+  decides between two simultaneous attempts.
+
+* **A read can be older than the last commit.** Once reads go to a database, a
+  lane can see a job as `PENDING` after another change has moved it. The move
+  to `RUNNING` is therefore conditional on the job still being `PENDING`, and
+  committed before anything reaches a bridge.
 
 * **An acknowledgement is not a result.** The queue once marked a job
   `COMPLETED` the moment a bridge answered `ok`. It now follows the run to its
@@ -72,6 +98,15 @@ lesson instead of the bug (Rule 29, applied to intent as well as to tests).
 * **Name the kind of blindness.** "No event stream" and "the bridge refused the
   connection" call for different actions; a generic reason sends the reader to
   the wrong place.
+
+## 4. What this brick does not yet do
+
+Against the Queue target contract of 22 September 2026, and listed in full in
+the package intent: authenticated producers and consumers with scopes, durable
+leases with heartbeat, an attempts table with at-least-once lease recovery,
+`DEAD_LETTER`, a transactional outbox to Logger (audit is still fire-and-forget
+over HTTP), evidence policies, and the removal of task framing, Bridge dispatch
+and the quality gate from Queue.
 
 ---
 

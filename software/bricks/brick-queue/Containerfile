@@ -5,9 +5,20 @@ FROM docker.io/library/node:20-alpine
 ARG SHAPER_SOURCE_REVISION
 LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
 LABEL org.shaper.brick="queue"
-LABEL org.shaper.build-packages="logger queue"
+LABEL org.shaper.build-packages="db logger queue"
+
+# The unit runs as its functional account (Rules 4, 11 and 26): the slug is the
+# Linux account, the MariaDB account and the database, and the uid is fixed so
+# the universe can own the passwd file for exactly this process.
+ARG UNIT_UID=10640
+RUN addgroup -S -g "${UNIT_UID}" queue \
+ && adduser -S -D -H -u "${UNIT_UID}" -G queue -s /sbin/nologin queue
 
 WORKDIR /app
+# pkg-db carries the one pinned driver; its lockfile is the only source of it.
+# It lands at /pkg-db/ for the same reason the logger lands at /pkg-logger/.
+COPY --from=shaper_base /shaper/packages/pkg-db/ /pkg-db/
+RUN cd /pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
 # The queue package is flattened into WORKDIR, so a sibling import such as
 # `../pkg-logger/vitals.js` resolves to `/pkg-logger/`. The destination must be
 # that exact name: V1.10 renamed the packages to `pkg-*` and left this COPY
@@ -21,5 +32,9 @@ COPY --from=shaper_base /shaper/packages/pkg-queue/ ./
 EXPOSE 8640
 ENV NODE_ENV=production
 ENV QUEUE_PORT=8640
+ENV QUEUE_STORE=mariadb
+ENV SHAPER_UNIT_SLUG=queue
+ENV SHAPER_DB_SOCKET=/run/mysqld/mysqld.sock
 
+USER queue
 CMD ["node", "server.js"]

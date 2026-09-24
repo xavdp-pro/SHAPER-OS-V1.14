@@ -24,6 +24,15 @@
  * Deliberate corollary: work whose end cannot be observed stays `RUNNING`. A
  * pending job beats an invented success — the latter is what poisons a control
  * chain, because it propagates.
+ *
+ * ── The ledger moves first ─────────────────────────────────────────────────
+ * Every transition is awaited: with the MariaDB store it is committed before
+ * the worker acts on it. A job is sent to a bridge only after its move out of
+ * PENDING is recorded, and that move is conditional on the job still being
+ * PENDING, so two lanes never run one job. A transition the store refuses
+ * (database unreachable) stops that job's handling where it stands and frees
+ * the lane; the job keeps its last recorded state — PENDING is picked up
+ * again, RUNNING is settled as an orphan at the next start.
  */
 
 import { taskFromPayload } from './task-frame.js';
@@ -198,11 +207,11 @@ export function startQueueAgentWorker({
    * so every capacity reading built on it is wrong. A stale RUNNING job is a
    * measurement poisoning itself.
    */
-  function adoptOrphans() {
-    const orphans = queue.listJobs({ status: 'RUNNING' })
+  async function adoptOrphans() {
+    const orphans = (await queue.listJobs({ status: 'RUNNING', type: 'agent.inject' }))
       .filter((j) => j.type === 'agent.inject' && !running.has(j.id));
     for (const job of orphans) {
-      queue.updateJobProgress(job.id, {
+      await queue.updateJobProgress(job.id, {
         status: 'FAILED',
         error: 'orphaned by restart — the worker watching this run is gone, its outcome is unknowable',
         progress: 100,
@@ -212,6 +221,23 @@ export function startQueueAgentWorker({
     }
     if (orphans.length) console.log(`[queue-worker] ${orphans.length} orphan(s) from a previous worker, marked failed`);
     return orphans.length;
+  }
+
+  /**
+   * Moves a job out of PENDING, and only out of PENDING. The store refuses the
+   * change (JOB_STATE_CHANGED) when someone else already moved it; the lane
+   * then stands down instead of running the job twice. The new state is
+   * recorded before this resolves — with MariaDB, committed — so nothing is
+   * sent to a bridge for a job the ledger does not show as taken.
+   */
+  async function leavePending(job, patch) {
+    try {
+      await queue.updateJobProgress(job.id, patch, { expectStatus: 'PENDING' });
+      return true;
+    } catch (err) {
+      if (err && err.code === 'JOB_STATE_CHANGED') return false;
+      throw err;
+    }
   }
 
   function authHeaders() {
@@ -231,14 +257,14 @@ export function startQueueAgentWorker({
     try {
       message = taskFromPayload(payload) || String(payload.message || '').trim();
     } catch (err) {
-      queue.updateJobProgress(job.id, {
+      await leavePending(job, {
         status: 'FAILED', progress: 100,
         error: `malformed task: ${err.message}`,
       });
       return;
     }
     if (!message) {
-      queue.updateJobProgress(job.id, { status: 'FAILED', error: 'payload.message required', progress: 100 });
+      await leavePending(job, { status: 'FAILED', error: 'payload.message required', progress: 100 });
       return;
     }
     const target = (payload.bridgeUrl || bridgeUrl).replace(/\/$/, '');
@@ -247,7 +273,7 @@ export function startQueueAgentWorker({
     // measured from creation and would silently include queue wait — inflating
     // under load, which is precisely when the measure matters most.
     const startedAt = new Date().toISOString();
-    queue.updateJobProgress(job.id, { status: 'RUNNING', progress: 10, step: 1, result: { startedAt } });
+    if (!await leavePending(job, { status: 'RUNNING', progress: 10, step: 1, result: { startedAt } })) return;
 
     // Subscribe before injecting: a short run could otherwise finish before we
     // are listening, leaving us waiting on an event that already went by.
@@ -269,7 +295,7 @@ export function startQueueAgentWorker({
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.ok !== true) {
       follower.cancel();
-      queue.updateJobProgress(job.id, {
+      await queue.updateJobProgress(job.id, {
         status: 'FAILED',
         error: data.error || `inject HTTP ${res.status}`,
         progress: 100,
@@ -286,7 +312,13 @@ export function startQueueAgentWorker({
       bridge: target,
     };
     // Accepted, so started — but not finished. Progress says where we stand.
-    queue.updateJobProgress(job.id, { status: 'RUNNING', progress: 50, step: 1, result });
+    try {
+      await queue.updateJobProgress(job.id, { status: 'RUNNING', progress: 50, step: 1, result });
+    } catch (err) {
+      // The ledger cannot follow this run any more: stop watching it too.
+      follower.cancel();
+      throw err;
+    }
 
     let outcome;
     const GAVE_UP = Symbol('gave-up');
@@ -300,7 +332,7 @@ export function startQueueAgentWorker({
         }),
       ]);
     } catch (err) {
-      queue.updateJobProgress(job.id, {
+      await queue.updateJobProgress(job.id, {
         status: 'RUNNING', progress: 50, step: 1,
         result: { ...result, unobserved: `event stream interrupted: ${err.message}` },
       });
@@ -311,7 +343,7 @@ export function startQueueAgentWorker({
 
     if (outcome === GAVE_UP) {
       follower.cancel();
-      queue.updateJobProgress(job.id, {
+      await queue.updateJobProgress(job.id, {
         status: 'FAILED',
         progress: 100,
         step: 2,
@@ -322,7 +354,7 @@ export function startQueueAgentWorker({
     }
 
     if (!outcome || outcome.observable === false || outcome.exitCode === undefined) {
-      queue.updateJobProgress(job.id, {
+      await queue.updateJobProgress(job.id, {
         status: 'RUNNING', progress: 50, step: 1,
         // Say which kind of blindness this is. "No event stream" and "the bridge
         // refused the connection" call for different actions, and a generic
@@ -338,7 +370,7 @@ export function startQueueAgentWorker({
     }
 
     const ok = outcome.exitCode === 0;
-    queue.updateJobProgress(job.id, {
+    await queue.updateJobProgress(job.id, {
       status: ok ? 'COMPLETED' : 'FAILED',
       progress: 100,
       step: 2,
@@ -352,27 +384,39 @@ export function startQueueAgentWorker({
   }
 
 
-  function tick() {
-    if (stopped) return;
+  // Reading the store may take a round trip (MariaDB), so one tick at a time:
+  // two overlapping ticks would each see the same PENDING job.
+  let ticking = false;
+  let adopted = false;
+
+  async function tick() {
+    if (stopped || ticking) return;
+    ticking = true;
     try {
-      while (running.size < concurrency) {
-        const pending = queue.listJobs({ status: 'PENDING' }).filter((j) => j.type === 'agent.inject');
+      // Before filling any lane, settle what a previous worker left behind.
+      // Retried every tick until it succeeds: no lane is filled before it has.
+      if (!adopted) {
+        await adoptOrphans();
+        adopted = true;
+      }
+      while (!stopped && running.size < concurrency) {
+        const pending = (await queue.listJobs({ status: 'PENDING', type: 'agent.inject' }))
+          .filter((j) => j.type === 'agent.inject' && !running.has(j.id));
         const next = selectNext(pending, new Set(running.values()), Date.now(), agingSeconds);
         if (!next) return;
 
         running.set(next.id, next.payload?.conversation ?? next.id);
         // Deliberately not awaited: filling a lane must not block the others.
         processOne(next)
-          .catch((err) => console.error('[queue-worker]', err.message))
+          .catch((err) => console.error(`[queue-worker] ${next.id}: ${err.code ? `${err.code} ` : ''}${err.message}`))
           .finally(() => running.delete(next.id));
       }
     } catch (err) {
-      console.error('[queue-worker]', err.message);
+      console.error(`[queue-worker] ${err.code ? `${err.code} ` : ''}${err.message}`);
+    } finally {
+      ticking = false;
     }
   }
-
-  // Before filling any lane, settle what a previous worker left behind.
-  adoptOrphans();
 
   const timer = setInterval(tick, pollMs);
   tick();
