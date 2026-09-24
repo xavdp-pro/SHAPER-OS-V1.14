@@ -28,7 +28,8 @@ DRILL_PORT="${DRILL_VAULT_PORT:-18610}"
 PASS=0; FAILS=0
 ok()   { PASS=$((PASS + 1)); printf '  OK     %-24s %s\n' "$1" "$2"; }
 fail() { FAILS=$((FAILS + 1)); printf '  FAIL   %-24s %s\n' "$1" "$2"; }
-rootsql() { podman exec -i "${UNIVERSE}-ctr-$1-mariadb" mariadb -uroot -N -B "${@:2}"; }
+# Queries only (-e): no -i, so the proof never reads the caller's standard input.
+rootsql() { podman exec "${UNIVERSE}-ctr-$1-mariadb" mariadb -uroot -N -B "${@:2}"; }
 
 MYSQL_UID="$(podman run --rm --network none --entrypoint id "$SHAPER_MARIADB_IMAGE" -u mysql)"
 MYSQL_GID="$(podman run --rm --network none --entrypoint id "$SHAPER_MARIADB_IMAGE" -g mysql)"

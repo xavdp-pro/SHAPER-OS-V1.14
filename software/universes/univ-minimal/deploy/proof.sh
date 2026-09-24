@@ -27,7 +27,8 @@ check() { local name="$1" detail="$2"; shift 2; if "$@"; then ok "$name" "$detai
 section() { printf '\n── %s %s\n' "$1" "$(printf '─%.0s' $(seq 1 $((70 - ${#1}))))"; }
 
 # Root path into a unit's database: unix_socket from inside its own container.
-rootsql() { podman exec -i "${UNIVERSE}-ctr-$1-mariadb" mariadb -uroot -N -B "${@:2}"; }
+# Queries only (-e): no -i, so the proof never reads the caller's standard input.
+rootsql() { podman exec "${UNIVERSE}-ctr-$1-mariadb" mariadb -uroot -N -B "${@:2}"; }
 
 # Application path into a unit's database, with the password read from its file
 # on standard input — never on a command line (Rule 12).
