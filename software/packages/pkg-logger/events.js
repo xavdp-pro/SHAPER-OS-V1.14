@@ -116,6 +116,13 @@ export const BASE_EVENTS = {
     description: 'Job execution or quality gate verification failed',
     fields: ['jobId', 'durationMs', 'exitCode', 'error'],
   },
+
+  // ── Logger's own security events ────────────────────────────────────────
+  LOGGER_INGEST_CONFLICT: {
+    brick: 'brick-logger',
+    description: 'A source event id was reused with different content; the submission was refused',
+    fields: ['pod', 'sourceEventId', 'originalEventId', 'originalReceivedAt', 'storedClaimDigest', 'submittedClaimDigest'],
+  },
 };
 
 /**

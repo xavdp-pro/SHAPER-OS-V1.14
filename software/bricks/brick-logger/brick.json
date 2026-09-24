@@ -2,13 +2,15 @@
   "brick": "logger",
   "contractVersion": 1,
   "distribution": "base",
-  "buildPackages": [
-    "pkg-logger"
-  ],
+  "buildPackages": ["pkg-db", "pkg-logger"],
   "runtimeServices": [],
+  "unit": { "slug": "logger", "uid": 10620, "schema": "/app/sql/schema.sql" },
   "proof": [
     "logger health",
-    "JSONL append-only evidence",
-    "per-brick log directories"
+    "private MariaDB identity",
+    "receipt only after commit",
+    "idempotent replay and refused conflict",
+    "event in its monthly partition",
+    "per-event digest recomputes"
   ]
 }

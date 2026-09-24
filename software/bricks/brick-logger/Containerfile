@@ -5,14 +5,29 @@ FROM docker.io/library/node:20-alpine
 ARG SHAPER_SOURCE_REVISION
 LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
 LABEL org.shaper.brick="logger"
-LABEL org.shaper.build-packages="logger"
+LABEL org.shaper.build-packages="db logger"
+
+# The unit runs as its functional account (Rules 4, 11 and 26): the slug is the
+# Linux account, the MariaDB account and the database, and the uid is fixed so
+# the universe can own the passwd file for exactly this process.
+ARG UNIT_UID=10620
+RUN addgroup -S -g "${UNIT_UID}" logger \
+ && adduser -S -D -H -u "${UNIT_UID}" -G logger -s /sbin/nologin logger
 
 WORKDIR /app
+# pkg-db carries the one pinned driver; its lockfile is the only source of it.
+COPY --from=shaper_base /shaper/packages/pkg-db/ /pkg-db/
+RUN cd /pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+# pkg-logger is flattened into /app: its schema is /app/sql/schema.sql, the
+# path brick.json declares for the administrative path to apply.
 COPY --from=shaper_base /shaper/packages/pkg-logger/ ./
 
 EXPOSE 8620
 ENV NODE_ENV=production
 ENV LOGGER_PORT=8620
-ENV LOG_DIR=/data/logger
+ENV LOGGER_STORE=mariadb
+ENV SHAPER_UNIT_SLUG=logger
+ENV SHAPER_DB_SOCKET=/run/mysqld/mysqld.sock
 
+USER logger
 CMD ["node", "server.js"]

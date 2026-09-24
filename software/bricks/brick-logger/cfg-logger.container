@@ -9,16 +9,22 @@ After=network-online.target
 #
 #   sed -e "s|@IMG@|$(digest from cfg-image-lock.json)|" -e "s|%i|<universe>|g"
 #
-# ContainerName and Volume follow docs/architecture/NAMING.md: ctr- is a running
-# container role, vol- a persistent universe-owned volume, and both are prefixed
-# by the universe so two universes on one host never collide.
+# ContainerName follows docs/architecture/NAMING.md: ctr- is a running
+# container role, prefixed by the universe so two universes on one host never
+# collide.
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-logger
-PublishPort=127.0.0.1:8620:8620
+Network=host
 Environment=LOGGER_PORT=8620
-Environment=LOG_DIR=/data/logger
-Volume=vol-%i-log:/data/logger:Z
+Environment=HOST=127.0.0.1
+# The unit's private MariaDB (Rules 4 and 26) runs beside it as
+# %i-ctr-logger-mariadb, provisioned by scripts/provision-unit-mariadb.sh; the
+# socket directory and the passwd file are the only paths the two share. The
+# events live in that database: this container keeps no volume of its own.
+Volume=/apps/logger/nosav/run/mysqld:/run/mysqld:z
+Volume=/apps/logger/etc/mysql/localhost/passwd:/apps/logger/etc/mysql/localhost/passwd:ro,Z
+User=10620:10620
 Restart=always
 
 [Install]

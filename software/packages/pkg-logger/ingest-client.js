@@ -12,6 +12,8 @@
  * @param {string} [options.correlationId]
  * @param {string} [options.executionId]
  * @param {number} [options.durationMs]
+ * @param {string} [options.sourceEventId] - a source-stable id: a retry with the
+ *   same id and content returns the original receipt instead of a second event
  * @param {typeof fetch} [options.fetchImpl]
  */
 export async function ingestLog({
@@ -26,6 +28,8 @@ export async function ingestLog({
   execution_id = null,
   durationMs = 0,
   duration_ms = null,
+  sourceEventId = null,
+  source_event_id = null,
   fetchImpl = fetch,
 } = {}) {
   if (!loggerUrl || !pod || !event) return null;
@@ -34,6 +38,7 @@ export async function ingestLog({
   const corrId = correlationId || correlation_id || data?.jobId || data?.correlationId || null;
   const execId = executionId || execution_id || null;
   const elapsed = duration_ms ?? durationMs ?? 0;
+  const sourceId = sourceEventId || source_event_id || null;
 
   try {
     const res = await fetchImpl(url, {
@@ -50,6 +55,7 @@ export async function ingestLog({
         execution_id: execId,
         durationMs: elapsed,
         duration_ms: elapsed,
+        ...(sourceId ? { sourceEventId: sourceId } : {}),
       }),
     });
     if (!res.ok) return null;
