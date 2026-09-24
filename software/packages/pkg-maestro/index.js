@@ -235,6 +235,10 @@ export function storeErrorStatus(err) {
   if (err.name === 'UnitDbError') return 503;
   const code = String(err.code || '');
   if (/^(ER_|ECONN|PROTOCOL_|POOL_|ETIMEDOUT|EPIPE|EHOSTUNREACH)/.test(code)) return 503;
+  // The private socket gone (its MariaDB stopped) or unreadable: the driver
+  // reports the connect() failure, not a database error. Measured on the
+  // running universe, where this answered 500 while Vault and Queue said 503.
+  if ((code === 'ENOENT' || code === 'EACCES') && err.syscall === 'connect') return 503;
   if (err.name === 'ScheduleError') return err.status || 400;
   return 500;
 }

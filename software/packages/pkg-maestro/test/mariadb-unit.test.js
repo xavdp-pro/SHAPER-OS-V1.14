@@ -105,6 +105,13 @@ describe('a storage failure is an unavailable Maestro, not a bad request', () =>
     assert.equal(storeErrorStatus(new ScheduleError('INVALID_SCHEDULE', 'x')), 400);
     assert.equal(storeErrorStatus(new ScheduleError('SCHEDULE_UNKNOWN', 'x', 404)), 404);
     assert.equal(storeErrorStatus(new Error('plain')), 500);
+    // Non-regression (Rule 29): with its MariaDB stopped, the socket file is
+    // gone and the driver fails connect() with ENOENT; Maestro answered 500.
+    for (const code of ['ENOENT', 'EACCES']) {
+      const gone = Object.assign(new Error(`connect ${code} /run/mysqld/mysqld.sock`), { code, syscall: 'connect', address: '/run/mysqld/mysqld.sock' });
+      assert.equal(storeErrorStatus(gone), 503, `${code} on connect is storage unavailable`);
+    }
+    assert.equal(storeErrorStatus(Object.assign(new Error('no file'), { code: 'ENOENT', syscall: 'open' })), 500, 'a missing file elsewhere is not the database');
   });
 
   it('answers 503 with a typed code on every route when its database is gone', async () => {
