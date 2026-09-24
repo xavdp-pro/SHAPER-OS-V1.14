@@ -2,7 +2,8 @@
   "brick": "vault",
   "contractVersion": 1,
   "distribution": "base",
-  "buildPackages": ["pkg-logger", "pkg-vault"],
+  "buildPackages": ["pkg-db", "pkg-logger", "pkg-vault"],
   "runtimeServices": [],
-  "proof": ["vault health", "encrypted persistence", "logger correlation"]
+  "unit": { "slug": "vault", "uid": 10610, "schema": "/app/sql/schema.sql" },
+  "proof": ["vault health", "private MariaDB identity", "encrypted persistence", "key continuity", "restore decrypts"]
 }

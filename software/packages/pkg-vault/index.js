@@ -130,6 +130,43 @@ export function validateMailboxSchema(data) {
 import { vitals, ageSeconds, writable } from '../pkg-logger/vitals.js';
 
 /**
+ * Canonical form of a secret key: no leading slash.
+ * @param {string} key
+ * @returns {string}
+ */
+export function normalizeSecretKey(key) {
+  if (!key) throw new Error('Secret key is required.');
+  return key.startsWith('/') ? key.slice(1) : key;
+}
+
+/**
+ * Refuses a mailbox secret that claims a provider but breaks the mailbox contract.
+ * @param {string} normalizedKey
+ * @param {object|string} payload
+ */
+export function assertStorablePayload(normalizedKey, payload) {
+  if (normalizedKey.startsWith('secret/mail/') || normalizedKey.startsWith('mailbox-')) {
+    const validation = validateMailboxSchema(payload);
+    if (!validation.valid && typeof payload === 'object' && payload.provider) {
+      throw new Error(`Mailbox schema validation failed: ${validation.errors.join(', ')}`);
+    }
+  }
+}
+
+/**
+ * A verifier for the master key that reveals nothing about it: HMAC-SHA256 of a
+ * fixed label under the key. Recorded once when a Vault identity is born, then
+ * compared at every start, so a Vault never serves a database with the wrong key.
+ * @param {string|Buffer} masterKey
+ * @returns {string} 64 hex characters
+ */
+export function keyCheckDigest(masterKey) {
+  return crypto.createHmac('sha256', normalizeMasterKey(masterKey))
+    .update('shaper-vault/key-check/v1')
+    .digest('hex');
+}
+
+/**
  * Encrypted persistent storage manager.
  */
 export class VaultStore {
@@ -213,18 +250,8 @@ export class VaultStore {
    * @param {object|string} payload 
    */
   setSecret(key, payload) {
-    if (!key) throw new Error('Secret key is required.');
-    
-    // Normalize key
-    const normalizedKey = key.startsWith('/') ? key.slice(1) : key;
-    
-    // If it is a mail secret, optional validation
-    if (normalizedKey.startsWith('secret/mail/') || normalizedKey.startsWith('mailbox-')) {
-      const validation = validateMailboxSchema(payload);
-      if (!validation.valid && typeof payload === 'object' && payload.provider) {
-        throw new Error(`Mailbox schema validation failed: ${validation.errors.join(', ')}`);
-      }
-    }
+    const normalizedKey = normalizeSecretKey(key);
+    assertStorablePayload(normalizedKey, payload);
 
     const encrypted = encryptSecret(payload, this.masterKey);
     this.entries.set(normalizedKey, {
@@ -352,6 +379,18 @@ export class VaultClient {
 }
 
 /**
+ * A storage failure is an unavailable Vault (503), never a malformed request.
+ * @param {Error & { code?: string }} err
+ * @returns {number}
+ */
+export function storeErrorStatus(err) {
+  const code = String(err && err.code || '');
+  if (err && err.name === 'UnitDbError') return 503;
+  if (/^(ER_|ECONN|ENOENT|EACCES|PROTOCOL_|POOL_)/.test(code)) return 503;
+  return 500;
+}
+
+/**
  * Creates and starts an HTTP REST server for Vault.
  * @param {object} options
  * @param {number} [options.port=8610]
@@ -387,27 +426,43 @@ export function createVaultServer({
       res.end(JSON.stringify(data));
     };
 
+    try {
+      await route(req, res, sendJson);
+    } catch (err) {
+      const status = storeErrorStatus(err);
+      sendJson(status, { error: status === 503 ? 'Vault storage unavailable' : 'Vault request failed', code: err.code || null, detail: err.message });
+    }
+  });
+
+  async function readBody(req) {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    return body;
+  }
+
+  async function route(req, res, sendJson) {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
 
     // Public health check
     if (req.method === 'GET' && (pathname === '/api/health' || pathname === '/health')) {
+      const db = typeof store.probe === 'function' ? await store.probe() : null;
+      if (db && !db.ok) {
+        return sendJson(503, { status: 'unavailable', service: 'brick-vault', db, timestamp: new Date().toISOString() });
+      }
       return sendJson(200, {
         status: 'ok',
         service: 'brick-vault',
-        secretsCount: store.listKeys().length,
+        storage: store.storageKind || 'file',
+        ...(db ? { db } : {}),
+        secretsCount: (await store.listKeys()).length,
         timestamp: new Date().toISOString()
       });
     }
 
     // Public vitals check
     if (req.method === 'GET' && (pathname === '/api/vitals' || pathname === '/vitals')) {
-      try {
-        const v = await store.vitals();
-        return sendJson(200, v);
-      } catch (err) {
-        return sendJson(500, { error: err.message });
-      }
+      return sendJson(200, await store.vitals());
     }
 
     // Bearer token authentication if configured
@@ -423,7 +478,7 @@ export function createVaultServer({
     if (req.method === 'GET' && pathname === '/api/secrets') {
       return sendJson(200, {
         status: 'ok',
-        keys: store.listKeys()
+        keys: await store.listKeys()
       });
     }
 
@@ -432,7 +487,7 @@ export function createVaultServer({
       const secretKey = decodeURIComponent(pathname.replace('/api/secret/', ''));
 
       if (req.method === 'GET') {
-        const secret = store.getSecret(secretKey);
+        const secret = await store.getSecret(secretKey);
         if (secret === null || secret === undefined) {
           return sendJson(404, { error: `Secret "${secretKey}" not found.` });
         }
@@ -440,23 +495,24 @@ export function createVaultServer({
       }
 
       if (req.method === 'POST' || req.method === 'PUT') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', () => {
-          try {
-            const parsed = JSON.parse(body || '{}');
-            const dataToStore = parsed.data !== undefined ? parsed.data : parsed;
-            store.setSecret(secretKey, dataToStore);
-            return sendJson(200, { status: 'ok', message: `Secret "${secretKey}" stored successfully.` });
-          } catch (err) {
-            return sendJson(400, { error: `Failed to store secret: ${err.message}` });
-          }
-        });
-        return;
+        let dataToStore;
+        try {
+          const parsed = JSON.parse((await readBody(req)) || '{}');
+          dataToStore = parsed.data !== undefined ? parsed.data : parsed;
+        } catch (err) {
+          return sendJson(400, { error: `Failed to store secret: ${err.message}` });
+        }
+        try {
+          await store.setSecret(secretKey, dataToStore);
+        } catch (err) {
+          if (storeErrorStatus(err) === 503) throw err;
+          return sendJson(400, { error: `Failed to store secret: ${err.message}` });
+        }
+        return sendJson(200, { status: 'ok', message: `Secret "${secretKey}" stored successfully.` });
       }
 
       if (req.method === 'DELETE') {
-        const deleted = store.deleteSecret(secretKey);
+        const deleted = await store.deleteSecret(secretKey);
         if (!deleted) {
           return sendJson(404, { error: `Secret "${secretKey}" not found.` });
         }
@@ -466,7 +522,7 @@ export function createVaultServer({
 
     // Route not found
     sendJson(404, { error: 'Not Found' });
-  });
+  }
 
   server.listen(port, host);
   return server;

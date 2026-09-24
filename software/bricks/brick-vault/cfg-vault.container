@@ -15,10 +15,17 @@ After=network-online.target
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-vault
-PublishPort=127.0.0.1:8610:8610
+Network=host
 Environment=VAULT_PORT=8610
-Environment=VAULT_STORAGE_FILE=/data/vault/vault.enc
-Volume=vol-%i-vault:/data/vault:Z
+Environment=HOST=127.0.0.1
+Environment=VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key
+# The unit's private MariaDB (Rules 4 and 26) runs beside it as
+# %i-ctr-vault-mariadb, provisioned by scripts/provision-unit-mariadb.sh; the
+# socket directory and the passwd file are the only paths the two share.
+Volume=/apps/vault/nosav/run/mysqld:/run/mysqld:z
+Volume=/apps/vault/etc/mysql/localhost/passwd:/apps/vault/etc/mysql/localhost/passwd:ro,Z
+Volume=/apps/vault/etc/vault/master.key:/apps/vault/etc/vault/master.key:ro,Z
+User=10610:10610
 Restart=always
 
 [Install]
