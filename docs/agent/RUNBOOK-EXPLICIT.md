@@ -342,7 +342,8 @@ printf '%s' PROBE-OK | cmp -s - "$PROBE_DIR/marker.txt" && echo "<candidate>: co
 export OPENCODE_MODEL=<the engine your measurements and the declared enginePolicy select — Rule 7>
 # The same measurement, the same shape, for every other bridge this universe
 # enables: CURSOR_MODEL (bridge-cursor), AGY_MODEL or ANTIGRAVITY_MODEL
-# (bridge-agy), OLLAMA_MODEL or DEEPSEEK_MODEL (bridge-deepseek) — each
+# (bridge-agy), OLLAMA_MODEL or DEEPSEEK_MODEL (bridge-deepseek),
+# MUSE_MODEL or META_MUSE_MODEL (bridge-muse) — each
 # measured at deploy, never written here. No bridge names a default: each
 # halts without its variable; podman-up.sh halts before starting bridge-cursor
 # or bridge-agy, and bridge-deepseek (not started by the template) halts in

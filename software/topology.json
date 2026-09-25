@@ -28,6 +28,7 @@
       "@shaper/pkg-bridge-agy",
       "@shaper/pkg-bridge-cursor",
       "@shaper/pkg-bridge-deepseek",
+      "@shaper/pkg-bridge-muse",
       "@shaper/pkg-bridge-opencode",
       "opencode-bridge",
       "@shaper/pkg-supervisor"

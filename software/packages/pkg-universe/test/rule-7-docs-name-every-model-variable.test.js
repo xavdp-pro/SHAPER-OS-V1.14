@@ -34,8 +34,10 @@ const VARIABLES = [
   { name: 'ANTIGRAVITY_MODEL', readBy: 'software/packages/pkg-bridge-agy/index.js' },
   { name: 'OLLAMA_MODEL', readBy: 'software/packages/pkg-bridge-deepseek/index.js' },
   { name: 'DEEPSEEK_MODEL', readBy: 'software/packages/pkg-bridge-deepseek/index.js' },
+  { name: 'MUSE_MODEL', readBy: 'software/packages/pkg-bridge-muse/index.js' },
+  { name: 'META_MUSE_MODEL', readBy: 'software/packages/pkg-bridge-muse/index.js' },
 ];
-const ANY_MODEL_VAR = /\b(OPENCODE|CURSOR|AGY|ANTIGRAVITY|OLLAMA|DEEPSEEK)_MODEL=(?!\s*$)(?!<)(\S+)/;
+const ANY_MODEL_VAR = /\b(OPENCODE|CURSOR|AGY|ANTIGRAVITY|OLLAMA|DEEPSEEK|MUSE|META_MUSE)_MODEL=(?!\s*$)(?!<)(\S+)/;
 
 test('every variable this guard expects is one a bridge really reads', () => {
   const fiction = VARIABLES.filter(({ name, readBy }) => !read(readBy).includes(name)).map(({ name }) => name);
