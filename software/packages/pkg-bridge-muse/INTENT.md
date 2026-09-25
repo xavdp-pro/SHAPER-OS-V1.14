@@ -24,4 +24,6 @@ approval prompts, no blocking `request_user_input`.
 
 ## Cognition
 
-- **role**: provides · **capacity-class**: meta-spark · **depth**: D3 · **throughput**: T2 · **degraded**: allowed-with-note
+- **role**: provides · **capacity-class**: heavy-engineering · **depth**: D3 · **throughput**: T2 · **degraded**: allowed-with-note
+
+Scales: [`../../../docs/architecture/COGNITION.md`](../../../docs/architecture/COGNITION.md).

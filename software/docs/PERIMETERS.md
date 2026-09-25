@@ -81,6 +81,7 @@ flowchart TB
 | `@shaper/pkg-mail-agent` | IMAP check (vault creds only) | ✅ |
 | `@shaper/pkg-bridge-agy` / `brick-bridge-agy` | Antigravity CLI bridge (Rule 8) | ✅ |
 | `@shaper/pkg-bridge-opencode` / `brick-bridge-opencode` | OpenCode CLI bridge (free tier) | ✅ |
+| `@shaper/pkg-bridge-muse` | Meta Muse CLI bridge (Rule 8, headless) | ✅ package; `brick-bridge-muse` not in tree yet |
 | `opencode-bridge` | Vendored OpenCode HTTP/SSE server | ✅ |
 | `brick-helm` (Helm) | The conversational interface (Rule 0F): `/console`, admin socle/maestro; jurisdiction and pilot level are TARGET | ➡️ catalogue (`SHAPER-OS-BRICKS`, a private repository), not in `software/bricks/` |
 | `@shaper/pkg-ged-engine` / `brick-ged` | Operator document hub (`/data/ged`) | ➡️ catalogue (`SHAPER-OS-BRICKS`, a private repository), not in `software/bricks/` |

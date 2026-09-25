@@ -117,6 +117,7 @@
 | :--- | :--- | :--- |
 | Antigravity | `@shaper/pkg-bridge-agy` · `brick-bridge-agy` | live |
 | OpenCode free | `@shaper/pkg-bridge-opencode` · `opencode-bridge` | live |
+| Meta Muse | `@shaper/pkg-bridge-muse` · `:4320` | package live (`brick-bridge-muse` pending) |
 | Claude in the socle | `@shaper/bridge-claude` | absent (Helm routes only) |
 
 ### 2.5 Organism GED
