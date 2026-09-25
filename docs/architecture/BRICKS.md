@@ -82,6 +82,7 @@ no structural change, because they all expose the same interface.
 | `brick-bridge-agy` | Antigravity CLI | Contextual perimeter injection |
 | `brick-bridge-cursor` | Cursor Composer | Interactive class — see Rule 21 `interactive: true` |
 | `brick-bridge-deepseek` | DeepSeek / Ollama Cloud | On-premise and air-gapped paths |
+| `brick-bridge-muse` | Meta Muse CLI | Headless only — `--yolo` + auto-resolve user input |
 
 Adapters **provide** cognition rather than require it — see the distinction
 below. Choosing between them is a human decision (Rule 0H), informed by

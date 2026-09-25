@@ -14,7 +14,7 @@ const SOURCES = new Set(['base', 'catalogue', 'fork', 'native']);
 const CANON = {
   'brick-vault': 'P1', 'brick-logger': 'P1', 'brick-queue': 'P1', 'brick-mariadb': 'P1',
   'brick-maestro': 'P2', 'brick-bridge-opencode': 'P2', 'brick-bridge-agy': 'P2',
-  'brick-bridge-cursor': 'P2', 'brick-bridge-deepseek': 'P2', 'brick-helm': 'P2',
+  'brick-bridge-cursor': 'P2', 'brick-bridge-deepseek': 'P2', 'brick-bridge-muse': 'P2', 'brick-helm': 'P2',
   'brick-ged': 'P2', 'brick-qdrant': 'P2', 'brick-pipeline': 'P2',
 };
 

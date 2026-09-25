@@ -1,0 +1,15 @@
+[Unit]
+Description=SHAPER OS Meta Muse bridge (Podman Quadlet)
+After=network-online.target
+
+[Container]
+Image=@IMG@
+ContainerName=%i-ctr-bridge-muse
+PublishPort=127.0.0.1:4320:4320
+Environment=MUSE_BRIDGE_PORT=4320
+Environment=MUSE_BRIDGE_BIND=0.0.0.0
+Volume=vol-%i-bridge-muse:/data/muse-ws:Z
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -230,8 +230,10 @@ export WORK_ROOT="${WORK_ROOT:-$UNIV/work}"
 # `bridgeUrl`, so adding one is deployment, never code.
 export WITH_BRIDGE_CURSOR="${WITH_BRIDGE_CURSOR:-0}"
 export WITH_BRIDGE_AGY="${WITH_BRIDGE_AGY:-0}"
+export WITH_BRIDGE_MUSE="${WITH_BRIDGE_MUSE:-0}"
 export CURSOR_BRIDGE_PORT="${CURSOR_BRIDGE_PORT:-4510}"
 export AGY_BRIDGE_PORT="${AGY_BRIDGE_PORT:-4330}"
+export MUSE_BRIDGE_PORT="${MUSE_BRIDGE_PORT:-4320}"
 
 # Every path mounted below must exist first: podman refuses to create a missing
 # bind source, and the failure only shows on a from-scratch universe — which is
@@ -239,7 +241,7 @@ export AGY_BRIDGE_PORT="${AGY_BRIDGE_PORT:-4330}"
 mkdir -p "$UNIV/sav/vault" \
   "$UNIV/log" "$UNIV/sav" "$UNIV/state" \
   "$UNIV/sav/opencode-ws" "$UNIV/sav/opencode-bridge" \
-  "$UNIV/sav/queue" "$WORK_ROOT"
+  "$UNIV/sav/muse-ws" "$UNIV/sav/queue" "$WORK_ROOT"
 
 # The vault is PER-UNIVERSE state, in this universe's own sav/ (Rule 26 spirit).
 # Until V1.13.1 it lived in software/data/vault, shared by every universe on the
@@ -298,6 +300,7 @@ stop_rm "${SLUG}-logger"
 stop_rm "${SLUG}-bridge-opencode"
 stop_rm "${SLUG}-bridge-cursor"
 stop_rm "${SLUG}-bridge-agy"
+stop_rm "${SLUG}-bridge-muse"
 stop_rm "${SLUG}-queue"
 stop_rm "${SLUG}-maestro"
 
@@ -400,6 +403,30 @@ if [[ "$WITH_BRIDGE_AGY" == "1" ]]; then
     ${AGY_HOST_HOME:+-v "${AGY_HOST_HOME}:/root/.gemini"} \
     -v "${WORK_ROOT}:${WORK_ROOT}:Z" \
     "$(shaper_image_ref img-bridge-agy)"
+fi
+
+if [[ "$WITH_BRIDGE_MUSE" == "1" ]]; then
+  echo "[podman-up] bridge-muse :$MUSE_BRIDGE_PORT"
+  if [[ "${BRIDGE_MUSE_STUB:-0}" != "1" ]]; then
+    : "${MUSE_MODEL:?not set — bridge-muse is enabled and names no default model (Rule 7): measure the engines reachable from this host and export MUSE_MODEL=<model id>}"
+  fi
+  podman run -d --name "${SLUG}-bridge-muse" --network "$NET" --replace \
+    --cgroups=disabled \
+    -e MUSE_BRIDGE_PORT="$MUSE_BRIDGE_PORT" \
+    -e MUSE_BRIDGE_BIND="${MUSE_BRIDGE_BIND:-0.0.0.0}" \
+    -e BRIDGE_MUSE_STUB=0 \
+    -e MUSE_BIN=/usr/local/bin/muse \
+    -e MUSE_MODEL="${MUSE_MODEL:-${META_MUSE_MODEL:-}}" \
+    -e MUSE_PROVIDER="${MUSE_PROVIDER:-meta}" \
+    -e MUSE_REASONING_EFFORT="${MUSE_REASONING_EFFORT:-high}" \
+    -e META_API_KEY="${META_API_KEY:-${META_MUSE_API_KEY:-}}" \
+    -e META_MUSE_API_KEY="${META_MUSE_API_KEY:-}" \
+    -e META_MUSE_BASE_URL="${META_MUSE_BASE_URL:-}" \
+    -e MUSE_WS_BASE=/data/muse-ws \
+    ${MUSE_HOST_BIN:+-v "${MUSE_HOST_BIN}:/usr/local/bin/muse:ro"} \
+    -v "$UNIV/sav/muse-ws:/data/muse-ws:Z" \
+    -v "${WORK_ROOT}:${WORK_ROOT}:Z" \
+    "$(shaper_image_ref img-bridge-muse)"
 fi
 
 TASKS_FILE="/data/univ/tasks/task-schedule.json"

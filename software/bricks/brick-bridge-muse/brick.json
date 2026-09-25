@@ -1,0 +1,14 @@
+{
+  "brick": "bridge-muse",
+  "contractVersion": 1,
+  "distribution": "base",
+  "buildPackages": [
+    "pkg-logger",
+    "pkg-bridge-muse"
+  ],
+  "runtimeServices": [],
+  "proof": [
+    "bridge health",
+    "authenticated vitals"
+  ]
+}

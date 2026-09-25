@@ -53,7 +53,7 @@ export SHAPER_BASE_IMAGE="${SHAPER_BASE_IMAGE:-${SHAPER_REGISTRY}/shaper/base:${
 
 for brick in \
   brick-vault brick-logger brick-queue brick-maestro \
-  brick-bridge-opencode brick-bridge-agy brick-bridge-cursor brick-bridge-deepseek
+  brick-bridge-opencode brick-bridge-agy brick-bridge-cursor brick-bridge-deepseek brick-bridge-muse
 do
   if [[ "${SHAPER_FORCE_REBUILD:-0}" != "1" ]] && published "${brick}"; then
     echo "[build-all-bricks] shaper/${brick}:${SHAPER_IMAGE_TAG} already published — skipped"

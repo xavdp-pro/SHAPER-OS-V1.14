@@ -1,0 +1,28 @@
+ARG SHAPER_BASE_IMAGE
+FROM ${SHAPER_BASE_IMAGE} AS shaper_base
+FROM docker.io/library/node:20-bookworm-slim
+
+ARG SHAPER_SOURCE_REVISION
+LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.brick="bridge-muse"
+LABEL org.shaper.build-packages="logger bridge-muse"
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /pkg-logger/
+COPY --from=shaper_base /shaper/packages/pkg-bridge-muse/ ./
+
+EXPOSE 4320
+ENV NODE_ENV=production
+ENV HOME=/root
+ENV MUSE_BRIDGE_PORT=4320
+ENV MUSE_BRIDGE_BIND=0.0.0.0
+ENV MUSE_WS_BASE=/data/muse-ws
+ENV BRIDGE_MUSE_STUB=1
+ENV MUSE_BIN=/usr/local/bin/muse
+ENV MUSE_MODEL=
+ENV META_MUSE_MODEL=
+
+CMD ["node", "server.js"]
