@@ -55,8 +55,9 @@ def main():
         raise RuntimeError('owned_function_start_timeout')
     def phase(cid,name):
         assert_owned(cid)
-        result=run(['podman','exec','--user','vault',cid,'node','/qa/functional-http.mjs',name],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-        (root/(name+'-fixture.log')).write_bytes(result.stdout)
+        result=subprocess.run(['podman','exec','--user','vault',cid,'node','/qa/functional-http.mjs',name],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=90)
+        (root/(name+'-fixture.log')).write_bytes(result.stdout+result.stderr)
+        result.check_returncode()
         receipt['phases'].append(json.loads(result.stdout))
     def sql(cid,content,stdout=subprocess.DEVNULL):
         assert_owned(cid)
@@ -116,6 +117,15 @@ def main():
                 receipt['startupNegatives'][-1]['outsideMetadataAndContentUnchanged']=True
             if (data/'etc/mysql/localhost/passwd').exists():raise RuntimeError('negative_mutated_password_state')
         receipt['passed']=True
+    except Exception as error:
+        receipt['failureClass']=type(error).__name__
+        for number,cid in enumerate(owned):
+            try:
+                assert_owned(cid)
+                logs=subprocess.run(['podman','logs',cid],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=5)
+                (root/('failure-container-'+str(number)+'.log')).write_bytes(logs.stdout+logs.stderr)
+            except Exception:pass
+        raise
     finally:
         cleanup=True
         for cid in reversed(owned):
