@@ -5,7 +5,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {DurableVaultClient} from '/apps/vault/app/pkg-vault/durable-http.js';
 import {readPrivateOwnerFile} from '/apps/vault/app/pkg-vault/durable-runtime.mjs';
-const phase=process.argv[2];assert(['seed','restart','restore','upgrade-seed','upgrade','upgrade-restart'].includes(phase));
+const phase=process.argv[2];assert(['seed','restart','restore','upgrade-seed','upgrade','upgrade-restart','upgrade-write'].includes(phase));
 assert.equal(process.getuid(),10001);
 const require=createRequire('/apps/vault/nosav/package.json');
 const mysql=require('mysql2/promise');
@@ -16,11 +16,13 @@ const settings={socketPath:'/apps/vault/nosav/mysql/vault.sock',user:'vault',dat
 const connection=await mysql.createConnection(settings);
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const payload={universeId:'synthetic',deviceId:'synthetic-device',revision:1,secret:'synthetic_private_payload'};
-const snapshot=async()=>{
+const snapshotRows=async()=>{
   const data={};for(const table of (phase.startsWith('upgrade')?['vault_owner_epochs','vault_owner_resources','vault_owner_operations']:['vault_owner_epochs','vault_owner_resources','vault_owner_operations','vault_owner_resource_fences','vault_owner_guards'])){
     data[table]=(await connection.query(`SELECT * FROM ${table} ORDER BY ${table==='vault_owner_operations'||table==='vault_owner_guards'?'sequence':table==='vault_owner_epochs'?'scope_id':'scope_id,path_hash'}`))[0];
-  }return digest(data);
+  }return data;
 };
+const snapshot=async()=>digest(await snapshotRows());
+let originalRowsUnchanged=null;
 try{
   const [[identity]]=await connection.query('SELECT CURRENT_USER() AS principal,DATABASE() AS db,@@skip_networking AS network_disabled,VERSION() AS version');
   assert.equal(identity.principal,'vault@localhost');assert.equal(identity.db,'vault');assert.equal(Number(identity.network_disabled),1);
@@ -66,6 +68,18 @@ try{
     assert.deepEqual(await client.verifyReceipt({receipt:state.active,path:state.active.path,operationId:state.active.operationId,payloadDigest:state.payloadDigest}),state.active);
     assert.deepEqual(await client.getPrepared({path:state.active.path,deviceId:payload.deviceId,revision:1}),payload);
     await assert.rejects(client.getPrepared({path:state.prepared.path,deviceId:payload.deviceId,revision:1}),/resource_unavailable/);
+    if(phase==='upgrade-write'){
+      const original=await snapshotRows();
+      const input={path:'secret/resource/synthetic/post-upgrade',operationId:randomUUID(),payload,payloadDigest:digest(payload)};
+      const prepared=await client.prepareImmutable(input);
+      assert.deepEqual(await client.findReceipt({path:input.path,operationId:input.operationId}),prepared);
+      assert.deepEqual(await client.verifyReceipt({receipt:prepared,path:input.path,operationId:input.operationId,payloadDigest:input.payloadDigest}),prepared);
+      assert.deepEqual(await client.getPrepared({path:input.path,deviceId:payload.deviceId,revision:1}),payload);
+      assert.equal((await client.tombstoneImmutable({path:input.path,operationId:randomUUID(),universeId:payload.universeId,deviceId:payload.deviceId,revision:2})).action,'tombstone');
+      const after=await snapshotRows();
+      for(const [table,rows]of Object.entries(original))for(const row of rows)assert(after[table].some(candidate=>JSON.stringify(candidate)===JSON.stringify(row)));
+      originalRowsUnchanged=true;
+    }
   }
-  console.log(JSON.stringify({phase,passed:true,uid:process.getuid(),databaseIdentity:identity,node:process.version,driver:require('mysql2/package.json').version,tableDigest:await snapshot(),digestTables:phase.startsWith('upgrade')?3:5,guardRoutesMounted:false,methods:['prepareImmutable','findReceipt','verifyReceipt','getPrepared','tombstoneImmutable'],scope:'synthetic_only',transport:'loopback_http_inside_network_none_container'}));
+  console.log(JSON.stringify({phase,passed:true,uid:process.getuid(),databaseIdentity:identity,node:process.version,driver:require('mysql2/package.json').version,tableDigest:await snapshot(),digestTables:phase.startsWith('upgrade')?3:5,guardRoutesMounted:false,originalRowsUnchanged,methods:['prepareImmutable','findReceipt','verifyReceipt','getPrepared','tombstoneImmutable'],scope:'synthetic_only',transport:'loopback_http_inside_network_none_container'}));
 }finally{await connection.end()}

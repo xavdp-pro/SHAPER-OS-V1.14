@@ -93,7 +93,7 @@ def main():
             baseline_private={str(p.relative_to(upgrade)):hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}
             assert_owned(oldcid);run(['podman','stop','--time','30',oldcid],stdout=subprocess.DEVNULL)
             newcid=start('upgrade-new',upgrade);wait_ready(newcid);phase(newcid,'upgrade')
-            assert_owned(newcid);run(['podman','restart','--time','30',newcid],stdout=subprocess.DEVNULL);wait_ready(newcid);phase(newcid,'upgrade-restart')
+            assert_owned(newcid);run(['podman','restart','--time','30',newcid],stdout=subprocess.DEVNULL);wait_ready(newcid);phase(newcid,'upgrade-restart');phase(newcid,'upgrade-write')
             if {str(p.relative_to(upgrade)):hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}!=baseline_private:raise RuntimeError('upgrade_private_custody_changed')
             receipt['legacyPrivateKeysPasswordAndSourceMarkerUnchanged']=True
             receipt['legacyThreeTableUpgradePreserved']=True
