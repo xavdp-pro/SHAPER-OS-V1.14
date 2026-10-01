@@ -146,7 +146,9 @@ def main():
     sql(f"CREATE USER IF NOT EXISTS 'vault'@'localhost' IDENTIFIED BY '{password}';ALTER USER 'vault'@'localhost' IDENTIFIED BY '{password}';"
         "GRANT SELECT,INSERT ON vault.vault_owner_epochs TO 'vault'@'localhost';"
         "GRANT SELECT,INSERT,UPDATE(receipt_json) ON vault.vault_owner_operations TO 'vault'@'localhost';"
-        "GRANT SELECT,INSERT,UPDATE(revision,tombstoned,encrypted_payload,payload_digest) ON vault.vault_owner_resources TO 'vault'@'localhost';")
+        "GRANT SELECT,INSERT,UPDATE(revision,tombstoned,encrypted_payload,payload_digest) ON vault.vault_owner_resources TO 'vault'@'localhost';"
+        "GRANT SELECT,INSERT,UPDATE(managed,held_guard_id,deny_new,deny_operation_id,deny_revision,deny_request_digest) ON vault.vault_owner_resource_fences TO 'vault'@'localhost';"
+        "GRANT SELECT,INSERT,UPDATE(state,terminal_ack_json,terminal_ack_digest) ON vault.vault_owner_guards TO 'vault'@'localhost';")
     application=subprocess.Popen(['/usr/bin/setpriv','--reuid=vault','--regid=vault','--init-groups','node',str(ROOT/'app/pkg-vault/durable-runtime.mjs')],stdin=subprocess.DEVNULL)
     CHILDREN.append(application)
     while not STOP:

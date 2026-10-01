@@ -7,7 +7,7 @@ import argparse, hashlib, json, os, pathlib, re, secrets, shutil, subprocess, te
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--execute-disposable-function-qa',action='store_true',required=True)
-    parser.add_argument('--image',required=True);parser.add_argument('--prefix',required=True)
+    parser.add_argument('--legacy-image');parser.add_argument('--image',required=True);parser.add_argument('--prefix',required=True)
     parser.add_argument('--evidence-root',type=pathlib.Path,required=True)
     args=parser.parse_args()
     if os.geteuid()!=0 or not re.fullmatch('[a-z0-9][a-z0-9-]{1,48}',args.prefix) or not re.fullmatch('[A-Za-z0-9][A-Za-z0-9:/.@_-]+',args.image):
@@ -36,13 +36,13 @@ def main():
             for key_name in ['master-key','token']:
                 path=data/'etc/owner'/key_name;path.write_text(secrets.token_hex(32));path.chmod(0o600);os.chown(path,10001,10001)
         cases[name]=data;return data
-    def start(name,data):
+    def start(name,data,image=None):
         argv=['podman','run','-d','--name',args.prefix+'-'+name,'--label','org.shaper.qa-owner='+owner,'--network','none','--read-only','--cpus','1','--memory','512m','--pids-limit','96','--security-opt','no-new-privileges',
           '--cap-drop','ALL','--cap-add','CHOWN','--cap-add','FOWNER','--cap-add','DAC_OVERRIDE','--cap-add','SETUID','--cap-add','SETGID','--env','VAULT_UNIVERSE_ID=synthetic']
         for host,target in [(data/'etc','/apps/vault/etc'),(data/'sav','/apps/vault/sav'),(data/'log','/apps/vault/log'),(data/'mysql','/apps/vault/nosav/mysql'),(data/'temporary','/tmp'),(data/'qa-state','/qa-state')]:argv+=['--volume',str(host)+':'+target+':rw']
         argv+=['--volume',str(pathlib.Path(__file__).resolve().parent)+':/qa:ro']
         if (data/'outside').exists():argv+=['--volume',str(data/'outside')+':/outside:rw']
-        argv+=[args.image];cid=run(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout.decode().strip()
+        argv+=[image or args.image];cid=run(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout.decode().strip()
         if not re.fullmatch('[a-f0-9]{64}',cid):raise RuntimeError('owned_container_id_invalid')
         owned.append(cid);return cid
     def wait_ready(cid):
@@ -83,7 +83,24 @@ def main():
         image=json.loads(run(['podman','image','inspect',args.image],stdout=subprocess.PIPE).stdout)[0]
         receipt['imageId']=image['Id'];receipt['imageSourceRevision']=image['Config']['Labels'].get('org.opencontainers.image.revision')
         receipt['fixtureHashes']={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in [pathlib.Path(__file__),pathlib.Path(__file__).with_name('functional-http.mjs')]}
-        original=prepare('original');cid=start('original',original);wait_ready(cid);phase(cid,'seed')
+        if args.legacy_image:
+            if not re.fullmatch('[A-Za-z0-9][A-Za-z0-9:/.@_-]+',args.legacy_image):raise RuntimeError('legacy_image_admission_invalid')
+            old=json.loads(run(['podman','image','inspect',args.legacy_image],stdout=subprocess.PIPE).stdout)[0]
+            receipt['legacyImageId']=old['Id'];receipt['legacyImageSourceRevision']=old['Config']['Labels'].get('org.opencontainers.image.revision')
+            if receipt['legacyImageSourceRevision']!='c67b0df':raise RuntimeError('legacy_source_identity_invalid')
+            upgrade=prepare('upgrade');oldcid=start('upgrade-old',upgrade,args.legacy_image);wait_ready(oldcid);phase(oldcid,'upgrade-seed')
+            protected=[upgrade/'etc/owner/master-key',upgrade/'etc/owner/token',upgrade/'etc/mysql/localhost/passwd',upgrade/'sav/runtime-source']
+            baseline_private={str(p.relative_to(upgrade)):hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}
+            assert_owned(oldcid);run(['podman','stop','--time','30',oldcid],stdout=subprocess.DEVNULL)
+            newcid=start('upgrade-new',upgrade);wait_ready(newcid);phase(newcid,'upgrade')
+            assert_owned(newcid);run(['podman','restart','--time','30',newcid],stdout=subprocess.DEVNULL);wait_ready(newcid);phase(newcid,'upgrade-restart')
+            if {str(p.relative_to(upgrade)):hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}!=baseline_private:raise RuntimeError('upgrade_private_custody_changed')
+            receipt['legacyPrivateKeysPasswordAndSourceMarkerUnchanged']=True
+            receipt['legacyThreeTableUpgradePreserved']=True
+            assert_owned(newcid);run(['podman','stop','--time','30',newcid],stdout=subprocess.DEVNULL)
+        original=prepare('original');cid=start('original',original);wait_ready(cid);
+        run(['podman','exec','--user','vault',cid,'node','--input-type=module','-e',"await import('/apps/vault/app/pkg-vault/durable-guard-owner.js');await import('/apps/vault/app/pkg-vault/durable-runtime.mjs')"],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+        receipt['coldGuardAndLegacyRuntimeImportPassed']=True;phase(cid,'seed')
         metadata_script="import json,pathlib; out=[]\nfor p in pathlib.Path('/proc').iterdir():\n if not p.name.isdigit():continue\n try:\n  c=(p/'cmdline').read_bytes().split(b'\\0'); s=(p/'status').read_text(); u=[x for x in s.splitlines() if x.startswith('Uid:')][0].split()[1:]; n=c[0].decode().split('/')[-1];\n  if n in ['node','mariadbd']:out.append({'pid':int(p.name),'name':n,'uids':u})\n except (FileNotFoundError,PermissionError,IndexError):pass\nprint(json.dumps(out))"
         identities=json.loads(run(['podman','exec',cid,'python3','-c',metadata_script],stdout=subprocess.PIPE).stdout)
         if not any(p['name']=='mariadbd' and p['uids']==['10001']*4 for p in identities) or not any(p['name']=='node' and p['uids']==['10001']*4 for p in identities):raise RuntimeError('actual_function_identities_invalid')
@@ -100,6 +117,18 @@ def main():
         # Additive startup must reject extra privileges, not remove them.
         sql(rid,"GRANT UPDATE ON vault.vault_owner_operations TO 'vault'@'localhost';")
         assert_owned(rid);run(['podman','restart','--time','30',rid],stdout=subprocess.DEVNULL);stopped_refusal(rid,'excess-table-grant')
+        sql_cases={
+          'excess-binding-update':"GRANT UPDATE(binding_json) ON vault.vault_owner_guards TO 'vault'@'localhost';",
+          'foreign-schema-grant':"CREATE DATABASE foreign_function;GRANT SELECT ON foreign_function.* TO 'vault'@'localhost';",
+          'excess-grant-option':"GRANT SELECT ON vault.vault_owner_guards TO 'vault'@'localhost' WITH GRANT OPTION;",
+          'altered-owned-schema':"ALTER TABLE vault.vault_owner_guards ADD unexpected INT;"
+        }
+        for name,statement in sql_cases.items():
+            data=prepare(name);bad=start(name,data);wait_ready(bad);sql(bad,statement)
+            private_before={str(p.relative_to(data)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [data/'etc/owner/master-key',data/'etc/owner/token',data/'etc/mysql/localhost/passwd',data/'sav/runtime-source']}
+            assert_owned(bad);run(['podman','restart','--time','30',bad],stdout=subprocess.DEVNULL);stopped_refusal(bad,name)
+            if {p:hashlib.sha256((data/p).read_bytes()).hexdigest() for p in private_before}!=private_before:raise RuntimeError('refusal_private_custody_changed')
+            receipt['startupNegatives'][-1]['privateCustodyUnchanged']=True
         for name in ['missing-key','key-mode','ancestor-symlink','foreign-directory','unknown-database']:
             data=prepare(name);protected=None;before=None
             if name=='missing-key':(data/'etc/owner/master-key').unlink()

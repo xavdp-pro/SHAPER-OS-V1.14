@@ -5,7 +5,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {DurableVaultClient} from '/apps/vault/app/pkg-vault/durable-http.js';
 import {readPrivateOwnerFile} from '/apps/vault/app/pkg-vault/durable-runtime.mjs';
-const phase=process.argv[2];assert(['seed','restart','restore'].includes(phase));
+const phase=process.argv[2];assert(['seed','restart','restore','upgrade-seed','upgrade','upgrade-restart'].includes(phase));
 assert.equal(process.getuid(),10001);
 const require=createRequire('/apps/vault/nosav/package.json');
 const mysql=require('mysql2/promise');
@@ -17,8 +17,8 @@ const connection=await mysql.createConnection(settings);
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const payload={universeId:'synthetic',deviceId:'synthetic-device',revision:1,secret:'synthetic_private_payload'};
 const snapshot=async()=>{
-  const data={};for(const table of ['vault_owner_epochs','vault_owner_resources','vault_owner_operations']){
-    data[table]=(await connection.query(`SELECT * FROM ${table} ORDER BY ${table==='vault_owner_operations'?'sequence':table==='vault_owner_resources'?'scope_id,path_hash':'scope_id'}`))[0];
+  const data={};for(const table of (phase.startsWith('upgrade')?['vault_owner_epochs','vault_owner_resources','vault_owner_operations']:['vault_owner_epochs','vault_owner_resources','vault_owner_operations','vault_owner_resource_fences','vault_owner_guards'])){
+    data[table]=(await connection.query(`SELECT * FROM ${table} ORDER BY ${table==='vault_owner_operations'||table==='vault_owner_guards'?'sequence':table==='vault_owner_epochs'?'scope_id':'scope_id,path_hash'}`))[0];
   }return digest(data);
 };
 try{
@@ -28,7 +28,15 @@ try{
     await assert.rejects(connection.query(sql),error=>['ER_TABLEACCESS_DENIED_ERROR','ER_COLUMNACCESS_DENIED_ERROR'].includes(error.code));
   await assert.rejects(mysql.createConnection({...settings,user:'root'}),error=>['ER_ACCESS_DENIED_ERROR','ER_ACCESS_DENIED_NO_PASSWORD_ERROR'].includes(error.code));
   await assert.rejects(mysql.createConnection({...settings,user:'foreign_function',password:'synthetic_foreign_password'}),error=>error.code==='ER_ACCESS_DENIED_ERROR');
-  if(phase==='seed'){
+  for(const method of ['acquireGuard','inspectGuard','settleGuard']){
+    const response=await fetch('http://127.0.0.1:8610/api/durable-owner/'+method,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:'{}'});
+    assert.equal(response.status,404);
+  }
+  if(phase!=='upgrade-seed'){
+    const [tables]=await connection.query('SHOW TABLES');assert.equal(tables.length,5);
+    for(const sql of ["UPDATE vault_owner_guards SET binding_json='bad'","UPDATE vault_owner_guards SET guard_id='bad'","UPDATE vault_owner_resource_fences SET path_hash='bad'"])await assert.rejects(connection.query(sql),error=>error.code==='ER_COLUMNACCESS_DENIED_ERROR');
+  }else assert.equal((await connection.query('SHOW TABLES'))[0].length,3);
+  if(phase==='seed'||phase==='upgrade-seed'){
     for(const badToken of [null,'b'.repeat(64)]){
       const headers=badToken?{Authorization:`Bearer ${badToken}`}:{},res=await fetch('http://127.0.0.1:8610/api/durable-owner/getPrepared',{method:'POST',headers,body:'{}'});
       assert.equal(res.status,401);assert.deepEqual(await res.json(),{error:'vault_owner_unauthorized'});
@@ -59,5 +67,5 @@ try{
     assert.deepEqual(await client.getPrepared({path:state.active.path,deviceId:payload.deviceId,revision:1}),payload);
     await assert.rejects(client.getPrepared({path:state.prepared.path,deviceId:payload.deviceId,revision:1}),/resource_unavailable/);
   }
-  console.log(JSON.stringify({phase,passed:true,uid:process.getuid(),databaseIdentity:identity,node:process.version,driver:require('mysql2/package.json').version,tableDigest:await snapshot(),methods:['prepareImmutable','findReceipt','verifyReceipt','getPrepared','tombstoneImmutable'],scope:'synthetic_only',transport:'loopback_http_inside_network_none_container'}));
+  console.log(JSON.stringify({phase,passed:true,uid:process.getuid(),databaseIdentity:identity,node:process.version,driver:require('mysql2/package.json').version,tableDigest:await snapshot(),digestTables:phase.startsWith('upgrade')?3:5,guardRoutesMounted:false,methods:['prepareImmutable','findReceipt','verifyReceipt','getPrepared','tombstoneImmutable'],scope:'synthetic_only',transport:'loopback_http_inside_network_none_container'}));
 }finally{await connection.end()}

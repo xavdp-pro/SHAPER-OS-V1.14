@@ -60,3 +60,24 @@ migrated. A distributed peer-database fence/lease, authenticated external TLS
 channel, operator key custody, hardware power-loss durability, independent
 restore attestation and real rollout remain separate release gates. Disposable
 QA storage qualifies container lifecycle persistence, not host-reboot storage.
+
+
+## Additive guard-schema compatibility
+
+The owning administrator installs the additive five-table schema without
+rewriting the existing epoch/resource/operation records. It adds only declared
+transition-column UPDATE grants for fences and guards; immutable bindings and
+sequence/identity fields receive no UPDATE. Application readiness rejects table
+or schema/global UPDATE, grant option, foreign privileges, unexpected columns,
+missing required uniqueness keys and non-InnoDB tables. No unsafe privilege is
+silently revoked or washed. Existing private key/token/password/source marker
+bytes and no-symlink/owner-only admission remain unchanged.
+
+The functional qualifier's optional `--legacy-image` uses a pinned historical
+c67b0df candidate ONLY as a disposable synthetic fixture: seed its three-table
+state, stop that owned container, start the upgraded image with the same owned
+state, verify all three historical table digests and readers, then repeat a
+restart. It compares private custody/source-marker bytes without printing them.
+The new source's fresh restart/restore checks compare all five tables. Guard HTTP
+methods must continue returning 404. This is bootstrap compatibility, not a
+mounted guard service or an independent restore freshness witness.

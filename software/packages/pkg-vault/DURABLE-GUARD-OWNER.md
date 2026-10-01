@@ -83,10 +83,13 @@ no UPDATE grant. No DELETE, DDL, peer-database account or administrator access
 is given to the application. Terminal transition immutability is enforced by
 the trusted owner algorithm; these transition-column grants are not protection
 against arbitrary malicious SQL executed with the application credential.
-Missing tables/grants refuse; there is no legacy fallback. The earlier c67b0df
-brick bootstrap/grant readiness checks have NOT been upgraded for these tables
-and must not be presented as a compatible functional runtime. An owning
-additive migration/readiness/grant review and explicit cutover are still needed.
+Missing tables/grants refuse; there is no legacy fallback. The additive bootstrap follow-up installs the two new tables and narrowly
+adds their declared grants to a known owned three-table database. Cold readiness
+checks all five tables, required columns/keys, InnoDB and exact privileges.
+Excess inherited grants are refused rather than removed. This compatibility
+step keeps only the historical five HTTP methods; guard routes and a freshness
+witness remain absent. Installed cutover and advanced guard activation still
+require separate owning qualification and authorization.
 
 No initial handset disclosure, cross-container current-state acknowledgement,
 HTTP mounting, peer permanent ledger, attempt-unique consuming path migration,

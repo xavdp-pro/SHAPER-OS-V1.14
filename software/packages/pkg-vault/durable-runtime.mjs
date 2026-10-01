@@ -41,17 +41,37 @@ export async function checkPrivateVaultDatabase(pool){
     const [schemas]=await connection.execute('SELECT PRIVILEGE_TYPE FROM information_schema.SCHEMA_PRIVILEGES WHERE GRANTEE=?',[grantee]);
     if(schemas.length)throw new Error('vault_owner_database_grants_invalid');
     const [tables]=await connection.execute('SELECT TABLE_SCHEMA,TABLE_NAME,PRIVILEGE_TYPE,IS_GRANTABLE FROM information_schema.TABLE_PRIVILEGES WHERE GRANTEE=?',[grantee]);
-    const names=['vault_owner_epochs','vault_owner_resources','vault_owner_operations'];
+    const names=['vault_owner_epochs','vault_owner_resources','vault_owner_operations','vault_owner_resource_fences','vault_owner_guards'];
     if(tables.some(row=>row.TABLE_SCHEMA!=='vault'||!names.includes(row.TABLE_NAME)||!['SELECT','INSERT'].includes(row.PRIVILEGE_TYPE)||row.IS_GRANTABLE!=='NO'))
       throw new Error('vault_owner_database_grants_invalid');
     for(const table of names)for(const privilege of ['SELECT','INSERT'])if(!tables.some(row=>row.TABLE_NAME===table&&row.PRIVILEGE_TYPE===privilege))
       throw new Error('vault_owner_database_grants_invalid');
-    const allowed={vault_owner_resources:['revision','tombstoned','encrypted_payload','payload_digest'],vault_owner_operations:['receipt_json']};
+    const allowed={vault_owner_resources:['revision','tombstoned','encrypted_payload','payload_digest'],vault_owner_operations:['receipt_json'],vault_owner_resource_fences:['managed','held_guard_id','deny_new','deny_operation_id','deny_revision','deny_request_digest'],vault_owner_guards:['state','terminal_ack_json','terminal_ack_digest']};
     const [columns]=await connection.execute('SELECT TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,PRIVILEGE_TYPE,IS_GRANTABLE FROM information_schema.COLUMN_PRIVILEGES WHERE GRANTEE=?',[grantee]);
     if(columns.some(row=>row.TABLE_SCHEMA!=='vault'||row.PRIVILEGE_TYPE!=='UPDATE'||row.IS_GRANTABLE!=='NO'||!allowed[row.TABLE_NAME]?.includes(row.COLUMN_NAME)))
       throw new Error('vault_owner_database_grants_invalid');
     for(const [table,list]of Object.entries(allowed))for(const column of list)if(!columns.some(row=>row.TABLE_NAME===table&&row.COLUMN_NAME===column))
       throw new Error('vault_owner_database_grants_invalid');
+    const expected={
+      vault_owner_epochs:['scope_id','owner_epoch'],
+      vault_owner_resources:['scope_id','path_hash','resource_path','device_id','revision','tombstoned','encrypted_payload','payload_digest'],
+      vault_owner_operations:['sequence','scope_id','operation_id','path_hash','request_digest','receipt_json'],
+      vault_owner_resource_fences:['scope_id','path_hash','managed','held_guard_id','deny_new','deny_operation_id','deny_revision','deny_request_digest'],
+      vault_owner_guards:['sequence','scope_id','guard_id','operation_id','consumer_id','consumer_incarnation','ack_sequence','path_hash','binding_digest','binding_json','state','terminal_ack_json','terminal_ack_digest']
+    };
+    const [schema]=await connection.execute('SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=?',['vault']);
+    for(const [table,list]of Object.entries(expected)){
+      const actual=schema.filter(row=>row.TABLE_NAME===table).map(row=>row.COLUMN_NAME);
+      if(actual.length!==list.length||list.some(column=>!actual.includes(column)))throw new Error('vault_owner_database_schema_invalid');
+    }
+    const [engines]=await connection.execute('SELECT TABLE_NAME,ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=?',['vault']);
+    if(engines.length!==names.length||engines.some(row=>!names.includes(row.TABLE_NAME)||row.ENGINE!=='InnoDB'))throw new Error('vault_owner_database_schema_invalid');
+    const [keys]=await connection.execute('SELECT TABLE_NAME,CONSTRAINT_NAME,COLUMN_NAME,ORDINAL_POSITION FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=?',['vault']);
+    const requiredKeys={vault_owner_epochs:{PRIMARY:['scope_id']},vault_owner_resources:{PRIMARY:['scope_id','path_hash']},vault_owner_operations:{PRIMARY:['sequence'],operation_identity:['scope_id','operation_id']},vault_owner_resource_fences:{PRIMARY:['scope_id','path_hash'],pending_operation_identity:['scope_id','deny_operation_id']},vault_owner_guards:{PRIMARY:['sequence'],guard_identity:['scope_id','guard_id'],guarded_operation_identity:['scope_id','operation_id'],peer_ack_identity:['scope_id','consumer_id','consumer_incarnation','ack_sequence']}};
+    for(const [table,indexes]of Object.entries(requiredKeys))for(const [name,list]of Object.entries(indexes)){
+      const actual=keys.filter(row=>row.TABLE_NAME===table&&row.CONSTRAINT_NAME===name).sort((a,b)=>Number(a.ORDINAL_POSITION)-Number(b.ORDINAL_POSITION)).map(row=>row.COLUMN_NAME);
+      if(JSON.stringify(actual)!==JSON.stringify(list))throw new Error('vault_owner_database_schema_invalid');
+    }
     for(const table of names)await connection.query(`SELECT 1 FROM ${table} LIMIT 1`);
   }catch(error){throw new Error(/^vault_owner_[a-z_]+$/.test(error?.message||'')?error.message:'vault_owner_database_unavailable')}
   finally{connection.release()}
