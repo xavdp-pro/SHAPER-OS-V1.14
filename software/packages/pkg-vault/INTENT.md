@@ -21,6 +21,7 @@ Sovereign AES-256-GCM secret engine — encrypt, persist, and inject credentials
 6. **Owner-only Storage**: every persistence creates or repairs the Vault storage file with Unix mode `0600`.
 7. **No Documentation as a Key**: bootstrap refuses a master key or token left as an example template (`<...>`, `changeme`, …), whatever its source, and halts before creating anything — a value the operator never chose must never encrypt a vault (Rule 0J).
 8. **Generic Identity**: package metadata, defaults, and reusable contracts name no client, infrastructure owner, or deployment. Concrete provenance belongs in a declared instance and its evidence, outside this package.
+9. <a id="durable-conditional-owner"></a>**Opt-in Durable Conditional Owner**: the Vault functional unit's private MariaDB may hold encrypted immutable resources, operation identities, authenticated durable receipts and irreversible tombstones. A successful receipt follows an InnoDB durable commit and independent readback; commit uncertainty refuses success and is reconciled by operation identity. Legacy encrypted-file APIs remain unchanged and do not provide this guarantee. Schema installation, scoped key custody, confined function credentials, runtime migration, backup/restore attestation and activation remain explicit owning responsibilities.
 
 ---
 

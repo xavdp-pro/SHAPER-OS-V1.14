@@ -10,6 +10,9 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Additive opt-in protocol; legacy file/API callers are unchanged.
+export { DurableVaultOwner } from './durable-owner.js';
+
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // Standard GCM IV length (96 bits)
 const AUTH_TAG_LENGTH = 16; // Standard GCM Auth Tag (128 bits)
