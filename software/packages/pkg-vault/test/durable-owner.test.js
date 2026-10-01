@@ -18,3 +18,12 @@ test('payload serialization cannot replace the bound scope or expose a getter er
   assert.throws(()=>owner.prepareImmutable({payload:{get universeId(){throw new Error('synthetic_secret_error')}}}),/^Error: vault_owner_payload_invalid$/);
   assert.equal(calls,0);
 });
+
+test('in-process prepared guard rejects missing callback or digest before database checkout',async()=>{
+  let calls=0;
+  const owner=new DurableVaultOwner({pool:{getConnection(){calls++}},masterKey:Buffer.alloc(32,7),universeId:'scope'});
+  const input={path:'secret/resource',deviceId:'device',revision:1,payloadDigest:'a'.repeat(64)};
+  await assert.rejects(owner.withPreparedGuard(input),/vault_owner_invalid_operation/);
+  await assert.rejects(owner.withPreparedGuard({...input,payloadDigest:null},()=>{}),/vault_owner_invalid_operation/);
+  assert.equal(calls,0);
+});

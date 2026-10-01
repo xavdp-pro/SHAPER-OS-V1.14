@@ -60,3 +60,23 @@ query deadlines are the owning pool's responsibility. A valid historical prepare
 receipt proves that operation committed, not that its resource is still active;
 `getPrepared` must validate the current resource before any disclosure. Legacy
 file APIs and their migration/rollback remain untouched.
+
+## In-process current-resource guard
+
+`withPreparedGuard({path, deviceId, revision, payloadDigest}, async payload => work)`
+reads and validates the exact active encrypted resource under `SELECT FOR UPDATE`
+and retains that lock through the callback and commit. Missing, tombstoned,
+misbound or digest-conflicting resources refuse before the callback. Callback
+failure rolls back and preserves the original callback exception; owner SQL
+rollback/commit uncertainty remains distinct. An independently committed peer
+database action is not undone by owner rollback. The callback
+must be bounded and must not recursively mutate this owner.
+
+This primitive is strictly in-process. It exposes no arbitrary callback HTTP
+endpoint and does not make callback side effects in a peer database atomic,
+reversible or durable. Cross-container lease/guard transport, failure recovery
+and the consuming journal's independent commit remain separate design gates.
+The real SQL fixture exercises two connections in one Node process, verifies
+that the tombstone promise remains unsettled while the callback is held, then
+requires its completion after release. It is not an independent-process or
+server lock-wait witness.

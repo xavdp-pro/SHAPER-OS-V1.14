@@ -36,7 +36,7 @@ export class DurableVaultOwner {
       fail('vault_owner_receipt_invalid');
     return receipt;
   }
-  async transaction(work){
+  async transaction(work,{callbackFailure=null}={}){
     let connection,committing=false,reusable=true;
     try {
       connection=await this.pool.getConnection();
@@ -47,7 +47,8 @@ export class DurableVaultOwner {
     } catch(error){
       if(committing){reusable=false;discard(connection);fail('vault_owner_commit_uncertain')}
       if(connection)try{await connection.rollback()}catch{reusable=false;discard(connection);fail('vault_owner_cleanup_failed')}
-      if(/^vault_owner_[a-z_]+$/.test(error.message||''))throw error;
+      if(callbackFailure?.seen&&error===callbackFailure.value)throw error;
+      if(/^vault_owner_[a-z_]+$/.test(error?.message||''))throw error;
       fail('vault_owner_store_unavailable');
     } finally{if(connection&&reusable)connection.release()}
   }
@@ -122,6 +123,22 @@ export class DurableVaultOwner {
     if(receipt.path!==path||receipt.operationId!==operationId||receipt.payloadDigest!==payloadDigest)fail('vault_owner_receipt_invalid');
     const current=await this.findReceipt({path,operationId});
     if(!current||canonical(current)!==canonical(receipt))fail('vault_owner_receipt_invalid');return current;
+  }
+  /** In-process guard only. Callback must be bounded and must not recursively
+   * mutate this owner. It is not a distributed HTTP transaction or lease. */
+  async withPreparedGuard({path,deviceId,revision:version,payloadDigest}={},work){
+    if(!address(path)||!identifier(deviceId)||!revision(version)||
+      !/^[a-f0-9]{64}$/.test(payloadDigest)||typeof work!=='function')fail('vault_owner_invalid_operation');
+    const callbackFailure={seen:false,value:null};
+    return this.transaction(async connection=>{
+      const [[row]]=await connection.execute('SELECT * FROM vault_owner_resources WHERE scope_id=? AND path_hash=? FOR UPDATE',[this.scope,hash(path)]);
+      if(!row||row.resource_path!==path||row.device_id!==deviceId||Number(row.revision)!==version||Number(row.tombstoned)!==0||row.payload_digest!==payloadDigest)
+        fail('vault_owner_resource_unavailable');
+      let payload;try{payload=decryptSecret(JSON.parse(row.encrypted_payload),this.key)}catch{fail('vault_owner_resource_unavailable')}
+      if(!payload||payload.universeId!==this.scope||payload.deviceId!==deviceId||payload.revision!==version||hash(serialize(payload))!==payloadDigest)
+        fail('vault_owner_resource_unavailable');
+      try{return await work(payload)}catch(error){callbackFailure.seen=true;callbackFailure.value=error;throw error}
+    },{callbackFailure});
   }
   async getPrepared({path,deviceId,revision:version}={}){
     if(!address(path)||!identifier(deviceId)||!revision(version))fail('vault_owner_invalid_operation');
