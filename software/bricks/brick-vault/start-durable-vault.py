@@ -60,7 +60,13 @@ def directory(path):
 
 
 def preflight():
-    for path in ['/', '/apps','/apps/vault','/apps/vault/app']:
+    # Podman read-only roots are mounted 0555; image-owned writable roots are 0755.
+    root_fd=open_beneath('/',os.O_RDONLY|os.O_DIRECTORY)
+    try:
+        root_stat=os.fstat(root_fd)
+        if root_stat.st_uid!=0 or stat.S_IMODE(root_stat.st_mode) not in (0o555,0o755):raise RuntimeError('vault_owner_directory_invalid')
+    finally:os.close(root_fd)
+    for path in ['/apps','/apps/vault','/apps/vault/app']:
         validate_directory(path,0,0o755)
     validate_directory(ROOT/'nosav',IDENTITY.pw_uid,0o755)
     for path in ['etc','etc/owner','sav','log','nosav/mysql']:
