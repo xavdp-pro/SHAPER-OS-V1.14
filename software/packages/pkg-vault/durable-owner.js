@@ -52,6 +52,7 @@ export class DurableVaultOwner {
       fail('vault_owner_store_unavailable');
     } finally{if(connection&&reusable)connection.release()}
   }
+  mutationAdmission(epoch,fence){if(Number(fence?.managed))fail('vault_owner_guard_required')}
   async write({path,operationId,universeId,deviceId,revision:version,payloadDigest,payload},action){
     if(!address(path)||!uuid(operationId)||universeId!==this.scope||!identifier(deviceId)||!revision(version))
       fail('vault_owner_invalid_operation');
@@ -77,13 +78,22 @@ export class DurableVaultOwner {
       }
       const [resources]=await connection.execute('SELECT * FROM vault_owner_resources WHERE scope_id=? AND path_hash=? FOR UPDATE',[this.scope,pathHash]);
       const current=resources[0];
+      const [pendingIds]=await connection.execute('SELECT * FROM vault_owner_resource_fences WHERE scope_id=? AND deny_operation_id=? FOR UPDATE',[this.scope,operationId]);
+      if(pendingIds.length&&(pendingIds[0].path_hash!==pathHash||pendingIds[0].deny_request_digest!==requestDigest))fail('vault_owner_operation_conflict');
+      const [[fence]]=await connection.execute('SELECT * FROM vault_owner_resource_fences WHERE scope_id=? AND path_hash=? FOR UPDATE',[this.scope,pathHash]);
+      this.mutationAdmission(epoch.owner_epoch,fence);
       if(action==='prepare'){
         if(current)fail('vault_owner_immutable_conflict');
+        if(fence?.held_guard_id||Number(fence?.deny_new))fail('vault_owner_guard_unavailable');
         await connection.execute('INSERT INTO vault_owner_resources (scope_id,path_hash,resource_path,device_id,revision,tombstoned,encrypted_payload,payload_digest) VALUES (?,?,?,?,?,0,?,?)',
           [this.scope,pathHash,path,deviceId,version,serialize(encryptSecret(payload,this.key)),payloadDigest]);
       }else{
         if(!current||current.resource_path!==path||current.device_id!==deviceId||Number(current.tombstoned)!==0||version!==Number(current.revision)+1)
           fail('vault_owner_revision_conflict');
+        if(fence?.deny_operation_id&&(fence.deny_operation_id!==operationId||Number(fence.deny_revision)!==version||fence.deny_request_digest!==requestDigest))fail('vault_owner_operation_conflict');
+        await connection.execute('INSERT IGNORE INTO vault_owner_resource_fences (scope_id,path_hash) VALUES (?,?)',[this.scope,pathHash]);
+        await connection.execute('UPDATE vault_owner_resource_fences SET deny_new=1,deny_operation_id=?,deny_revision=?,deny_request_digest=? WHERE scope_id=? AND path_hash=?',[operationId,version,requestDigest,this.scope,pathHash]);
+        if(fence?.held_guard_id){this.mutationAdmission(epoch.owner_epoch,fence);return {pending:true}};
         await connection.execute('UPDATE vault_owner_resources SET revision=?,tombstoned=1,encrypted_payload=NULL,payload_digest=NULL WHERE scope_id=? AND path_hash=?',[version,this.scope,pathHash]);
       }
       const [inserted]=await connection.execute('INSERT INTO vault_owner_operations (scope_id,operation_id,path_hash,request_digest,receipt_json) VALUES (?,?,?,?,?)',[this.scope,operationId,pathHash,requestDigest,'{}']);
@@ -91,11 +101,13 @@ export class DurableVaultOwner {
       const result=this.signed({schema:'shaper.vault-durable-receipt.v1',path,operationId,universeId:this.scope,
         deviceId,revision:version,payloadDigest,action,ownerEpoch:epoch.owner_epoch,durableSequence:sequence});
       await connection.execute('UPDATE vault_owner_operations SET receipt_json=? WHERE scope_id=? AND operation_id=?',[serialize(result),this.scope,operationId]);
+      this.mutationAdmission(epoch.owner_epoch,fence);
       return result;
     });
+    if(receipt.pending)fail('vault_owner_guard_pending');
     const checked=await this.verifyReceipt({receipt,path,operationId,payloadDigest});
     if(action==='prepare'){
-      const value=await this.getPrepared({path,deviceId,revision:version});
+      const value=await this.#readPrepared({path,deviceId,revision:version},true);
       if(hash(serialize(value))!==payloadDigest)fail('vault_owner_readback_unavailable');
     }
     return checked;
@@ -131,27 +143,30 @@ export class DurableVaultOwner {
       !/^[a-f0-9]{64}$/.test(payloadDigest)||typeof work!=='function')fail('vault_owner_invalid_operation');
     const callbackFailure={seen:false,value:null};
     return this.transaction(async connection=>{
+      await connection.execute('SELECT owner_epoch FROM vault_owner_epochs WHERE scope_id=? FOR UPDATE',[this.scope]);
       const [[row]]=await connection.execute('SELECT * FROM vault_owner_resources WHERE scope_id=? AND path_hash=? FOR UPDATE',[this.scope,hash(path)]);
+      const [[fence]]=await connection.execute('SELECT * FROM vault_owner_resource_fences WHERE scope_id=? AND path_hash=? FOR UPDATE',[this.scope,hash(path)]);
       if(!row||row.resource_path!==path||row.device_id!==deviceId||Number(row.revision)!==version||Number(row.tombstoned)!==0||row.payload_digest!==payloadDigest)
         fail('vault_owner_resource_unavailable');
+      if(fence&&(Number(fence.managed)||Number(fence.deny_new)||fence.held_guard_id))fail('vault_owner_guard_required');
       let payload;try{payload=decryptSecret(JSON.parse(row.encrypted_payload),this.key)}catch{fail('vault_owner_resource_unavailable')}
       if(!payload||payload.universeId!==this.scope||payload.deviceId!==deviceId||payload.revision!==version||hash(serialize(payload))!==payloadDigest)
         fail('vault_owner_resource_unavailable');
       try{return await work(payload)}catch(error){callbackFailure.seen=true;callbackFailure.value=error;throw error}
     },{callbackFailure});
   }
-  async getPrepared({path,deviceId,revision:version}={}){
+  async getPrepared(input={}){return this.#readPrepared(input,false)}
+  async #readPrepared({path,deviceId,revision:version}={},internalReadback=false){
     if(!address(path)||!identifier(deviceId)||!revision(version))fail('vault_owner_invalid_operation');
-    let connection;
-    try{
-      connection=await this.pool.getConnection();
-      const [rows]=await connection.execute('SELECT * FROM vault_owner_resources WHERE scope_id=? AND path_hash=?',[this.scope,hash(path)]);
-      const row=rows[0];if(!row||row.resource_path!==path||row.device_id!==deviceId||Number(row.revision)!==version||Number(row.tombstoned)!==0)
-        fail('vault_owner_resource_unavailable');
+    return this.transaction(async connection=>{
+      await connection.execute('SELECT owner_epoch FROM vault_owner_epochs WHERE scope_id=? FOR UPDATE',[this.scope]);
+      const [[row]]=await connection.execute('SELECT * FROM vault_owner_resources WHERE scope_id=? AND path_hash=? FOR UPDATE',[this.scope,hash(path)]);
+      const [[fence]]=await connection.execute('SELECT * FROM vault_owner_resource_fences WHERE scope_id=? AND path_hash=? FOR UPDATE',[this.scope,hash(path)]);
+      if(!row||row.resource_path!==path||row.device_id!==deviceId||Number(row.revision)!==version||Number(row.tombstoned)!==0)fail('vault_owner_resource_unavailable');
+      if(!internalReadback&&fence&&(Number(fence.managed)||Number(fence.deny_new)||fence.held_guard_id))fail('vault_owner_guard_required');
       const payload=decryptSecret(JSON.parse(row.encrypted_payload),this.key);
-      if(!payload||payload.universeId!==this.scope||payload.deviceId!==deviceId||payload.revision!==version||
-        hash(serialize(payload))!==row.payload_digest)fail('vault_owner_resource_unavailable');return payload;
-    }catch(error){if(/^vault_owner_[a-z_]+$/.test(error.message||''))throw error;fail('vault_owner_store_unavailable')}
-    finally{connection?.release()}
+      if(!payload||payload.universeId!==this.scope||payload.deviceId!==deviceId||payload.revision!==version||hash(serialize(payload))!==row.payload_digest)fail('vault_owner_resource_unavailable');
+      return payload;
+    });
   }
 }

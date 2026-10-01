@@ -19,7 +19,7 @@ def main():
     processes=[]
     receipt={'passed':False,'network':'unix_socket_only','syntheticKeyAndDataOnly':True,
              'functionalPodmanQualified':False,'sourceFiles':{},'phases':[],'uid':os.geteuid()}
-    for path in [package/'index.js',package/'durable-owner.js',package/'durable-owner.sql',pathlib.Path(__file__),pathlib.Path(__file__).with_name('durable-engine.mjs')]:
+    for path in [package/'index.js',package/'durable-owner.js',package/'durable-owner.sql',package/'durable-guard-owner.js',pathlib.Path(__file__),pathlib.Path(__file__).with_name('guard-engine.mjs'),pathlib.Path(__file__).with_name('durable-engine.mjs')]:
         receipt['sourceFiles'][str(path.relative_to(package))]=hashlib.sha256(path.read_bytes()).hexdigest()
     def run(argv,**kwargs):
         return subprocess.run([str(x) for x in argv],check=True,timeout=90,**kwargs)
@@ -58,7 +58,7 @@ def main():
         config=work/f'{name}-client.json';config.write_text(json.dumps({'socketPath':str(sock),'user':'qa_vault','password':password,'database':'qa_vault','phase':name,'stateFile':str(work/'state.json'),'dependencyPackage':str(args.dependency_package.resolve(strict=True))}));config.chmod(0o600)
         try:
             with (work/f'{name}-fixture.log').open('wb') as log:
-                run([args.node,pathlib.Path(__file__).with_name('durable-engine.mjs'),config],stdout=log,stderr=subprocess.STDOUT)
+                run([args.node,pathlib.Path(__file__).with_name('guard-engine.mjs'),config],stdout=log,stderr=subprocess.STDOUT)
             receipt['phases'].append(json.loads((work/f'{name}-fixture.log').read_text()))
         finally: config.unlink(missing_ok=True)
     try:
@@ -70,7 +70,7 @@ def main():
         crash_config=work/'crash-client.json'
         crash_config.write_text(json.dumps({'socketPath':str(sock),'user':'qa_vault','password':password,'database':'qa_vault','phase':'crash-before-commit','stateFile':str(work/'state.json'),'dependencyPackage':str(args.dependency_package.resolve(strict=True))}));crash_config.chmod(0o600)
         crash_log=(work/'crash-fixture.log').open('wb')
-        crash=subprocess.Popen([str(args.node),str(pathlib.Path(__file__).with_name('durable-engine.mjs')),str(crash_config)],stdout=crash_log,stderr=subprocess.STDOUT);processes.append((crash,crash_log))
+        crash=subprocess.Popen([str(args.node),str(pathlib.Path(__file__).with_name('guard-engine.mjs')),str(crash_config)],stdout=crash_log,stderr=subprocess.STDOUT);processes.append((crash,crash_log))
         try:
             deadline=time.monotonic()+10
             while not (work/'state.json.crash').exists():
