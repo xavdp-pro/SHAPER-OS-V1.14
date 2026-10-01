@@ -1,0 +1,6 @@
+{
+  "name": "shaper-vault-durable-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {"mysql2": "3.24.4"}
+}

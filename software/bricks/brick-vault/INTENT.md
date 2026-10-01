@@ -14,6 +14,26 @@ Local sovereign secret store — zero cloud lock-in.
 4. One instance per universe.
 5. The persisted Vault file is owner-readable and owner-writable only (`0600`).
 
+## Opt-in private MariaDB durable owner
+
+The separate `Containerfile.durable` variant belongs to this same Vault function;
+it never replaces the legacy Containerfile, Quadlet, file API or running state.
+The functional Linux account, MariaDB account and database all use `vault`.
+The application reads its owner-only password from
+`/apps/vault/etc/mysql/localhost/passwd`. MariaDB has no TCP listener; root
+administration uses only its local socket. The five authenticated POST methods
+bind payloads and receipts to the explicitly selected universe and scoped key.
+The application refuses unsafe files, principals, schema or inherited privileges.
+
+Existing declared directories are validated, never repaired. Unknown populated
+SQL directories require an explicit migration/restore procedure; bootstrap never
+adopts them. A plain source-format/function/scope marker is metadata only, not a
+second secret store or a substitute for the SQL owner. A data-bearing transition
+still requires the owning snapshot and verified restore before activation.
+
+See [the scoped runtime contract](DURABLE-RUNTIME.md). No live activation or
+cross-container distributed guard is implied.
+
 ## 3. What experience corrected
 
 * **Empty is a valid persisted state.** A zero-secret bootstrap must create the

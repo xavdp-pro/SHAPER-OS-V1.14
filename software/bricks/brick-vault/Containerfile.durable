@@ -1,0 +1,21 @@
+ARG SHAPER_BASE_IMAGE
+FROM ${SHAPER_BASE_IMAGE} AS shaper_base
+ARG VAULT_RUNTIME_IMAGE
+FROM ${VAULT_RUNTIME_IMAGE}
+ARG SHAPER_SOURCE_REVISION
+LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.brick="vault"
+LABEL org.shaper.build-packages="logger vault"
+RUN apt-get update && apt-get install -y --no-install-recommends mariadb-server mariadb-client python3 util-linux \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 vault && useradd --uid 10001 --gid vault --no-create-home --shell /usr/sbin/nologin vault
+WORKDIR /apps/vault/app
+COPY --from=shaper_base /shaper/packages/pkg-logger/ ./pkg-logger/
+COPY --from=shaper_base /shaper/packages/pkg-vault/ ./pkg-vault/
+COPY durable-package.json /apps/vault/nosav/package.json
+COPY durable-package-lock.json /apps/vault/nosav/package-lock.json
+RUN cd /apps/vault/nosav && npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
+    && mkdir -p /apps/vault/etc /apps/vault/sav /apps/vault/log /apps/vault/nosav/mysql \
+    && chown -R vault:vault /apps/vault/nosav
+COPY start-durable-vault.py /usr/local/bin/start-durable-vault.py
+ENTRYPOINT ["python3", "/usr/local/bin/start-durable-vault.py"]

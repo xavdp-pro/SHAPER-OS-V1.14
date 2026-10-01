@@ -2,7 +2,22 @@
   "brick": "vault",
   "contractVersion": 1,
   "distribution": "base",
-  "buildPackages": ["pkg-logger", "pkg-vault"],
+  "buildPackages": [
+    "pkg-logger",
+    "pkg-vault"
+  ],
   "runtimeServices": [],
-  "proof": ["vault health", "encrypted persistence", "logger correlation"]
+  "proof": [
+    "vault health",
+    "encrypted persistence",
+    "logger correlation"
+  ],
+  "durableOwnerVariant": {
+    "containerfile": "Containerfile.durable",
+    "entrypoint": "start-durable-vault.py",
+    "privateDatabase": "vault",
+    "applicationAccount": "vault",
+    "runtimeDriver": "mysql2@3.24.4",
+    "activation": "explicit opt-in; no legacy cutover"
+  }
 }

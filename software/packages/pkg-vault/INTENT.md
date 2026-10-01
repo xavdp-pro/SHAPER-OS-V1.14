@@ -14,7 +14,7 @@ Sovereign AES-256-GCM secret engine — encrypt, persist, and inject credentials
 ## 2. Universal Invariants (Parameterized)
 
 1. **Crypto**: AES-256-GCM at rest. Master key via `<MASTER_KEY>` or SHA-256 normalization.
-2. **Zero Dependencies**: Native `node:crypto`, `node:fs`, `node:http` only.
+2. **Zero Library Dependencies**: reusable APIs use native Node modules and accept the owning SQL pool by injection. The opt-in durable brick declares and physically supplies its locked SQL driver; no sibling checkout resolves a runtime dependency.
 3. **Dual Mode**: In-process `VaultStore` or HTTP service via `createVaultServer()`.
 4. **Isolation**: Zero knowledge of consuming universes. Mailbox schema is a reusable contract only.
 5. **Materialized Empty State**: bootstrap persists an empty storage object even when no secrets are configured; successful initialization always leaves a storage file.
