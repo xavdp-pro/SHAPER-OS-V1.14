@@ -17,9 +17,9 @@ def main():
     work=pathlib.Path(tempfile.mkdtemp(prefix='vault-disclosure-qa-',dir=args.evidence_root)); work.chmod(0o700)
     sockets=pathlib.Path(tempfile.mkdtemp(prefix='vault-disclosure-socket-')); sockets.chmod(0o700)
     processes=[]
-    receipt={'passed':False,'network':'unix_socket_only','syntheticKeyAndDataOnly':True,
+    receipt={'passed':False,'network':'sql_unix_socket_and_ephemeral_http_loopback','syntheticKeyAndDataOnly':True,
              'functionalPodmanQualified':False,'sourceFiles':{},'phases':[],'uid':os.geteuid()}
-    for path in [package/'index.js',package/'durable-owner.js',package/'durable-owner.sql',package/'durable-guard-owner.js',package/'durable-disclosure-owner.js',package/'durable-runtime.mjs',pathlib.Path(__file__),package.parents[1]/'bricks/brick-vault/start-durable-vault.py',pathlib.Path(__file__).with_name('disclosure-engine.mjs'),pathlib.Path(__file__).with_name('durable-engine.mjs')]:
+    for path in [package/'index.js',package/'durable-owner.js',package/'durable-owner.sql',package/'durable-guard-owner.js',package/'durable-disclosure-owner.js',package/'durable-http.js',package/'durable-runtime.mjs',pathlib.Path(__file__),package.parents[1]/'bricks/brick-vault/start-durable-vault.py',pathlib.Path(__file__).with_name('disclosure-engine.mjs'),pathlib.Path(__file__).with_name('durable-engine.mjs')]:
         receipt['sourceFiles'][os.path.relpath(path,package)]=hashlib.sha256(path.read_bytes()).hexdigest()
     def run(argv,**kwargs):
         return subprocess.run([str(x) for x in argv],check=True,timeout=90,**kwargs)

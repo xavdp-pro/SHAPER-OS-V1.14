@@ -72,8 +72,9 @@ Epoch/resource/fence order is common with activation and mutations. Legacy gette
 cannot read managed resources. Every mutable guarded path must use this subclass
 when admitting disclosure identities; mixed owner configurations are unqualified.
 
-The opt-in native helper uses real owning AES, confined vault SQL account and
-private Unix-socket MariaDB. Historical three-table data are seeded by actual
+The opt-in native helper uses real owning AES, confined vault SQL account,
+private Unix-socket MariaDB and an ephemeral authenticated loopback HTTP server.
+Historical three-table data are seeded by actual
 owning encryption/SQL, not present-source execution before migration. It tests
 once-only payload, signature/identity/grant refusal, pending revoke, lost ACK,
 stopped/killed child, exact ciphertext preservation and six-table restart/fresh
@@ -81,8 +82,9 @@ restore. Freshness/fault adapters are test-only. No independent restore witness,
 HTTP partition, physical output, consumer account/source fencing, functional
 Podman startup or installed provisioning proof is claimed.
 
-The transport test proves bounded authenticated request/response carriage and
-refusal on a base owner. It uses a synthetic owner; it does not prove a
-cross-container transaction or authorize a runtime cutover. A real cutover
+The transport unit test proves bounded authenticated request/response carriage
+and refusal on a base owner. The native helper additionally exercises the
+disclosure calls through HTTP against a real SQL owner, with synthetic data.
+Neither proves a cross-container transaction or authorizes a runtime cutover. A real cutover
 still needs independently witnessed freshness, pinned peer registration,
 confined network access, and the consuming VOX output fence.

@@ -9,6 +9,7 @@ import {encryptSecret} from '../../index.js';
 import {DurableVaultOwner} from '../../durable-owner.js';
 import {GuardedDurableVaultOwner} from '../../durable-guard-owner.js';
 import {CurrentDisclosureVaultOwner} from '../../durable-disclosure-owner.js';
+import {createDurableVaultServer,DurableVaultClient} from '../../durable-http.js';
 import {checkPrivateVaultDatabase} from '../../durable-runtime.mjs';
 const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 const require=createRequire(config.dependencyPackage),mysql=require('mysql2/promise');
@@ -114,6 +115,29 @@ try{
   for(const transfer of [{...cross,guardId:c.guardId},{...cross,guardId:randomUUID(),ackSequence:c.ackSequence}])await assert.rejects(owner.acquireGuard(transfer),/guard_conflict/);
   assert.equal(await snapshot(),beforeCross);
   cases.push('actual both-direction activation/disclosure guard UUID and sequence collisions preserve all rows');
+  const httpActivation=await prepare(12);
+  const httpRead=makeRead(httpActivation,12);
+  const httpToken='f'.repeat(64);
+  const httpServer=createDurableVaultServer({owner,token:httpToken});
+  await once(httpServer,'listening');
+  try{
+   const url=`http://127.0.0.1:${httpServer.address().port}`;
+   const client=new DurableVaultClient({url,token:httpToken});
+   const denied=new DurableVaultClient({url,token:'e'.repeat(64)});
+   await assert.rejects(denied.beginDisclosure({binding:httpRead,peerAdmission:admission(httpRead)}),/vault_owner_unauthorized/);
+   const first=await client.beginDisclosure({binding:httpRead,peerAdmission:admission(httpRead)});
+   assert.equal(first.payload.password,'synthetic_only');
+   assert.equal(first.receipt.state,'HELD');
+   assert.equal(Object.hasOwn(await client.beginDisclosure({binding:httpRead,peerAdmission:admission(httpRead)}),'payload'),false);
+   assert.equal(Object.hasOwn(await client.inspectDisclosure(selected(httpRead)),'payload'),false);
+   const settled=await client.finishDisclosure({...selected(httpRead),peerClosure:closure(httpRead)});
+   assert.equal(settled.receipt.state,'RELEASED_NO_OUTPUT_ENDED');
+   assert.equal(Object.hasOwn(await client.beginDisclosure({binding:httpRead,peerAdmission:admission(httpRead)}),'payload'),false);
+   cases.push('real SQL owner through authenticated loopback HTTP admits one disclosure payload and metadata-only retries');
+  }finally{
+   httpServer.closeAllConnections();
+   await new Promise(resolve=>httpServer.close(resolve));
+  }
   for(const sql of ["UPDATE vault_owner_disclosures SET binding_json='bad'","UPDATE vault_owner_disclosures SET payload_claimed=0","UPDATE vault_owner_disclosures SET admission_json='bad'",'DELETE FROM vault_owner_disclosures','ALTER TABLE vault_owner_disclosures ADD bad INT'])await assert.rejects(pool.query(sql),error=>['ER_COLUMNACCESS_DENIED_ERROR','ER_TABLEACCESS_DENIED_ERROR'].includes(error.code));
   cases.push('actual app grants cannot mutate binding/admission/claim or delete/DDL');
   const expired=makeRead(await prepare(9),9);let commits=0;
@@ -141,5 +165,5 @@ try{
   await assert.rejects(owner.tombstoneImmutable(state.revoke),/guard_pending/);
   assert.equal(await snapshot(),state.digest);cases.push('all six tables preserve HELD/claim/pending revoke/history through upgrade/restart/fresh restore');
  }
- console.log(JSON.stringify({phase,passed:true,cases,actualMariaDB:true,syntheticOnly:true,stateDigest:await snapshot(phase==='legacy-three'?tables.slice(0,3):phase==='legacy-five'?tables.slice(0,5):tables),localHttpCompletionQualified:false,independentFreshnessQualified:false,owningPodmanQualified:false}));
+ console.log(JSON.stringify({phase,passed:true,cases,actualMariaDB:true,syntheticOnly:true,stateDigest:await snapshot(phase==='legacy-three'?tables.slice(0,3):phase==='legacy-five'?tables.slice(0,5):tables),localHttpCompletionQualified:phase==='seed',independentFreshnessQualified:false,owningPodmanQualified:false}));
 }finally{await pool.end()}
