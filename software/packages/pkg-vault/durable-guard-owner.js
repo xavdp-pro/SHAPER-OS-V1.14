@@ -73,6 +73,7 @@ export class GuardedDurableVaultOwner extends DurableVaultOwner {
     if(!payload||payload.universeId!==this.scope||payload.deviceId!==value.deviceId||payload.revision!==value.revision||sha(JSON.stringify(payload))!==value.payloadDigest)fail('vault_owner_resource_unavailable');
     return payload;
   }
+  async guardIdentityAdmission(){}
   async acquireGuard(input){
     const value=binding(input),trust=this.trusted(value),bindingDigest=sha(canonical(value));
     await this.transaction(async connection=>{
@@ -87,6 +88,7 @@ export class GuardedDurableVaultOwner extends DurableVaultOwner {
       if(receipt.action!=='prepare'||receipt.path!==value.path||receipt.deviceId!==value.deviceId||receipt.revision!==value.revision||receipt.payloadDigest!==value.payloadDigest||receipt.ownerEpoch!==value.ownerEpoch)fail('vault_owner_guard_invalid');
       const [[sequence]]=await connection.execute('SELECT guard_id FROM vault_owner_guards WHERE scope_id=? AND ((consumer_id=? AND consumer_incarnation=? AND ack_sequence=?) OR operation_id=?) FOR UPDATE',[this.scope,value.consumerId,value.consumerIncarnation,value.ackSequence,value.operationId]);
       if(sequence)fail('vault_owner_guard_conflict');
+      await this.guardIdentityAdmission(connection,value);
       await connection.execute('INSERT IGNORE INTO vault_owner_resource_fences (scope_id,path_hash) VALUES (?,?)',[this.scope,sha(value.path)]);
       const [inserted]=await connection.execute('INSERT INTO vault_owner_guards (scope_id,guard_id,operation_id,consumer_id,consumer_incarnation,ack_sequence,path_hash,binding_digest,binding_json,state) VALUES (?,?,?,?,?,?,?,?,?,?)',[this.scope,value.guardId,value.operationId,value.consumerId,value.consumerIncarnation,value.ackSequence,sha(value.path),bindingDigest,canonical(value),'HELD']);
       if(!positive(Number(inserted.insertId)))fail('vault_owner_sequence_exhausted');

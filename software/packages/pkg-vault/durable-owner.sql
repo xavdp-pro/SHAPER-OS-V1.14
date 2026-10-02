@@ -62,3 +62,28 @@ CREATE TABLE IF NOT EXISTS vault_owner_guards (
   UNIQUE KEY guarded_operation_identity(scope_id,operation_id),
   UNIQUE KEY peer_ack_identity(scope_id,consumer_id,consumer_incarnation,ack_sequence)
 ) ENGINE=InnoDB;
+
+-- Current disclosure is additive and unmounted. Binding/admission/claim immutable.
+-- Application SELECT/INSERT; UPDATE(state,closure_json,closure_digest) only.
+CREATE TABLE IF NOT EXISTS vault_owner_disclosures (
+  sequence BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  scope_id VARCHAR(64) COLLATE utf8mb4_bin NOT NULL,
+  disclosure_id CHAR(36) COLLATE ascii_bin NOT NULL,
+  read_operation_id CHAR(36) COLLATE ascii_bin NOT NULL,
+  activation_operation_id CHAR(36) COLLATE ascii_bin NOT NULL,
+  consumer_id VARCHAR(64) COLLATE ascii_bin NOT NULL,
+  consumer_incarnation VARCHAR(64) COLLATE ascii_bin NOT NULL,
+  ack_sequence BIGINT UNSIGNED NOT NULL,
+  path_hash CHAR(64) COLLATE ascii_bin NOT NULL,
+  binding_json LONGTEXT NOT NULL,
+  binding_digest CHAR(64) COLLATE ascii_bin NOT NULL,
+  admission_json LONGTEXT NOT NULL,
+  admission_digest CHAR(64) COLLATE ascii_bin NOT NULL,
+  payload_claimed TINYINT UNSIGNED NOT NULL,
+  state VARCHAR(40) COLLATE ascii_bin NOT NULL,
+  closure_json LONGTEXT NULL,
+  closure_digest CHAR(64) COLLATE ascii_bin NULL,
+  UNIQUE KEY disclosure_identity(scope_id,disclosure_id),
+  UNIQUE KEY disclosure_operation_identity(scope_id,read_operation_id),
+  UNIQUE KEY disclosure_ack_identity(scope_id,consumer_id,consumer_incarnation,ack_sequence)
+) ENGINE=InnoDB;

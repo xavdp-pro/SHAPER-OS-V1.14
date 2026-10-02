@@ -52,6 +52,7 @@ export class DurableVaultOwner {
       fail('vault_owner_store_unavailable');
     } finally{if(connection&&reusable)connection.release()}
   }
+  async operationIdentityAdmission(){}
   mutationAdmission(epoch,fence){if(Number(fence?.managed))fail('vault_owner_guard_required')}
   async write({path,operationId,universeId,deviceId,revision:version,payloadDigest,payload},action){
     if(!address(path)||!uuid(operationId)||universeId!==this.scope||!identifier(deviceId)||!revision(version))
@@ -71,6 +72,7 @@ export class DurableVaultOwner {
       await connection.execute('INSERT IGNORE INTO vault_owner_epochs (scope_id,owner_epoch) VALUES (?,?)',
         [this.scope,randomBytes(16).toString('hex')]);
       const [[epoch]]=await connection.execute('SELECT owner_epoch FROM vault_owner_epochs WHERE scope_id=? FOR UPDATE',[this.scope]);
+      await this.operationIdentityAdmission(connection,operationId);
       const [existing]=await connection.execute('SELECT request_digest,receipt_json FROM vault_owner_operations WHERE scope_id=? AND operation_id=? FOR UPDATE',[this.scope,operationId]);
       if(existing.length){
         if(existing[0].request_digest!==requestDigest)fail('vault_owner_operation_conflict');

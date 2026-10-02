@@ -81,3 +81,15 @@ restart. It compares private custody/source-marker bytes without printing them.
 The new source's fresh restart/restore checks compare all five tables. Guard HTTP
 methods must continue returning 404. This is bootstrap compatibility, not a
 mounted guard service or an independent restore freshness witness.
+
+## Additive current disclosure source
+
+The owning schema now has six tables. Administrative metadata preflight admits
+only exact known empty/three/five/six-table shapes before additive migration.
+Existing private path, key and source guards remain mandatory; application
+readiness requires six-table grants/keys/engines. Disclosure source is cold-imported
+but no guard/disclosure route is mounted. Programmatic disclosure requires the
+explicit trusted/freshness-configured owner subclass.
+See [current disclosure](../../packages/pkg-vault/DURABLE-DISCLOSURE-OWNER.md).
+Native Unix-socket proof is not a new owning Podman image or installed migration;
+previous five-table image evidence remains historical.

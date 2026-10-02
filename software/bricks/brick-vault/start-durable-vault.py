@@ -98,6 +98,30 @@ def sql(content):
     if result.returncode:raise RuntimeError('vault_owner_administration_failed')
 
 
+def schema_preflight():
+    # Administrative metadata only. Do not mutate unknown inherited tables.
+    result=subprocess.run(['/usr/bin/mariadb','--no-defaults','--protocol=socket',f'--socket={ROOT}/nosav/mysql/vault.sock','-uroot','--batch','--skip-column-names'],input=b"SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='vault' ORDER BY TABLE_NAME,ORDINAL_POSITION;",stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=8)
+    if result.returncode:raise RuntimeError('vault_owner_administration_failed')
+    validate_schema_rows(result.stdout.decode().splitlines())
+
+
+def validate_schema_rows(rows):
+    actual={}
+    for line in rows:
+        name,column=line.split('\t');actual.setdefault(name,[]).append(column)
+    expected={
+      'vault_owner_epochs':['scope_id','owner_epoch'],
+      'vault_owner_resources':['scope_id','path_hash','resource_path','device_id','revision','tombstoned','encrypted_payload','payload_digest'],
+      'vault_owner_operations':['sequence','scope_id','operation_id','path_hash','request_digest','receipt_json'],
+      'vault_owner_resource_fences':['scope_id','path_hash','managed','held_guard_id','deny_new','deny_operation_id','deny_revision','deny_request_digest'],
+      'vault_owner_guards':['sequence','scope_id','guard_id','operation_id','consumer_id','consumer_incarnation','ack_sequence','path_hash','binding_digest','binding_json','state','terminal_ack_json','terminal_ack_digest'],
+      'vault_owner_disclosures':['sequence','scope_id','disclosure_id','read_operation_id','activation_operation_id','consumer_id','consumer_incarnation','ack_sequence','path_hash','binding_json','binding_digest','admission_json','admission_digest','payload_claimed','state','closure_json','closure_digest']
+    }
+    three=set(['vault_owner_epochs','vault_owner_resources','vault_owner_operations']);five=set(expected)-{'vault_owner_disclosures'}
+    if set(actual) not in [set(),three,five,set(expected)] or any(actual[name]!=expected[name] for name in actual):
+        raise RuntimeError('vault_owner_database_schema_invalid')
+
+
 def stop(signum,frame):
     global STOP
     STOP=True
@@ -140,6 +164,7 @@ def main():
         try:
             os.fchown(fd,IDENTITY.pw_uid,IDENTITY.pw_gid);os.write(fd,('shaper.vault-private-owner.v1\nvault\n'+os.environ['VAULT_UNIVERSE_ID']+'\n').encode());os.fsync(fd);os.fsync(parent)
         finally:os.close(fd);os.close(parent)
+    schema_preflight()
     sql('CREATE DATABASE IF NOT EXISTS vault;USE vault;'+(ROOT/'app/pkg-vault/durable-owner.sql').read_text())
     # No REVOKE/reset: an inherited broad grant must cause application startup
     # refusal rather than being silently repaired or accepted.
@@ -148,7 +173,8 @@ def main():
         "GRANT SELECT,INSERT,UPDATE(receipt_json) ON vault.vault_owner_operations TO 'vault'@'localhost';"
         "GRANT SELECT,INSERT,UPDATE(revision,tombstoned,encrypted_payload,payload_digest) ON vault.vault_owner_resources TO 'vault'@'localhost';"
         "GRANT SELECT,INSERT,UPDATE(managed,held_guard_id,deny_new,deny_operation_id,deny_revision,deny_request_digest) ON vault.vault_owner_resource_fences TO 'vault'@'localhost';"
-        "GRANT SELECT,INSERT,UPDATE(state,terminal_ack_json,terminal_ack_digest) ON vault.vault_owner_guards TO 'vault'@'localhost';")
+        "GRANT SELECT,INSERT,UPDATE(state,terminal_ack_json,terminal_ack_digest) ON vault.vault_owner_guards TO 'vault'@'localhost';"
+        "GRANT SELECT,INSERT,UPDATE(state,closure_json,closure_digest) ON vault.vault_owner_disclosures TO 'vault'@'localhost';")
     application=subprocess.Popen(['/usr/bin/setpriv','--reuid=vault','--regid=vault','--init-groups','node',str(ROOT/'app/pkg-vault/durable-runtime.mjs')],stdin=subprocess.DEVNULL)
     CHILDREN.append(application)
     while not STOP:
