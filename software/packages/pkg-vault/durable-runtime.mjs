@@ -45,12 +45,33 @@ export function configuredOwnerMode(value){
 
 export async function checkWitnessEpoch(pool,witness){
   let connection;
+  let transaction=false;
   try{
     connection=await pool.getConnection();
+    await connection.beginTransaction();transaction=true;
     const [[row]]=await connection.execute('SELECT owner_epoch FROM vault_owner_epochs WHERE scope_id=?',[witness.universeId]);
+    if(row){
+      if(row.owner_epoch!==witness.ownerEpoch)throw new Error('vault_owner_freshness_unavailable');
+    }else{
+      for(const table of ['vault_owner_epochs','vault_owner_resources','vault_owner_operations','vault_owner_resource_fences','vault_owner_guards','vault_owner_disclosures']){
+        const [rows]=await connection.query(`SELECT 1 FROM ${table} LIMIT 1 FOR UPDATE`);
+        if(rows.length)throw new Error('vault_owner_freshness_unavailable');
+      }
+      await connection.execute('INSERT INTO vault_owner_epochs (scope_id,owner_epoch) VALUES (?,?)',[witness.universeId,witness.ownerEpoch]);
+    }
+    await connection.commit();transaction=false;
+  }catch{throw new Error('vault_owner_freshness_unavailable')}
+  finally{
+    if(transaction&&connection){try{await connection.rollback()}catch{connection.destroy()}}
+    connection?.release();
+  }
+  let verified;
+  try{
+    verified=await pool.getConnection();
+    const [[row]]=await verified.execute('SELECT owner_epoch FROM vault_owner_epochs WHERE scope_id=?',[witness.universeId]);
     if(!row||row.owner_epoch!==witness.ownerEpoch)throw new Error('vault_owner_freshness_unavailable');
   }catch{throw new Error('vault_owner_freshness_unavailable')}
-  finally{connection?.release()}
+  finally{verified?.release()}
 }
 
 export async function checkPrivateVaultDatabase(pool){

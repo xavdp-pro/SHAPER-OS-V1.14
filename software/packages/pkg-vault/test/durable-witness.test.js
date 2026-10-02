@@ -57,9 +57,23 @@ test('guarded runtime requires exact SQL epoch and explicit mode',async()=>{
   assert.equal(configuredOwnerMode(undefined),'base');
   assert.equal(configuredOwnerMode('current-disclosure'),'current-disclosure');
   assert.throws(()=>configuredOwnerMode('guarded-if-available'),/mode_invalid/);
-  let released=0;
-  const pool={getConnection:async()=>({execute:async()=>[[{owner_epoch:record.ownerEpoch}]],release:()=>released++})};
-  await checkWitnessEpoch(pool,record);assert.equal(released,1);
+  const state={epoch:null,dirty:false,insertions:0,releases:0,rollbacks:0};
+  const pool={getConnection:async()=>({
+    beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{state.rollbacks++},
+    execute:async(sql,args)=>{
+      if(sql.startsWith('SELECT owner_epoch'))return [[state.epoch?{owner_epoch:state.epoch}:undefined]];
+      if(sql.startsWith('INSERT INTO vault_owner_epochs')){state.epoch=args[1];state.insertions++;return [{}]}
+      throw new Error('unexpected SQL');
+    },
+    query:async()=>[state.dirty?[{1:1}]:[]],release:()=>{state.releases++}
+  })};
+  await checkWitnessEpoch(pool,record);
+  assert.equal(state.epoch,record.ownerEpoch);assert.equal(state.insertions,1);
+  await checkWitnessEpoch(pool,record);
+  assert.equal(state.insertions,1);assert.equal(state.releases,4);
   await assert.rejects(checkWitnessEpoch(pool,{...record,ownerEpoch:'b'.repeat(32)}),/freshness_unavailable/);
-  assert.equal(released,2);
+  assert.equal(state.rollbacks,1);
+  state.epoch=null;state.dirty=true;
+  await assert.rejects(checkWitnessEpoch(pool,record),/freshness_unavailable/);
+  assert.equal(state.insertions,1);assert.equal(state.rollbacks,2);
 });

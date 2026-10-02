@@ -113,11 +113,12 @@ exactly this JSON shape, with an Ed25519 public key (never a private key):
 
 The host owns witness issuance and rotation. The witness is read at every
 freshness/consumer admission, not cached or copied into Vault SQL. Startup
-requires its scope and epoch to equal the confined Vault epoch row. No missing
-file, invalid mount, stale epoch or changed peer falls back to base mode. A
-first guarded birth must seed that exact epoch in the private SQL row through
-the owning administrative path before opening the listener. Restores must
-retain or deliberately rotate the host witness independently of the Vault
+requires its scope and epoch to equal the confined Vault epoch row. On the
+first guarded birth, the runtime inserts the witness epoch before opening the
+listener only if all six owner tables are empty.
+An existing different epoch, or owner data without an epoch, refuses startup.
+No missing file, invalid mount, stale epoch or changed peer falls back to base
+mode. Restores must retain or deliberately rotate the host witness independently of the Vault
 volume; a matching restored SQL/key pair alone does not authorize service.
 
 This source contract has unit coverage for permission, mount, peer and epoch

@@ -10,12 +10,12 @@ import {DurableVaultOwner} from '../../durable-owner.js';
 import {GuardedDurableVaultOwner} from '../../durable-guard-owner.js';
 import {CurrentDisclosureVaultOwner} from '../../durable-disclosure-owner.js';
 import {createDurableVaultServer,DurableVaultClient} from '../../durable-http.js';
-import {checkPrivateVaultDatabase} from '../../durable-runtime.mjs';
+import {checkPrivateVaultDatabase,checkWitnessEpoch} from '../../durable-runtime.mjs';
 const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 const require=createRequire(config.dependencyPackage),mysql=require('mysql2/promise');
 assert.equal(require('mysql2/package.json').version,'3.24.4');
 const {phase,stateFile,dependencyPackage,...settings}=config;
-assert(/^\/tmp\/vault-disclosure-socket-[^/]+\/(original|restored)\.sock$/.test(settings.socketPath));
+assert(/^\/tmp\/vault-disclosure-socket-[^/]+\/(birth|original|restored)\.sock$/.test(settings.socketPath));
 const pool=mysql.createPool({...settings,connectionLimit:4,waitForConnections:false});
 const sha=v=>createHash('sha256').update(v).digest('hex'),canonical=v=>JSON.stringify(Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])));
 let state=fs.existsSync(stateFile)?JSON.parse(fs.readFileSync(stateFile,'utf8')):{};
@@ -38,7 +38,20 @@ const begin=(b,o=owner)=>o.beginDisclosure({binding:b,peerAdmission:admission(b)
 const finish=(b,c=closure(b),o=owner)=>o.finishDisclosure({...selected(b),peerClosure:c});
 const cases=[];
 try{
- if(phase==='legacy-three'){
+ if(phase==='witness-empty'){
+  await checkPrivateVaultDatabase(pool);
+  const witness={universeId:'scope',ownerEpoch:'a'.repeat(32)};
+  await checkWitnessEpoch(pool,witness);
+  await checkWitnessEpoch(pool,witness);
+  assert.deepEqual((await pool.query('SELECT owner_epoch FROM vault_owner_epochs WHERE scope_id=?',['scope']))[0].map(row=>row.owner_epoch),[witness.ownerEpoch]);
+  await assert.rejects(checkWitnessEpoch(pool,{...witness,ownerEpoch:'b'.repeat(32)}),/freshness_unavailable/);
+  cases.push('empty private SQL seeds exact witness once; restart accepts; mismatch refuses');
+ }else if(phase==='witness-dirty'){
+  await checkPrivateVaultDatabase(pool);
+  await assert.rejects(checkWitnessEpoch(pool,{universeId:'scope',ownerEpoch:'a'.repeat(32)}),/freshness_unavailable/);
+  assert.equal((await pool.query('SELECT COUNT(*) AS count FROM vault_owner_epochs'))[0][0].count,0);
+  cases.push('missing epoch with existing fence refuses without reseeding');
+ }else if(phase==='legacy-three'){
   const operationId=randomUUID(),path='secret/attempt/'+operationId,payload={universeId:'scope',deviceId:'device',revision:1,password:'synthetic_only'};
   // Seed the known historical three-table shape with real owning AES+SQL;
   // the current source intentionally does not run on that missing-fence schema.

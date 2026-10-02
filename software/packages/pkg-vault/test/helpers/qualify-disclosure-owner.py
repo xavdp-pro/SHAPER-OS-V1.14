@@ -19,7 +19,7 @@ def main():
     processes=[]
     receipt={'passed':False,'network':'sql_unix_socket_and_ephemeral_http_loopback','syntheticKeyAndDataOnly':True,
              'functionalPodmanQualified':False,'sourceFiles':{},'phases':[],'uid':os.geteuid()}
-    for path in [package/'index.js',package/'durable-owner.js',package/'durable-owner.sql',package/'durable-guard-owner.js',package/'durable-disclosure-owner.js',package/'durable-http.js',package/'durable-runtime.mjs',pathlib.Path(__file__),package.parents[1]/'bricks/brick-vault/start-durable-vault.py',pathlib.Path(__file__).with_name('disclosure-engine.mjs'),pathlib.Path(__file__).with_name('durable-engine.mjs')]:
+    for path in [package/'index.js',package/'durable-owner.js',package/'durable-owner.sql',package/'durable-guard-owner.js',package/'durable-disclosure-owner.js',package/'durable-http.js',package/'durable-runtime.mjs',package/'durable-witness.js',pathlib.Path(__file__),package.parents[1]/'bricks/brick-vault/start-durable-vault.py',pathlib.Path(__file__).with_name('disclosure-engine.mjs'),pathlib.Path(__file__).with_name('durable-engine.mjs')]:
         receipt['sourceFiles'][os.path.relpath(path,package)]=hashlib.sha256(path.read_bytes()).hexdigest()
     def run(argv,**kwargs):
         return subprocess.run([str(x) for x in argv],check=True,timeout=90,**kwargs)
@@ -69,6 +69,9 @@ def main():
     try:
         receipt['serverVersion']=run([tools/'usr/sbin/mariadbd','--version'],stdout=subprocess.PIPE).stdout.decode().strip()
         receipt['nodeVersion']=run([args.node,'--version'],stdout=subprocess.PIPE).stdout.decode().strip()
+        birth,birth_sock=start('birth');setup(birth_sock,stage=6);phase(birth_sock,'witness-empty')
+        sql(birth_sock,"DELETE FROM vault.vault_owner_epochs WHERE scope_id='scope';INSERT INTO vault.vault_owner_resource_fences (scope_id,path_hash) VALUES ('scope',REPEAT('f',64));")
+        phase(birth_sock,'witness-dirty');stop(birth)
         process,sock=start('original');setup(sock,stage=3);phase(sock,'legacy-three')
         setup(sock,stage=5);phase(sock,'legacy-five')
         setup(sock,stage=6);phase(sock,'seed')
@@ -115,7 +118,7 @@ def main():
         receipt['passed']=receipt['passed'] and receipt['ownedProcessesReaped'] and receipt['socketDirectoryRemoved']
         if receipt['passed']:
             (work/'state.json').unlink(missing_ok=True);(work/'dump.sql').unlink(missing_ok=True)
-            for name in ['original','restored']:shutil.rmtree(work/name)
+            for name in ['birth','original','restored']:shutil.rmtree(work/name)
             receipt['ownedSyntheticStateRemoved']=True
         (work/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n');print(work/'receipt.json')
     if not receipt['passed']:raise RuntimeError('disposable_engine_qualification_failed')
