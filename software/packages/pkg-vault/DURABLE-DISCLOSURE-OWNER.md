@@ -10,7 +10,8 @@
   `beginDisclosure`, `inspectDisclosure`, `finishDisclosure`. Begin requires signed
   admission and a live resource. The pinned peer must explicitly admit `read`;
   mandatory freshness is rechecked after awaited readback commit before plaintext
-  return. No deployed freshness witness is supplied.
+  return. A host-file witness adapter is available in source, but none is
+  installed or qualified for this instance.
 - The common permanent fence excludes owner mutations while HELD. Pending
   tombstone UUID and deny-new remain durable. Initial begin claims payload once;
   duplicate/inspect/recovery responses are metadata only. Reply or commit loss

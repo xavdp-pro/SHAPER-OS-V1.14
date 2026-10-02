@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import {createRequire} from 'node:module';
 import {DurableVaultOwner} from './durable-owner.js';
-// Cold import verifies the optional disclosure source without mounting it.
-import './durable-disclosure-owner.js';
+import {CurrentDisclosureVaultOwner} from './durable-disclosure-owner.js';
+import {createHostWitnessAdmission,readHostWitness} from './durable-witness.js';
 import {createDurableVaultServer} from './durable-http.js';
 
 export function readPrivateOwnerFile(path,{uid=process.getuid(),maximum=4096}={}){
@@ -35,6 +35,22 @@ export function configuredOwnerPort(value){
   const port=Number(value);
   if(!Number.isSafeInteger(port)||port<1024||port>65535)throw new Error('vault_owner_port_invalid');
   return port;
+}
+
+export function configuredOwnerMode(value){
+  if(value===undefined||value==='base')return 'base';
+  if(value==='current-disclosure')return value;
+  throw new Error('vault_owner_mode_invalid');
+}
+
+export async function checkWitnessEpoch(pool,witness){
+  let connection;
+  try{
+    connection=await pool.getConnection();
+    const [[row]]=await connection.execute('SELECT owner_epoch FROM vault_owner_epochs WHERE scope_id=?',[witness.universeId]);
+    if(!row||row.owner_epoch!==witness.ownerEpoch)throw new Error('vault_owner_freshness_unavailable');
+  }catch{throw new Error('vault_owner_freshness_unavailable')}
+  finally{connection?.release()}
 }
 
 export async function checkPrivateVaultDatabase(pool){
@@ -91,6 +107,9 @@ export async function checkPrivateVaultDatabase(pool){
 async function main(){
   if(process.getuid()===0||os.userInfo().username!=='vault')throw new Error('vault_owner_system_identity_invalid');
   const port=configuredOwnerPort(process.env.VAULT_OWNER_PORT);
+  const mode=configuredOwnerMode(process.env.VAULT_OWNER_MODE);
+  const witnessPath='/run/shaper/vault-owner-witness.json';
+  if(mode==='current-disclosure')readHostWitness(witnessPath);
   const key=readPrivateOwnerFile('/apps/vault/etc/owner/master-key');
   const token=readPrivateOwnerFile('/apps/vault/etc/owner/token');
   const password=readPrivateOwnerFile('/apps/vault/etc/mysql/localhost/passwd');
@@ -107,7 +126,14 @@ async function main(){
   }};
   try{
     await checkPrivateVaultDatabase(pool);
-    const owner=new DurableVaultOwner({pool,masterKey:key,universeId:process.env.VAULT_UNIVERSE_ID});
+    let owner;
+    if(mode==='current-disclosure'){
+      const witness=readHostWitness(witnessPath);
+      if(witness.universeId!==process.env.VAULT_UNIVERSE_ID)throw new Error('vault_owner_freshness_unavailable');
+      await checkWitnessEpoch(pool,witness);
+      owner=new CurrentDisclosureVaultOwner({pool,masterKey:key,universeId:witness.universeId,
+        ...createHostWitnessAdmission(witnessPath)});
+    }else owner=new DurableVaultOwner({pool,masterKey:key,universeId:process.env.VAULT_UNIVERSE_ID});
     const server=createDurableVaultServer({owner,token,port});
     const stop=()=>{server.close(async()=>{await native.end();process.exit(0)});server.closeIdleConnections()};
     process.once('SIGTERM',stop);process.once('SIGINT',stop);

@@ -96,3 +96,31 @@ explicit trusted/freshness-configured owner subclass.
 See [current disclosure](../../packages/pkg-vault/DURABLE-DISCLOSURE-OWNER.md).
 Native Unix-socket proof is not a new owning Podman image or installed migration;
 previous five-table image evidence remains historical.
+
+## Host-witnessed guarded runtime candidate
+
+`VAULT_OWNER_MODE=current-disclosure` opts into the guarded owner; omitted or
+`base` retains the historical owner. The guarded mode requires an exact
+read-only file bind at `/run/shaper/vault-owner-witness.json`, outside the
+Vault LXC/Podman restored data. The source file and every ancestor are
+root-owned; the regular, single-link file is mode `0444`, the bind is an exact
+`ro` mount point, and the runtime process cannot write it. The witness has
+exactly this JSON shape, with an Ed25519 public key (never a private key):
+
+```json
+{"schema":"shaper.vault-host-witness.v1","universeId":"<scope>","ownerEpoch":"<32 lowercase hex>","generation":1,"consumer":{"consumerId":"<peer>","consumerIncarnation":"<incarnation>","keyId":"<key-id>","publicKey":"<Ed25519 SPKI PEM>","operations":["issue","rotate","read"]}}
+```
+
+The host owns witness issuance and rotation. The witness is read at every
+freshness/consumer admission, not cached or copied into Vault SQL. Startup
+requires its scope and epoch to equal the confined Vault epoch row. No missing
+file, invalid mount, stale epoch or changed peer falls back to base mode. A
+first guarded birth must seed that exact epoch in the private SQL row through
+the owning administrative path before opening the listener. Restores must
+retain or deliberately rotate the host witness independently of the Vault
+volume; a matching restored SQL/key pair alone does not authorize service.
+
+This source contract has unit coverage for permission, mount, peer and epoch
+refusal. It is not yet an installed host witness, a cross-container release
+proof or handset delivery proof. The host's own restore and witness issuance
+process still require qualification before a production claim.
