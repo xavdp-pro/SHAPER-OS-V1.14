@@ -16,6 +16,7 @@ COPY durable-package.json /apps/vault/nosav/package.json
 COPY durable-package-lock.json /apps/vault/nosav/package-lock.json
 RUN cd /apps/vault/nosav && npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
     && mkdir -p /apps/vault/etc /apps/vault/sav /apps/vault/log /apps/vault/nosav/mysql \
-    && chown -R vault:vault /apps/vault/nosav
+    && chown -R vault:vault /apps/vault/nosav \
+    && chmod 0700 /apps/vault/nosav/mysql
 COPY start-durable-vault.py /usr/local/bin/start-durable-vault.py
 ENTRYPOINT ["python3", "/usr/local/bin/start-durable-vault.py"]

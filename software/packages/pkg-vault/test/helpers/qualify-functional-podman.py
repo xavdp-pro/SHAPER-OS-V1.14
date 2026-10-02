@@ -82,6 +82,12 @@ def main():
     try:
         image=json.loads(run(['podman','image','inspect',args.image],stdout=subprocess.PIPE).stdout)[0]
         receipt['imageId']=image['Id'];receipt['imageSourceRevision']=image['Config']['Labels'].get('org.opencontainers.image.revision')
+        # The normal runtime must own its ephemeral socket directory even
+        # without the synthetic QA volume that otherwise masks image defects.
+        socket_dir=run(['podman','run','--rm','--network','none','--entrypoint','stat',args.image,
+            '-c','%u:%g:%a','/apps/vault/nosav/mysql'],stdout=subprocess.PIPE).stdout.decode().strip()
+        if socket_dir!='10001:10001:700':raise RuntimeError('image_private_socket_directory_invalid')
+        receipt['imagePrivateSocketDirectory']=socket_dir
         receipt['fixtureHashes']={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in [pathlib.Path(__file__),pathlib.Path(__file__).with_name('functional-http.mjs')]}
         if args.legacy_image:
             if not re.fullmatch('[A-Za-z0-9][A-Za-z0-9:/.@_-]+',args.legacy_image):raise RuntimeError('legacy_image_admission_invalid')
