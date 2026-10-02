@@ -29,6 +29,12 @@ owning bind mounts. Instance data and the matching scoped key require paired
 backup/restore. The source-format marker records function/scope only and does
 not attest an independent anti-rollback epoch.
 
+The root bootstrap supervises MariaDB and Node after dropping them to Vault
+UID 10001. A launch that drops all Linux capabilities must restore only
+`CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, `SETGID` and `KILL`; `KILL` lets
+PID 1 stop its different-UID children. Startup checks this before creating
+private state and refuses a launch that cannot shut down cleanly.
+
 The new server binds **127.0.0.1 inside the function**. It defaults to port 8610;
 `VAULT_OWNER_PORT` may select an explicit unprivileged port for a separately
 qualified coexistence trial. It does not move or proxy the legacy listener.

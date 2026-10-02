@@ -60,6 +60,11 @@ def directory(path):
 
 
 def preflight():
+    # PID 1 must stop its vault-owned children after dropping their UID.
+    try:
+        effective=next(line.split(':',1)[1].strip() for line in pathlib.Path('/proc/self/status').read_text().splitlines() if line.startswith('CapEff:'))
+        if not int(effective,16)&(1<<5):raise RuntimeError('vault_owner_signal_capability_missing')
+    except (OSError,ValueError,StopIteration):raise RuntimeError('vault_owner_signal_capability_missing')
     # Podman read-only roots are mounted 0555; image-owned writable roots are 0755.
     root_fd=open_beneath('/',os.O_RDONLY|os.O_DIRECTORY)
     try:

@@ -38,7 +38,7 @@ def main():
         cases[name]=data;return data
     def start(name,data,image=None):
         argv=['podman','run','-d','--name',args.prefix+'-'+name,'--label','org.shaper.qa-owner='+owner,'--network','none','--read-only','--cpus','1','--memory','512m','--pids-limit','96','--security-opt','no-new-privileges',
-          '--cap-drop','ALL','--cap-add','CHOWN','--cap-add','FOWNER','--cap-add','DAC_OVERRIDE','--cap-add','SETUID','--cap-add','SETGID','--env','VAULT_UNIVERSE_ID=synthetic']
+          '--cap-drop','ALL','--cap-add','CHOWN','--cap-add','FOWNER','--cap-add','DAC_OVERRIDE','--cap-add','SETUID','--cap-add','SETGID','--cap-add','KILL','--env','VAULT_UNIVERSE_ID=synthetic']
         for host,target in [(data/'etc','/apps/vault/etc'),(data/'sav','/apps/vault/sav'),(data/'log','/apps/vault/log'),(data/'mysql','/apps/vault/nosav/mysql'),(data/'temporary','/tmp'),(data/'qa-state','/qa-state')]:argv+=['--volume',str(host)+':'+target+':rw']
         argv+=['--volume',str(pathlib.Path(__file__).resolve().parent)+':/qa:ro']
         if (data/'outside').exists():argv+=['--volume',str(data/'outside')+':/outside:rw']
