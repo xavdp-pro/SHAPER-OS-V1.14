@@ -29,7 +29,10 @@
   upgrade to six preserving key/ciphertext/receipt bytes. Startup admin metadata
   refuses unknown tables/columns before migration; confined app readiness checks
   six-table keys/engines and excess grants. Ungranted foreign tables are invisible
-  to the app and require the admin preflight. No disclosure HTTP route is mounted.
+  to the app and require the admin preflight. The authenticated loopback HTTP
+  adapter can route disclosure calls when its injected owner advertises the
+  disclosure protocol. The installed runtime still constructs the base owner,
+  so it does not mount those calls.
 
 ## Typed APIs
 
@@ -77,3 +80,9 @@ stopped/killed child, exact ciphertext preservation and six-table restart/fresh
 restore. Freshness/fault adapters are test-only. No independent restore witness,
 HTTP partition, physical output, consumer account/source fencing, functional
 Podman startup or installed provisioning proof is claimed.
+
+The transport test proves bounded authenticated request/response carriage and
+refusal on a base owner. It uses a synthetic owner; it does not prove a
+cross-container transaction or authorize a runtime cutover. A real cutover
+still needs independently witnessed freshness, pinned peer registration,
+confined network access, and the consuming VOX output fence.

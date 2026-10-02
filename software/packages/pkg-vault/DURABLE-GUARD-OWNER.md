@@ -1,9 +1,11 @@
 # Unmounted activation guard owner
 
 This source candidate extends the existing Vault unit's private MariaDB owner.
-It mounts no HTTP route, changes no brick bootstrap or live key custody, and
-supplies no independent freshness witness. No cross-container release claim is
-made. Legacy encrypted-file Vault APIs remain untouched.
+Its authenticated loopback HTTP adapter can route guard calls only for an
+injected owner advertising the guard protocol. The installed runtime still
+constructs the base owner, changes no live key custody and supplies no
+independent freshness witness. No cross-container release claim is made.
+Legacy encrypted-file Vault APIs remain untouched.
 
 ## Required dependencies and methods
 
@@ -87,9 +89,10 @@ Missing tables/grants refuse; there is no legacy fallback. The additive bootstra
 adds their declared grants to a known owned three-table database. Cold readiness
 checks all five tables, required columns/keys, InnoDB and exact privileges.
 Excess inherited grants are refused rather than removed. This compatibility
-step keeps only the historical five HTTP methods; guard routes and a freshness
-witness remain absent. Installed cutover and advanced guard activation still
-require separate owning qualification and authorization.
+step mounts only the historical five HTTP methods because the runtime supplies
+the base owner. The optional adapter routes are not an installed guard, and a
+freshness witness remains absent. Installed cutover and advanced guard
+activation still require separate owning qualification.
 
 No initial handset disclosure, cross-container current-state acknowledgement,
 HTTP mounting, peer permanent ledger, attempt-unique consuming path migration,
