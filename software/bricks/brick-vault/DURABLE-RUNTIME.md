@@ -29,7 +29,10 @@ owning bind mounts. Instance data and the matching scoped key require paired
 backup/restore. The source-format marker records function/scope only and does
 not attest an independent anti-rollback epoch.
 
-The new server binds **127.0.0.1 inside the function**. Its five methods are POST
+The new server binds **127.0.0.1 inside the function**. It defaults to port 8610;
+`VAULT_OWNER_PORT` may select an explicit unprivileged port for a separately
+qualified coexistence trial. It does not move or proxy the legacy listener.
+The installed base-owner runtime exposes five POST methods:
 `/api/durable-owner/{prepareImmutable,tombstoneImmutable,findReceipt,verifyReceipt,getPrepared}`.
 Bearer authentication is mandatory; keys/payloads/receipts are request bodies,
 never URLs. Replies are bounded/no-store and failure messages never include

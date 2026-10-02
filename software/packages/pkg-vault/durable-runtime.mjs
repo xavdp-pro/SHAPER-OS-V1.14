@@ -29,6 +29,14 @@ export function readPrivateOwnerFile(path,{uid=process.getuid(),maximum=4096}={}
   finally{if(fd!==undefined)fs.closeSync(fd)}
 }
 
+export function configuredOwnerPort(value){
+  if(value===undefined)return 8610;
+  if(typeof value!=='string'||!/^[1-9][0-9]{3,4}$/.test(value))throw new Error('vault_owner_port_invalid');
+  const port=Number(value);
+  if(!Number.isSafeInteger(port)||port<1024||port>65535)throw new Error('vault_owner_port_invalid');
+  return port;
+}
+
 export async function checkPrivateVaultDatabase(pool){
   const connection=await pool.getConnection();
   try{
@@ -82,6 +90,7 @@ export async function checkPrivateVaultDatabase(pool){
 
 async function main(){
   if(process.getuid()===0||os.userInfo().username!=='vault')throw new Error('vault_owner_system_identity_invalid');
+  const port=configuredOwnerPort(process.env.VAULT_OWNER_PORT);
   const key=readPrivateOwnerFile('/apps/vault/etc/owner/master-key');
   const token=readPrivateOwnerFile('/apps/vault/etc/owner/token');
   const password=readPrivateOwnerFile('/apps/vault/etc/mysql/localhost/passwd');
@@ -99,7 +108,7 @@ async function main(){
   try{
     await checkPrivateVaultDatabase(pool);
     const owner=new DurableVaultOwner({pool,masterKey:key,universeId:process.env.VAULT_UNIVERSE_ID});
-    const server=createDurableVaultServer({owner,token,port:8610});
+    const server=createDurableVaultServer({owner,token,port});
     const stop=()=>{server.close(async()=>{await native.end();process.exit(0)});server.closeIdleConnections()};
     process.once('SIGTERM',stop);process.once('SIGINT',stop);
   }catch(error){await native.end();throw error}

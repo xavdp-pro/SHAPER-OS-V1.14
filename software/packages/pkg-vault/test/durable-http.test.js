@@ -7,9 +7,16 @@ import os from 'node:os';
 import path from 'node:path';
 import {once} from 'node:events';
 import {DurableVaultClient,createDurableVaultServer} from '../durable-http.js';
-import {readPrivateOwnerFile} from '../durable-runtime.mjs';
+import {configuredOwnerPort,readPrivateOwnerFile} from '../durable-runtime.mjs';
 const token='a'.repeat(64);
 const close=async server=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve))};
+
+test('durable owner can bind a separate loopback port without changing the legacy default',()=>{
+  assert.equal(configuredOwnerPort(undefined),8610);
+  assert.equal(configuredOwnerPort('8611'),8611);
+  for(const value of ['0','80','65536','8611/tcp',' 8611','08611','not-a-port'])
+    assert.throws(()=>configuredOwnerPort(value),/vault_owner_port_invalid/);
+});
 
 test('HTTP admission refuses bad credentials/routes/bodies before owner execution',async()=>{
   let calls=0;const owner={protocol:'shaper.durable-conditional-vault.v1',getPrepared(){calls++;throw new Error('synthetic_secret_must_not_escape')}};
