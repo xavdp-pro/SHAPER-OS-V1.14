@@ -2,7 +2,9 @@
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 
-const methods=new Set(['prepareImmutable','tombstoneImmutable','findReceipt','verifyReceipt','getPrepared']);
+const baseMethods=new Set(['prepareImmutable','tombstoneImmutable','findReceipt','verifyReceipt','getPrepared']);
+const guardMethods=new Set(['acquireGuard','inspectGuard','settleGuard']);
+const disclosureMethods=new Set(['beginDisclosure','inspectDisclosure','finishDisclosure']);
 const limit=131072;
 const code=error=>/^vault_owner_[a-z_]+$/.test(error?.message||'')?error.message:'vault_owner_unavailable';
 const validToken=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
@@ -24,7 +26,11 @@ export function createDurableVaultServer({owner,token,host='127.0.0.1',port=0}={
     const supplied=typeof authorization==='string'&&/^Bearer [a-f0-9]{64}$/.test(authorization)?Buffer.from(authorization.slice(7)):Buffer.alloc(0);
     if(supplied.length!==expected.length||!timingSafeEqual(supplied,expected))return send(response,401,{error:'vault_owner_unauthorized'});
     const method=request.url?.startsWith('/api/durable-owner/')?request.url.slice('/api/durable-owner/'.length):null;
-    if(request.method!=='POST'||!methods.has(method))return send(response,404,{error:'vault_owner_route_unavailable'});
+    const available=baseMethods.has(method)||
+      (owner.guardProtocol==='shaper.vault-activation-guard.v1'&&guardMethods.has(method))||
+      (owner.disclosureProtocol==='shaper.vault-current-disclosure.v1'&&disclosureMethods.has(method));
+    if(request.method!=='POST'||!available||typeof owner[method]!=='function')
+      return send(response,404,{error:'vault_owner_route_unavailable'});
     let size=0;const chunks=[];
     try{
       for await(const chunk of request){size+=chunk.length;if(size>limit){send(response,413,{error:'vault_owner_request_too_large'});request.destroy();return}chunks.push(chunk)}
@@ -46,6 +52,8 @@ export function createDurableVaultServer({owner,token,host='127.0.0.1',port=0}={
 /** Transport adapter retains the full authenticated receipt across JSON. */
 export class DurableVaultClient {
   protocol='shaper.durable-conditional-vault.v1';
+  guardProtocol='shaper.vault-activation-guard.v1';
+  disclosureProtocol='shaper.vault-current-disclosure.v1';
   constructor({url,token,timeoutMs=10000}={}){
     let parsed;try{parsed=new URL(url)}catch{throw new Error('vault_owner_http_configuration_invalid')}
     if(!validToken(token)||parsed.username||parsed.password||parsed.search||parsed.hash||parsed.pathname!=='/'||
@@ -72,4 +80,10 @@ export class DurableVaultClient {
   findReceipt(input){return this.request('findReceipt',input)}
   verifyReceipt(input){return this.request('verifyReceipt',input)}
   getPrepared(input){return this.request('getPrepared',input)}
+  acquireGuard(input){return this.request('acquireGuard',input)}
+  inspectGuard(input){return this.request('inspectGuard',input)}
+  settleGuard(input){return this.request('settleGuard',input)}
+  beginDisclosure(input){return this.request('beginDisclosure',input)}
+  inspectDisclosure(input){return this.request('inspectDisclosure',input)}
+  finishDisclosure(input){return this.request('finishDisclosure',input)}
 }

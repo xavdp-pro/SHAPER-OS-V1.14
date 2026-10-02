@@ -60,3 +60,27 @@ test('HTTP server bounds serialized responses before publishing any payload',asy
     assert.equal(response.status,503);assert.deepEqual(await response.json(),{error:'vault_owner_response_invalid'});
   }finally{await close(server)}
 });
+
+test('guard and disclosure routes require an explicitly capable owner and keep peer envelopes intact',async()=>{
+  const calls=[];
+  const owner={protocol:'shaper.durable-conditional-vault.v1',
+    acquireGuard(input){calls.push(['guard',input]);return {receipt:{state:'HELD'}}},
+    beginDisclosure(input){calls.push(['disclosure',input]);return {receipt:{state:'HELD'},payload:{password:'synthetic'}}}};
+  const server=createDurableVaultServer({owner,token});await once(server,'listening');
+  const client=new DurableVaultClient({url:`http://127.0.0.1:${server.address().port}`,token});
+  try{
+    await assert.rejects(client.acquireGuard({guardId:'one'}),/vault_owner_route_unavailable/);
+    await assert.rejects(client.beginDisclosure({disclosureId:'one'}),/vault_owner_route_unavailable/);
+    assert.deepEqual(calls,[]);
+    owner.guardProtocol='shaper.vault-activation-guard.v1';
+    owner.disclosureProtocol='shaper.vault-current-disclosure.v1';
+    const guard={binding:{guardId:'one'},peerAcknowledgement:{signature:'synthetic'}};
+    const disclosure={binding:{guardId:'two'},peerAdmission:{signature:'synthetic'}};
+    assert.deepEqual(await client.acquireGuard(guard),{receipt:{state:'HELD'}});
+    assert.deepEqual(await client.beginDisclosure(disclosure),{receipt:{state:'HELD'},payload:{password:'synthetic'}});
+    assert.deepEqual(calls,[['guard',guard],['disclosure',disclosure]]);
+    const unauthenticated=await fetch(`${client.url}/api/durable-owner/beginDisclosure`,{method:'POST',body:JSON.stringify(disclosure)});
+    assert.equal(unauthenticated.status,401);
+    assert.deepEqual(calls,[['guard',guard],['disclosure',disclosure]]);
+  }finally{await close(server)}
+});
