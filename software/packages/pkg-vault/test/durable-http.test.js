@@ -5,9 +5,10 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {createHash,createPublicKey,generateKeyPairSync,verify} from 'node:crypto';
 import {once} from 'node:events';
 import {DurableVaultClient,createDurableVaultServer} from '../durable-http.js';
-import {configuredOwnerPort,readPrivateOwnerFile} from '../durable-runtime.mjs';
+import {configuredOwnerPort,readPrivateOwnerFile,responseSigningKey} from '../durable-runtime.mjs';
 const token='a'.repeat(64);
 const close=async server=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve))};
 
@@ -90,4 +91,33 @@ test('guard and disclosure routes require an explicitly capable owner and keep p
     assert.equal(unauthenticated.status,401);
     assert.deepEqual(calls,[['guard',guard],['disclosure',disclosure]]);
   }finally{await close(server)}
+});
+
+test('signed owner HTTP response binds method, nonce, exact request and result',async()=>{
+  const {privateKey}=generateKeyPairSync('ed25519');
+  const owner={protocol:'shaper.durable-conditional-vault.v1',guardProtocol:'shaper.vault-activation-guard.v1',
+    acquireGuard(input){return {receipt:{state:'HELD',guardId:input.guardId}}}};
+  const server=createDurableVaultServer({owner,token,responseSigningKey:privateKey});await once(server,'listening');
+  const url=`http://127.0.0.1:${server.address().port}/api/durable-owner/acquireGuard`;
+  try{
+    const nonce='1'.repeat(32),input={guardId:'one'};
+    const response=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:JSON.stringify({nonce,input})});
+    assert.equal(response.status,200);
+    const envelope=await response.json(),attestation=envelope.attestation;
+    const inputDigest=createHash('sha256').update(JSON.stringify(input)).digest('hex');
+    const statement={schema:attestation.schema,protocol:envelope.protocol,method:'acquireGuard',nonce,inputDigest,result:envelope.result};
+    assert.equal(attestation.keyId,createHash('sha256').update(createPublicKey(privateKey).export({type:'spki',format:'der'})).digest('hex'));
+    assert.equal(attestation.inputDigest,inputDigest);
+    assert.equal(verify(null,Buffer.from(JSON.stringify(statement)),createPublicKey(privateKey),Buffer.from(attestation.signature,'base64')),true);
+    assert.equal(verify(null,Buffer.from(JSON.stringify({...statement,result:{receipt:{state:'RELEASED'}}})),createPublicKey(privateKey),Buffer.from(attestation.signature,'base64')),false);
+    const legacy=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:JSON.stringify(input)});
+    assert.equal(legacy.status,400);
+  }finally{await close(server)}
+});
+
+test('runtime response key is stable for a scope and distinct across scopes',()=>{
+  const master='a'.repeat(64),one=responseSigningKey(master,'univ_one'),again=responseSigningKey(master,'univ_one'),other=responseSigningKey(master,'univ_two');
+  assert.equal(createPublicKey(one).export({type:'spki',format:'pem'}),createPublicKey(again).export({type:'spki',format:'pem'}));
+  assert.notEqual(createPublicKey(one).export({type:'spki',format:'pem'}),createPublicKey(other).export({type:'spki',format:'pem'}));
+  assert.throws(()=>responseSigningKey('bad','univ_one'),/configuration_invalid/);
 });

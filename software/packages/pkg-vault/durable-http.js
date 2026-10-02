@@ -1,6 +1,6 @@
 // Intent: software/packages/pkg-vault/INTENT.md#durable-conditional-owner
 import http from 'node:http';
-import {timingSafeEqual} from 'node:crypto';
+import {KeyObject,createHash,createPrivateKey,createPublicKey,sign,timingSafeEqual} from 'node:crypto';
 
 const baseMethods=new Set(['prepareImmutable','tombstoneImmutable','findReceipt','verifyReceipt','getPrepared']);
 const guardMethods=new Set(['acquireGuard','inspectGuard','settleGuard']);
@@ -16,9 +16,17 @@ const send=(response,status,data)=>{
 };
 
 /** Explicit scoped owner surface; no legacy file routes or anonymous mode. */
-export function createDurableVaultServer({owner,token,host='127.0.0.1',port=0}={}){
+export function createDurableVaultServer({owner,token,host='127.0.0.1',port=0,responseSigningKey}={}){
   if(!owner||owner.protocol!=='shaper.durable-conditional-vault.v1'||!validToken(token)||host!=='127.0.0.1')
     throw new Error('vault_owner_http_configuration_invalid');
+  let signingKey,keyId;
+  if(responseSigningKey!==undefined){
+    try{
+      signingKey=responseSigningKey instanceof KeyObject?responseSigningKey:createPrivateKey(responseSigningKey);
+      if(signingKey.asymmetricKeyType!=='ed25519')throw new Error();
+      keyId=createHash('sha256').update(createPublicKey(signingKey).export({type:'spki',format:'der'})).digest('hex');
+    }catch{throw new Error('vault_owner_http_configuration_invalid')}
+  }
   const expected=Buffer.from(token);
   const server=http.createServer(async(request,response)=>{
     if(request.url==='/api/health'&&request.method==='GET')return send(response,200,{service:'brick-vault',protocol:owner.protocol});
@@ -37,8 +45,20 @@ export function createDurableVaultServer({owner,token,host='127.0.0.1',port=0}={
       let input;
       try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{return send(response,400,{error:'vault_owner_request_invalid'})}
       if(!input||typeof input!=='object'||Array.isArray(input))return send(response,400,{error:'vault_owner_request_invalid'});
+      let nonce;
+      if(signingKey){
+        if(Object.keys(input).length!==2||typeof input.nonce!=='string'||!/^[a-f0-9]{32}$/.test(input.nonce)||
+          !input.input||typeof input.input!=='object'||Array.isArray(input.input))
+          return send(response,400,{error:'vault_owner_request_invalid'});
+        nonce=input.nonce;input=input.input;
+      }
+      const inputDigest=signingKey?createHash('sha256').update(JSON.stringify(input)).digest('hex'):null;
       const result=await owner[method](input);
-      send(response,200,{protocol:owner.protocol,result});
+      if(!signingKey)return send(response,200,{protocol:owner.protocol,result});
+      const wireResult=JSON.parse(JSON.stringify(result));
+      const statement={schema:'shaper.vault-http-response.v1',protocol:owner.protocol,method,nonce,inputDigest,result:wireResult};
+      const signature=sign(null,Buffer.from(JSON.stringify(statement)),signingKey).toString('base64');
+      send(response,200,{protocol:owner.protocol,result:wireResult,attestation:{schema:statement.schema,keyId,method,nonce,inputDigest,signature}});
     }catch(error){
       const reason=code(error);
       const status=reason.includes('conflict')?409:reason.includes('invalid')?422:503;

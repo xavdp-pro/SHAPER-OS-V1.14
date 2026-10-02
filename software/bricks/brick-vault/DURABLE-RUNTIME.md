@@ -113,6 +113,18 @@ root-owned; the regular, single-link file is mode `0444`, the bind is an exact
 `ro` mount point, and the runtime process cannot write it. The witness has
 exactly this JSON shape, with an Ed25519 public key (never a private key):
 
+In this guarded mode the HTTP server also signs successful replies. Its
+Ed25519 key is deterministically derived from the private Vault master key
+and universe scope with a distinct HKDF label. A VOX peer must pin the
+corresponding public key through a trusted deployment channel; the response
+itself cannot supply or rotate that trust. Requests must carry a fresh nonce
+and a nested input object. The legacy base-mode wire format is unchanged.
+The guarded image includes `pkg-vault/durable-response-public.mjs`, which the
+Vault UID can run inside its container to print only the derived SPKI public
+key. The private master and derived signing key never leave Vault. Pin the
+printed key on the VOX side through an independently controlled deployment
+file, then check its key ID before any guarded request.
+
 ```json
 {"schema":"shaper.vault-host-witness.v1","universeId":"<scope>","ownerEpoch":"<32 lowercase hex>","generation":1,"consumer":{"consumerId":"<peer>","consumerIncarnation":"<incarnation>","keyId":"<key-id>","publicKey":"<Ed25519 SPKI PEM>","operations":["issue","rotate","read"]}}
 ```

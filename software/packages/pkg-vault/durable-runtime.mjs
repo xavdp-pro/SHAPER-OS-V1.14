@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import {createRequire} from 'node:module';
+import {createPrivateKey,hkdfSync} from 'node:crypto';
 import {DurableVaultOwner} from './durable-owner.js';
 import {CurrentDisclosureVaultOwner} from './durable-disclosure-owner.js';
 import {createHostWitnessAdmission,readHostWitness} from './durable-witness.js';
@@ -41,6 +42,16 @@ export function configuredOwnerMode(value){
   if(value===undefined||value==='base')return 'base';
   if(value==='current-disclosure')return value;
   throw new Error('vault_owner_mode_invalid');
+}
+
+export function responseSigningKey(masterKey,universeId){
+  if(typeof masterKey!=='string'||!/^[a-f0-9]{64}$/.test(masterKey)||
+    typeof universeId!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(universeId))
+    throw new Error('vault_owner_http_configuration_invalid');
+  const seed=Buffer.from(hkdfSync('sha256',Buffer.from(masterKey,'hex'),Buffer.from(universeId),
+    Buffer.from('shaper.vault-http-response.ed25519.v1'),32));
+  return createPrivateKey({key:Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'),seed]),
+    format:'der',type:'pkcs8'});
 }
 
 export async function checkWitnessEpoch(pool,witness){
@@ -155,7 +166,8 @@ async function main(){
       owner=new CurrentDisclosureVaultOwner({pool,masterKey:key,universeId:witness.universeId,
         ...createHostWitnessAdmission(witnessPath)});
     }else owner=new DurableVaultOwner({pool,masterKey:key,universeId:process.env.VAULT_UNIVERSE_ID});
-    const server=createDurableVaultServer({owner,token,port});
+    const server=createDurableVaultServer({owner,token,port,
+      ...(mode==='current-disclosure'?{responseSigningKey:responseSigningKey(key,owner.scope)}:{})});
     const stop=()=>{server.close(async()=>{await native.end();process.exit(0)});server.closeIdleConnections()};
     process.once('SIGTERM',stop);process.once('SIGINT',stop);
   }catch(error){await native.end();throw error}

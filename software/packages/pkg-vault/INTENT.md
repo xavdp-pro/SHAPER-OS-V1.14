@@ -23,6 +23,13 @@ Sovereign AES-256-GCM secret engine — encrypt, persist, and inject credentials
 8. **Generic Identity**: package metadata, defaults, and reusable contracts name no client, infrastructure owner, or deployment. Concrete provenance belongs in a declared instance and its evidence, outside this package.
 9. <a id="durable-conditional-owner"></a>**Opt-in Durable Conditional Owner**: the Vault functional unit's private MariaDB may hold encrypted immutable resources, operation identities, authenticated durable receipts, irreversible tombstones and opt-in durable activation guards with explicit trusted-peer/freshness admission. Current disclosure is a distinct signed read identity with a common permanent mutation fence, once-only payload claim and immutable historical writer closure after local output is fenced. Activation acknowledgement is never current read authority. Held guards never expire into a mutation or disclosure grant; peer terminal settlement is typed and immutable. A successful receipt follows an InnoDB durable commit and independent readback; commit uncertainty refuses success and is reconciled by operation identity. Legacy encrypted-file APIs remain unchanged and do not provide this guarantee. Schema installation, scoped key custody, confined function credentials, runtime migration, backup/restore attestation and activation remain explicit owning responsibilities.
 
+In guarded runtime mode, the private HTTP response signs its method, fresh
+request nonce, request digest and complete result with an Ed25519 key derived
+from the Vault master through a scope-separated HKDF label. The peer pins the
+public key independently and refuses missing, changed or replayed responses.
+This transport proof does not replace the durable receipt, current-resource
+guard, independent host witness or output fence.
+
 ---
 
 ### Illustrative Example (Non-Binding / Demonstration Only)
