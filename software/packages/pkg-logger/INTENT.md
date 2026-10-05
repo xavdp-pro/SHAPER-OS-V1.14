@@ -85,7 +85,11 @@ What this storage does not yet provide, against the Logger target contract, reco
 * **Authenticated source identity.** `pod` is still what the body claims. Vault-signed, short-lived source credentials — and a `sourceEventId` scope derived from them instead of the claimed `pod` — belong to the next step.
 * **The cross-event chain and external checkpoints.** Each event proves its own integrity; nothing yet links an event to the previous one, keeps the chain head in a control table, or anchors signed checkpoints outside the database. Deleted rows are not yet detectable.
 * **Partition maintenance automation.** Splitting `p_future` ahead of time, alerting on the horizon, freezing, backing up and retiring closed partitions (with their `ingest_keys` rows) are administrative operations still to be scripted and proven.
-* **Outbox receipts.** Sources still send best-effort (`ingestLog` returns `null` on refusal); a transactional outbox that retries with the same `sourceEventId` until a receipt is held is not built.
+* **Outbox adoption.** `deliverLog` supplies strict receipt verification for
+  durable relays, including claim identity and event digest. Queue now persists
+  delivery debt transactionally. Other source paths still use best-effort
+  `ingestLog`; authenticated end-to-end delivery and installed restore proof
+  remain open.
 * **The rest of the classification grammar.** `family`, `topic`, `schema_version`, `subject_ref`, typed outcome and source occurrence time are not stored yet.
 
 ---

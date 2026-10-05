@@ -73,3 +73,19 @@ superseded; its removal belongs to the catalogue repository
 - **throughput**: T3
 - **degraded**: refuse
 - **rationale**: Identity resolution and connection setup are deterministic; no model sits in the path of a credential.
+
+## Transactional outbox helper
+
+`outbox.js` records a bounded delivery obligation on a connection supplied by
+the owning unit's transaction. `sql/outbox.sql` is a schema fragment for that
+unit's administrative installation; the helper performs no DDL. No shared
+database or separate outbox service is introduced.
+
+The relay excludes simultaneous sends of one row with an InnoDB row lock,
+retains stable event bytes and digest until the recipient's validated durable
+receipt is stored, and retries failures with capped backoff. The supplied
+transport verifies its recipient contract and honors the AbortSignal deadline.
+Lost replies and failed commits require recipient idempotency: no universal
+exactly-once effect is claimed. Corrupt rows refuse delivery with a typed error.
+Database-free tests check refusal/debt semantics; real concurrency, restart and
+restore proof remain the owning universe's installed qualification obligations.

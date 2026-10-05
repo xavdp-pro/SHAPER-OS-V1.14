@@ -14,7 +14,9 @@
 
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { auditJobEvent, terminalAudit, validateQualityGate } from './index.js';
+import { terminalAudit, validateQualityGate } from './index.js';
+import { appendOutbox, relayOutbox } from '../pkg-db/outbox.js';
+import { deliverLog } from '../pkg-logger/ingest-client.js';
 import {
   QueueError,
   applyJobPatch,
@@ -29,7 +31,7 @@ import {
 import { UnitDbError } from '../pkg-db/index.js';
 import { assertSchema, openUnitDb, probeDb, withTransaction } from '../pkg-db/pool.js';
 
-export const QUEUE_SCHEMA_VERSION = 1;
+export const QUEUE_SCHEMA_VERSION = 2;
 
 /** Column order shared by INSERT, SELECT and the row mapping below. */
 export const JOB_COLUMN_NAMES = Object.freeze([
@@ -202,6 +204,11 @@ function transitionParams(job, kind, before) {
   ];
 }
 
+function evidence(job, event, level = 'INFO') {
+  return { pod: 'queue', event, level, correlationId: job.id, executionId: job.id,
+    data: { jobId: job.id, type: job.type, status: job.status } };
+}
+
 /**
  * Reads every job row once and refuses to serve if one cannot be read back,
  * and checks the history table the writes need is installed.
@@ -211,9 +218,10 @@ function transitionParams(job, kind, before) {
 export async function hydrate(pool) {
   try {
     await pool.query('SELECT transition_id FROM job_transitions LIMIT 1');
+    await pool.query('SELECT event_id FROM event_outbox LIMIT 1');
   } catch (err) {
     if (err.code === 'ER_NO_SUCH_TABLE') {
-      throw new UnitDbError('SCHEMA_MISSING', 'job_transitions is absent: install queue\'s schema through the administrative path');
+      throw new UnitDbError('SCHEMA_MISSING', 'queue history or event_outbox is absent: install queue\'s schema through the administrative path');
     }
     throw err;
   }
@@ -275,8 +283,11 @@ export class MariaDbJobQueue extends EventEmitter {
     this.persisted = true;
   }
 
-  _audit(event, job, level = 'INFO') {
-    auditJobEvent(this, event, job, level);
+  async relayEvidence({ headers = {} } = {}) {
+    if (!this.loggerUrl) return { delivered: 0, deferred: 0, unavailable: true };
+    return relayOutbox(this.pool, { deliver: (entry, signal) => deliverLog({
+      loggerUrl: this.loggerUrl, entry, signal, headers, fetchImpl: this.fetchImpl,
+    }) });
   }
 
   /**
@@ -306,6 +317,7 @@ export class MariaDbJobQueue extends EventEmitter {
         await withTransaction(this.pool, async (conn) => {
           await conn.execute(INSERT_JOB, jobToParams(job));
           await conn.execute(INSERT_TRANSITION, transitionParams(job, 'created', null));
+          await appendOutbox(conn, evidence(job, 'JOB_CREATED'));
         });
       } catch (err) {
         const collision = duplicateKeyTarget(err);
@@ -320,7 +332,6 @@ export class MariaDbJobQueue extends EventEmitter {
         continue;
       }
 
-      this._audit('JOB_CREATED', job);
       this.emit('jobCreated', job);
       this.emit('statusChange', job);
       return { job, duplicate: false };
@@ -362,11 +373,11 @@ export class MariaDbJobQueue extends EventEmitter {
         jobId,
       ]);
       await conn.execute(INSERT_TRANSITION, transitionParams(next, 'updated', current));
+      const terminal = terminalAudit(next);
+      await appendOutbox(conn, evidence(next, terminal?.[0] || 'JOB_UPDATED', terminal?.[1] || 'INFO'));
       return next;
     });
 
-    const terminal = terminalAudit(updated);
-    if (terminal) this._audit(terminal[0], updated, terminal[1]);
     this.emit('jobUpdated', updated);
     this.emit('statusChange', updated);
     return updated;
@@ -391,6 +402,7 @@ export class MariaDbJobQueue extends EventEmitter {
         [next.qualityGateStatus, next.error ?? null, jobId],
       );
       await conn.execute(INSERT_TRANSITION, transitionParams({ ...next, updatedAt: this.now().toISOString() }, 'quality_gate', current));
+      await appendOutbox(conn, evidence(next, 'JOB_QUALITY_GATE'));
     });
     return gateResult;
   }

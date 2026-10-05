@@ -59,9 +59,25 @@ console.log(`[brick-queue] Starting Job Queue Gateway on ${HOST}:${PORT}...`);
 
 const server = createQueueServer({ port: PORT, host: HOST, queue });
 let worker = null;
+let relayTimer = null;
+let relayInFlight = null;
 
 server.on('listening', () => {
   console.log(`[brick-queue] Ready and listening on http://${HOST}:${PORT}`);
+  if (typeof queue.relayEvidence === 'function' && storeOptions.loggerUrl) {
+    const relay = () => {
+      if (relayInFlight) return;
+      relayInFlight = queue.relayEvidence()
+        .then((result) => {
+          if (result.deferred) console.warn(`[brick-queue] evidence delivery deferred: ${result.deferred} event(s); durable debt retained`);
+        })
+        .catch((err) => console.error(`[brick-queue] evidence relay unavailable: ${err.code || 'DELIVERY_UNCONFIRMED'}`))
+        .finally(() => { relayInFlight = null; });
+    };
+    relayTimer = setInterval(relay, 2000);
+    relayTimer.unref();
+    relay();
+  }
   if (AUTO) {
     worker = startQueueAgentWorker({
       queue: server.jobQueue,
@@ -76,7 +92,9 @@ server.on('listening', () => {
 
 function shutdown() {
   if (worker) worker.stop();
+  if (relayTimer) clearInterval(relayTimer);
   server.close(async () => {
+    if (relayInFlight) await relayInFlight;
     if (typeof queue.close === 'function') await queue.close().catch(() => {});
     process.exit(0);
   });

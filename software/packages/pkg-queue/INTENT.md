@@ -43,9 +43,11 @@ Jobs live in the unit's own private MariaDB (Rules 4 and 26,
    persisted answer and left no trace, making proof #4 unsatisfiable on the
    documented path. An event is emitted only after the state it reports is
    recorded (committed, in MariaDB), and a replayed enqueue emits nothing.
-   Emission is fire-and-forget over HTTP: a logger that is down never stops
-   work, and says so on stderr rather than failing silently — the line is then
-   lost, which is why a transactional outbox is a recorded gap (§3).
+   On the MariaDB path every transition and its evidence are committed in
+   one transaction to `event_outbox`. A bounded relay retries the same source
+   event identity until a matching, digest-verified Logger receipt is stored.
+   Logger unavailability preserves the debt. Memory/file DEV scaffolding
+   retains its legacy best-effort HTTP behavior.
 4. **Events**: `EventEmitter` hooks + `JobQueue.formatSSE()` for HTTP streams. A store emits `jobCreated`, `jobUpdated` and `statusChange` only after the change is recorded; a stream reader never sees a job the store does not hold.
 5. **Isolation**: `type` and `payload` are opaque. Zero business logic in the queue core.
 6. **Optional worker**: `worker.js` understands only `type=agent.inject` and forwards `payload.message` (+ optional params) to a bridge HTTP inject.
@@ -106,7 +108,9 @@ Jobs live in the unit's own private MariaDB (Rules 4 and 26,
 11. **A write is reported only after it commits.** Creation, every progress or
     status update, the worker's transitions and a quality-gate verdict each
     write the job row and one `job_transitions` row in one transaction. The API
-    answers, the stream emits and the audit line leaves only after `COMMIT`. A
+    answers and the stream emits after `COMMIT`. The event outbox is written
+    in that same transaction; Logger delivery happens separately and never
+    gates a successful local write. A
     database failure is HTTP 503 with a typed `code` — never a logged-and-ignored
     error, never an empty answer, never a success event.
 12. **Every start reads every job back.** A row that cannot be parsed
@@ -162,9 +166,10 @@ What this storage does not yet provide, against the Queue target contract of
   `RUNNING` job left by a dead worker is settled as `FAILED` (orphan) at the
   next start, never retried after a bounded backoff.
 * **`DEAD_LETTER` and `CANCELLED`.** Neither state exists.
-* **A transactional outbox to Logger.** Audit remains fire-and-forget over
-  HTTP after the commit; a Logger outage loses the line while the job stays
-  durable.
+* **Installed outbox qualification.** The MariaDB path now stores bounded
+  evidence with each transition and retries until a validated receipt. Its
+  concurrency, restart, restoration and authenticated-delivery tests remain
+  separate promotion requirements; this implementation is not a reference seal.
 * **Evidence policies** (`before_execution` / `eventual`) are not applied.
 * **Queue still carries more than transport.** Task framing (`task-frame.js`),
   direct Bridge dispatch and dialect translation (`worker.js`, only with
@@ -184,3 +189,22 @@ What this storage does not yet provide, against the Queue target contract of
 * **The JSONL file store still logs a failed append and answers success, and
   skips (now with a warning) a line it cannot parse.** It is DEV scaffolding
   and is recorded as debt, not presented as compliance.
+
+## Transactional evidence delivery
+
+Schema version 2 adds the unpartitioned `event_outbox`, installed through the
+administrative path. Enqueue, progress/status and quality-verdict writes append
+evidence in their owning transaction; failed outbox writes roll back the job
+change and emit no success. Evidence excludes job payloads and results.
+
+A relay locks one eligible row while sending a bounded request (3-second
+deadline), retains failures with capped retry delay, and records only a receipt
+whose source claim and stored-event digest match. The same source event and
+execution identities are reused after a lost response or failed receipt commit.
+Concurrent relays skip locked rows. No active debt is time-expired or deleted.
+The recipient must provide idempotent durable ingest; a transport acknowledgment
+alone is refused. Application credentials are transport-only, never outbox data.
+
+Authenticated Vault-derived identity, Queue leases/attempts and the
+`before_execution` policy remain open reconstruction obligations. The current
+relay does not make the unauthenticated prototype a qualified reference.
