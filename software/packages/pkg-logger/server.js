@@ -71,12 +71,27 @@ server.on('listening', () => {
   console.log(`[brick-logger] Ready and listening on http://${HOST}:${server.address().port}`);
 });
 
-function shutdown(signal) {
-  console.log(`[brick-logger] Received ${signal}, shutting down...`);
-  server.close(async () => {
-    if (store) await store.close().catch(() => {});
-    process.exit(0);
+/**
+ * Stops accepting connections, lets requests in flight finish, then ends what
+ * is still open — an event stream never ends by itself — after a short grace.
+ */
+function closeServer(server, graceMs = 5000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => server.closeAllConnections?.(), graceMs);
+    timer.unref?.();
+    server.close(() => { clearTimeout(timer); resolve(); });
+    server.closeIdleConnections?.();
   });
 }
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+
+let stopping = false;
+async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`[brick-logger] Received ${signal}, shutting down...`);
+  await closeServer(server);
+  if (store) await store.close().catch(() => {});
+  process.exit(0);
+}
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT', () => { void shutdown('SIGINT'); });

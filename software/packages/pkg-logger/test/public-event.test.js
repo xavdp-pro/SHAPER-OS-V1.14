@@ -62,3 +62,16 @@ test('HTTP batch refusal writes nothing and malformed/storage errors do not echo
     assert.equal(response.status, 500); assert.doesNotMatch(await response.text(), /PRIVATE_SENTINEL/); assert.equal(calls, 1);
   } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });
+test('a producer keeps its evidence deliverable: a non-public data field becomes a digest, the header stays', async () => {
+  const { publicEvidence } = await import('../public-event.js');
+  const plain = { pod: 'queue', event: 'JOB_CREATED', executionId: 'job-1', data: { jobId: 'job-1', type: 'report.render' } };
+  assert.equal(publicEvidence(plain), plain);
+  const leaky = { ...plain, data: { jobId: 'job-1', type: 'password=PRIVATE_SENTINEL' } };
+  const safe = publicEvidence(leaky);
+  assert.equal(safe.event, 'JOB_CREATED');
+  assert.equal(safe.executionId, 'job-1');
+  assert.equal(safe.data.redacted, 'EVENT_SECRET_DENIED');
+  assert.match(safe.data.dataDigest, /^[0-9a-f]{64}$/);
+  assert.doesNotMatch(JSON.stringify(safe), /PRIVATE_SENTINEL/);
+  assert.doesNotThrow(() => normalizeIngestEntry({ ...safe, sourceEventId: 's' }), 'Logger accepts what is left');
+});

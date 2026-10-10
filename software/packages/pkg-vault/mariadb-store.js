@@ -22,7 +22,7 @@ import { UnitDbError } from '../pkg-db/index.js';
 import { assertSchema, openUnitDb, probeDb, withTransaction } from '../pkg-db/pool.js';
 import { appendOutbox, outboxStatus } from '../pkg-db/outbox.js';
 import { vitals, ageSeconds } from '../pkg-logger/vitals.js';
-import { assertPublicEvent } from '../pkg-logger/public-event.js';
+import { assertPublicEvent, publicEvidence } from '../pkg-logger/public-event.js';
 
 /**
  * How a secret is named in evidence: its key, which is a public reference —
@@ -44,7 +44,7 @@ export function secretEvidence(event, key, extra = {}) {
   const eventId = randomUUID();
   return {
     eventId,
-    entry: { pod: 'vault', event, level: 'INFO', executionId: eventId, data: { secretRef: secretRef(key), ...extra } },
+    entry: publicEvidence({ pod: 'vault', event, level: 'INFO', executionId: eventId, data: { secretRef: secretRef(key), ...extra } }),
   };
 }
 

@@ -52,7 +52,8 @@ describe('the parent registers an incarnation without exposing its bootstrap', (
     const { params, text } = registrationStatement({ universe, unit: 'queue', incarnation: 'queue-1', grants: { logger: ['logger:ingest'] }, bootstrapToken: token });
     assert.equal(params[4], crypto.createHash('sha256').update(token).digest('hex'));
     assert.doesNotMatch(text, new RegExp(token));
-    assert.match(text, /ON DUPLICATE KEY UPDATE epoch = IF\(incarnation = VALUES\(incarnation\), epoch, epoch \+ 1\)/);
+    // A revoked identity never comes back with the credentials issued before it was revoked.
+    assert.match(text, /ON DUPLICATE KEY UPDATE epoch = IF\(incarnation = VALUES\(incarnation\) AND NOT revoked, epoch, epoch \+ 1\)/);
     for (const bad of [{ unit: 'Queue' }, { incarnation: "q'1" }, { grants: { logger: ['*'] } }, { grants: {} }, { universe: 'nope' }, { ttlSeconds: 10 }]) {
       assert.throws(() => registrationStatement({ universe, unit: 'queue', incarnation: 'queue-1', grants: { logger: ['logger:ingest'] }, bootstrapToken: token, ...bad }), { code: 'REGISTRATION_INVALID' });
     }

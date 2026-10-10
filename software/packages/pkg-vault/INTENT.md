@@ -91,7 +91,8 @@ outbox. A failed evidence insert rolls the mutation back and answers 503.
 `evidence-runtime.js` delivers the outbox after the server listens: one lane
 (pkg-db `createEvidenceRelay`), the strict `deliverLog` receipt check (the
 claim and event digests must match), the same source event id on every retry,
-backoff capped at five minutes, no debt ever expired. Vault obtains its
+backoff capped at 256 seconds, no lock held while Logger answers, no debt
+ever expired. Vault obtains its
 logger-audience credential from itself, in-process, through exactly the path
 other units use over HTTP: its own `UNIT_BOOTSTRAP_TOKEN_FILE`, its
 `SHAPER_UNIT_INCARNATION`, and a grant `{"logger":["logger:ingest"]}` the parent
@@ -106,8 +107,10 @@ credentials, query or fragment), `SHAPER_UNIT_INCARNATION` and
 `VAULT_MASTER_KEY_FILE` and `SHAPER_UNIVERSE_ID`, and refuses to start without
 them. Optional: `VAULT_RELAY_INTERVAL_MS` (2000), `VAULT_RELAY_BATCH` (10),
 `VAULT_RELAY_TIMEOUT_MS` (3000), `VAULT_SHUTDOWN_TIMEOUT_MS` (15000). Shutdown
-closes the server and drains the batch in flight before the database closes;
-an unconfirmed batch exits 1 with its debt retained. `/api/vitals` reports
+closes the server (event streams and idle connections ended after a 5-second
+grace) and lets the relay finish its send in flight, both before the database
+closes; an unconfirmed send exits 1 with its debt retained. Evidence fields
+Logger would refuse are reduced to a digest before they are committed. `/api/vitals` reports
 `evidencePending` and `oldestPendingEvidenceAt`.
 
 Adapted from the reference branch (14f2253) without its signed-receipt
@@ -133,9 +136,10 @@ library and a command:
   --bootstrap-file <path> [--ttl-seconds <n>]` writes a fresh 64-hex bootstrap
   token to a new 0600 file (it never overwrites one) and prints the one
   statement root applies to Vault's database. The statement carries the
-  token's SHA-256, never the token. Re-registering the same incarnation
-  redelivers a bootstrap and keeps the epoch; a new incarnation bumps the epoch,
-  so the previous incarnation's credentials stop being current. The bootstrap
+  token's SHA-256, never the token. Re-registering the same live incarnation
+  redelivers a bootstrap and keeps the epoch; a new incarnation, or the
+  re-registration of a revoked one, bumps the epoch, so credentials issued
+  before stop being current. The bootstrap
   expiry (default 30 days, 60 s to 366 days) bounds how long a unit can renew:
   the parent redelivers before it passes.
 

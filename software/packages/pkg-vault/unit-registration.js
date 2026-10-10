@@ -21,9 +21,9 @@
  *     --unit queue --incarnation queue-1 --grant logger=logger:ingest \
  *     --bootstrap-file /apps/queue/etc/identity/bootstrap [--ttl-seconds 2592000]
  *
- * Re-registering the same incarnation redelivers a bootstrap and keeps the
- * epoch; registering a new incarnation bumps the epoch, so credentials issued
- * to the old one stop being current at once.
+ * Re-registering the same live incarnation redelivers a bootstrap and keeps
+ * the epoch; a new incarnation, or the re-registration of a revoked one, bumps
+ * the epoch, so credentials issued before stop being current at once.
  *
  * Intent: software/packages/pkg-vault/INTENT.md#parent-registration
  */
@@ -82,7 +82,7 @@ export function registrationStatement({ universe, unit, incarnation, grants, boo
   const sql = `INSERT INTO unit_identities
   (universe_id, unit_id, incarnation, epoch, grants, bootstrap_digest, bootstrap_expires_at, revoked)
   VALUES (?, ?, ?, 1, ?, ?, TIMESTAMPADD(SECOND, ?, UTC_TIMESTAMP(3)), FALSE)
-  ON DUPLICATE KEY UPDATE epoch = IF(incarnation = VALUES(incarnation), epoch, epoch + 1),
+  ON DUPLICATE KEY UPDATE epoch = IF(incarnation = VALUES(incarnation) AND NOT revoked, epoch, epoch + 1),
     incarnation = VALUES(incarnation), grants = VALUES(grants), bootstrap_digest = VALUES(bootstrap_digest),
     bootstrap_expires_at = VALUES(bootstrap_expires_at), revoked = FALSE`;
   const params = [universe, unit, incarnation, grantsJson, digest, ttlSeconds];

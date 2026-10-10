@@ -1,4 +1,5 @@
 /** Bounded rejection of secret-bearing event inputs; no payload in errors. */
+import { createHash } from 'node:crypto';
 const forbiddenFields = new Set([
   'password', 'passwd', 'secret', 'secretvalue', 'clientsecret', 'masterkey',
   'privatekey', 'apikey', 'authorization', 'credential', 'credentials',
@@ -38,5 +39,28 @@ export function assertPublicEvent(entry) {
       if (bytes > 2097152) refuse('EVENT_STRUCTURE_TOO_LARGE');
       pending.push({ value: descriptor.value, depth: depth + 1 });
     }
+  }
+}
+
+/**
+ * For a producer about to commit evidence: the entry as given when Logger would
+ * accept it; otherwise the same entry with its `data` replaced by a typed mark
+ * and a digest. A change is never refused, nor its evidence left undeliverable
+ * forever, because one free-text field (a job type, a remote error message)
+ * happened to look like a credential. Header fields must be public already.
+ * @param {object} entry
+ * @returns {object}
+ */
+export function publicEvidence(entry) {
+  try {
+    assertPublicEvent(entry);
+    return entry;
+  } catch (err) {
+    const { data, ...header } = entry;
+    let text;
+    try { text = JSON.stringify(data ?? null); } catch { text = 'unserializable'; }
+    const redacted = { ...header, data: { redacted: err.code || 'EVENT_SECRET_DENIED', dataDigest: createHash('sha256').update(String(text)).digest('hex') } };
+    assertPublicEvent(redacted);
+    return redacted;
   }
 }

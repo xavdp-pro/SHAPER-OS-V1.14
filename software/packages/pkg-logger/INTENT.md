@@ -143,6 +143,11 @@ Refusal messages never include the submitted field/value; malformed JSON and
 unexpected storage exceptions are answered without raw exception messages.
 The canonical event format and SQL schema are unchanged by this boundary.
 
+Producers use `publicEvidence(entry)` before they commit evidence: an entry
+that passes is returned as it is; otherwise its `data` is replaced by
+`{ redacted: <code>, dataDigest }`, so one free-text field never blocks the
+producer's change nor leaves its evidence undeliverable forever.
+
 This is a defense against declared secret fields and recognizable encodings,
 not an oracle for arbitrary secrets concealed in otherwise ordinary strings.
 The producing unit must emit only public evidence. Versioned event schemas,

@@ -125,20 +125,30 @@ server.on('listening', () => {
   evidenceRelay?.start();
 });
 
+/**
+ * Stops accepting connections, lets requests in flight finish, then ends what
+ * is still open — an event stream never ends by itself — after a short grace.
+ */
+function closeServer(server, graceMs = 5000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => server.closeAllConnections?.(), graceMs);
+    timer.unref?.();
+    server.close(() => { clearTimeout(timer); resolve(); });
+    server.closeIdleConnections?.();
+  });
+}
+
 let stopping = false;
 async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
   console.log(`[brick-vault] Received ${signal}, shutting down...`);
   let code = 0;
-  try {
-    await Promise.all([
-      new Promise((resolve) => server.close(resolve)),
-      evidenceRelay ? evidenceRelay.close() : Promise.resolve(),
-    ]);
-  } catch (err) {
+  // Both settle before the database closes, whichever finishes first.
+  const [, relayed] = await Promise.allSettled([closeServer(server), evidenceRelay ? evidenceRelay.close() : Promise.resolve()]);
+  if (relayed.status === 'rejected') {
     // The batch in flight did not settle in time: its debt stays in MariaDB.
-    console.error(`[brick-vault] ${err.code || 'SHUTDOWN_UNCONFIRMED'}: evidence delivery in flight not confirmed; the debt is retained`);
+    console.error(`[brick-vault] ${relayed.reason?.code || 'SHUTDOWN_UNCONFIRMED'}: evidence delivery in flight not confirmed; the debt is retained`);
     code = 1;
   }
   if (vaultStore) await vaultStore.close().catch(() => {});
