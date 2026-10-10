@@ -12,6 +12,7 @@
  */
 
 import crypto from 'node:crypto';
+import { assertPublicEvent } from './public-event.js';
 
 import { VALID_LEVELS, generateExecutionId } from './events.js';
 
@@ -149,6 +150,9 @@ function optionalId(value, field, max) {
 export function normalizeIngestEntry(entry, limits = DEFAULT_LIMITS) {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
     throw new LoggerIngestError(400, 'INVALID_ENTRY', 'Ingest entry must be a JSON object');
+  }
+  try { assertPublicEvent(entry); } catch (error) {
+    throw new LoggerIngestError(400, error.code || 'EVENT_NON_JSON_DENIED', 'Event input refused');
   }
   if (!entry.event) {
     throw new LoggerIngestError(400, 'EVENT_REQUIRED', 'Ingest entry requires an event field');

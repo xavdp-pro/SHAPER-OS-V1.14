@@ -122,3 +122,29 @@ Protected requests verify Ed25519 signature, universe, audience, exact scopes
 and validity, then obtain Vault's current incarnation/revocation decision. A
 missing or unavailable verifier never enables anonymous access. Receipts remain
 transactional and replay identity stays stable across credential renewal.
+
+## Public event input boundary
+
+Before canonicalization or any write, the HTTP normalization and direct
+MariaDB ingest boundary reject secret-bearing fields (case and separator
+insensitive), recognized credential strings, private-key PEM, authorization
+values, credential-bearing URLs, cookies and secret query assignments.
+The in-process event formatter applies the same refusal before JSONL output.
+Nested arrays and even ignored request metadata are checked. Public references,
+digests and counters such as `secretRef`, `artifactRef`, `tokenCount` and
+`passwordSource` remain admissible; the referenced secret value does not.
+
+Buffers, typed binary views, serialized Buffer objects, accessors, non-JSON
+objects, repeated/cyclic object graphs and non-finite values are refused.
+Traversal is iterative and bounded to 32 levels, 10000 values and 2 MiB of
+aggregate key/string bytes, in addition to HTTP/body/data limits. A refused
+batch writes no event and no replay key.
+Refusal messages never include the submitted field/value; malformed JSON and
+unexpected storage exceptions are answered without raw exception messages.
+The canonical event format and SQL schema are unchanged by this boundary.
+
+This is a defense against declared secret fields and recognizable encodings,
+not an oracle for arbitrary secrets concealed in otherwise ordinary strings.
+The producing unit must emit only public evidence. Versioned event schemas,
+closed classification and explicit body/reference contracts remain required
+before final reference qualification. No existing history is migrated here.

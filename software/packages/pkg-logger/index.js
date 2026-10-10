@@ -416,7 +416,6 @@ export function createLoggerServer({
       return sendJson(status, {
         error: status === 503 ? 'Logger storage unavailable' : 'Logger request failed',
         code: err.code || null,
-        detail: err.message,
       });
     }
   });
@@ -427,7 +426,7 @@ export function createLoggerServer({
     try {
       parsed = JSON.parse(body || '{}');
     } catch (err) {
-      throw new LoggerIngestError(400, 'INVALID_JSON', err.message);
+      throw new LoggerIngestError(400, 'INVALID_JSON', 'Invalid event JSON');
     }
     const batch = Array.isArray(parsed);
     const entries = batch ? parsed : [parsed];
