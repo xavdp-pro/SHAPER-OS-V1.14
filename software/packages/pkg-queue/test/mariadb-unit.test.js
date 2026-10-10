@@ -55,7 +55,7 @@ const patch = (url, body) => fetch(url, { method: 'PATCH', headers: { 'Content-T
 describe('the schema belongs to the administrative path', () => {
   it('creates every table idempotently, and records its version idempotently', () => {
     const creates = [...sql.matchAll(/CREATE TABLE\s+(IF NOT EXISTS\s+)?(\w+)/g)];
-    assert.deepEqual(creates.map((m) => m[2]).sort(), ['job_transitions', 'jobs', 'schema_meta']);
+    assert.deepEqual(creates.map((m) => m[2]).sort(), ['event_outbox', 'job_transitions', 'jobs', 'schema_meta']);
     for (const m of creates) assert.ok(m[1], `${m[2]} is not created IF NOT EXISTS`);
     const meta = sql.match(/INSERT INTO schema_meta \(unit, version\) VALUES \('queue', (\d+)\)\s+ON DUPLICATE KEY UPDATE/);
     assert.ok(meta, 'schema_meta row for queue, re-runnable');

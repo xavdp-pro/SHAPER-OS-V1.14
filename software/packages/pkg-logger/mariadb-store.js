@@ -136,6 +136,8 @@ export class MariaDbLoggerStore {
    * @returns {Promise<Array<{ record: object, replayed: boolean }>>}
    */
   async ingest(claims) {
+    // The owning boundary: a direct caller cannot bypass the public-event refusal.
+    claims = claims.map((claim) => normalizeIngestEntry(claim, this.limits));
     let plan;
     try {
       plan = planBatch(claims);

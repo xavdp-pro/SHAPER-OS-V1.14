@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -93,16 +94,28 @@ describe('a storage failure is an unavailable Vault, not a bad request', () => {
 });
 
 describe('the entrypoint never falls back to a file', () => {
-  const run = (env) => spawnSync(process.execPath, [path.join(here, '../server.js')], {
-    env: { PATH: process.env.PATH, VAULT_MASTER_KEY: 'd'.repeat(64), VAULT_PORT: '0', ...env },
-    encoding: 'utf8',
-    timeout: 10000,
-  });
+  const run = (env) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-entry-key-'));
+    const key = path.join(dir, 'master.key');
+    fs.writeFileSync(key, 'd'.repeat(64), { mode: 0o400 });
+    try {
+      return spawnSync(process.execPath, [path.join(here, '../server.js')], {
+        env: { PATH: process.env.PATH, VAULT_MASTER_KEY_FILE: key, VAULT_PORT: '0', ...env },
+        encoding: 'utf8', timeout: 10000,
+      });
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  };
 
   it('refuses to start on MariaDB without its passwd file, and says why', () => {
     const r = run({ SHAPER_UNIT_SLUG: 'vault' });
     assert.equal(r.status, 1);
     assert.match(r.stderr, /refusing to start: PASSWD_MISSING/);
+  });
+
+  it('refuses an environment key as MariaDB runtime authority', () => {
+    const r = run({ VAULT_MASTER_KEY_FILE: '', VAULT_MASTER_KEY: 'd'.repeat(64) });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /VAULT_MASTER_KEY_FILE is required for MariaDB/);
   });
 
   it('uses the file store only when asked, with an explicit file', () => {

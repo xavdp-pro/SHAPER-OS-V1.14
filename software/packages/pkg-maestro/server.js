@@ -10,7 +10,13 @@
  *
  * MAESTRO_STORE=memory keeps the in-memory registry and timers — and with them
  * the direct-to-bridge legacy path — as declared DEV scaffolding, selected
- * explicitly. Nothing ever falls back to it.
+ * explicitly. Nothing ever falls back to it, and it is refused when a
+ * promotion or qualification flag is set.
+ *
+ * On MariaDB, every report is an outbox row committed with the change it
+ * reports; one relay lane delivers them to Logger under a logger-audience
+ * credential renewed from Vault. No local JSONL audit is written: LOG_DIR
+ * serves the memory scaffolding only.
  *
  * Intent: software/packages/pkg-maestro/INTENT.md#private-mariadb
  */
@@ -18,6 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMaestroServer } from './index.js';
 import { ingestLog } from '../pkg-logger/ingest-client.js';
+import { assertDisposableStoreAllowed } from '../pkg-db/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHAPER_ROOT = path.resolve(__dirname, '../..');
@@ -42,6 +49,14 @@ if (STORE !== 'mariadb' && STORE !== 'memory') {
   console.error(`[brick-maestro] MAESTRO_STORE must be "mariadb" or "memory"; got "${STORE}"`);
   process.exit(1);
 }
+if (STORE === 'memory') {
+  try {
+    assertDisposableStoreAllowed({ unit: 'maestro', store: 'memory' });
+  } catch (err) {
+    refuse(err.code, err.message);
+  }
+}
+let relay = null;
 
 console.log(`[brick-maestro] Starting on ${HOST}:${PORT}...`);
 
@@ -82,10 +97,36 @@ async function startDurable() {
   const { MariaDbMaestroStore } = await import('./mariadb-store.js');
   const { DurableMaestro } = await import('./durable-scheduler.js');
 
+  const slug = process.env.SHAPER_UNIT_SLUG || 'maestro';
+  if (slug !== 'maestro') {
+    // Evidence is sourced as `maestro`; Logger binds the source to the
+    // authenticated unit and would refuse every row of a unit named otherwise.
+    refuse('EVIDENCE_SOURCE_MISMATCH', `SHAPER_UNIT_SLUG is ${slug}; this Maestro sources its evidence as maestro`);
+  }
   let store;
   try {
-    store = await MariaDbMaestroStore.open({ slug: process.env.SHAPER_UNIT_SLUG || 'maestro' });
+    store = await MariaDbMaestroStore.open({ slug });
+    // Every change commits its evidence to the outbox; a Maestro that could
+    // never deliver it would pile up debt in silence.
+    if (!LOGGER_URL) {
+      throw Object.assign(new Error('LOGGER_URL is required with MAESTRO_STORE=mariadb: committed evidence is owed to Logger'), { code: 'LOGGER_URL_MISSING' });
+    }
+    const { runtimeCredentialClient } = await import('../pkg-auth/runtime-identity.js');
+    const identityClient = runtimeCredentialClient({ ...process.env, SHAPER_UNIT_SLUG: slug });
+    const { createEvidenceRelay } = await import('../pkg-db/outbox.js');
+    const { deliverLog } = await import('../pkg-logger/ingest-client.js');
+    relay = createEvidenceRelay({
+      pool: store.pool,
+      credentials: () => identityClient.headers('logger'),
+      deliver: (entry, signal, headers) => deliverLog({ loggerUrl: LOGGER_URL, entry, signal, headers }),
+      report: (event) => console.warn(`[brick-maestro] ${JSON.stringify(event)}`),
+      intervalMs: process.env.MAESTRO_RELAY_INTERVAL_MS,
+      maxEvents: process.env.MAESTRO_RELAY_BATCH,
+      timeoutMs: process.env.MAESTRO_RELAY_TIMEOUT_MS,
+      shutdownMs: process.env.MAESTRO_SHUTDOWN_TIMEOUT_MS,
+    });
   } catch (err) {
+    if (store) await store.close().catch(() => {});
     refuse(err.code || 'ERROR', err.message);
   }
   console.log(`[brick-maestro] Storage: private MariaDB ${store.config.user}@localhost/${store.config.database} via ${store.config.socketPath}`);
@@ -95,8 +136,6 @@ async function startDurable() {
     universeId,
     queueUrl: QUEUE_URL,
     authToken: BRIDGE_AUTH_TOKEN,
-    loggerUrl: LOGGER_URL || null,
-    logDir: LOG_DIR,
   });
   try {
     const { results, retired } = await scheduler.materializeDeclared(declarations);
@@ -190,12 +229,18 @@ server.on('listening', async () => {
     console.error(`[brick-maestro] cannot list tasks: ${err.code || err.name} — ${err.message}`);
   }
   console.log(`[brick-maestro] Ready — ${taskCount ?? 'unknown'} task(s), listening on http://${HOST}:${server.address().port}`);
-  await ingestLog({
-    loggerUrl: LOGGER_URL,
-    pod: 'brick-maestro',
-    event: 'MAESTRO_STARTED',
-    data: { tasks: taskCount, autoStart: AUTO_START, store: STORE },
-  });
+  if (STORE === 'mariadb') {
+    await scheduler.recordEvidence('MAESTRO_STARTED', { tasks: taskCount, autoStart: AUTO_START, store: STORE });
+    relay?.start();
+  } else {
+    // DEV scaffolding keeps its best-effort line; nothing durable is claimed.
+    await ingestLog({
+      loggerUrl: LOGGER_URL,
+      pod: 'brick-maestro',
+      event: 'MAESTRO_STARTED',
+      data: { tasks: taskCount, autoStart: AUTO_START, store: STORE },
+    });
+  }
   if (AUTO_START && STORE === 'mariadb') {
     // The first tick reconciles every unsettled occurrence before any new wait.
     const summary = await scheduler.startScheduler();
@@ -203,13 +248,42 @@ server.on('listening', async () => {
   }
 });
 
-function shutdown(signal) {
-  console.log(`[brick-maestro] Received ${signal}, shutting down...`);
-  scheduler.stopScheduler();
-  server.close(async () => {
-    if (typeof scheduler.close === 'function') await scheduler.close().catch(() => {});
-    process.exit(0);
+/**
+ * Stops accepting connections, lets requests in flight finish, then ends what
+ * is still open — an event stream never ends by itself — after a short grace.
+ */
+function closeServer(server, graceMs = 5000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => server.closeAllConnections?.(), graceMs);
+    timer.unref?.();
+    server.close(() => { clearTimeout(timer); resolve(); });
+    server.closeIdleConnections?.();
   });
 }
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+
+let stopping = false;
+async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`[brick-maestro] Received ${signal}, shutting down...`);
+  scheduler.stopScheduler();
+  let code = 0;
+  await closeServer(server);
+  if (STORE === 'mariadb') {
+    // No new evidence after the scheduler has drained; then the relay settles
+    // the batch in flight; the database closes last.
+    await scheduler.drain().catch(() => {});
+    try {
+      await relay?.close();
+    } catch (err) {
+      console.error(`[brick-maestro] ${err.code || 'SHUTDOWN_UNCONFIRMED'}: evidence delivery in flight not confirmed; the debt is retained`);
+      code = 1;
+    }
+    await scheduler.store.close().catch(() => {});
+  } else if (typeof scheduler.close === 'function') {
+    await scheduler.close().catch(() => {});
+  }
+  process.exit(code);
+}
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT', () => { void shutdown('SIGINT'); });

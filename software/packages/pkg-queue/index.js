@@ -8,6 +8,7 @@ import { ingestLog } from '../pkg-logger/ingest-client.js';
 import {
   QueueError,
   applyJobPatch,
+  interruptedJob,
   newJobRecord,
   normalizeCreateRequest,
   normalizeJobPatch,
@@ -286,6 +287,26 @@ export class JobQueue extends EventEmitter {
     return job;
   }
 
+  /**
+   * Restart recovery for the DEV stores, the same rule as MariaDB: a job read
+   * back RUNNING is settled FAILED as interrupted, never re-run. The memory
+   * store starts empty, so only the file store can find one.
+   * @returns {object[]} the jobs settled
+   */
+  recoverInterrupted() {
+    const settled = [];
+    for (const job of this.jobs.values()) {
+      if (job.status !== 'RUNNING') continue;
+      Object.assign(job, interruptedJob(job, new Date()));
+      this._persistJob(job);
+      this._audit('JOB_FAILED', job, 'ERROR');
+      this.emit('jobUpdated', job);
+      this.emit('statusChange', job);
+      settled.push(job);
+    }
+    return settled;
+  }
+
   getJob(jobId) {
     return this.jobs.get(jobId);
   }
@@ -453,6 +474,7 @@ export function createQueueServer({
         }));
       }
       const jobs = await jobQueue.listJobs();
+      const evidence = typeof jobQueue.evidenceStatus === 'function' ? await jobQueue.evidenceStatus() : null;
       const pending = jobs.filter((j) => j.status === 'PENDING');
       const oldestPending = pending
         .map((j) => ageSeconds(j.createdAt))
@@ -472,6 +494,8 @@ export function createQueueServer({
           completedSinceStart: jobs.filter((j) => j.status === 'COMPLETED').length,
           failedSinceStart: jobs.filter((j) => j.status === 'FAILED').length,
           sseClients: sseClients.size,
+          // Evidence committed with a transition and not yet receipted by Logger.
+          ...(evidence ? { evidencePending: evidence.pending, evidenceRetrying: evidence.retrying, oldestPendingEvidenceAt: evidence.oldestPendingAt } : {}),
         },
         checks: {
           // Not "persisted: true" — whether the store can actually be written

@@ -14,10 +14,13 @@
 
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { auditJobEvent, terminalAudit, validateQualityGate } from './index.js';
+import { terminalAudit, validateQualityGate } from './index.js';
+import { appendOutbox, outboxStatus } from '../pkg-db/outbox.js';
+import { publicEvidence } from '../pkg-logger/public-event.js';
 import {
   QueueError,
   applyJobPatch,
+  interruptedJob,
   newJobRecord,
   normalizeCreateRequest,
   normalizeJobPatch,
@@ -29,7 +32,7 @@ import {
 import { UnitDbError } from '../pkg-db/index.js';
 import { assertSchema, openUnitDb, probeDb, withTransaction } from '../pkg-db/pool.js';
 
-export const QUEUE_SCHEMA_VERSION = 1;
+export const QUEUE_SCHEMA_VERSION = 2;
 
 /** Column order shared by INSERT, SELECT and the row mapping below. */
 export const JOB_COLUMN_NAMES = Object.freeze([
@@ -203,6 +206,16 @@ function transitionParams(job, kind, before) {
 }
 
 /**
+ * The evidence of a job transition. Its source is the unit, `queue`, which the
+ * entrypoint guarantees is the unit's own name; a job type that looks like a
+ * credential is reduced to a digest rather than stopping the transition.
+ */
+function evidence(job, event, level = 'INFO', extra = {}) {
+  return publicEvidence({ pod: 'queue', event, level, correlationId: job.id, executionId: job.id,
+    data: { jobId: job.id, type: job.type, status: job.status, ...extra } });
+}
+
+/**
  * Reads every job row once and refuses to serve if one cannot be read back,
  * and checks the history table the writes need is installed.
  * @param {import('mysql2/promise').Pool} pool
@@ -211,9 +224,10 @@ function transitionParams(job, kind, before) {
 export async function hydrate(pool) {
   try {
     await pool.query('SELECT transition_id FROM job_transitions LIMIT 1');
+    await pool.query('SELECT event_id FROM event_outbox LIMIT 1');
   } catch (err) {
     if (err.code === 'ER_NO_SUCH_TABLE') {
-      throw new UnitDbError('SCHEMA_MISSING', 'job_transitions is absent: install queue\'s schema through the administrative path');
+      throw new UnitDbError('SCHEMA_MISSING', 'queue history or event_outbox is absent: install queue\'s schema through the administrative path');
     }
     throw err;
   }
@@ -275,10 +289,6 @@ export class MariaDbJobQueue extends EventEmitter {
     this.persisted = true;
   }
 
-  _audit(event, job, level = 'INFO') {
-    auditJobEvent(this, event, job, level);
-  }
-
   /**
    * Accepts a job, or recognises a replay of one.
    *
@@ -306,6 +316,7 @@ export class MariaDbJobQueue extends EventEmitter {
         await withTransaction(this.pool, async (conn) => {
           await conn.execute(INSERT_JOB, jobToParams(job));
           await conn.execute(INSERT_TRANSITION, transitionParams(job, 'created', null));
+          await appendOutbox(conn, evidence(job, 'JOB_CREATED'));
         });
       } catch (err) {
         const collision = duplicateKeyTarget(err);
@@ -320,7 +331,6 @@ export class MariaDbJobQueue extends EventEmitter {
         continue;
       }
 
-      this._audit('JOB_CREATED', job);
       this.emit('jobCreated', job);
       this.emit('statusChange', job);
       return { job, duplicate: false };
@@ -362,14 +372,55 @@ export class MariaDbJobQueue extends EventEmitter {
         jobId,
       ]);
       await conn.execute(INSERT_TRANSITION, transitionParams(next, 'updated', current));
+      const terminal = terminalAudit(next);
+      await appendOutbox(conn, evidence(next, terminal?.[0] || 'JOB_UPDATED', terminal?.[1] || 'INFO'));
       return next;
     });
 
-    const terminal = terminalAudit(updated);
-    if (terminal) this._audit(terminal[0], updated, terminal[1]);
     this.emit('jobUpdated', updated);
     this.emit('statusChange', updated);
     return updated;
+  }
+
+  /**
+   * Restart recovery, run by the service lifecycle before it serves: every job
+   * still RUNNING was being followed by a process that no longer exists, so it
+   * becomes FAILED with the interrupted reason — whatever the worker setting,
+   * whatever the job type — with its history row and its JOB_FAILED evidence
+   * in the same transaction. Nothing is re-executed; PENDING jobs are left for
+   * their first execution.
+   *
+   * @returns {Promise<object[]>} the jobs settled, as stored
+   */
+  async recoverInterrupted() {
+    const settled = await withTransaction(this.pool, async (conn) => {
+      const [rows] = await conn.query(`SELECT ${JOB_COLUMNS} FROM jobs WHERE status = 'RUNNING' ORDER BY created_at, id FOR UPDATE`);
+      const out = [];
+      for (const row of rows) {
+        const current = rowToJob(row);
+        const next = interruptedJob(current, this.now());
+        await conn.execute(UPDATE_JOB, [
+          next.contractType ?? null,
+          next.status,
+          next.progress,
+          next.step,
+          next.result === null || next.result === undefined ? null : JSON.stringify(next.result),
+          next.error,
+          next.qualityGateStatus ?? null,
+          toSqlDateTime(next.updatedAt),
+          next.id,
+        ]);
+        await conn.execute(INSERT_TRANSITION, transitionParams(next, 'interrupted', current));
+        await appendOutbox(conn, evidence(next, 'JOB_FAILED', 'ERROR', { reason: 'interrupted', outcome: 'unknown' }));
+        out.push(next);
+      }
+      return out;
+    });
+    for (const job of settled) {
+      this.emit('jobUpdated', job);
+      this.emit('statusChange', job);
+    }
+    return settled;
   }
 
   /** Records a quality-gate verdict on a job without changing its status. */
@@ -391,6 +442,7 @@ export class MariaDbJobQueue extends EventEmitter {
         [next.qualityGateStatus, next.error ?? null, jobId],
       );
       await conn.execute(INSERT_TRANSITION, transitionParams({ ...next, updatedAt: this.now().toISOString() }, 'quality_gate', current));
+      await appendOutbox(conn, evidence(next, 'JOB_QUALITY_GATE'));
     });
     return gateResult;
   }
@@ -426,6 +478,11 @@ export class MariaDbJobQueue extends EventEmitter {
     const db = await probeDb(this.pool);
     if (!this.config) return db;
     return { ...db, user: `${this.config.user}@localhost`, database: this.config.database, passwordSource: this.config.passwordSource };
+  }
+
+  /** The evidence still owed to Logger: observable, never silent. */
+  async evidenceStatus() {
+    return outboxStatus(this.pool);
   }
 
   async storageCheck() {

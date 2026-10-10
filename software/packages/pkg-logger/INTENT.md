@@ -69,7 +69,7 @@ content — will outlive this particular endpoint.
 <a id="private-mariadb"></a>
 ## 4. Storage: the unit's private MariaDB (Rules 4 and 26)
 
-5. **The durable store is the `logger` database of the unit's own MariaDB**, reached through its private socket as `logger@localhost` (`MariaDbLoggerStore`, `sql/schema.sql`). The brick selects it by default (`LOGGER_STORE=mariadb`) and refuses to start, with a typed reason, when the passwd file, the identity or the schema is not what it must be. The JSONL collector remains as declared DEV scaffolding, selected only with `LOGGER_STORE=file` and an explicit `LOG_DIR`, never as a fallback; it keeps what it is given and claims nothing more — no idempotency, no digest, no transaction.
+5. **The durable store is the `logger` database of the unit's own MariaDB**, reached through its private socket as `logger@localhost` (`MariaDbLoggerStore`, `sql/schema.sql`). The brick selects it by default (`LOGGER_STORE=mariadb`) and refuses to start, with a typed reason, when the passwd file, the identity or the schema is not what it must be. The JSONL collector remains as declared DEV scaffolding, selected only with `LOGGER_STORE=file` and an explicit `LOG_DIR`, never as a fallback, and refused (`DEV_STORE_REFUSED`) when `SHAPER_QUALIFICATION` or a non-development `SHAPER_RUNTIME_MODE` is set; it keeps what it is given and claims nothing more — no idempotency, no digest, no transaction.
 6. **The schema is installed by the administrative path.** The application account holds `SELECT, INSERT, UPDATE, DELETE` on `logger.*` only, never creates or alters a table, and refuses to serve when `schema_meta` is absent or older than the build. Re-applying the schema is idempotent and never undoes partition maintenance.
 7. **Events are immutable and partitioned monthly by receipt time.** `events` is partitioned `RANGE COLUMNS (received_at)`, one partition per calendar month (UTC), from `p2026_08` to `p2027_03`, then `p_future` (`MAXVALUE`). Receipt time is assigned by Logger, never by the source, as a `DATETIME(3)` in UTC — `TIMESTAMP` is not a `COLUMNS` partitioning type. Triggers refuse `UPDATE` and `DELETE` on `events`; retention retires whole partitions from the administrative path.
 8. **`p_future` is a guard, not a destination.** It must stay empty so that splitting it ahead of time moves no data. `/api/vitals` reports `partitionHorizon` (the bound of the last monthly partition) and `eventsBeyondHorizon` (rows already past it): a non-zero count means partition maintenance fell behind.
@@ -82,10 +82,18 @@ content — will outlive this particular endpoint.
 
 What this storage does not yet provide, against the Logger target contract, recorded as gaps rather than implied:
 
-* **Authenticated source identity.** `pod` is still what the body claims. Vault-signed, short-lived source credentials — and a `sourceEventId` scope derived from them instead of the claimed `pod` — belong to the next step.
+* **Complete source identity metadata.** MariaDB HTTP ingestion now derives
+  `pod` from a verified unit credential and rejects a different body claim.
+  The service pins one universe and validates the current incarnation in Vault.
+  Explicit persisted universe/incarnation columns, identity-aware chain records
+  and their migration/replay contracts remain open.
 * **The cross-event chain and external checkpoints.** Each event proves its own integrity; nothing yet links an event to the previous one, keeps the chain head in a control table, or anchors signed checkpoints outside the database. Deleted rows are not yet detectable.
 * **Partition maintenance automation.** Splitting `p_future` ahead of time, alerting on the horizon, freezing, backing up and retiring closed partitions (with their `ingest_keys` rows) are administrative operations still to be scripted and proven.
-* **Outbox receipts.** Sources still send best-effort (`ingestLog` returns `null` on refusal); a transactional outbox that retries with the same `sourceEventId` until a receipt is held is not built.
+* **Outbox adoption.** `deliverLog` supplies strict receipt verification for
+  durable relays, including claim identity and event digest. Queue now persists
+  delivery debt transactionally. Other source paths still use best-effort
+  `ingestLog`; authenticated end-to-end delivery and installed restore proof
+  remain open.
 * **The rest of the classification grammar.** `family`, `topic`, `schema_version`, `subject_ref`, typed outcome and source occurrence time are not stored yet.
 
 ---
@@ -95,3 +103,53 @@ What this storage does not yet provide, against the Logger target contract, reco
 * **Brick port**: `8620`
 * **Storage**: `logger` database in the unit's private MariaDB, socket `/apps/logger/nosav/run/mysqld/mysqld.sock` on the universe side
 * **DEV scaffolding only**: `LOGGER_STORE=file LOG_DIR=<dir>` → `<dir>/<POD>/activity.jsonl`
+
+## Authenticated HTTP boundary
+
+The MariaDB entrypoint requires a parent-pinned public-key file, universe id and
+Vault URL. Factory callers without authorization are refused for MariaDB; an
+explicit `allowAnonymous` option exists only for database-free storage fixtures,
+and is not exposed as an entrypoint deployment setting. File DEV scaffolding
+retains its declared legacy behavior.
+
+Ingestion requires `logger:ingest`; the authenticated unit is the event source.
+Reads require `logger:read:own` and are forced to that source. Pod inventory and
+vitals require `logger:observe`. Streams filter to the authenticated unit, check
+current authority before every emitted event, close at credential expiry and
+cap queued frames. Health remains a payload-free liveness endpoint.
+
+Protected requests verify Ed25519 signature, universe, audience, exact scopes
+and validity, then obtain Vault's current incarnation/revocation decision. A
+missing or unavailable verifier never enables anonymous access. Receipts remain
+transactional and replay identity stays stable across credential renewal.
+
+## Public event input boundary
+
+Before canonicalization or any write, the HTTP normalization and direct
+MariaDB ingest boundary reject secret-bearing fields (case and separator
+insensitive), recognized credential strings, private-key PEM, authorization
+values, credential-bearing URLs, cookies and secret query assignments.
+The in-process event formatter applies the same refusal before JSONL output.
+Nested arrays and even ignored request metadata are checked. Public references,
+digests and counters such as `secretRef`, `artifactRef`, `tokenCount` and
+`passwordSource` remain admissible; the referenced secret value does not.
+
+Buffers, typed binary views, serialized Buffer objects, accessors, non-JSON
+objects, repeated/cyclic object graphs and non-finite values are refused.
+Traversal is iterative and bounded to 32 levels, 10000 values and 2 MiB of
+aggregate key/string bytes, in addition to HTTP/body/data limits. A refused
+batch writes no event and no replay key.
+Refusal messages never include the submitted field/value; malformed JSON and
+unexpected storage exceptions are answered without raw exception messages.
+The canonical event format and SQL schema are unchanged by this boundary.
+
+Producers use `publicEvidence(entry)` before they commit evidence: an entry
+that passes is returned as it is; otherwise its `data` is replaced by
+`{ redacted: <code>, dataDigest }`, so one free-text field never blocks the
+producer's change nor leaves its evidence undeliverable forever.
+
+This is a defense against declared secret fields and recognizable encodings,
+not an oracle for arbitrary secrets concealed in otherwise ordinary strings.
+The producing unit must emit only public evidence. Versioned event schemas,
+closed classification and explicit body/reference contracts remain required
+before final reference qualification. No existing history is migrated here.

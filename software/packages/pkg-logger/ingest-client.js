@@ -1,6 +1,26 @@
 /**
  * HTTP ingest client — all bricks log through @shaper/pkg-logger.
  */
+import { claimDigest, eventDigest, normalizeIngestEntry } from './ingest-contract.js';
+
+/** Strict outbox transport: keep debt unless the receipt matches this claim. */
+export async function deliverLog({ loggerUrl, entry, signal, headers = {}, fetchImpl = fetch }) {
+  const claim = normalizeIngestEntry(entry);
+  if (!claim.sourceEventId || !claim.executionId) throw new Error('LOGGER_STABLE_ID_REQUIRED');
+  const base = loggerUrl.replace(/\/$/, '');
+  const response = await fetchImpl(base.endsWith('/api/ingest') ? base : `${base}/api/ingest`, {
+    method: 'POST', signal, headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(entry),
+  });
+  if (!response.ok) throw new Error('LOGGER_DELIVERY_REFUSED');
+  const { record } = await response.json();
+  if (!record || typeof record.id !== 'string' || !record.id
+      || record.digest !== eventDigest(record)
+      || claimDigest(normalizeIngestEntry(record)) !== claimDigest(claim)) {
+    throw new Error('LOGGER_RECEIPT_INVALID');
+  }
+  return { id: record.id, at: record.at, digest: record.digest, sourceEventId: record.sourceEventId };
+}
 
 /**
  * @param {object} options

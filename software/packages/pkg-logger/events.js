@@ -18,6 +18,7 @@
  */
 
 import crypto from 'node:crypto';
+import { assertPublicEvent } from './public-event.js';
 
 export const VALID_LEVELS = new Set(['INFO', 'WARN', 'ERROR', 'DEBUG']);
 
@@ -191,6 +192,7 @@ export function formatEventRecord({
   durationMs = 0,
   duration_ms = null,
 } = {}, now = Date.now()) {
+  assertPublicEvent({ pod, event, level, data, correlationId, correlation_id, executionId, execution_id, durationMs, duration_ms });
   if (!event) throw new Error('formatEventRecord: event name is required');
 
   const isoTime = new Date(now).toISOString();

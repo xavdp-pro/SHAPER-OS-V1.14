@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { CredentialError } from '../pkg-auth/unit-credentials.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // Standard GCM IV length (96 bits)
@@ -384,6 +385,7 @@ export class VaultClient {
  * @returns {number}
  */
 export function storeErrorStatus(err) {
+  if (err instanceof CredentialError) return err.status;
   const code = String(err && err.code || '');
   if (err && err.name === 'UnitDbError') return 503;
   if (/^(ER_|ECONN|ENOENT|EACCES|PROTOCOL_|POOL_)/.test(code)) return 503;
@@ -407,7 +409,8 @@ export function createVaultServer({
   masterKey = null,
   vaultToken = null,
   storageFile = null,
-  vaultStore = null
+  vaultStore = null,
+  identityService = null,
 } = {}) {
   if (!vaultStore && !(typeof masterKey === 'string' && masterKey.trim())) {
     // A vault encrypted with a key published in this repository is not encrypted.
@@ -434,9 +437,14 @@ export function createVaultServer({
     }
   });
 
-  async function readBody(req) {
+  async function readBody(req, maxBytes = 1048576) {
     let body = '';
-    for await (const chunk of req) body += chunk;
+    let bytes = 0;
+    for await (const chunk of req) {
+      bytes += chunk.length;
+      if (bytes > maxBytes) throw new CredentialError('BODY_TOO_LARGE', 413);
+      body += chunk;
+    }
     return body;
   }
 
@@ -466,6 +474,26 @@ export function createVaultServer({
     }
 
     // Bearer token authentication if configured
+    if (identityService && req.method === 'POST' && pathname.startsWith('/api/identity/')) {
+      const raw = req.headers.authorization || '';
+      if (!/^Bearer [A-Za-z0-9_.-]+$/.test(raw)) throw new CredentialError('CREDENTIAL_INVALID');
+      const token = raw.slice(7);
+      let body;
+      try { body = JSON.parse((await readBody(req, 8192)) || '{}'); }
+      catch (err) { if (err instanceof CredentialError) throw err; throw new CredentialError('IDENTITY_REQUEST_INVALID', 400); }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new CredentialError('IDENTITY_REQUEST_INVALID', 400);
+      if (pathname === '/api/identity/issue') {
+        if (Object.keys(body).some((k) => !['unit', 'incarnation', 'audience'].includes(k))) throw new CredentialError('IDENTITY_REQUEST_INVALID', 400);
+        const result = await identityService.issue({ ...body, bootstrapToken: token });
+        return sendJson(200, { token: result.token, expiresAt: result.claims.expiresAt });
+      }
+      if (pathname === '/api/identity/check') {
+        await identityService.check(token, body.audience);
+        return sendJson(200, { active: true });
+      }
+      return sendJson(404, { code: 'IDENTITY_ROUTE_UNKNOWN' });
+    }
+    if (identityService && !vaultToken) return sendJson(401, { code: 'VAULT_ADMIN_CREDENTIAL_REQUIRED' });
     if (vaultToken) {
       const authHeader = req.headers.authorization || '';
       const token = authHeader.replace(/^Bearer\s+/i, '').trim();

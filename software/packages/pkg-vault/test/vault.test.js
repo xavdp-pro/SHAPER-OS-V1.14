@@ -54,8 +54,10 @@ describe('@shaper/pkg-vault-engine Unit & Integration Tests', () => {
 
     it('should fail decryption when ciphertext is tampered (Authentication Error)', () => {
       const encrypted = encryptSecret('Sensitive Data', MASTER_KEY);
-      // Alter ciphertext
-      const tamperedCiphertext = encrypted.ciphertext.slice(0, -2) + '00';
+      // Flip a bit: replacing the final byte with 00 was sometimes a no-op.
+      const bytes = Buffer.from(encrypted.ciphertext, 'hex');
+      bytes[bytes.length - 1] ^= 1;
+      const tamperedCiphertext = bytes.toString('hex');
       const tamperedRecord = { ...encrypted, ciphertext: tamperedCiphertext };
 
       assert.throws(() => {

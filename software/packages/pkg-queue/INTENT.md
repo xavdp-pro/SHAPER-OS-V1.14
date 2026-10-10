@@ -28,12 +28,14 @@ Jobs live in the unit's own private MariaDB (Rules 4 and 26,
    No crash-survival claim may rest on this queue re-running work; a universe
    that needs at-least-once execution must make its jobs idempotent and
    re-enqueue from its own beat (maestro), reading the recorded jobs to know
-   what was in flight. One scoping note, verified in `worker.js`: recorded
-   **PENDING** jobs are dispatched normally after a restart when the worker
-   runs — a first execution, not a resumption; recorded **RUNNING** jobs are
-   adopted as `FAILED`, never re-run. The in-memory store (`QUEUE_STORE=memory`)
-   loses everything with the process; it and the JSONL file store
-   (`QUEUE_STORE=file`) are DEV scaffolding only.
+   what was in flight. Recorded **PENDING** jobs are dispatched normally after
+   a restart when a worker runs — a first execution, not a resumption.
+   Recorded **RUNNING** jobs are settled by the service itself at start
+   ([§4](#lifecycle)): `FAILED` with the interrupted / unknown-outcome reason,
+   whatever the worker setting and whatever the job type, never re-run. The
+   in-memory store (`QUEUE_STORE=memory`) loses everything with the process; it
+   and the JSONL file store (`QUEUE_STORE=file`) are DEV scaffolding only, and
+   both are refused under a promotion or qualification flag.
 3. **The queue testifies for its own work** *(V1.13.4)*: with `LOGGER_URL` set,
    every job emits `JOB_CREATED` and its terminal `JOB_COMPLETED` /
    `JOB_FAILED`, **correlated to the job id**. The queue is the ledger of
@@ -43,9 +45,11 @@ Jobs live in the unit's own private MariaDB (Rules 4 and 26,
    persisted answer and left no trace, making proof #4 unsatisfiable on the
    documented path. An event is emitted only after the state it reports is
    recorded (committed, in MariaDB), and a replayed enqueue emits nothing.
-   Emission is fire-and-forget over HTTP: a logger that is down never stops
-   work, and says so on stderr rather than failing silently — the line is then
-   lost, which is why a transactional outbox is a recorded gap (§3).
+   On the MariaDB path every transition and its evidence are committed in
+   one transaction to `event_outbox`. A bounded relay retries the same source
+   event identity until a matching, digest-verified Logger receipt is stored.
+   Logger unavailability preserves the debt. Memory/file DEV scaffolding
+   retains its legacy best-effort HTTP behavior.
 4. **Events**: `EventEmitter` hooks + `JobQueue.formatSSE()` for HTTP streams. A store emits `jobCreated`, `jobUpdated` and `statusChange` only after the change is recorded; a stream reader never sees a job the store does not hold.
 5. **Isolation**: `type` and `payload` are opaque. Zero business logic in the queue core.
 6. **Optional worker**: `worker.js` understands only `type=agent.inject` and forwards `payload.message` (+ optional params) to a bridge HTTP inject.
@@ -106,7 +110,9 @@ Jobs live in the unit's own private MariaDB (Rules 4 and 26,
 11. **A write is reported only after it commits.** Creation, every progress or
     status update, the worker's transitions and a quality-gate verdict each
     write the job row and one `job_transitions` row in one transaction. The API
-    answers, the stream emits and the audit line leaves only after `COMMIT`. A
+    answers and the stream emits after `COMMIT`. The event outbox is written
+    in that same transaction; Logger delivery happens separately and never
+    gates a successful local write. A
     database failure is HTTP 503 with a typed `code` — never a logged-and-ignored
     error, never an empty answer, never a success event.
 12. **Every start reads every job back.** A row that cannot be parsed
@@ -159,12 +165,16 @@ What this storage does not yet provide, against the Queue target contract of
   `PENDING → RUNNING` transition, not a lease: no lease id, no incarnation, no
   heartbeat, no expiry.
 * **Attempts and at-least-once recovery.** There is no `attempts` table; a
-  `RUNNING` job left by a dead worker is settled as `FAILED` (orphan) at the
-  next start, never retried after a bounded backoff.
+  `RUNNING` job left by a dead process is settled as `FAILED` (interrupted) at
+  the next start of the service, never retried after a bounded backoff. Nothing
+  stops a consumer that outlived the restart from later patching that job to
+  `COMPLETED`: the retained API lets any status follow any other, and the
+  history then shows both transitions.
 * **`DEAD_LETTER` and `CANCELLED`.** Neither state exists.
-* **A transactional outbox to Logger.** Audit remains fire-and-forget over
-  HTTP after the commit; a Logger outage loses the line while the job stays
-  durable.
+* **Installed outbox qualification.** The MariaDB path now stores bounded
+  evidence with each transition and retries until a validated receipt. Its
+  concurrency, restart, restoration and authenticated-delivery tests remain
+  separate promotion requirements; this implementation is not a reference seal.
 * **Evidence policies** (`before_execution` / `eventual`) are not applied.
 * **Queue still carries more than transport.** Task framing (`task-frame.js`),
   direct Bridge dispatch and dialect translation (`worker.js`, only with
@@ -179,8 +189,82 @@ What this storage does not yet provide, against the Queue target contract of
   archiving terminal jobs, belong to the administrative path and are not
   automated.
 * **An outcome observed while MariaDB is unavailable is not retried.** The job
-  keeps its last committed state (a `RUNNING` one becomes an orphan at the
-  next start), and the worker says so on stderr.
+  keeps its last committed state (a `RUNNING` one is settled as interrupted at
+  the next start), and the worker says so on stderr.
 * **The JSONL file store still logs a failed append and answers success, and
   skips (now with a warning) a line it cannot parse.** It is DEV scaffolding
   and is recorded as debt, not presented as compliance.
+
+## Transactional evidence delivery
+
+Schema version 2 adds the unpartitioned `event_outbox`, installed through the
+administrative path. Enqueue, progress/status and quality-verdict writes append
+evidence in their owning transaction; failed outbox writes roll back the job
+change and emit no success. Evidence excludes job payloads and results.
+
+A relay claims one due row under a short lease, sends a bounded request
+(3-second deadline) with no lock held, retains failures with capped retry delay,
+and records only a receipt whose source claim and stored-event digest match
+(pkg-db `#transactional-outbox-helper`). The same source event and execution
+identities are reused after a lost response or failed receipt commit.
+Concurrent relays never send a leased row. No active debt is time-expired or
+deleted. A job type that Logger's public-event boundary would refuse is reduced
+to a digest in the evidence, so the job is still created and its evidence still
+deliverable.
+The recipient must provide idempotent durable ingest; a transport acknowledgment
+alone is refused. Application credentials are transport-only, never outbox data.
+
+Authenticated Vault-derived identity, Queue leases/attempts and the
+`before_execution` policy remain open reconstruction obligations. The current
+relay does not make the unauthenticated prototype a qualified reference.
+
+## Outbound evidence identity
+
+The MariaDB entrypoint uses the protected runtime bootstrap file and pinned
+public key to obtain a short-lived `logger` audience credential. Every relay
+request carries that credential in its HTTP header; tokens never enter the
+outbox. Inbound Queue producer/consumer scopes and lease settlement remain
+open work and are not inferred from authenticated Logger delivery.
+
+<a id="lifecycle"></a>
+## 4. Service lifecycle
+
+`server.js` runs one order, whatever the store and whatever
+`QUEUE_AUTO_DISPATCH` says:
+
+1. **Select and open the store.** MariaDB by default, as unit `queue` — the
+   name its evidence is sourced as; another `SHAPER_UNIT_SLUG` is refused
+   (`EVIDENCE_SOURCE_MISMATCH`), since Logger would refuse every row of it. `QUEUE_STORE=file` or
+   `memory` is explicit DEV scaffolding and is refused (`DEV_STORE_REFUSED`,
+   exit 1) when `SHAPER_QUALIFICATION` or a non-development
+   `SHAPER_RUNTIME_MODE` is set (pkg-db `#dev-scaffolding`). On MariaDB the
+   entrypoint also requires `LOGGER_URL` (`LOGGER_URL_MISSING`) and the unit's
+   identity inputs (`SHAPER_UNIVERSE_ID`, `SHAPER_UNIT_INCARNATION`, `VAULT_URL`,
+   `UNIT_AUTH_PUBLIC_KEY_FILE`, `UNIT_BOOTSTRAP_TOKEN_FILE`): evidence it commits
+   but could never deliver would be debt kept in silence.
+2. **Settle what the previous process left RUNNING** (`recoverInterrupted`).
+   Each such job becomes `FAILED` with `INTERRUPTED_REASON`, its result marked
+   `orphaned: true, outcome: "unknown"`, a `job_transitions` row of kind
+   `interrupted`, and `JOB_FAILED` evidence (`reason: interrupted`) — all in one
+   transaction, before anything is served. `PENDING` jobs are left for their
+   first execution. A failure here is a refusal to start. The worker's own
+   orphan adoption remains for in-process library use; at service start it
+   finds nothing left.
+3. **Listen**, then start the evidence relay (one lane: `QUEUE_RELAY_*`
+   interval, batch and timeout) and, only if asked, the `agent.inject` worker.
+4. **Stop** on SIGTERM/SIGINT: worker; then the server (requests in flight
+   finish, event streams are ended after a 5-second grace) and the relay (it
+   starts no new send, and waits up to `QUEUE_SHUTDOWN_TIMEOUT_MS` for the one
+   in flight — an unconfirmed send exits 1 and its debt stays in MariaDB), both
+   settled before the database closes.
+
+`/api/vitals` reports `evidencePending`, `evidenceRetrying` and
+`oldestPendingEvidenceAt` on the MariaDB path.
+
+Proof: `test/lifecycle-and-dev-store.test.js` drives the entrypoint end to
+end on the DEV file store with the worker off and checks the refusals;
+`test/evidence-and-recovery.live.mjs` (run through pkg-db's `run-live.mjs`)
+kills a process with SIGKILL between the SQL commit and Logger delivery, and
+after a job went RUNNING, then proves on the real MariaDB, Vault and Logger
+that the evidence is delivered once — also across a Logger outage and a lost
+response — and that the RUNNING job is settled as interrupted.
