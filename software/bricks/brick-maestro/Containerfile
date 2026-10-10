@@ -1,44 +1,76 @@
 ARG SHAPER_BASE_IMAGE
+ARG NODE_IMAGE=docker.io/library/node:20-alpine
 FROM ${SHAPER_BASE_IMAGE} AS shaper_base
-FROM docker.io/library/node:20-alpine
+FROM ${NODE_IMAGE}
 
+# One functional unit, Turbinobash method (Rule 4; runtime/unit-mariadb/INTENT.md):
+# the maestro application and its own MariaDB server, two processes in this one
+# container. `maestro` is the Linux account, the MariaDB account and the database.
 ARG SHAPER_SOURCE_REVISION
+ARG NODE_IMAGE
+ARG SHAPER_BASE_IMAGE
 LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.node-image="${NODE_IMAGE}"
+LABEL org.shaper.base-image="${SHAPER_BASE_IMAGE}"
 LABEL org.shaper.brick="maestro"
 LABEL org.shaper.build-packages="db logger auth agent-runtime vault maestro"
+LABEL org.shaper.unit.slug="maestro"
+LABEL org.shaper.unit.uid="10630"
+LABEL org.shaper.unit.engine-uid="10631"
+LABEL org.shaper.unit.database="mariadb-in-unit"
+LABEL org.shaper.unit.schema="/apps/maestro/app/packages/pkg-maestro/sql/schema.sql"
+LABEL org.shaper.unit.schema-version="1"
 
-# The unit runs as its functional account (Rules 4, 11 and 26): the slug is the
-# Linux account, the MariaDB account and the database, and the uid is fixed so
-# the universe can own the passwd file for exactly this process.
+# The engine account is created first, with its fixed uid, so the MariaDB
+# package's install script keeps it instead of picking whatever uid is free: a
+# datadir must belong to the same uid in every rebuild of this image.
 ARG UNIT_UID=10630
-RUN addgroup -S -g "${UNIT_UID}" maestro \
- && adduser -S -D -H -u "${UNIT_UID}" -G maestro -s /sbin/nologin maestro
+ARG ENGINE_UID=10631
+RUN addgroup -S -g "${ENGINE_UID}" mysql \
+ && adduser -S -D -H -h /var/lib/mysql -s /sbin/nologin -u "${ENGINE_UID}" -G mysql mysql \
+ && addgroup -S -g "${UNIT_UID}" maestro \
+ && adduser -S -D -H -h /apps/maestro -s /sbin/nologin -u "${UNIT_UID}" -G maestro maestro \
+ && apk add --no-cache mariadb mariadb-client tini \
+ && test "$(id -u mysql):$(id -g mysql)" = "${ENGINE_UID}:${ENGINE_UID}" \
+ && test "$(id -u maestro):$(id -g maestro)" = "${UNIT_UID}:${UNIT_UID}" \
+ && printf '[client]\nsocket=/run/maestro/mysqld.sock\n' > /etc/my.cnf.d/zz-shaper-unit.cnf \
+ && chmod 0644 /etc/my.cnf.d/zz-shaper-unit.cnf
 
-WORKDIR /app
-# pkg-db carries the one pinned driver; its lockfile is the only source of it.
-# It sits beside the other packages so pkg-maestro's `../pkg-db/` resolves.
-COPY --from=shaper_base /shaper/packages/pkg-db/ ./packages/pkg-db/
-RUN cd /app/packages/pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
-COPY --from=shaper_base /shaper/packages/pkg-logger/ ./packages/pkg-logger/
-COPY --from=shaper_base /shaper/packages/pkg-auth/ ./packages/pkg-auth/
-COPY --from=shaper_base /shaper/packages/pkg-agent-runtime/ ./packages/pkg-agent-runtime/
-COPY --from=shaper_base /shaper/packages/pkg-vault/ ./packages/pkg-vault/
-COPY --from=shaper_base /shaper/packages/pkg-maestro/ ./packages/pkg-maestro/
+# The application code, owned by root and read-only to the unit account
+# (Rule 4: app/). Every package sits beside the others, so `../pkg-*/` resolves.
+COPY --from=shaper_base /shaper/packages/pkg-db/ /apps/maestro/app/packages/pkg-db/
+RUN cd /apps/maestro/app/packages/pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /apps/maestro/app/packages/pkg-logger/
+COPY --from=shaper_base /shaper/packages/pkg-auth/ /apps/maestro/app/packages/pkg-auth/
+COPY --from=shaper_base /shaper/packages/pkg-agent-runtime/ /apps/maestro/app/packages/pkg-agent-runtime/
+COPY --from=shaper_base /shaper/packages/pkg-vault/ /apps/maestro/app/packages/pkg-vault/
+COPY --from=shaper_base /shaper/packages/pkg-maestro/ /apps/maestro/app/packages/pkg-maestro/
 
-# The local JSONL audit is evidence, not state (the state is in MariaDB); its
-# directory belongs to the unit account so the image starts without a mount.
-RUN install -d -o maestro -g maestro -m 0750 /apps/maestro/log
+# The unit's MariaDB lifecycle: the container's administrative path, run as root.
+COPY --from=shaper_base /shaper/runtime/unit-mariadb/ /usr/local/lib/shaper/unit-mariadb/
+RUN ln -s /usr/local/lib/shaper/unit-mariadb/unit-ready /usr/local/bin/unit-ready \
+ && install -d -m 0755 -o root -g root /apps/maestro/etc /apps/maestro/etc/mysql /apps/maestro/sav \
+ && install -d -m 0750 -o root -g maestro /apps/maestro/etc/mysql/localhost \
+ && install -d -m 0750 -o maestro -g maestro /apps/maestro/log /apps/maestro/nosav
 
-WORKDIR /app/packages/pkg-maestro
+ENV NODE_ENV=production \
+    SHAPER_UNIT_SLUG=maestro \
+    SHAPER_DB_SOCKET=/run/maestro/mysqld.sock \
+    UNIT_UID=10630 \
+    UNIT_ENGINE_UID=10631 \
+    UNIT_SCHEMA_FILE=/apps/maestro/app/packages/pkg-maestro/sql/schema.sql \
+    UNIT_SCHEMA_VERSION=1 \
+    MAESTRO_PORT=8630 \
+    MAESTRO_STORE=mariadb \
+    MAESTRO_AUTO_START=0 \
+    LOG_DIR=/apps/maestro/log
 
+# The image refuses to exist when it would refuse to start.
+RUN UNIT_IMPORT_CHECK="/apps/maestro/app/packages/pkg-maestro/index.js /apps/maestro/app/packages/pkg-maestro/mariadb-store.js /apps/maestro/app/packages/pkg-maestro/durable-scheduler.js" node /usr/local/lib/shaper/unit-mariadb/image-check.mjs
+
+WORKDIR /apps/maestro/app/packages/pkg-maestro
 EXPOSE 8630
-ENV NODE_ENV=production
-ENV MAESTRO_PORT=8630
-ENV MAESTRO_AUTO_START=0
-ENV MAESTRO_STORE=mariadb
-ENV SHAPER_UNIT_SLUG=maestro
-ENV SHAPER_DB_SOCKET=/run/mysqld/mysqld.sock
-ENV LOG_DIR=/apps/maestro/log
-
-USER maestro
+# No USER: the supervisor is root, starts mariadbd as mysql and the application
+# as maestro (10630); the application itself never runs as root.
+ENTRYPOINT ["/sbin/tini", "--", "node", "/usr/local/lib/shaper/unit-mariadb/supervisor.mjs"]
 CMD ["node", "server.js"]

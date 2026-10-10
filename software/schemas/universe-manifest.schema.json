@@ -358,7 +358,7 @@
           },
           "database": {
             "type": "object",
-            "description": "The brick's private database (Rules 4 and 26): every functional Podman owns one MariaDB, never shared. slug is at once the function identity, the Linux account, the MariaDB account and the database; uid is the fixed numeric uid the application runs as; schema is the path, inside the brick's own image, of the idempotent schema the administrative path applies.",
+            "description": "The brick's private database (Rules 4 and 26): every functional Podman owns one MariaDB, never shared. slug is at once the function identity, the Linux account, the MariaDB account and the database; uid is the fixed numeric uid the application runs as; schema is the path, inside the brick's own image, of the idempotent schema the administrative path applies. placement in-unit declares the Turbinobash method of Rule 4: the MariaDB server runs inside the brick's own container, as the engine account engineUid, and schemaVersion is the exact schema version a retained database must carry.",
             "required": [
               "engine",
               "slug",
@@ -384,6 +384,21 @@
               "schema": {
                 "type": "string",
                 "pattern": "^/"
+              },
+              "placement": {
+                "type": "string",
+                "enum": [
+                  "in-unit"
+                ]
+              },
+              "engineUid": {
+                "type": "integer",
+                "minimum": 1001
+              },
+              "schemaVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
               }
             }
           }

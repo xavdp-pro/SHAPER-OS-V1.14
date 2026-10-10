@@ -12,8 +12,8 @@ Local sovereign secret store — zero cloud lock-in.
 2. Localhost or mesh bind only — zero public exposure.
 3. Podman Quadlet lifecycle.
 4. One instance per universe.
-5. The Vault's durable state lives in its own private MariaDB (Rules 4 and 26): account, database and Linux user are all `vault`, uid fixed at `10610`; the database has no TCP listener and is reached only through a socket directory mounted into this unit's two containers.
-6. The application password (`/apps/vault/etc/mysql/localhost/passwd`) and the master key file are `0600`/`0400`, owned by the `vault` account, mounted read-only, never in an image, a log or a dump.
+5. The Vault's durable state lives in its own private MariaDB (Rules 4 and 26): account, database and Linux user are all `vault`; the MariaDB server runs **inside this unit's own container**, as `mysql` (uid `10611`), beside the application (`vault`, uid `10610`) — two processes, one container, no database container beside it (Rule 4, Turbinobash method; [`runtime/unit-mariadb`](../../runtime/unit-mariadb/INTENT.md)); it has no TCP listener and its socket `/run/vault/mysqld.sock` is private to the container.
+6. The application password (`/apps/vault/etc/mysql/localhost/passwd`) is generated once inside the unit, `0600`, owned by the `vault` account, in a directory the account cannot write; the master key file is `0400`, owned by `vault`, mounted read-only. Neither is ever in an image, a log or a dump.
 
 ## 3. What experience corrected
 
@@ -30,7 +30,10 @@ Local sovereign secret store — zero cloud lock-in.
   the application's container could log in as root through the shared socket.
   The unit's MariaDB root now authenticates by `unix_socket` only, network root
   accounts and image default accounts are removed, and the universe proof
-  checks that the application account cannot become root.
+  checks that the application account cannot become root. Since the MariaDB
+  server moved into the unit's own container (10 October 2026), no root
+  password exists at any moment: the datadir is born with `unix_socket` root,
+  and every start refuses a retained root that accepts anything else.
 
 ---
 

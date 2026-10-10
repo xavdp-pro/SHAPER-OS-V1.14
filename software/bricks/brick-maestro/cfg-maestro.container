@@ -1,5 +1,5 @@
 [Unit]
-Description=SHAPER OS Maestro (Podman Quadlet)
+Description=SHAPER OS Maestro with its own MariaDB (Podman Quadlet)
 After=network-online.target
 
 # The image is written by the universe that installs this unit, from the digest
@@ -12,6 +12,15 @@ After=network-online.target
 # ContainerName follows docs/architecture/NAMING.md: ctr- is a running
 # container role, prefixed by the universe so two universes on one host never
 # collide.
+#
+# One container, two processes (Rule 4, Turbinobash method;
+# software/runtime/unit-mariadb/INTENT.md): the image's supervisor starts the
+# unit's own MariaDB as mysql, socket only, then the application as maestro
+# (10630). There is no database container beside this one and no User= line:
+# the supervisor is the container's administrative path and drops to each
+# account itself. The three volumes are the unit's persistent state — its
+# password, its datadir and dumps, its log — owned file by file, never chowned
+# recursively.
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-maestro
@@ -19,26 +28,33 @@ Network=host
 Environment=MAESTRO_PORT=8630
 Environment=HOST=127.0.0.1
 Environment=MAESTRO_AUTO_START=1
+Environment=UNIT_HEALTH_URL=http://127.0.0.1:8630/api/health
 # The universe identity is part of every occurrence id; the queue is the only
 # place an occurrence goes (there is no direct bridge path in this store).
 Environment=SHAPER_UNIVERSE_ID=%i
 Environment=MAESTRO_QUEUE_URL=http://127.0.0.1:8640
 Environment=LOGGER_URL=http://127.0.0.1:8620
 # The installing universe adds its declared schedule, read-only, e.g.
-#   Volume=<universe dir>/task-schedule.json:/data/univ/task-schedule.json:ro,Z
-#   Environment=MAESTRO_TASKS_FILE=/data/univ/task-schedule.json
+#   Volume=<universe dir>/task-schedule.json:/apps/maestro/etc/task-schedule.json:ro,Z
+#   Environment=MAESTRO_TASKS_FILE=/apps/maestro/etc/task-schedule.json
 # Without one, Maestro stays idle and creates no work.
-#
-# The unit's private MariaDB (Rules 4 and 26) runs beside it as
-# %i-ctr-maestro-mariadb, provisioned by scripts/provision-unit-mariadb.sh; the
-# socket directory and the passwd file are the only paths the two share. The
-# schedules and occurrences live in that database; log/ keeps the local JSONL
-# audit, which is evidence, not state.
-Volume=/apps/maestro/nosav/run/mysqld:/run/mysqld:z
-Volume=/apps/maestro/etc/mysql/localhost/passwd:/apps/maestro/etc/mysql/localhost/passwd:ro,Z
+Volume=/apps/maestro/etc/mysql:/apps/maestro/etc/mysql:Z
+Volume=/apps/maestro/sav:/apps/maestro/sav:Z
 Volume=/apps/maestro/log:/apps/maestro/log:Z
-User=10630:10630
+DropCapability=all
+AddCapability=CHOWN DAC_OVERRIDE FOWNER KILL SETGID SETUID
+NoNewPrivileges=true
+HealthCmd=/usr/local/bin/unit-ready
+HealthInterval=15s
+HealthStartPeriod=180s
+HealthRetries=3
+# The application drains (UNIT_DRAIN_SECONDS, 20) before MariaDB shuts down
+# (UNIT_ENGINE_STOP_SECONDS, 60): the stop timeout covers both.
+StopTimeout=90
+
+[Service]
 Restart=always
+TimeoutStopSec=100
 
 [Install]
 WantedBy=multi-user.target

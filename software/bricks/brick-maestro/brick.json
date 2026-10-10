@@ -10,11 +10,21 @@
     "pkg-vault",
     "pkg-maestro"
   ],
+  "buildRuntime": [
+    "unit-mariadb"
+  ],
   "runtimeServices": [],
-  "unit": { "slug": "maestro", "uid": 10630, "schema": "/app/packages/pkg-maestro/sql/schema.sql" },
+  "unit": {
+    "slug": "maestro",
+    "uid": 10630,
+    "engineUid": 10631,
+    "database": "mariadb-in-unit",
+    "schema": "/apps/maestro/app/packages/pkg-maestro/sql/schema.sql",
+    "schemaVersion": 1
+  },
   "proof": [
     "maestro health",
-    "private MariaDB identity",
+    "MariaDB inside the unit container: two processes, socket only, one name",
     "declared schedule materialized",
     "occurrence ENQUEUED with its Queue job id",
     "restart creates no second job for the same planned instant",

@@ -2,12 +2,25 @@
   "brick": "logger",
   "contractVersion": 1,
   "distribution": "base",
-  "buildPackages": ["pkg-db", "pkg-logger"],
+  "buildPackages": [
+    "pkg-db",
+    "pkg-logger"
+  ],
+  "buildRuntime": [
+    "unit-mariadb"
+  ],
   "runtimeServices": [],
-  "unit": { "slug": "logger", "uid": 10620, "schema": "/app/sql/schema.sql" },
+  "unit": {
+    "slug": "logger",
+    "uid": 10620,
+    "engineUid": 10621,
+    "database": "mariadb-in-unit",
+    "schema": "/apps/logger/app/packages/pkg-logger/sql/schema.sql",
+    "schemaVersion": 1
+  },
   "proof": [
     "logger health",
-    "private MariaDB identity",
+    "MariaDB inside the unit container: two processes, socket only, one name",
     "receipt only after commit",
     "idempotent replay and refused conflict",
     "event in its monthly partition",

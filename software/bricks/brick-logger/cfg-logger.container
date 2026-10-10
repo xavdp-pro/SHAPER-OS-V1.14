@@ -1,5 +1,5 @@
 [Unit]
-Description=SHAPER OS Logger (Podman Quadlet)
+Description=SHAPER OS Logger with its own MariaDB (Podman Quadlet)
 After=network-online.target
 
 # The image is written by the universe that installs this unit, from the digest
@@ -12,20 +12,39 @@ After=network-online.target
 # ContainerName follows docs/architecture/NAMING.md: ctr- is a running
 # container role, prefixed by the universe so two universes on one host never
 # collide.
+#
+# One container, two processes (Rule 4, Turbinobash method;
+# software/runtime/unit-mariadb/INTENT.md): the image's supervisor starts the
+# unit's own MariaDB as mysql, socket only, then the application as logger
+# (10620). There is no database container beside this one and no User= line:
+# the supervisor is the container's administrative path and drops to each
+# account itself. The three volumes are the unit's persistent state — its
+# password, its datadir and dumps, its log — owned file by file, never chowned
+# recursively.
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-logger
 Network=host
 Environment=LOGGER_PORT=8620
 Environment=HOST=127.0.0.1
-# The unit's private MariaDB (Rules 4 and 26) runs beside it as
-# %i-ctr-logger-mariadb, provisioned by scripts/provision-unit-mariadb.sh; the
-# socket directory and the passwd file are the only paths the two share. The
-# events live in that database: this container keeps no volume of its own.
-Volume=/apps/logger/nosav/run/mysqld:/run/mysqld:z
-Volume=/apps/logger/etc/mysql/localhost/passwd:/apps/logger/etc/mysql/localhost/passwd:ro,Z
-User=10620:10620
+Environment=UNIT_HEALTH_URL=http://127.0.0.1:8620/api/health
+Volume=/apps/logger/etc/mysql:/apps/logger/etc/mysql:Z
+Volume=/apps/logger/sav:/apps/logger/sav:Z
+Volume=/apps/logger/log:/apps/logger/log:Z
+DropCapability=all
+AddCapability=CHOWN DAC_OVERRIDE FOWNER KILL SETGID SETUID
+NoNewPrivileges=true
+HealthCmd=/usr/local/bin/unit-ready
+HealthInterval=15s
+HealthStartPeriod=180s
+HealthRetries=3
+# The application drains (UNIT_DRAIN_SECONDS, 20) before MariaDB shuts down
+# (UNIT_ENGINE_STOP_SECONDS, 60): the stop timeout covers both.
+StopTimeout=90
+
+[Service]
 Restart=always
+TimeoutStopSec=100
 
 [Install]
 WantedBy=multi-user.target

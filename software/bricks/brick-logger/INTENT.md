@@ -10,8 +10,8 @@ Logger unit's own private MariaDB and answered in receipt order.
 ## 2. Invariants
 
 1. One immutable row per accepted event — never mutated, never deleted by the application; the schema's triggers refuse both.
-2. The Logger's durable state lives in its own private MariaDB (Rules 4 and 26): account, database and Linux user are all `logger`, uid fixed at `10620`; the database has no TCP listener and is reached only through a socket directory mounted into this unit's two containers. The brick keeps no volume of its own.
-3. The application password (`/apps/logger/etc/mysql/localhost/passwd`) is `0600`, owned by the `logger` account, mounted read-only, never in an image, a log or a dump.
+2. The Logger's durable state lives in its own private MariaDB (Rules 4 and 26): account, database and Linux user are all `logger`; the MariaDB server runs **inside this unit's own container**, as `mysql` (uid `10621`), beside the application (`logger`, uid `10620`) — two processes, one container, no database container beside it (Rule 4, Turbinobash method; [`runtime/unit-mariadb`](../../runtime/unit-mariadb/INTENT.md)); it has no TCP listener and its socket `/run/logger/mysqld.sock` is private to the container. The events are in that database; the unit's volumes hold its password, its datadir and dumps, and its log.
+3. The application password (`/apps/logger/etc/mysql/localhost/passwd`) is generated once inside the unit, `0600`, owned by the `logger` account, in a directory the account cannot write, never in an image, a log or a dump.
 4. The schema (`/app/sql/schema.sql` in the image) is applied by the administrative path; the application never creates or alters a table and refuses to start without the schema version it needs.
 5. Events are partitioned monthly by Logger receipt time, with an empty guard partition `p_future`; `/api/vitals` reports the partition horizon and any row past it.
 6. A receipt (`200` on `/api/ingest`) means the transaction committed. A database failure is `503 DB_UNAVAILABLE`, never an empty answer; `/api/health` answers `503` when the database does not.

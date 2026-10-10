@@ -8,9 +8,9 @@
   "dataLifecycle": {
     "personalData": false,
     "retention": "unlimited — evidence and configuration only; each functional unit's MariaDB rows follow that unit's contract",
-    "onTermination": "destroy every unit's MariaDB datadir, passwd file and the Vault master key; nothing is exported"
+    "onTermination": "destroy every unit's volumes (etc/mysql, sav, log) and the Vault master key; nothing is exported"
   },
-  "description": "The minimal composition: Vault, Logger, Queue and Maestro, each a functional Podman with its own private MariaDB (Rules 4 and 26). No cognition adapter, no catalogue brick, no domain.",
+  "description": "The minimal composition: Vault, Logger, Queue and Maestro, each one functional Podman holding its application and its own MariaDB server, two processes in one container (Rules 4 and 26, Turbinobash method). No cognition adapter, no catalogue brick, no domain.",
   "intent": "./INTENT.md",
   "tasks": "./task-schedule.json",
   "configuration": "./cfg-univ-minimal.env.example",
@@ -24,7 +24,15 @@
       "intent": "../../bricks/brick-vault/INTENT.md",
       "role": "Protects secret material and delivers it to authorized callers",
       "port": 8610,
-      "database": { "engine": "mariadb", "slug": "vault", "uid": 10610, "schema": "/app/sql/schema.sql" },
+      "database": {
+        "engine": "mariadb",
+        "placement": "in-unit",
+        "slug": "vault",
+        "uid": 10610,
+        "engineUid": 10611,
+        "schema": "/apps/vault/app/packages/pkg-vault/sql/schema.sql",
+        "schemaVersion": 1
+      },
       "cognition": {
         "role": "neutral",
         "depth": "D0",
@@ -41,7 +49,15 @@
       "intent": "../../bricks/brick-logger/INTENT.md",
       "role": "Records events durably and proves what it received",
       "port": 8620,
-      "database": { "engine": "mariadb", "slug": "logger", "uid": 10620, "schema": "/app/sql/schema.sql" },
+      "database": {
+        "engine": "mariadb",
+        "placement": "in-unit",
+        "slug": "logger",
+        "uid": 10620,
+        "engineUid": 10621,
+        "schema": "/apps/logger/app/packages/pkg-logger/sql/schema.sql",
+        "schemaVersion": 1
+      },
       "cognition": {
         "role": "neutral",
         "depth": "D0",
@@ -58,7 +74,15 @@
       "intent": "../../bricks/brick-queue/INTENT.md",
       "role": "Durably holds deferred work until a terminal acknowledgement",
       "port": 8640,
-      "database": { "engine": "mariadb", "slug": "queue", "uid": 10640, "schema": "/app/sql/schema.sql" },
+      "database": {
+        "engine": "mariadb",
+        "placement": "in-unit",
+        "slug": "queue",
+        "uid": 10640,
+        "engineUid": 10641,
+        "schema": "/apps/queue/app/packages/pkg-queue/sql/schema.sql",
+        "schemaVersion": 1
+      },
       "cognition": {
         "role": "neutral",
         "depth": "D0",
@@ -75,9 +99,17 @@
       "intent": "../../bricks/brick-maestro/INTENT.md",
       "role": "Submits one idempotent occurrence to Queue for each due instant of a declared schedule; idle when none is declared",
       "port": 8630,
-      "database": { "engine": "mariadb", "slug": "maestro", "uid": 10630, "schema": "/app/packages/pkg-maestro/sql/schema.sql" },
+      "database": {
+        "engine": "mariadb",
+        "placement": "in-unit",
+        "slug": "maestro",
+        "uid": 10630,
+        "engineUid": 10631,
+        "schema": "/apps/maestro/app/packages/pkg-maestro/sql/schema.sql",
+        "schemaVersion": 1
+      },
       "specialize": {
-        "how": "MAESTRO_TASKS_FILE points at this universe's task-schedule.json",
+        "how": "MAESTRO_TASKS_FILE points at this universe's task-schedule.json, mounted read-only at /apps/maestro/etc/task-schedule.json",
         "file": "./task-schedule.json"
       },
       "cognition": {
@@ -90,8 +122,15 @@
     }
   },
   "bootOrder": [
-    ["brick-vault", "brick-logger"],
-    ["brick-queue"],
-    ["brick-maestro"]
+    [
+      "brick-vault",
+      "brick-logger"
+    ],
+    [
+      "brick-queue"
+    ],
+    [
+      "brick-maestro"
+    ]
   ]
 }

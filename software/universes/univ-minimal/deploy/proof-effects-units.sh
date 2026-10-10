@@ -90,7 +90,7 @@ effects_logger() {
   check "logger-partition" "the event landed in partition $part" \
     test "$(rootsql logger logger -e "SELECT COUNT(*) FROM events PARTITION ($part) WHERE id='$eid'")" = 1
   check "logger-immutable" "UPDATE on events is refused, even through the root path" \
-    bash -c "podman exec -i '${UNIVERSE}-ctr-logger-mariadb' mariadb -uroot logger -e \"UPDATE events SET level=level WHERE id='$eid'\" 2>&1 | grep -q 'immutable'"
+    grep -q 'immutable' <<<"$(rootsql logger logger -e "UPDATE events SET level=level WHERE id='$eid'" 2>&1)"
   # The digest recomputed here, from the event as the API lists it, by jq and
   # sha256sum — no code of the Logger involved.
   recomputed="$(curl -s "$L/api/events/last?correlationId=$C&event=PROOF_ONCE" | jq -cS '.events[0] | {kind:"shaper.logger.event",v:1,id,receivedAt:.at,pod,event,level,correlationId,executionId:.execution_id,durationMs:.duration_ms,sourceEventId,data}' | tr -d '\n' | sha256sum | cut -d' ' -f1)"

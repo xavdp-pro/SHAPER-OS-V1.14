@@ -1,32 +1,71 @@
 ARG SHAPER_BASE_IMAGE
+ARG NODE_IMAGE=docker.io/library/node:20-alpine
 FROM ${SHAPER_BASE_IMAGE} AS shaper_base
-FROM docker.io/library/node:20-alpine
+FROM ${NODE_IMAGE}
 
+# One functional unit, Turbinobash method (Rule 4; runtime/unit-mariadb/INTENT.md):
+# the vault application and its own MariaDB server, two processes in this one
+# container. `vault` is the Linux account, the MariaDB account and the database.
 ARG SHAPER_SOURCE_REVISION
+ARG NODE_IMAGE
+ARG SHAPER_BASE_IMAGE
 LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.node-image="${NODE_IMAGE}"
+LABEL org.shaper.base-image="${SHAPER_BASE_IMAGE}"
 LABEL org.shaper.brick="vault"
 LABEL org.shaper.build-packages="db logger vault"
+LABEL org.shaper.unit.slug="vault"
+LABEL org.shaper.unit.uid="10610"
+LABEL org.shaper.unit.engine-uid="10611"
+LABEL org.shaper.unit.database="mariadb-in-unit"
+LABEL org.shaper.unit.schema="/apps/vault/app/packages/pkg-vault/sql/schema.sql"
+LABEL org.shaper.unit.schema-version="1"
 
-# The unit runs as its functional account (Rules 4, 11 and 26): the slug is the
-# Linux account, the MariaDB account and the database, and the uid is fixed so
-# the universe can own the passwd file for exactly this process.
+# The engine account is created first, with its fixed uid, so the MariaDB
+# package's install script keeps it instead of picking whatever uid is free: a
+# datadir must belong to the same uid in every rebuild of this image.
 ARG UNIT_UID=10610
-RUN addgroup -S -g "${UNIT_UID}" vault \
- && adduser -S -D -H -u "${UNIT_UID}" -G vault -s /sbin/nologin vault
+ARG ENGINE_UID=10611
+RUN addgroup -S -g "${ENGINE_UID}" mysql \
+ && adduser -S -D -H -h /var/lib/mysql -s /sbin/nologin -u "${ENGINE_UID}" -G mysql mysql \
+ && addgroup -S -g "${UNIT_UID}" vault \
+ && adduser -S -D -H -h /apps/vault -s /sbin/nologin -u "${UNIT_UID}" -G vault vault \
+ && apk add --no-cache mariadb mariadb-client tini \
+ && test "$(id -u mysql):$(id -g mysql)" = "${ENGINE_UID}:${ENGINE_UID}" \
+ && test "$(id -u vault):$(id -g vault)" = "${UNIT_UID}:${UNIT_UID}" \
+ && printf '[client]\nsocket=/run/vault/mysqld.sock\n' > /etc/my.cnf.d/zz-shaper-unit.cnf \
+ && chmod 0644 /etc/my.cnf.d/zz-shaper-unit.cnf
 
-WORKDIR /app
-# pkg-db carries the one pinned driver; its lockfile is the only source of it.
-COPY --from=shaper_base /shaper/packages/pkg-db/ /pkg-db/
-RUN cd /pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
-COPY --from=shaper_base /shaper/packages/pkg-logger/ /pkg-logger/
-COPY --from=shaper_base /shaper/packages/pkg-vault/ ./
+# The application code, owned by root and read-only to the unit account
+# (Rule 4: app/). Every package sits beside the others, so `../pkg-*/` resolves.
+COPY --from=shaper_base /shaper/packages/pkg-db/ /apps/vault/app/packages/pkg-db/
+RUN cd /apps/vault/app/packages/pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /apps/vault/app/packages/pkg-logger/
+COPY --from=shaper_base /shaper/packages/pkg-vault/ /apps/vault/app/packages/pkg-vault/
 
+# The unit's MariaDB lifecycle: the container's administrative path, run as root.
+COPY --from=shaper_base /shaper/runtime/unit-mariadb/ /usr/local/lib/shaper/unit-mariadb/
+RUN ln -s /usr/local/lib/shaper/unit-mariadb/unit-ready /usr/local/bin/unit-ready \
+ && install -d -m 0755 -o root -g root /apps/vault/etc /apps/vault/etc/mysql /apps/vault/sav \
+ && install -d -m 0750 -o root -g vault /apps/vault/etc/mysql/localhost \
+ && install -d -m 0750 -o vault -g vault /apps/vault/log /apps/vault/nosav
+
+ENV NODE_ENV=production \
+    SHAPER_UNIT_SLUG=vault \
+    SHAPER_DB_SOCKET=/run/vault/mysqld.sock \
+    UNIT_UID=10610 \
+    UNIT_ENGINE_UID=10611 \
+    UNIT_SCHEMA_FILE=/apps/vault/app/packages/pkg-vault/sql/schema.sql \
+    UNIT_SCHEMA_VERSION=1 \
+    VAULT_PORT=8610 \
+    VAULT_STORE=mariadb
+
+# The image refuses to exist when it would refuse to start.
+RUN UNIT_IMPORT_CHECK="/apps/vault/app/packages/pkg-vault/index.js /apps/vault/app/packages/pkg-vault/mariadb-store.js" node /usr/local/lib/shaper/unit-mariadb/image-check.mjs
+
+WORKDIR /apps/vault/app/packages/pkg-vault
 EXPOSE 8610
-ENV NODE_ENV=production
-ENV VAULT_PORT=8610
-ENV VAULT_STORE=mariadb
-ENV SHAPER_UNIT_SLUG=vault
-ENV SHAPER_DB_SOCKET=/run/mysqld/mysqld.sock
-
-USER vault
+# No USER: the supervisor is root, starts mariadbd as mysql and the application
+# as vault (10610); the application itself never runs as root.
+ENTRYPOINT ["/sbin/tini", "--", "node", "/usr/local/lib/shaper/unit-mariadb/supervisor.mjs"]
 CMD ["node", "server.js"]

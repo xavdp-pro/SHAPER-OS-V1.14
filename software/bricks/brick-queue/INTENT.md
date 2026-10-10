@@ -12,8 +12,8 @@ private MariaDB; the package intent states the contract
 ## 2. Invariants
 
 1. Lifecycle: `PENDING` → `RUNNING` → `COMPLETED` | `FAILED`.
-2. The Queue's durable state lives in its own private MariaDB (Rules 4 and 26): account, database and Linux user are all `queue`, uid fixed at `10640`; the database has no TCP listener and is reached only through a socket directory mounted into this unit's two containers. A job state change is reported only after it commits; the image selects that store by default (`QUEUE_STORE=mariadb`) and never falls back to memory or a file.
-3. The application password (`/apps/queue/etc/mysql/localhost/passwd`) is `0600`, owned by the `queue` account, mounted read-only, never in an image, a log or a dump. The schema (`/app/sql/schema.sql` in the image) is applied by the universe's administrative path, never by the application.
+2. The Queue's durable state lives in its own private MariaDB (Rules 4 and 26): account, database and Linux user are all `queue`; the MariaDB server runs **inside this unit's own container**, as `mysql` (uid `10641`), beside the application (`queue`, uid `10640`) — two processes, one container, no database container beside it (Rule 4, Turbinobash method; [`runtime/unit-mariadb`](../../runtime/unit-mariadb/INTENT.md)); it has no TCP listener and its socket `/run/queue/mysqld.sock` is private to the container. A job state change is reported only after it commits; the image selects that store by default (`QUEUE_STORE=mariadb`) and never falls back to memory or a file.
+3. The application password (`/apps/queue/etc/mysql/localhost/passwd`) is generated once inside the unit, `0600`, owned by the `queue` account, in a directory the account cannot write, never in an image, a log or a dump. The schema (`/apps/queue/app/packages/pkg-queue/sql/schema.sql` in the image) is applied by root through the unit's socket when the database is born, never by the application.
 4. Localhost or mesh bind only.
 5. Podman Quadlet lifecycle.
 6. One instance per universe.

@@ -5,62 +5,78 @@
 ## Objective
 
 The minimal composition of a SHAPER universe, materialised: **Vault, Logger,
-Queue and Maestro**, each a functional Podman that owns its private MariaDB
-(Rules 4 and 26). No cognition adapter, no catalogue brick, no domain, no
+Queue and Maestro**, each a functional Podman that holds its application and
+its own MariaDB server (Rules 4 and 26, the Turbinobash method: one application
+account per server). No cognition adapter, no catalogue brick, no domain, no
 public door. It is the floor every other universe of the current construction
 model stands on; the reference universe adds the OpenCode bridge on top of it
 (profile `agent`).
 
 Maestro is present and idle: with no declared schedule it submits nothing.
 
-## Exact runtime — four units, eight containers
+## Exact runtime — four units, four containers, eight processes
 
-| Unit | App container | Private database | Account / uid |
-| :--- | :--- | :--- | :--- |
-| Vault | `<universe>-ctr-vault` :8610 | `<universe>-ctr-vault-mariadb` | `vault` / 10610 |
-| Logger | `<universe>-ctr-logger` :8620 | `<universe>-ctr-logger-mariadb` | `logger` / 10620 |
-| Queue | `<universe>-ctr-queue` :8640 | `<universe>-ctr-queue-mariadb` | `queue` / 10640 |
-| Maestro | `<universe>-ctr-maestro` :8630 | `<universe>-ctr-maestro-mariadb` | `maestro` / 10630 |
+| Unit | Container | Application account | MariaDB server account | Socket (inside the container) |
+| :--- | :--- | :--- | :--- | :--- |
+| Vault | `<universe>-ctr-vault` :8610 | `vault` / 10610 | `mysql` / 10611 | `/run/vault/mysqld.sock` |
+| Logger | `<universe>-ctr-logger` :8620 | `logger` / 10620 | `mysql` / 10621 | `/run/logger/mysqld.sock` |
+| Queue | `<universe>-ctr-queue` :8640 | `queue` / 10640 | `mysql` / 10641 | `/run/queue/mysqld.sock` |
+| Maestro | `<universe>-ctr-maestro` :8630 | `maestro` / 10630 | `mysql` / 10631 | `/run/maestro/mysqld.sock` |
 
-Application containers use the universe's host network and bind `127.0.0.1`
-only: the units speak to each other inside the universe container and to
-nothing outside it.
+Each container runs `tini`, the unit supervisor (root, the container's
+administrative path, [`runtime/unit-mariadb`](../../runtime/unit-mariadb/INTENT.md)),
+and its two children: `mariadbd` as the engine account and the application as
+the unit account. Application containers use the universe's host network and
+bind `127.0.0.1` only; MariaDB has no network at all.
 
 <a id="private-mariadb"></a>
-## Each unit's database is its own
+## Each unit's database is its own, inside the unit
 
-What `scripts/provision-unit-mariadb.sh` materialises for every unit, and what
-`deploy/proof.sh` checks from outside the unit:
+What the unit image does at every start, and what `deploy/proof.sh` checks from
+outside the unit:
 
-1. **One name everywhere.** The functional slug is the Linux account in the
-   universe container and in the image (same fixed uid), the MariaDB account
-   and the database.
-2. **No network path to any database.** Each MariaDB container runs with
-   `--network none` and `--skip-networking`. The only entry is the unit's socket
-   directory `/apps/<slug>/nosav/run/mysqld`, mounted into that unit's own
-   application container and no other.
+1. **One name everywhere.** The functional slug is the Linux account inside the
+   unit (fixed uid, home `/apps/<slug>`), the MariaDB account and the database.
+2. **Two processes, one container.** The MariaDB server runs in the unit's own
+   container, as `mysql` with a fixed uid distinct per unit, `--skip-networking`,
+   socket `/run/<slug>/mysqld.sock` in a directory owned by `mysql`, group
+   `<slug>`, mode `0750`, rebuilt at every start and mounted nowhere. There is
+   no database container beside the unit; one found is refused.
 3. **Two paths, never mixed.** The application account holds `SELECT, INSERT,
-   UPDATE, DELETE` on its own database. Root authenticates by `unix_socket`
-   from inside the MariaDB container only; network root accounts and the
-   image's default accounts are removed at birth. The schema is read from the
-   unit's own image and applied as root.
-4. **The password is a private file.** `/apps/<slug>/etc/mysql/localhost/passwd`,
-   generated once, mode `0600`, owned by the unit's account, mounted read-only.
-   It travels on standard input when the administrative path sets it, never on
-   a command line.
-5. **Born with the function.** The database, the account and the schema exist
-   before the application starts; an application that finds its schema absent
-   refuses to start. The durable state of every unit is in its database —
-   no JSON, JSONL or SQLite store serves in this universe.
-6. **Persistent and restorable.** The datadir `/apps/<slug>/sav/mariadb` survives
-   the containers; `deploy/restore-drill.sh` dumps each unit, restores it into a
-   throwaway MariaDB with no network, and checks it with the unit's own
-   semantics (the Vault decrypts a controlled secret with its key and refuses a
-   wrong one).
+   UPDATE, DELETE` on its own database and nothing else. Root authenticates by
+   `unix_socket` as OS root inside the container only; at first birth every
+   other account the engine created is removed, and at every start a retained
+   root that accepts anything but `unix_socket`, or any unexpected principal,
+   refuses the start before any grant or schema statement (exit 8). The schema
+   is the unit image's own, applied by root into an empty database only; a
+   retained database must carry exactly the declared schema version (exit 7).
+4. **The password is a private file, generated once.** `/apps/<slug>/etc/mysql/localhost/passwd`,
+   64 hex characters, `0600`, owned by the unit's account, in a directory owned
+   by root. It is generated by the unit when its datadir is born, travels on
+   standard input or in a root-only option file and never on a command line,
+   and must open the retained account at every start (exit 9): recreation
+   never rotates it silently.
+5. **The application cannot reach the server's files.** The datadir, the
+   socket directory, the password directory, the schema, the runtime and the
+   MariaDB option files are not writable by the unit's account, nor is any of
+   their ancestors; the supervisor refuses to start otherwise, and the proof
+   checks it with `access(2)` as the unit's uid.
+6. **Born with the function.** The database, the account and the schema exist
+   before the application starts; readiness (`unit-ready`, the container's
+   health command) is gated on the MariaDB process the supervisor started. The
+   durable state of every unit is in its database — no JSON, JSONL or SQLite
+   store serves in this universe.
+7. **Persistent and restorable.** Three volumes per unit, on the universe
+   container: `/apps/<slug>/etc/mysql` (the password), `/apps/<slug>/sav` (the
+   datadir `sav/mariadb`, owned by the unit's engine uid, and `sav/dumps`), and
+   `/apps/<slug>/log`. Ownership is set on single directories only, never
+   recursively.
 
 The Vault master key is `/apps/vault/etc/vault/master.key` (`0400`, owned by
-`vault`, mounted read-only). It is generated only when the Vault is born; a
-Vault whose datadir exists without its key is a halt, never a new key.
+`vault`, mounted read-only as a single file). It is generated only when the
+Vault is born; a Vault whose datadir exists without its key is a halt, never a
+new key. The Vault API token sits beside it, root-only, and reaches the unit
+through its environment; `etc/vault/` itself is never mounted.
 
 <a id="host"></a>
 ## What the universe container must provide
@@ -76,29 +92,98 @@ measured on terrain:
   /dev/net/tun,mode=0666`, then a restart). Without it, every `RUN` step of a
   `podman build` fails inside the container (`pasta … /dev/net/tun: No such
   file or directory`), while `podman run` of a prebuilt image works — a host
-  that only runs containers looks fit and is not.
+  that only runs containers looks fit and is not;
+- building a unit image needs outbound access to the Alpine package
+  repositories of the Node image's release: each image installs its own
+  MariaDB server.
 
 <a id="proof"></a>
 ## What the proof shows, and what it does not
 
-`deploy/proof.sh` exits 0 only when every unit passes the Rule 26 gate —
-database present and answering, no network listener, identity equal to the
-slug, passwd `0600` owned by the unit, least privilege, application running as
-its account, another unit's credential refused, the application refused as
-root, the socket absent from every other unit's container — and each unit
-proves one real effect read back from its database through the root path.
+`deploy/proof.sh` exits 0 only when every unit passes the Rule 26 inventory —
+the unit's container running and ready; `tini` as pid 1 and one root
+supervisor whose two children are `mariadbd` as the engine uid and the
+application as the unit uid; nothing the supervisor started running as root;
+`mariadbd --no-defaults --skip-networking --socket=/run/<slug>/mysqld.sock`,
+`@@skip_networking = 1`, no listening TCP socket among its own file
+descriptors and none in `ss`; nothing mounted on `/run/<slug>`; exactly root
+(`unix_socket` alone), a locked `mariadb.sys` and the unit's account; DML-only
+grants; the exact schema version; the password file's mode, owner and
+directory; DML allowed, DDL and the system database refused to the unit's
+account; root and the engine's OS account refused to the unit's uid; another
+unit's credential refused; the data, socket, password and administrative paths
+and all their ancestors not writable by the unit's uid; the datadir not
+listable and `mariadbd` not signalable by it — and each unit proves one real
+effect read back from its database through the root path.
 
 A green health endpoint is not in that list as a proof: it shows a process is
 up, never that work happened.
+
+<a id="lifecycle"></a>
+## Restart, recreation, and the order of the two processes
+
+`deploy/lifecycle-drill.sh` writes a marker through the Vault, Logger and Queue
+APIs, records every table's row count and each password file's digest, then
+restarts every unit and recreates the universe (`podman-up.sh` replaces every
+container). After each: the markers are unchanged in the databases, no table
+lost a row, every password file is the same; each unit's log shows the
+application stopped before MariaDB and MariaDB shut down cleanly, no crash
+recovery, then MariaDB ready, the password kept and the schema retained before
+the application started.
+
+<a id="restore"></a>
+## Restore into a fresh volume
+
+`deploy/restore-drill.sh`, for each unit: a `mariadb-dump --single-transaction
+--databases <slug>` through the root path into `sav/dumps/` (root-only); a
+throwaway container from the live unit's own image over fresh volumes, started
+with `UNIT_RESTORE_DUMP` and `UNIT_MODE=database` — the unit births a new
+datadir, loads the dump as root, checks the exact schema version and creates
+its account with a new password; the restored tables compared with the live
+ones; then the same volumes served by the unit's own application on a drill
+port, which reads a control record back through its API (the Vault decrypts a
+controlled secret with the universe's key, and refuses another key).
+
+The same mechanism restores a unit for real: stop its container, move its
+`sav/` aside (kept), put the dump at `sav/restore/<slug>.sql` (root, `0600`) in
+an empty `sav/`, and run `podman-up.sh` once with
+`RESTORE_DUMP_<slug>=/apps/<slug>/sav/restore/<slug>.sql`; unset it afterwards
+(a restore dump is refused by a datadir that already holds a database).
+
+<a id="migration"></a>
+## Migration from the separate-database shape
+
+The first materialisation (24 September 2026) ran each unit's MariaDB as a
+separate `<universe>-ctr-<slug>-mariadb` container, from the official MariaDB
+image; the 10 October 2026 direction forbids that shape. Its datadirs belong to
+that image's `mysql` uid, not to the unit image's engine uid, and are not
+adopted: `podman-up.sh` refuses both the old container and a datadir of another
+owner, and no recursive `chown` is ever made. Per unit, in bootOrder:
+
+1. dump the old database through its own root path
+   (`podman exec <universe>-ctr-<slug>-mariadb mariadb-dump -uroot --single-transaction --routines --triggers --databases <slug>`);
+2. stop and remove both old containers; move `/apps/<slug>/sav/mariadb` and the
+   old `nosav/run/mysqld` aside (kept until the new unit is qualified);
+3. place the dump as described under [restore](#restore) and run
+   `podman-up.sh` with `RESTORE_DUMP_<slug>`; the existing passwd file is
+   reused if it is still in `/apps/<slug>/etc/mysql/localhost/` and owned by
+   the unit's uid, otherwise a new one is generated for the fresh datadir;
+4. run `proof.sh`, `lifecycle-drill.sh` and `restore-drill.sh`.
+
+The Vault keeps its master key file; its restored `vault_identity` row checks
+it at start.
 
 <a id="image-lock"></a>
 ## Images
 
 `cfg-image-lock.json` names one immutable digest per brick the manifest
-declares, filled from the registry's answer to `podman push --digestfile`. The
-MariaDB image is pinned by digest in the instance configuration
-(`SHAPER_MARIADB_IMAGE`). A DEV instance may run from a freshly published tag
-(`SHAPER_REGISTRY` + `SHAPER_IMAGE_TAG`); a TEST or PROD one may not.
+declares, filled from the registry's answer to `podman push --digestfile`. Each
+unit image carries its own MariaDB server; there is no separate MariaDB image
+to pin. `podman-up.sh` refuses an image whose `org.shaper.unit.*` labels do not
+match the manifest. A DEV instance may run from a freshly published tag
+(`SHAPER_REGISTRY` + `SHAPER_IMAGE_TAG`), or from images built on its own
+machine with `SHAPER_PUSH=0` (`SHAPER_REGISTRY=localhost`); a TEST or PROD one
+may not.
 
 <a id="gaps"></a>
 ## What this universe does not yet do
@@ -112,6 +197,8 @@ Recorded so nobody reads the floor as the full target contract of the units
 - no Logger cross-event chain or external checkpoint;
 - no Queue leases, attempts table or dead letter; no Maestro scheduler leases;
 - no automated partition maintenance, off-host encrypted recovery points or
-  R2 layout (Rule 16 level 5);
+  R2 layout (Rule 16 level 5); dumps are taken by the drill, not on a schedule;
+- the MariaDB engine version inside each image follows the Alpine release of
+  the Node image and is not pinned by this tree;
 - the Vault master key and the database backup live in the same universe
   container, so a container-level backup carries both (Rule 12 gap).

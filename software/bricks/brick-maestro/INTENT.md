@@ -16,13 +16,12 @@ idempotent occurrence per due instant to Queue; zero idle LLM waste.
 4. Podman Quadlet lifecycle.
 5. Maestro's durable state — schedules, revisions, occurrences, Queue job ids —
    lives in its own private MariaDB (Rules 4 and 26): account, database and
-   Linux user are all `maestro`, uid fixed at `10630`; the database has no TCP
-   listener and is reached only through a socket directory mounted into this
-   unit's two containers. The schema is `/app/packages/pkg-maestro/sql/schema.sql`
-   in the image, applied by the administrative path.
+   Linux user are all `maestro`; the MariaDB server runs **inside this unit's own container**, as `mysql` (uid `10631`), beside the application (`maestro`, uid `10630`) — two processes, one container, no database container beside it (Rule 4, Turbinobash method; [`runtime/unit-mariadb`](../../runtime/unit-mariadb/INTENT.md)); it has no TCP listener and its socket `/run/maestro/mysqld.sock` is private to the container. The schema is
+   `/apps/maestro/app/packages/pkg-maestro/sql/schema.sql` in the image, applied
+   by root through the unit's socket when the database is born.
 6. The application password (`/apps/maestro/etc/mysql/localhost/passwd`) is
-   `0600`, owned by the `maestro` account, mounted read-only, never in an
-   image, a log or a dump.
+   generated once inside the unit, `0600`, owned by the `maestro` account, in a
+   directory the account cannot write, never in an image, a log or a dump.
 7. The image selects `MAESTRO_STORE=mariadb`; it refuses to start without its
    passwd file, its schema, `SHAPER_UNIVERSE_ID` (part of every occurrence id)
    or `MAESTRO_QUEUE_URL`, each with a typed reason. It never falls back to the

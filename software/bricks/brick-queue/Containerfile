@@ -1,40 +1,71 @@
 ARG SHAPER_BASE_IMAGE
+ARG NODE_IMAGE=docker.io/library/node:20-alpine
 FROM ${SHAPER_BASE_IMAGE} AS shaper_base
-FROM docker.io/library/node:20-alpine
+FROM ${NODE_IMAGE}
 
+# One functional unit, Turbinobash method (Rule 4; runtime/unit-mariadb/INTENT.md):
+# the queue application and its own MariaDB server, two processes in this one
+# container. `queue` is the Linux account, the MariaDB account and the database.
 ARG SHAPER_SOURCE_REVISION
+ARG NODE_IMAGE
+ARG SHAPER_BASE_IMAGE
 LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.node-image="${NODE_IMAGE}"
+LABEL org.shaper.base-image="${SHAPER_BASE_IMAGE}"
 LABEL org.shaper.brick="queue"
 LABEL org.shaper.build-packages="db logger queue"
+LABEL org.shaper.unit.slug="queue"
+LABEL org.shaper.unit.uid="10640"
+LABEL org.shaper.unit.engine-uid="10641"
+LABEL org.shaper.unit.database="mariadb-in-unit"
+LABEL org.shaper.unit.schema="/apps/queue/app/packages/pkg-queue/sql/schema.sql"
+LABEL org.shaper.unit.schema-version="1"
 
-# The unit runs as its functional account (Rules 4, 11 and 26): the slug is the
-# Linux account, the MariaDB account and the database, and the uid is fixed so
-# the universe can own the passwd file for exactly this process.
+# The engine account is created first, with its fixed uid, so the MariaDB
+# package's install script keeps it instead of picking whatever uid is free: a
+# datadir must belong to the same uid in every rebuild of this image.
 ARG UNIT_UID=10640
-RUN addgroup -S -g "${UNIT_UID}" queue \
- && adduser -S -D -H -u "${UNIT_UID}" -G queue -s /sbin/nologin queue
+ARG ENGINE_UID=10641
+RUN addgroup -S -g "${ENGINE_UID}" mysql \
+ && adduser -S -D -H -h /var/lib/mysql -s /sbin/nologin -u "${ENGINE_UID}" -G mysql mysql \
+ && addgroup -S -g "${UNIT_UID}" queue \
+ && adduser -S -D -H -h /apps/queue -s /sbin/nologin -u "${UNIT_UID}" -G queue queue \
+ && apk add --no-cache mariadb mariadb-client tini \
+ && test "$(id -u mysql):$(id -g mysql)" = "${ENGINE_UID}:${ENGINE_UID}" \
+ && test "$(id -u queue):$(id -g queue)" = "${UNIT_UID}:${UNIT_UID}" \
+ && printf '[client]\nsocket=/run/queue/mysqld.sock\n' > /etc/my.cnf.d/zz-shaper-unit.cnf \
+ && chmod 0644 /etc/my.cnf.d/zz-shaper-unit.cnf
 
-WORKDIR /app
-# pkg-db carries the one pinned driver; its lockfile is the only source of it.
-# It lands at /pkg-db/ for the same reason the logger lands at /pkg-logger/.
-COPY --from=shaper_base /shaper/packages/pkg-db/ /pkg-db/
-RUN cd /pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
-# The queue package is flattened into WORKDIR, so a sibling import such as
-# `../pkg-logger/vitals.js` resolves to `/pkg-logger/`. The destination must be
-# that exact name: V1.10 renamed the packages to `pkg-*` and left this COPY
-# writing to `/logger/`, so every image that copied the logger this way threw
-# `Cannot find module '/pkg-logger/vitals.js'` on its first import — and the
-# test that was supposed to guard it only checked the Containerfile *mentioned*
-# the package, never where it put it.
-COPY --from=shaper_base /shaper/packages/pkg-logger/ /pkg-logger/
-COPY --from=shaper_base /shaper/packages/pkg-queue/ ./
+# The application code, owned by root and read-only to the unit account
+# (Rule 4: app/). Every package sits beside the others, so `../pkg-*/` resolves.
+COPY --from=shaper_base /shaper/packages/pkg-db/ /apps/queue/app/packages/pkg-db/
+RUN cd /apps/queue/app/packages/pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY --from=shaper_base /shaper/packages/pkg-logger/ /apps/queue/app/packages/pkg-logger/
+COPY --from=shaper_base /shaper/packages/pkg-queue/ /apps/queue/app/packages/pkg-queue/
 
+# The unit's MariaDB lifecycle: the container's administrative path, run as root.
+COPY --from=shaper_base /shaper/runtime/unit-mariadb/ /usr/local/lib/shaper/unit-mariadb/
+RUN ln -s /usr/local/lib/shaper/unit-mariadb/unit-ready /usr/local/bin/unit-ready \
+ && install -d -m 0755 -o root -g root /apps/queue/etc /apps/queue/etc/mysql /apps/queue/sav \
+ && install -d -m 0750 -o root -g queue /apps/queue/etc/mysql/localhost \
+ && install -d -m 0750 -o queue -g queue /apps/queue/log /apps/queue/nosav
+
+ENV NODE_ENV=production \
+    SHAPER_UNIT_SLUG=queue \
+    SHAPER_DB_SOCKET=/run/queue/mysqld.sock \
+    UNIT_UID=10640 \
+    UNIT_ENGINE_UID=10641 \
+    UNIT_SCHEMA_FILE=/apps/queue/app/packages/pkg-queue/sql/schema.sql \
+    UNIT_SCHEMA_VERSION=1 \
+    QUEUE_PORT=8640 \
+    QUEUE_STORE=mariadb
+
+# The image refuses to exist when it would refuse to start.
+RUN UNIT_IMPORT_CHECK="/apps/queue/app/packages/pkg-queue/index.js /apps/queue/app/packages/pkg-queue/mariadb-store.js" node /usr/local/lib/shaper/unit-mariadb/image-check.mjs
+
+WORKDIR /apps/queue/app/packages/pkg-queue
 EXPOSE 8640
-ENV NODE_ENV=production
-ENV QUEUE_PORT=8640
-ENV QUEUE_STORE=mariadb
-ENV SHAPER_UNIT_SLUG=queue
-ENV SHAPER_DB_SOCKET=/run/mysqld/mysqld.sock
-
-USER queue
+# No USER: the supervisor is root, starts mariadbd as mysql and the application
+# as queue (10640); the application itself never runs as root.
+ENTRYPOINT ["/sbin/tini", "--", "node", "/usr/local/lib/shaper/unit-mariadb/supervisor.mjs"]
 CMD ["node", "server.js"]

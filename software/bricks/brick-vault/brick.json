@@ -2,8 +2,28 @@
   "brick": "vault",
   "contractVersion": 1,
   "distribution": "base",
-  "buildPackages": ["pkg-db", "pkg-logger", "pkg-vault"],
+  "buildPackages": [
+    "pkg-db",
+    "pkg-logger",
+    "pkg-vault"
+  ],
+  "buildRuntime": [
+    "unit-mariadb"
+  ],
   "runtimeServices": [],
-  "unit": { "slug": "vault", "uid": 10610, "schema": "/app/sql/schema.sql" },
-  "proof": ["vault health", "private MariaDB identity", "encrypted persistence", "key continuity", "restore decrypts"]
+  "unit": {
+    "slug": "vault",
+    "uid": 10610,
+    "engineUid": 10611,
+    "database": "mariadb-in-unit",
+    "schema": "/apps/vault/app/packages/pkg-vault/sql/schema.sql",
+    "schemaVersion": 1
+  },
+  "proof": [
+    "vault health",
+    "MariaDB inside the unit container: two processes, socket only, one name",
+    "encrypted persistence",
+    "key continuity",
+    "restore decrypts"
+  ]
 }

@@ -2,12 +2,26 @@
   "brick": "queue",
   "contractVersion": 1,
   "distribution": "base",
-  "buildPackages": ["pkg-db", "pkg-logger", "pkg-queue"],
+  "buildPackages": [
+    "pkg-db",
+    "pkg-logger",
+    "pkg-queue"
+  ],
+  "buildRuntime": [
+    "unit-mariadb"
+  ],
   "runtimeServices": [],
-  "unit": { "slug": "queue", "uid": 10640, "schema": "/app/sql/schema.sql" },
+  "unit": {
+    "slug": "queue",
+    "uid": 10640,
+    "engineUid": 10641,
+    "database": "mariadb-in-unit",
+    "schema": "/apps/queue/app/packages/pkg-queue/sql/schema.sql",
+    "schemaVersion": 1
+  },
   "proof": [
     "queue health",
-    "private MariaDB identity",
+    "MariaDB inside the unit container: two processes, socket only, one name",
     "job persistence across restart",
     "idempotent enqueue under one key",
     "transition history committed with each change",
