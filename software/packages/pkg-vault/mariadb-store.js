@@ -21,7 +21,7 @@ import { UnitDbError } from '../pkg-db/index.js';
 import { assertSchema, openUnitDb, probeDb } from '../pkg-db/pool.js';
 import { vitals, ageSeconds } from '../pkg-logger/vitals.js';
 
-export const VAULT_SCHEMA_VERSION = 1;
+export const VAULT_SCHEMA_VERSION = 2;
 const KEY_VERSION = 1;
 
 export class MariaDbVaultStore {
@@ -155,11 +155,13 @@ async function establishIdentity(pool, key) {
     }
     return { keyCheck: expected, keyVersion: Number(rows[0].key_version), born: false };
   }
-  const [[{ n }]] = await pool.query('SELECT COUNT(*) AS n FROM secrets');
+  const [[{ n }]] = await pool.query(`SELECT
+    (SELECT COUNT(*) FROM secrets) + (SELECT COUNT(*) FROM unit_identities)
+    + (SELECT COUNT(*) FROM unit_credentials) + (SELECT COUNT(*) FROM event_outbox) AS n`);
   if (Number(n) > 0) {
     throw new UnitDbError(
       'VAULT_IDENTITY_MISSING',
-      `the database holds ${n} secret(s) but no Vault identity; refusing to adopt it with the current key`,
+      `the database holds ${n} state record(s) but no Vault identity; refusing to adopt it with the current key`,
     );
   }
   // INSERT IGNORE: two first starts racing produce one identity; the loser

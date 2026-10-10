@@ -208,3 +208,11 @@ alone is refused. Application credentials are transport-only, never outbox data.
 Authenticated Vault-derived identity, Queue leases/attempts and the
 `before_execution` policy remain open reconstruction obligations. The current
 relay does not make the unauthenticated prototype a qualified reference.
+
+## Outbound evidence identity
+
+The MariaDB entrypoint uses the protected runtime bootstrap file and pinned
+public key to obtain a short-lived `logger` audience credential. Every relay
+request carries that credential in its HTTP header; tokens never enter the
+outbox. Inbound Queue producer/consumer scopes and lease settlement remain
+open work and are not inferred from authenticated Logger delivery.

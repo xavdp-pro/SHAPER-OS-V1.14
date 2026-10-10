@@ -24,11 +24,14 @@ const storeOptions = {
 };
 
 let queue;
+let identityClient = null;
 if (STORE === 'mariadb') {
   const { MariaDbJobQueue } = await import('./mariadb-store.js');
   const slug = process.env.SHAPER_UNIT_SLUG || 'queue';
   try {
     queue = await MariaDbJobQueue.open({ slug, ...storeOptions });
+    const { runtimeCredentialClient } = await import('../pkg-auth/runtime-identity.js');
+    identityClient = runtimeCredentialClient(process.env);
   } catch (err) {
     console.error(`[brick-queue] refusing to start: ${err.code || 'ERROR'} — ${err.message}`);
     process.exit(1);
@@ -67,7 +70,7 @@ server.on('listening', () => {
   if (typeof queue.relayEvidence === 'function' && storeOptions.loggerUrl) {
     const relay = () => {
       if (relayInFlight) return;
-      relayInFlight = queue.relayEvidence()
+      relayInFlight = (async () => queue.relayEvidence({ headers: await identityClient.headers('logger') }))()
         .then((result) => {
           if (result.deferred) console.warn(`[brick-queue] evidence delivery deferred: ${result.deferred} event(s); durable debt retained`);
         })

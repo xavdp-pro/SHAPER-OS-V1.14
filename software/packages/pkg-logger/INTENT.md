@@ -82,7 +82,11 @@ content — will outlive this particular endpoint.
 
 What this storage does not yet provide, against the Logger target contract, recorded as gaps rather than implied:
 
-* **Authenticated source identity.** `pod` is still what the body claims. Vault-signed, short-lived source credentials — and a `sourceEventId` scope derived from them instead of the claimed `pod` — belong to the next step.
+* **Complete source identity metadata.** MariaDB HTTP ingestion now derives
+  `pod` from a verified unit credential and rejects a different body claim.
+  The service pins one universe and validates the current incarnation in Vault.
+  Explicit persisted universe/incarnation columns, identity-aware chain records
+  and their migration/replay contracts remain open.
 * **The cross-event chain and external checkpoints.** Each event proves its own integrity; nothing yet links an event to the previous one, keeps the chain head in a control table, or anchors signed checkpoints outside the database. Deleted rows are not yet detectable.
 * **Partition maintenance automation.** Splitting `p_future` ahead of time, alerting on the horizon, freezing, backing up and retiring closed partitions (with their `ingest_keys` rows) are administrative operations still to be scripted and proven.
 * **Outbox adoption.** `deliverLog` supplies strict receipt verification for
@@ -99,3 +103,22 @@ What this storage does not yet provide, against the Logger target contract, reco
 * **Brick port**: `8620`
 * **Storage**: `logger` database in the unit's private MariaDB, socket `/apps/logger/nosav/run/mysqld/mysqld.sock` on the universe side
 * **DEV scaffolding only**: `LOGGER_STORE=file LOG_DIR=<dir>` → `<dir>/<POD>/activity.jsonl`
+
+## Authenticated HTTP boundary
+
+The MariaDB entrypoint requires a parent-pinned public-key file, universe id and
+Vault URL. Factory callers without authorization are refused for MariaDB; an
+explicit `allowAnonymous` option exists only for database-free storage fixtures,
+and is not exposed as an entrypoint deployment setting. File DEV scaffolding
+retains its declared legacy behavior.
+
+Ingestion requires `logger:ingest`; the authenticated unit is the event source.
+Reads require `logger:read:own` and are forced to that source. Pod inventory and
+vitals require `logger:observe`. Streams filter to the authenticated unit, check
+current authority before every emitted event, close at credential expiry and
+cap queued frames. Health remains a payload-free liveness endpoint.
+
+Protected requests verify Ed25519 signature, universe, audience, exact scopes
+and validity, then obtain Vault's current incarnation/revocation decision. A
+missing or unavailable verifier never enables anonymous access. Receipts remain
+transactional and replay identity stays stable across credential renewal.

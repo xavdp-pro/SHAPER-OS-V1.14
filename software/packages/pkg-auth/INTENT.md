@@ -4,12 +4,14 @@
 
 ## 1. Declarative Objective
 
-Shared Bearer token verification for SHAPER HTTP services — no business logic.
+Shared HTTP authorization and short-lived Vault-signed unit credentials — no business logic.
 
 ## 2. Invariants
 
 1. Stateless — no session store.
-2. Empty token config = auth disabled (dev-friendly).
+2. Legacy static Bearer verification permits empty config only on its existing
+   prototype surface. Unit-credential authorization refuses missing key,
+   universe, audience or current-revocation verification; no anonymous fallback.
 3. Zero coupling to any universe or brick.
 4. English-only API surface.
 
@@ -30,3 +32,25 @@ Every service that needs the policy imports it — that is the whole deployment.
 - **throughput**: T3
 - **degraded**: refuse
 - **rationale**: Token comparison is mechanical. A model has no place in an authorisation decision.
+
+## Vault-signed unit identities
+
+`unit-credentials.js` provides a versioned Ed25519-signed envelope. Its signed
+claims bind a universe UUID, unit, runtime incarnation, one audience, exact
+scopes, issue/expiry times, credential id, epoch and revocation reference.
+Validity is at most 300 seconds; future-issued, expired, malformed, tampered,
+foreign-universe/audience and insufficient-scope credentials are refused.
+A protected service also checks the current incarnation and revocation with
+Vault; signature validity alone grants no surviving authority.
+
+`runtime-identity.js` loads a parent-pinned public key and an owner-only runtime
+bootstrap file. It renews credentials in memory before expiry, coalesces
+concurrent renewals and never persists access tokens. The bootstrap capability
+is bounded by the parent's registered expiry, incarnation and grants; it is
+not accepted at application data APIs. Parent replacement/revocation invalidates
+the incarnation. These runtime files are excluded from backups.
+
+Each request to Vault is bounded to three seconds. Missing Vault verification
+refuses current-authority validation; no permanent bypass is introduced. The
+parent controls registration and bounded bootstrap redelivery. No service can
+choose its scopes by passing them in the issuance request.

@@ -1,0 +1,42 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { generateKeyPairSync } from 'node:crypto';
+import { runtimeCredentialClient } from '../runtime-identity.js';
+import { issueCredential } from '../unit-credentials.js';
+
+test('renewal coalesces callers, caches a verified token and refuses unsafe runtime files', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'unit-identity-'));
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const bootstrap = 'a'.repeat(64), universe = '550e8400-e29b-41d4-a716-446655440000';
+  const env = { VAULT_URL: 'http://vault', SHAPER_UNIVERSE_ID: universe, SHAPER_UNIT_SLUG: 'queue',
+    SHAPER_UNIT_INCARNATION: 'inc-1', UNIT_AUTH_PUBLIC_KEY_FILE: path.join(dir, 'public.pem'), UNIT_BOOTSTRAP_TOKEN_FILE: path.join(dir, 'bootstrap') };
+  fs.writeFileSync(env.UNIT_AUTH_PUBLIC_KEY_FILE, publicKey.export({ type: 'spki', format: 'pem' }), { mode: 0o444 });
+  fs.writeFileSync(env.UNIT_BOOTSTRAP_TOKEN_FILE, bootstrap, { mode: 0o600 });
+  let calls = 0;
+  const fetchImpl = async (_url, options) => {
+    calls++;
+    assert.equal(options.headers.Authorization, `Bearer ${bootstrap}`);
+    const body = JSON.parse(options.body);
+    assert.deepEqual(Object.keys(body).sort(), ['audience', 'incarnation', 'unit']);
+    assert.equal(options.body.includes(bootstrap), false);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const { token } = issueCredential({ universe, unit: 'queue', incarnation: 'inc-1', audience: body.audience,
+      scopes: ['logger:ingest'], epoch: 1, revocationRef: 'queue:1' }, privateKey);
+    return { ok: true, json: async () => ({ token }) };
+  };
+  try {
+    const client = runtimeCredentialClient(env, fetchImpl);
+    const [one, two] = await Promise.all([client.headers('logger'), client.headers('logger')]);
+    assert.deepEqual(one, two); assert.equal(calls, 1);
+    assert.deepEqual(await client.headers('logger'), one); assert.equal(calls, 1);
+    fs.chmodSync(env.UNIT_BOOTSTRAP_TOKEN_FILE, 0o644);
+    assert.throws(() => runtimeCredentialClient(env, fetchImpl), { code: 'IDENTITY_BOOTSTRAP_FILE_UNTRUSTED' });
+    fs.chmodSync(env.UNIT_BOOTSTRAP_TOKEN_FILE, 0o600);
+    assert.throws(() => runtimeCredentialClient({ ...env, SHAPER_UNIVERSE_ID: undefined }, fetchImpl), { code: 'IDENTITY_POLICY_MISSING' });
+    fs.chmodSync(env.UNIT_AUTH_PUBLIC_KEY_FILE, 0o666);
+    assert.throws(() => runtimeCredentialClient(env, fetchImpl), { code: 'IDENTITY_PUBLIC_KEY_UNTRUSTED' });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

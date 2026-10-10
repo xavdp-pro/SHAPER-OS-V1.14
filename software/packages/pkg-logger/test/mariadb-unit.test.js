@@ -585,7 +585,9 @@ function standIn(overrides = {}) {
 }
 
 async function withServer(options, work) {
-  const server = createLoggerServer({ port: 0, host: '127.0.0.1', ...options });
+  // These cases isolate storage/refusal semantics; authenticated HTTP is
+  // qualified separately. This explicit scaffold is never a deployment mode.
+  const server = createLoggerServer({ port: 0, host: '127.0.0.1', allowAnonymous: true, ...options });
   await new Promise((resolve) => server.once('listening', resolve));
   try {
     await work(`http://127.0.0.1:${server.address().port}`);

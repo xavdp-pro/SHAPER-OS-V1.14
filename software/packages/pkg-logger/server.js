@@ -30,12 +30,15 @@ try {
 }
 
 let store = null;
+let authorizeRequest = null;
 let logDir = null;
 if (STORE === 'mariadb') {
   const { MariaDbLoggerStore } = await import('./mariadb-store.js');
   const slug = process.env.SHAPER_UNIT_SLUG || 'logger';
   try {
     store = await MariaDbLoggerStore.open({ slug, limits });
+    const { runtimeAuthorizer } = await import('../pkg-auth/runtime-identity.js');
+    authorizeRequest = runtimeAuthorizer(process.env);
   } catch (err) {
     refuse(err);
   }
@@ -55,7 +58,7 @@ if (STORE === 'mariadb') {
 console.log(`[brick-logger] Starting Log Collector on ${HOST}:${PORT}...`);
 console.log(`[brick-logger] Limits: body ${limits.maxBodyBytes} B, event data ${limits.maxEventBytes} B, batch ${limits.maxBatch}`);
 
-const server = createLoggerServer({ port: PORT, host: HOST, logDir, store, limits });
+const server = createLoggerServer({ port: PORT, host: HOST, logDir, store, limits, authorizeRequest });
 
 server.on('listening', () => {
   console.log(`[brick-logger] Ready and listening on http://${HOST}:${server.address().port}`);

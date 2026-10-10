@@ -20,11 +20,19 @@ function readMasterKey() {
   const file = process.env.VAULT_MASTER_KEY_FILE;
   if (file) {
     try {
+      const stat = fs.lstatSync(file);
+      if (!stat.isFile() || stat.mode & 0o077 || stat.uid !== process.getuid()) {
+        throw Object.assign(new Error('master-key file must be a private regular file owned by the unit'), { code: 'VAULT_KEY_FILE_UNTRUSTED' });
+      }
       return fs.readFileSync(file, 'utf8').trim();
     } catch (err) {
       console.error(`[brick-vault] VAULT_MASTER_KEY_FILE ${file} is not readable: ${err.code || err.message}`);
       process.exit(1);
     }
+  }
+  if (STORE === 'mariadb') {
+    console.error('[brick-vault] VAULT_MASTER_KEY_FILE is required for MariaDB; environment key values are DEV scaffolding only');
+    process.exit(1);
   }
   return process.env.VAULT_MASTER_KEY || process.env.VAULT_ENCRYPTION_KEY;
 }
@@ -41,12 +49,18 @@ if (!MASTER_KEY || !MASTER_KEY.trim()) {
 const VAULT_TOKEN = process.env.VAULT_TOKEN || null;
 
 let vaultStore = null;
+let identityService = null;
 let storageFile = null;
 if (STORE === 'mariadb') {
   const { MariaDbVaultStore } = await import('./mariadb-store.js');
   const slug = process.env.SHAPER_UNIT_SLUG || 'vault';
   try {
     vaultStore = await MariaDbVaultStore.open({ masterKey: MASTER_KEY, slug });
+    if (!process.env.SHAPER_UNIVERSE_ID) throw Object.assign(new Error('SHAPER_UNIVERSE_ID is required'), { code: 'IDENTITY_POLICY_MISSING' });
+    const { VaultUnitIdentity } = await import('./unit-identity.js');
+    identityService = new VaultUnitIdentity({ pool: vaultStore.pool, masterKey: vaultStore.masterKey,
+      universe: process.env.SHAPER_UNIVERSE_ID,
+      ttl: process.env.UNIT_CREDENTIAL_TTL_SECONDS === undefined ? 300 : Number(process.env.UNIT_CREDENTIAL_TTL_SECONDS) });
   } catch (err) {
     console.error(`[brick-vault] refusing to start: ${err.code || 'ERROR'} — ${err.message}`);
     process.exit(1);
@@ -74,6 +88,7 @@ const server = createVaultServer({
   vaultToken: VAULT_TOKEN,
   storageFile,
   vaultStore,
+  identityService,
 });
 
 server.on('listening', () => {

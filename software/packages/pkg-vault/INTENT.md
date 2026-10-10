@@ -14,7 +14,8 @@ Sovereign AES-256-GCM secret engine — encrypt, persist, and inject credentials
 ## 2. Universal Invariants (Parameterized)
 
 1. **Crypto**: AES-256-GCM at rest. Master key via `<MASTER_KEY>` or SHA-256 normalization.
-2. **One declared dependency**: native `node:crypto`, `node:fs`, `node:http`, plus `@shaper/pkg-db` for the unit's private MariaDB; the driver is pinned there, nowhere else.
+2. **One declared dependency**: native `node:crypto`, `node:fs`, `node:http`, plus `@shaper/pkg-db` for private MariaDB and `@shaper/pkg-auth`
+   for signed unit identity; the driver is pinned in pkg-db, nowhere else.
 3. **Dual Mode**: In-process store or HTTP service via `createVaultServer()`; the server awaits either store kind.
 4. **Isolation**: Zero knowledge of consuming universes. Mailbox schema is a reusable contract only.
 5. **Materialized Empty State**: bootstrap persists an empty storage object even when no secrets are configured; successful initialization always leaves a storage file.
@@ -31,7 +32,10 @@ Sovereign AES-256-GCM secret engine — encrypt, persist, and inject credentials
 12. **The master key arrives as a protected file** (`VAULT_MASTER_KEY_FILE`, read-only, owned by the unit account); the environment variable remains for local tooling only.
 13. **A storage failure is an unavailable Vault** (HTTP 503 with a typed code), never a malformed request and never an empty answer.
 
-What this storage does not yet provide, against the Vault target contract: short-lived credentials signed by Vault for the other units, per-unit scopes, a transactional outbox to Logger, and key rotation. They are recorded as gaps, not implied.
+What this storage does not yet provide, against the Vault target contract: scoped secret delivery, complete secret mutation/read/refusal outboxes,
+Logger relay of Vault evidence, journalled parent registration/revocation and
+key rotation. Signed credential issuance and its local outbox are now provided;
+that partial implementation is not full reference qualification. They are recorded as gaps, not implied.
 
 ---
 
@@ -39,3 +43,29 @@ What this storage does not yet provide, against the Vault target contract: short
 
 * **Brick port**: `8610`
 * **Storage**: `vault` database in the unit's private MariaDB, socket `/apps/vault/nosav/run/mysqld/mysqld.sock` on the universe side
+
+## Signed runtime identity issuance
+
+Schema version 2 adds `unit_identities`, `unit_credentials` and `event_outbox`.
+The administrative parent registers an incarnation, exact audience-to-scope
+grants, bootstrap digest and bounded bootstrap expiry. Vault authenticates
+the bootstrap request against that row and commits credential metadata and
+non-secret issuance evidence together before returning the token. Signed tokens,
+bootstrap values and signing keys do not enter MariaDB or evidence.
+
+The signing seed is HKDF-SHA256 domain-separated from the matching master key
+and universe identity; Ed25519 key encoding follows RFC 8410. Restoring the same
+key and universe preserves the signing identity; a different key or universe
+produces another public key. Parent provisioning pins that public key in consumers.
+
+`POST /api/identity/issue` accepts only unit, incarnation and audience; the
+Bearer bootstrap grants no secret access. `POST /api/identity/check` verifies a
+credential's signature, expiry, current incarnation, epoch, grant and revocation
+state. Registered credential metadata lives in the same private Vault database.
+MariaDB or identity verification failures cannot acknowledge issuance.
+
+The MariaDB entrypoint requires `SHAPER_UNIVERSE_ID`. Runtime credential TTL is
+`UNIT_CREDENTIAL_TTL_SECONDS` (default 300, allowed 1–300). Generic secret APIs
+in identity mode require the separately configured administrative credential;
+an empty setting never opens that surface. Scoped unit secret-delivery policy
+and removal of the legacy static administrative surface remain reference work.

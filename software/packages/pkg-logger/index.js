@@ -300,6 +300,7 @@ export class FileEventStore {
  * @returns {number}
  */
 export function storeErrorStatus(err) {
+  if (err?.name === 'CredentialError') return err.status;
   if (err instanceof LoggerIngestError) return err.status;
   if (err && err.name === 'UnitDbError') return 503;
   const code = String((err && err.code) || '');
@@ -368,15 +369,31 @@ export function createLoggerServer({
   collector = null,
   store = null,
   limits = {},
+  authorizeRequest = null,
+  allowAnonymous = false,
 } = {}) {
   const eventStore = store || new FileEventStore(collector || new LogCollector({ logDir }));
+  if (eventStore.storageKind === 'mariadb' && !authorizeRequest && !allowAnonymous) {
+    throw new LoggerIngestError(503, 'LOGGER_AUTH_REQUIRED', 'MariaDB Logger requires unit authorization');
+  }
   const bounds = { ...DEFAULT_LIMITS, ...limits };
   const sseClients = new Set();
+  const sseAuthorities = new Map();
+  const ssePending = new Map();
 
   eventStore.emitter.on('event', (record) => {
     const frame = `event: log\ndata: ${JSON.stringify(record)}\n\n`;
     for (const client of sseClients) {
-      client.write(frame);
+      const authority = sseAuthorities.get(client);
+      if (authority && record.pod !== authority.unit) continue;
+      if (!authority) { client.write(frame); continue; }
+      const state = ssePending.get(client);
+      if (state.count >= 100) { client.end(); continue; }
+      state.count++;
+      state.chain = state.chain.then(async () => {
+        await authorizeRequest(state.req, 'logger:read:own');
+        if (!client.writableEnded && !client.write(frame)) client.end();
+      }).catch(() => client.end()).finally(() => { state.count--; });
     }
   });
 
@@ -414,13 +431,17 @@ export function createLoggerServer({
     }
     const batch = Array.isArray(parsed);
     const entries = batch ? parsed : [parsed];
+    const authority = authorizeRequest ? await authorizeRequest(req, 'logger:ingest') : null;
     if (entries.length > bounds.maxBatch) {
       throw new LoggerIngestError(413, 'BATCH_TOO_LARGE', `a batch holds at most ${bounds.maxBatch} entries`);
     }
     // Every entry is validated before anything is written.
     const claims = entries.map((entry, index) => {
       try {
-        return normalizeIngestEntry(entry, bounds);
+        if (authority && (!entry || (entry.pod !== undefined && entry.pod !== authority.unit))) {
+          throw new LoggerIngestError(403, 'LOGGER_SOURCE_DENIED', 'Event source must match authenticated unit');
+        }
+        return normalizeIngestEntry(authority ? { ...entry, pod: authority.unit } : entry, bounds);
       } catch (err) {
         if (batch && err instanceof LoggerIngestError) err.details = { ...err.details, index };
         throw err;
@@ -467,10 +488,12 @@ export function createLoggerServer({
     }
 
     if (req.method === 'GET' && (pathname === '/api/vitals' || pathname === '/vitals')) {
+      if (authorizeRequest) await authorizeRequest(req, 'logger:observe');
       return sendJson(200, await eventStore.vitals());
     }
 
     if (req.method === 'GET' && pathname === '/api/events') {
+      const authority = authorizeRequest ? await authorizeRequest(req, 'logger:read:own') : null;
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -478,6 +501,9 @@ export function createLoggerServer({
       });
       res.write(': connected\n\n');
       sseClients.add(res);
+      if (authority) sseAuthorities.set(res, authority);
+      if (authority) ssePending.set(res, { count: 0, chain: Promise.resolve(), req });
+      const expiry = authority ? setTimeout(() => res.end(), Math.max(0, authority.expiresAt * 1000 - Date.now())) : null;
 
       const heartbeat = setInterval(() => {
         res.write(': heartbeat\n\n');
@@ -485,13 +511,21 @@ export function createLoggerServer({
 
       req.on('close', () => {
         clearInterval(heartbeat);
+        if (expiry) clearTimeout(expiry);
         sseClients.delete(res);
+        sseAuthorities.delete(res);
+        ssePending.delete(res);
       });
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/events/last') {
+      const authority = authorizeRequest ? await authorizeRequest(req, 'logger:read:own') : null;
       const filters = parseEventQuery(url.searchParams, bounds);
+      if (authority) {
+        if (filters.pod && filters.pod !== authority.unit) throw new LoggerIngestError(403, 'LOGGER_SOURCE_DENIED', 'Read scope is own unit only');
+        filters.pod = authority.unit;
+      }
       return sendJson(200, {
         status: 'ok',
         events: await eventStore.query(filters),
@@ -499,6 +533,7 @@ export function createLoggerServer({
     }
 
     if (req.method === 'GET' && pathname === '/api/pods') {
+      if (authorizeRequest) await authorizeRequest(req, 'logger:observe');
       return sendJson(200, {
         status: 'ok',
         pods: await eventStore.listPods(),
