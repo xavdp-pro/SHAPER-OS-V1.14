@@ -31,7 +31,12 @@
         "uid": 10610,
         "engineUid": 10611,
         "schema": "/apps/vault/app/packages/pkg-vault/sql/schema.sql",
-        "schemaVersion": 1
+        "schemaVersion": 2,
+        "volumes": [
+          "etc/mysql",
+          "sav",
+          "log"
+        ]
       },
       "cognition": {
         "role": "neutral",
@@ -56,7 +61,12 @@
         "uid": 10620,
         "engineUid": 10621,
         "schema": "/apps/logger/app/packages/pkg-logger/sql/schema.sql",
-        "schemaVersion": 1
+        "schemaVersion": 1,
+        "volumes": [
+          "etc/mysql",
+          "sav",
+          "log"
+        ]
       },
       "cognition": {
         "role": "neutral",
@@ -81,7 +91,12 @@
         "uid": 10640,
         "engineUid": 10641,
         "schema": "/apps/queue/app/packages/pkg-queue/sql/schema.sql",
-        "schemaVersion": 1
+        "schemaVersion": 2,
+        "volumes": [
+          "etc/mysql",
+          "sav",
+          "log"
+        ]
       },
       "cognition": {
         "role": "neutral",
@@ -106,7 +121,11 @@
         "uid": 10630,
         "engineUid": 10631,
         "schema": "/apps/maestro/app/packages/pkg-maestro/sql/schema.sql",
-        "schemaVersion": 1
+        "schemaVersion": 2,
+        "volumes": [
+          "etc/mysql",
+          "sav"
+        ]
       },
       "specialize": {
         "how": "MAESTRO_TASKS_FILE points at this universe's task-schedule.json, mounted read-only at /apps/maestro/etc/task-schedule.json",

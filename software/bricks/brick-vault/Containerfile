@@ -13,13 +13,13 @@ LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
 LABEL org.shaper.node-image="${NODE_IMAGE}"
 LABEL org.shaper.base-image="${SHAPER_BASE_IMAGE}"
 LABEL org.shaper.brick="vault"
-LABEL org.shaper.build-packages="db logger vault"
+LABEL org.shaper.build-packages="auth db logger vault"
 LABEL org.shaper.unit.slug="vault"
 LABEL org.shaper.unit.uid="10610"
 LABEL org.shaper.unit.engine-uid="10611"
 LABEL org.shaper.unit.database="mariadb-in-unit"
 LABEL org.shaper.unit.schema="/apps/vault/app/packages/pkg-vault/sql/schema.sql"
-LABEL org.shaper.unit.schema-version="1"
+LABEL org.shaper.unit.schema-version="2"
 
 # The engine account is created first, with its fixed uid, so the MariaDB
 # package's install script keeps it instead of picking whatever uid is free: a
@@ -40,6 +40,7 @@ RUN addgroup -S -g "${ENGINE_UID}" mysql \
 # (Rule 4: app/). Every package sits beside the others, so `../pkg-*/` resolves.
 COPY --from=shaper_base /shaper/packages/pkg-db/ /apps/vault/app/packages/pkg-db/
 RUN cd /apps/vault/app/packages/pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY --from=shaper_base /shaper/packages/pkg-auth/ /apps/vault/app/packages/pkg-auth/
 COPY --from=shaper_base /shaper/packages/pkg-logger/ /apps/vault/app/packages/pkg-logger/
 COPY --from=shaper_base /shaper/packages/pkg-vault/ /apps/vault/app/packages/pkg-vault/
 
@@ -56,12 +57,12 @@ ENV NODE_ENV=production \
     UNIT_UID=10610 \
     UNIT_ENGINE_UID=10611 \
     UNIT_SCHEMA_FILE=/apps/vault/app/packages/pkg-vault/sql/schema.sql \
-    UNIT_SCHEMA_VERSION=1 \
+    UNIT_SCHEMA_VERSION=2 \
     VAULT_PORT=8610 \
     VAULT_STORE=mariadb
 
 # The image refuses to exist when it would refuse to start.
-RUN UNIT_IMPORT_CHECK="/apps/vault/app/packages/pkg-vault/index.js /apps/vault/app/packages/pkg-vault/mariadb-store.js" node /usr/local/lib/shaper/unit-mariadb/image-check.mjs
+RUN UNIT_IMPORT_CHECK="/apps/vault/app/packages/pkg-vault/index.js /apps/vault/app/packages/pkg-vault/mariadb-store.js /apps/vault/app/packages/pkg-vault/unit-identity.js /apps/vault/app/packages/pkg-vault/evidence-runtime.js /apps/vault/app/packages/pkg-vault/unit-registration.js" node /usr/local/lib/shaper/unit-mariadb/image-check.mjs
 
 WORKDIR /apps/vault/app/packages/pkg-vault
 EXPOSE 8610

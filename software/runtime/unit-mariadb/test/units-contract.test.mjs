@@ -14,6 +14,21 @@ const read = (rel) => fs.readFileSync(path.join(SOFTWARE, rel), 'utf8');
 const UNITS = ['vault', 'logger', 'queue', 'maestro'];
 const manifest = JSON.parse(read('universes/univ-minimal/manifest.json'));
 
+// What each unit needs at run time, and from whom (pkg-auth, pkg-db outbox):
+// Vault relays its evidence to Logger; Logger checks every credential at
+// Vault; Queue and Maestro hold a credential from Vault and owe evidence to
+// Logger, and Maestro submits every occurrence to Queue.
+const RUNTIME_SERVICES = { vault: ['logger'], logger: ['vault'], queue: ['vault', 'logger'], maestro: ['vault', 'logger', 'queue'] };
+// The identity inputs each unit's application reads (pkg-auth runtime-identity.js,
+// the units' server.js). A unit with a bootstrap holds a credential; one with a
+// pin verifies credentials, or the ones it receives.
+const IDENTITY = {
+  vault: { bootstrap: true, pin: false, vaultUrl: false, loggerUrl: true },
+  logger: { bootstrap: false, pin: true, vaultUrl: true, loggerUrl: false },
+  queue: { bootstrap: true, pin: true, vaultUrl: true, loggerUrl: true },
+  maestro: { bootstrap: true, pin: true, vaultUrl: true, loggerUrl: true },
+};
+
 function siblingImports(pkgDir) {
   const found = new Set();
   (function scan(dir) {
@@ -45,6 +60,13 @@ for (const slug of UNITS) {
       assert.equal(unit.schema, `${app}/packages/pkg-${slug}/sql/schema.sql`);
       assert.ok(Number.isInteger(unit.schemaVersion) && unit.schemaVersion >= 1);
       assert.deepEqual(brick.buildRuntime, ['unit-mariadb']);
+      assert.ok(unit.volumes.includes('etc/mysql') && unit.volumes.includes('sav'), 'the password and the datadir are persistent');
+      assert.ok(unit.volumes.every((v) => ['etc/mysql', 'sav', 'log'].includes(v)) && new Set(unit.volumes).size === unit.volumes.length);
+    });
+
+    test('brick.json declares the services it needs at run time and the credential package it runs', () => {
+      assert.deepEqual(brick.runtimeServices, RUNTIME_SERVICES[slug]);
+      assert.ok(brick.buildPackages.includes('pkg-auth'), 'every base unit holds or checks a Vault-signed credential');
     });
 
     test('the schema file, the store and brick.json name the same exact version', () => {
@@ -74,6 +96,16 @@ for (const slug of UNITS) {
       assert.doesNotMatch(cf, /^USER /m, 'the supervisor is root and drops to each account itself');
       assert.match(cf, /COPY --from=shaper_base \/shaper\/runtime\/unit-mariadb\/ \/usr\/local\/lib\/shaper\/unit-mariadb\//);
       assert.match(cf, /RUN UNIT_IMPORT_CHECK="[^"]+" node \/usr\/local\/lib\/shaper\/unit-mariadb\/image-check\.mjs/);
+      const label = /^LABEL org\.shaper\.build-packages="([^"]+)"$/m.exec(cf);
+      assert.ok(label, 'the image names the packages it carries');
+      assert.deepEqual(label[1].split(' ').sort(), brick.buildPackages.map((p) => p.replace(/^pkg-/, '')).sort());
+      if (!unit.volumes.includes('log')) assert.doesNotMatch(cf, /LOG_DIR=/, 'no log volume, no log directory preselected');
+    });
+
+    test('the image proves at build time that the credential path resolves', () => {
+      const check = /RUN UNIT_IMPORT_CHECK="([^"]+)"/.exec(cf)[1].split(' ');
+      assert.ok(check.includes(`${app}/packages/pkg-auth/runtime-identity.js`) || check.includes(`${app}/packages/pkg-vault/evidence-runtime.js`),
+        'the unit imports its credential path at build time');
     });
 
     test('the engine account exists with its fixed uid before the MariaDB package is installed', () => {
@@ -93,10 +125,12 @@ for (const slug of UNITS) {
       assert.ok(cf.includes(`RUN cd ${app}/packages/pkg-db && npm ci --omit=dev`));
     });
 
-    test('the Quadlet unit runs one container with the three volumes and the hardening', () => {
+    test('the Quadlet unit runs one container with its declared volumes and the hardening', () => {
       assert.doesNotMatch(quadlet, /^User=/m);
       for (const v of ['etc/mysql', 'sav', 'log']) {
-        assert.match(quadlet, new RegExp(`^Volume=/apps/${slug}/${v}:/apps/${slug}/${v}:Z$`, 'm'));
+        const line = new RegExp(`^Volume=/apps/${slug}/${v}:/apps/${slug}/${v}:Z$`, 'm');
+        if (unit.volumes.includes(v)) assert.match(quadlet, line, `${v} is declared`);
+        else assert.doesNotMatch(quadlet, new RegExp(`^Volume=/apps/${slug}/${v}:`, 'm'), `${v} is not declared`);
       }
       assert.doesNotMatch(quadlet, /^Volume=.*:\/run/m, 'the socket stays inside the container');
       assert.match(quadlet, /^DropCapability=all$/m);
@@ -109,11 +143,24 @@ for (const slug of UNITS) {
       assert.doesNotMatch(directives, /ctr-\S*-mariadb|^PublishPort=/m, 'no database container, no published port');
     });
 
+    test('the Quadlet unit carries the identity inputs the application reads, and no secret', () => {
+      const want = IDENTITY[slug];
+      const env = (k) => new RegExp(`^Environment=${k}=(.+)$`, 'm').exec(quadlet)?.[1];
+      assert.equal(env('SHAPER_UNIVERSE_ID'), '@UNIVERSE_ID@', 'the universe UUID is written at install, never the instance name');
+      assert.match(quadlet, new RegExp(`^Volume=/apps/${slug}/etc/identity:/apps/${slug}/etc/identity:ro,Z$`, 'm'));
+      assert.equal(env('UNIT_BOOTSTRAP_TOKEN_FILE'), want.bootstrap ? `/apps/${slug}/etc/identity/bootstrap` : undefined);
+      assert.equal(env('SHAPER_UNIT_INCARNATION'), want.bootstrap ? '@INCARNATION@' : undefined);
+      assert.equal(env('UNIT_AUTH_PUBLIC_KEY_FILE'), want.pin ? `/apps/${slug}/etc/identity/vault-public.pem` : undefined);
+      assert.equal(env('VAULT_URL'), want.vaultUrl ? `http://127.0.0.1:${manifest.bricks['brick-vault'].port}` : undefined);
+      assert.equal(env('LOGGER_URL'), want.loggerUrl ? `http://127.0.0.1:${manifest.bricks['brick-logger'].port}` : undefined);
+      assert.doesNotMatch(quadlet, /^Environment=(VAULT_TOKEN|VAULT_MASTER_KEY|MYSQL_PASSWORD|MYSQL_PWD)=/m, 'a secret never sits in a unit file');
+    });
+
     test('univ-minimal declares the same unit', () => {
       const declared = manifest.bricks[`brick-${slug}`];
       assert.deepEqual(declared.database, {
         engine: 'mariadb', placement: 'in-unit', slug, uid: unit.uid, engineUid: unit.engineUid,
-        schema: unit.schema, schemaVersion: unit.schemaVersion,
+        schema: unit.schema, schemaVersion: unit.schemaVersion, volumes: unit.volumes,
       });
       assert.match(cf, new RegExp(`^EXPOSE ${declared.port}$`, 'm'));
     });

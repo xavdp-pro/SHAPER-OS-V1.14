@@ -533,36 +533,55 @@ describe('the library surface other units import stays dependency-free', () => {
 });
 
 describe('the brick runs the logger as its own account on its own database', () => {
+  // The one-container shape (Rule 4, Turbinobash method; runtime/unit-mariadb):
+  // the Logger and its own MariaDB server in one container, the supervisor
+  // dropping to each account. The shape shared by every base unit is held by
+  // runtime/unit-mariadb/test/units-contract.test.mjs; what is the Logger's own
+  // is held here.
   const containerfile = fs.readFileSync(path.join(brickDir, 'Containerfile'), 'utf8');
   const brick = JSON.parse(fs.readFileSync(path.join(brickDir, 'brick.json'), 'utf8'));
   const quadlet = fs.readFileSync(path.join(brickDir, 'cfg-logger.container'), 'utf8');
+  const app = '/apps/logger/app/packages';
 
-  it('declares the unit the provisioning reads, with a schema path that exists in the image', () => {
-    assert.deepEqual(brick.unit, { slug: 'logger', uid: 10620, schema: '/app/sql/schema.sql' });
-    assert.ok(brick.buildPackages.includes('pkg-db'));
-    // pkg-logger is flattened into WORKDIR /app, so its sql/ lands at /app/sql/.
-    assert.match(containerfile, /^WORKDIR \/app$/m);
-    assert.match(containerfile, /^COPY --from=shaper_base \/shaper\/packages\/pkg-logger\/ \.\/$/m);
+  it('declares the unit the image births, with the schema version this store needs', () => {
+    assert.deepEqual(brick.unit, {
+      slug: 'logger', uid: 10620, engineUid: 10621, database: 'mariadb-in-unit',
+      schema: `${app}/pkg-logger/sql/schema.sql`, schemaVersion: LOGGER_SCHEMA_VERSION,
+      volumes: ['etc/mysql', 'sav', 'log'],
+    });
     assert.ok(fs.existsSync(path.join(pkgDir, 'sql/schema.sql')));
+    assert.match(containerfile, new RegExp(`^\\s+UNIT_SCHEMA_VERSION=${LOGGER_SCHEMA_VERSION} \\\\$`, 'm'));
   });
 
-  it('builds the fixed-uid account, installs the pinned driver and runs as it', () => {
-    assert.match(containerfile, /ARG UNIT_UID=10620/);
-    assert.match(containerfile, /adduser -S -D -H -u "\$\{UNIT_UID\}" -G logger -s \/sbin\/nologin logger/);
-    assert.match(containerfile, /COPY --from=shaper_base \/shaper\/packages\/pkg-db\/ \/pkg-db\//);
-    assert.match(containerfile, /cd \/pkg-db && npm ci --omit=dev/);
-    assert.match(containerfile, /^ENV LOGGER_STORE=mariadb$/m);
-    assert.match(containerfile, /^ENV SHAPER_UNIT_SLUG=logger$/m);
-    assert.match(containerfile, /^USER logger$/m);
+  it('carries pkg-db with its pinned driver and pkg-auth beside pkg-logger, where ../pkg-*/ resolves', () => {
+    for (const pkg of ['pkg-auth', 'pkg-db', 'pkg-logger']) {
+      assert.ok(brick.buildPackages.includes(pkg), `${pkg} declared`);
+      assert.ok(containerfile.includes(`COPY --from=shaper_base /shaper/packages/${pkg}/ ${app}/${pkg}/`), `${pkg} copied`);
+    }
+    assert.match(containerfile, new RegExp(`cd ${app}/pkg-db && npm ci --omit=dev`));
+    assert.match(containerfile, new RegExp(`^WORKDIR ${app}/pkg-logger$`, 'm'));
+    assert.match(fs.readFileSync(path.join(pkgDir, 'server.js'), 'utf8'), /import\('\.\.\/pkg-auth\/runtime-identity\.js'\)/);
+  });
+
+  it('selects MariaDB, never the JSONL scaffolding, and runs as logger under the unit supervisor', () => {
+    assert.match(containerfile, /^\s+LOGGER_STORE=mariadb( \\)?$/m);
+    assert.match(containerfile, /^\s+SHAPER_UNIT_SLUG=logger \\$/m);
+    assert.match(containerfile, /^\s+SHAPER_DB_SOCKET=\/run\/logger\/mysqld\.sock \\$/m);
+    assert.match(containerfile, /adduser -S -D -H -h \/apps\/logger -s \/sbin\/nologin -u "\$\{UNIT_UID\}" -G logger logger/);
+    assert.doesNotMatch(containerfile, /^USER /m, 'the supervisor is root and starts the logger as its own account');
     assert.doesNotMatch(containerfile, /LOG_DIR/, 'the image must not preselect the JSONL scaffolding');
   });
 
-  it('mounts only the socket directory and the passwd file, and binds localhost', () => {
-    assert.match(quadlet, /^User=10620:10620$/m);
-    assert.match(quadlet, /^Volume=\/apps\/logger\/nosav\/run\/mysqld:\/run\/mysqld:z$/m);
-    assert.match(quadlet, /^Volume=\/apps\/logger\/etc\/mysql\/localhost\/passwd:\/apps\/logger\/etc\/mysql\/localhost\/passwd:ro,Z$/m);
+  it('runs one container: its volumes, no socket mount, localhost, and every request authorized at Vault', () => {
+    assert.doesNotMatch(quadlet, /^User=/m);
+    for (const v of ['etc/mysql', 'sav', 'log']) assert.match(quadlet, new RegExp(`^Volume=/apps/logger/${v}:/apps/logger/${v}:Z$`, 'm'));
+    assert.doesNotMatch(quadlet, /^Volume=[^\n]*:\/run/m, 'the socket stays inside the container');
+    assert.doesNotMatch(quadlet, /nosav\/run\/mysqld|ctr-\S*-mariadb/);
     assert.match(quadlet, /^Environment=HOST=127\.0\.0\.1$/m);
-    assert.doesNotMatch(quadlet, /LOG_DIR|vol-%i-log/);
+    assert.match(quadlet, /^Environment=VAULT_URL=http:\/\/127\.0\.0\.1:8610$/m);
+    assert.match(quadlet, /^Environment=UNIT_AUTH_PUBLIC_KEY_FILE=\/apps\/logger\/etc\/identity\/vault-public\.pem$/m);
+    assert.match(quadlet, /^Environment=SHAPER_UNIVERSE_ID=@UNIVERSE_ID@$/m);
+    assert.doesNotMatch(quadlet, /LOG_DIR|vol-%i-log|LOGGER_STORE=file/);
   });
 });
 

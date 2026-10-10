@@ -19,7 +19,7 @@ LABEL org.shaper.unit.uid="10630"
 LABEL org.shaper.unit.engine-uid="10631"
 LABEL org.shaper.unit.database="mariadb-in-unit"
 LABEL org.shaper.unit.schema="/apps/maestro/app/packages/pkg-maestro/sql/schema.sql"
-LABEL org.shaper.unit.schema-version="1"
+LABEL org.shaper.unit.schema-version="2"
 
 # The engine account is created first, with its fixed uid, so the MariaDB
 # package's install script keeps it instead of picking whatever uid is free: a
@@ -59,14 +59,13 @@ ENV NODE_ENV=production \
     UNIT_UID=10630 \
     UNIT_ENGINE_UID=10631 \
     UNIT_SCHEMA_FILE=/apps/maestro/app/packages/pkg-maestro/sql/schema.sql \
-    UNIT_SCHEMA_VERSION=1 \
+    UNIT_SCHEMA_VERSION=2 \
     MAESTRO_PORT=8630 \
     MAESTRO_STORE=mariadb \
-    MAESTRO_AUTO_START=0 \
-    LOG_DIR=/apps/maestro/log
+    MAESTRO_AUTO_START=0
 
 # The image refuses to exist when it would refuse to start.
-RUN UNIT_IMPORT_CHECK="/apps/maestro/app/packages/pkg-maestro/index.js /apps/maestro/app/packages/pkg-maestro/mariadb-store.js /apps/maestro/app/packages/pkg-maestro/durable-scheduler.js" node /usr/local/lib/shaper/unit-mariadb/image-check.mjs
+RUN UNIT_IMPORT_CHECK="/apps/maestro/app/packages/pkg-maestro/index.js /apps/maestro/app/packages/pkg-maestro/mariadb-store.js /apps/maestro/app/packages/pkg-maestro/durable-scheduler.js /apps/maestro/app/packages/pkg-auth/runtime-identity.js /apps/maestro/app/packages/pkg-db/outbox.js" node /usr/local/lib/shaper/unit-mariadb/image-check.mjs
 
 WORKDIR /apps/maestro/app/packages/pkg-maestro
 EXPOSE 8630

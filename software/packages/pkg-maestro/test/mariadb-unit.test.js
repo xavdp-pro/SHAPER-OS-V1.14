@@ -259,44 +259,62 @@ describe('the entrypoint refuses to start rather than fall back', () => {
 });
 
 describe('the brick runs Maestro as its own account on its own database', () => {
+  // The one-container shape (Rule 4, Turbinobash method; runtime/unit-mariadb):
+  // Maestro and its own MariaDB server in one container, the supervisor
+  // dropping to each account. The shape shared by every base unit is held by
+  // runtime/unit-mariadb/test/units-contract.test.mjs; what is Maestro's own is
+  // held here.
   const containerfile = fs.readFileSync(path.join(brickDir, 'Containerfile'), 'utf8');
   const brick = JSON.parse(fs.readFileSync(path.join(brickDir, 'brick.json'), 'utf8'));
   const quadlet = fs.readFileSync(path.join(brickDir, 'cfg-maestro.container'), 'utf8');
+  const app = '/apps/maestro/app/packages';
 
-  it('declares the unit the provisioning reads, with a schema path that exists in the image', () => {
-    assert.deepEqual(brick.unit, { slug: 'maestro', uid: 10630, schema: '/app/packages/pkg-maestro/sql/schema.sql' });
-    assert.ok(brick.buildPackages.includes('pkg-db'));
-    // pkg-maestro is copied to /app/packages/pkg-maestro/, so its sql/ lands there.
-    assert.match(containerfile, /^COPY --from=shaper_base \/shaper\/packages\/pkg-maestro\/ \.\/packages\/pkg-maestro\/$/m);
-    assert.match(containerfile, /^WORKDIR \/app$/m);
+  it('declares the unit the image births, with the schema version this store needs', () => {
+    assert.deepEqual(brick.unit, {
+      slug: 'maestro', uid: 10630, engineUid: 10631, database: 'mariadb-in-unit',
+      schema: `${app}/pkg-maestro/sql/schema.sql`, schemaVersion: MAESTRO_SCHEMA_VERSION,
+      volumes: ['etc/mysql', 'sav'],
+    });
     assert.ok(fs.existsSync(path.join(pkgDir, 'sql/schema.sql')));
+    assert.match(containerfile, new RegExp(`^\\s+UNIT_SCHEMA_VERSION=${MAESTRO_SCHEMA_VERSION} \\\\$`, 'm'));
+    assert.ok(containerfile.includes(`LABEL org.shaper.unit.schema-version="${MAESTRO_SCHEMA_VERSION}"`));
   });
 
-  it('puts pkg-db where ../pkg-db/ resolves, with its pinned driver installed there', () => {
-    assert.match(containerfile, /^COPY --from=shaper_base \/shaper\/packages\/pkg-db\/ \.\/packages\/pkg-db\/$/m);
-    assert.match(containerfile, /cd \/app\/packages\/pkg-db && npm ci --omit=dev/);
-    assert.match(containerfile, /^WORKDIR \/app\/packages\/pkg-maestro$/m);
+  it('puts pkg-db where ../pkg-db/ resolves, with its pinned driver installed there, and pkg-auth beside it', () => {
+    for (const pkg of ['pkg-db', 'pkg-auth', 'pkg-logger', 'pkg-maestro']) {
+      assert.ok(containerfile.includes(`COPY --from=shaper_base /shaper/packages/${pkg}/ ${app}/${pkg}/`), `${pkg} copied`);
+    }
+    assert.match(containerfile, new RegExp(`cd ${app}/pkg-db && npm ci --omit=dev`));
+    assert.match(containerfile, new RegExp(`^WORKDIR ${app}/pkg-maestro$`, 'm'));
   });
 
-  it('builds the fixed-uid account and runs as it, on MariaDB by default', () => {
-    assert.match(containerfile, /ARG UNIT_UID=10630/);
-    assert.match(containerfile, /adduser -S -D -H -u "\$\{UNIT_UID\}" -G maestro -s \/sbin\/nologin maestro/);
-    assert.match(containerfile, /^ENV MAESTRO_STORE=mariadb$/m);
-    assert.match(containerfile, /^ENV SHAPER_UNIT_SLUG=maestro$/m);
-    assert.match(containerfile, /^ENV SHAPER_DB_SOCKET=\/run\/mysqld\/mysqld\.sock$/m);
-    assert.match(containerfile, /^USER maestro$/m);
+  it('runs as maestro under the unit supervisor, on MariaDB by default, with no local log', () => {
+    assert.match(containerfile, /adduser -S -D -H -h \/apps\/maestro -s \/sbin\/nologin -u "\$\{UNIT_UID\}" -G maestro maestro/);
+    assert.match(containerfile, /^\s+MAESTRO_STORE=mariadb \\$/m);
+    assert.match(containerfile, /^\s+SHAPER_UNIT_SLUG=maestro \\$/m);
+    assert.match(containerfile, /^\s+SHAPER_DB_SOCKET=\/run\/maestro\/mysqld\.sock \\$/m);
+    assert.doesNotMatch(containerfile, /^USER /m, 'the supervisor is root and starts Maestro as its own account');
+    // The durable path writes no JSONL audit: LOG_DIR serves the memory scaffolding only.
+    assert.doesNotMatch(containerfile, /LOG_DIR/);
   });
 
-  it('mounts the socket directory, the passwd file and its log, binds localhost and names the universe', () => {
-    assert.match(quadlet, /^User=10630:10630$/m);
+  it('runs one container: no log volume, no socket mount, localhost, the universe UUID and its credential inputs', () => {
+    assert.doesNotMatch(quadlet, /^User=/m);
     assert.match(quadlet, /^Network=host$/m);
     assert.match(quadlet, /^Environment=HOST=127\.0\.0\.1$/m);
-    assert.match(quadlet, /^Environment=SHAPER_UNIVERSE_ID=%i$/m);
+    assert.match(quadlet, /^Environment=SHAPER_UNIVERSE_ID=@UNIVERSE_ID@$/m);
+    assert.match(quadlet, /^Environment=SHAPER_UNIT_INCARNATION=@INCARNATION@$/m);
     assert.match(quadlet, /^Environment=MAESTRO_QUEUE_URL=\S+$/m);
-    assert.match(quadlet, /^Volume=\/apps\/maestro\/nosav\/run\/mysqld:\/run\/mysqld:z$/m);
-    assert.match(quadlet, /^Volume=\/apps\/maestro\/etc\/mysql\/localhost\/passwd:\/apps\/maestro\/etc\/mysql\/localhost\/passwd:ro,Z$/m);
+    assert.match(quadlet, /^Environment=LOGGER_URL=\S+$/m);
+    assert.match(quadlet, /^Environment=VAULT_URL=\S+$/m);
+    assert.match(quadlet, /^Environment=UNIT_BOOTSTRAP_TOKEN_FILE=\/apps\/maestro\/etc\/identity\/bootstrap$/m);
+    assert.match(quadlet, /^Environment=UNIT_AUTH_PUBLIC_KEY_FILE=\/apps\/maestro\/etc\/identity\/vault-public\.pem$/m);
+    assert.match(quadlet, /^Volume=\/apps\/maestro\/etc\/mysql:\/apps\/maestro\/etc\/mysql:Z$/m);
+    assert.match(quadlet, /^Volume=\/apps\/maestro\/sav:\/apps\/maestro\/sav:Z$/m);
+    assert.doesNotMatch(quadlet, /^Volume=\/apps\/maestro\/log/m, 'no log volume: the outbox is the record');
+    assert.doesNotMatch(quadlet, /^Volume=[^\n]*:\/run/m, 'the socket stays inside the container');
     assert.doesNotMatch(quadlet, /^PublishPort=/m);
-    assert.doesNotMatch(quadlet, /MAESTRO_BRIDGE_URL|MAESTRO_STORE=memory/);
+    assert.doesNotMatch(quadlet, /MAESTRO_BRIDGE_URL|MAESTRO_STORE=memory|SHAPER_UNIVERSE_ID=%i/);
   });
 });
 

@@ -3,6 +3,7 @@
   "contractVersion": 1,
   "distribution": "base",
   "buildPackages": [
+    "pkg-auth",
     "pkg-db",
     "pkg-logger",
     "pkg-vault"
@@ -10,14 +11,21 @@
   "buildRuntime": [
     "unit-mariadb"
   ],
-  "runtimeServices": [],
+  "runtimeServices": [
+    "logger"
+  ],
   "unit": {
     "slug": "vault",
     "uid": 10610,
     "engineUid": 10611,
     "database": "mariadb-in-unit",
     "schema": "/apps/vault/app/packages/pkg-vault/sql/schema.sql",
-    "schemaVersion": 1
+    "schemaVersion": 2,
+    "volumes": [
+      "etc/mysql",
+      "sav",
+      "log"
+    ]
   },
   "proof": [
     "vault health",

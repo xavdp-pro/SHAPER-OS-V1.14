@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
 LABEL org.shaper.node-image="${NODE_IMAGE}"
 LABEL org.shaper.base-image="${SHAPER_BASE_IMAGE}"
 LABEL org.shaper.brick="logger"
-LABEL org.shaper.build-packages="db logger"
+LABEL org.shaper.build-packages="auth db logger"
 LABEL org.shaper.unit.slug="logger"
 LABEL org.shaper.unit.uid="10620"
 LABEL org.shaper.unit.engine-uid="10621"
@@ -40,6 +40,7 @@ RUN addgroup -S -g "${ENGINE_UID}" mysql \
 # (Rule 4: app/). Every package sits beside the others, so `../pkg-*/` resolves.
 COPY --from=shaper_base /shaper/packages/pkg-db/ /apps/logger/app/packages/pkg-db/
 RUN cd /apps/logger/app/packages/pkg-db && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY --from=shaper_base /shaper/packages/pkg-auth/ /apps/logger/app/packages/pkg-auth/
 COPY --from=shaper_base /shaper/packages/pkg-logger/ /apps/logger/app/packages/pkg-logger/
 
 # The unit's MariaDB lifecycle: the container's administrative path, run as root.
@@ -60,7 +61,7 @@ ENV NODE_ENV=production \
     LOGGER_STORE=mariadb
 
 # The image refuses to exist when it would refuse to start.
-RUN UNIT_IMPORT_CHECK="/apps/logger/app/packages/pkg-logger/index.js /apps/logger/app/packages/pkg-logger/mariadb-store.js" node /usr/local/lib/shaper/unit-mariadb/image-check.mjs
+RUN UNIT_IMPORT_CHECK="/apps/logger/app/packages/pkg-logger/index.js /apps/logger/app/packages/pkg-logger/mariadb-store.js /apps/logger/app/packages/pkg-auth/runtime-identity.js" node /usr/local/lib/shaper/unit-mariadb/image-check.mjs
 
 WORKDIR /apps/logger/app/packages/pkg-logger
 EXPOSE 8620

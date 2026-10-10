@@ -7,7 +7,8 @@ After=network-online.target
 # a digest cannot, and `latest` is forbidden outright — which is exactly what
 # this line used to say before V1.11.
 #
-#   sed -e "s|@IMG@|$(digest from cfg-image-lock.json)|" -e "s|%i|<universe>|g"
+#   sed -e "s|@IMG@|$(digest from cfg-image-lock.json)|" -e "s|%i|<universe>|g" \
+#       -e "s|@UNIVERSE_ID@|<universe UUID>|" -e "s|@INCARNATION@|<registered incarnation>|"
 #
 # ContainerName follows docs/architecture/NAMING.md: ctr- is a running
 # container role, prefixed by the universe so two universes on one host never
@@ -21,6 +22,12 @@ After=network-online.target
 # account itself. The three volumes are the unit's persistent state — its
 # password, its datadir and dumps, its log — owned file by file, never chowned
 # recursively.
+#
+# Identity (pkg-auth, pkg-vault INTENT#parent-registration): the parent pins
+# Vault's signing public key and registers this unit's incarnation, then
+# delivers etc/identity/ — the pin (root, 0644) and, for a unit that holds a
+# credential, its bootstrap (the unit's account, 0600) — mounted read-only.
+# univ-minimal's deploy/podman-up.sh does exactly that, in the birth order.
 [Container]
 Image=@IMG@
 ContainerName=%i-ctr-vault
@@ -29,10 +36,19 @@ Environment=VAULT_PORT=8610
 Environment=HOST=127.0.0.1
 Environment=VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key
 Environment=UNIT_HEALTH_URL=http://127.0.0.1:8610/api/health
+Environment=SHAPER_UNIVERSE_ID=@UNIVERSE_ID@
+Environment=SHAPER_UNIT_INCARNATION=@INCARNATION@
+Environment=UNIT_BOOTSTRAP_TOKEN_FILE=/apps/vault/etc/identity/bootstrap
+# Evidence of every secret change and credential issuance is owed to Logger.
+Environment=LOGGER_URL=http://127.0.0.1:8620
+# VAULT_TOKEN, the credential of the generic secret API, is a secret: it never
+# sits in this file. The installing universe passes it by name from its own
+# environment (deploy/podman-up.sh); without it that surface stays closed.
 Volume=/apps/vault/etc/mysql:/apps/vault/etc/mysql:Z
 Volume=/apps/vault/sav:/apps/vault/sav:Z
 Volume=/apps/vault/log:/apps/vault/log:Z
 Volume=/apps/vault/etc/vault/master.key:/apps/vault/etc/vault/master.key:ro,Z
+Volume=/apps/vault/etc/identity:/apps/vault/etc/identity:ro,Z
 DropCapability=all
 AddCapability=CHOWN DAC_OVERRIDE FOWNER KILL SETGID SETUID
 NoNewPrivileges=true

@@ -13,14 +13,22 @@
   "buildRuntime": [
     "unit-mariadb"
   ],
-  "runtimeServices": [],
+  "runtimeServices": [
+    "vault",
+    "logger",
+    "queue"
+  ],
   "unit": {
     "slug": "maestro",
     "uid": 10630,
     "engineUid": 10631,
     "database": "mariadb-in-unit",
     "schema": "/apps/maestro/app/packages/pkg-maestro/sql/schema.sql",
-    "schemaVersion": 1
+    "schemaVersion": 2,
+    "volumes": [
+      "etc/mysql",
+      "sav"
+    ]
   },
   "proof": [
     "maestro health",
