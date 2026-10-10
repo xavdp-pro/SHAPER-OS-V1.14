@@ -1,9 +1,14 @@
 ARG NODE_IMAGE=docker.io/library/node:20-alpine
 FROM ${NODE_IMAGE}
+ARG NODE_IMAGE
 
 ARG SHAPER_SOURCE_REVISION
 LABEL org.opencontainers.image.title="SHAPER OS base packages"
 LABEL org.opencontainers.image.revision="${SHAPER_SOURCE_REVISION}"
+LABEL org.shaper.node-image="${NODE_IMAGE}"
 
 WORKDIR /shaper
 COPY packages/ /shaper/packages/
+# The functional units' in-container MariaDB lifecycle (runtime/unit-mariadb):
+# a brick takes it from here, like a package, never from the working tree.
+COPY runtime/ /shaper/runtime/

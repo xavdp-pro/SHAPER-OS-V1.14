@@ -42,7 +42,10 @@ SHAPER_IMAGE_TAG=<immutable release tag>
 SHAPER_TLS_VERIFY=true|false
 ```
 
-The base image carries only base packages:
+The base image carries only base packages, and the functional units'
+in-container MariaDB lifecycle (`software/runtime/unit-mariadb/`, at
+`/shaper/runtime/unit-mariadb/`), which a unit brick declares in `brick.json`
+(`buildRuntime`) and copies like a package:
 
 ```text
 ${SHAPER_REGISTRY}/shaper/base:${SHAPER_IMAGE_TAG}
@@ -61,6 +64,24 @@ universe manifest -> lockfile with exact digests -> TEST proof
 
 The release tag communicates intent. The digest is the value stored in a TEST
 or PROD lockfile. `latest` is not a deployable reference.
+
+For the base, Vault, Logger, Queue and Maestro builders, `SHAPER_NODE_IMAGE`
+selects the declared Node image input (default `docker.io/library/node:20-alpine`,
+which is not an immutable-input proof: qualification passes a digest reference).
+Each image labels its source revision and Node input, each unit its base input.
+The builders require a full source revision, rebuild without cache and inspect
+those labels before publication; a stale, missing or unreadable identity
+refuses the push (`scripts/verify-built-image.sh`). A push digest replaces the
+recorded one only after a successful push with a valid SHA-256
+(`scripts/publish-built-image.sh`). `SHAPER_PUSH=0` builds and verifies the
+same images without publishing them — a local qualification build whose tag
+(for example `SHAPER_REGISTRY=localhost`) names no registry and records no
+digest; it never qualifies a TEST or PROD lockfile.
+
+The four unit images also install their MariaDB server from the Alpine
+repositories of the Node image's release at build time. That engine version is
+not pinned by this tree: record it with the build (`mariadbd --version` in the
+built image) until it is.
 
 <a id="build-context"></a>
 ## The build context is the brick, and only the brick
