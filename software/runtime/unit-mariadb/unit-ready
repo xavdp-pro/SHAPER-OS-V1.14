@@ -1,0 +1,4 @@
+#!/bin/sh
+# Intent: software/runtime/unit-mariadb/INTENT.md
+# The unit's readiness probe, gated on its MariaDB (see ready.mjs).
+exec node /usr/local/lib/shaper/unit-mariadb/ready.mjs "$@"
