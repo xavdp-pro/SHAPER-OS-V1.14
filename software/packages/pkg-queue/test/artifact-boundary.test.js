@@ -153,7 +153,10 @@ test('a package is copied to the path its importers actually resolve', () => {
         const absolute = path.join(dir, entry.name);
         if (entry.isDirectory()) { scan(absolute); continue; }
         if (!/\.[cm]?js$/.test(entry.name)) continue;
-        for (const m of fs.readFileSync(absolute, 'utf8').matchAll(/from\s+['"]\.\.\/([^/'"]+)\//g)) siblings.add(m[1]);
+        // Static `from '../x/…'` and dynamic `import('../x/…')` alike: an
+        // entrypoint that loads a sibling only on its default path fails at
+        // start, in the image, exactly as a static import would.
+        for (const m of fs.readFileSync(absolute, 'utf8').matchAll(/(?:from\s+|import\s*\(\s*)['"]\.\.\/([^/'"]+)\//g)) siblings.add(m[1]);
       }
     };
     scan(packageDir);
