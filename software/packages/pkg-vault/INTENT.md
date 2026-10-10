@@ -115,3 +115,32 @@ transport, which belongs to the later Logger chain. Proof:
 `test/evidence-outbox.live.mjs` on a real MariaDB whose server time zone is not
 UTC — mutation evidence without the value, rollback when the outbox table is
 missing, and the drain to the real Logger under the self-issued credential.
+
+<a id="parent-registration"></a>
+## Parent registration
+
+Units hold Vault-signed credentials only after the parent — the universe's
+construction path, which holds the master key and administers Vault's MariaDB
+as root — has done two things. `unit-registration.js` performs both, as a
+library and a command:
+
+* `public-key` prints Vault's Ed25519 signing public key for the universe,
+  derived from the master key (`VAULT_MASTER_KEY_FILE`, private) and
+  `SHAPER_UNIVERSE_ID`. The parent writes it as each consumer's
+  `UNIT_AUTH_PUBLIC_KEY_FILE` (Logger, Queue, Maestro): the pin comes from the
+  parent's own derivation, never from what a running Vault would hand out.
+* `register --unit <slug> --incarnation <id> --grant <audience>=<scope>…
+  --bootstrap-file <path> [--ttl-seconds <n>]` writes a fresh 64-hex bootstrap
+  token to a new 0600 file (it never overwrites one) and prints the one
+  statement root applies to Vault's database. The statement carries the
+  token's SHA-256, never the token. Re-registering the same incarnation
+  redelivers a bootstrap and keeps the epoch; a new incarnation bumps the epoch,
+  so the previous incarnation's credentials stop being current. The bootstrap
+  expiry (default 30 days, 60 s to 366 days) bounds how long a unit can renew:
+  the parent redelivers before it passes.
+
+A base composition registers `vault`, `queue` and `maestro` with
+`--grant logger=logger:ingest` after Vault's identity is born; a reader of
+Logger's events needs its own grant (`logger:read:own`, or `logger:observe` for
+pods and vitals). The file must be owned by the unit's account when the unit
+starts.

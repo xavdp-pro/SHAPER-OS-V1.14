@@ -19,6 +19,7 @@ import { adminQuery, liveEnv, resetUnit, unitDb } from '../../../pkg-db/test/liv
 import { MariaDbVaultStore } from '../../../pkg-vault/mariadb-store.js';
 import { VaultUnitIdentity } from '../../../pkg-vault/unit-identity.js';
 import { createVaultServer } from '../../../pkg-vault/index.js';
+import { registrationStatement, signingPublicKeyPem } from '../../../pkg-vault/unit-registration.js';
 import { MariaDbLoggerStore } from '../../mariadb-store.js';
 import { createLoggerServer } from '../../index.js';
 import { runtimeAuthorizer, runtimeCredentialClient } from '../../../pkg-auth/runtime-identity.js';
@@ -47,21 +48,22 @@ export async function startEvidenceStack({ units = ['vault', 'queue', 'maestro']
   await listen(vaultServer);
   const vaultUrl = `http://127.0.0.1:${vaultServer.address().port}`;
 
+  // The parent pins the key it derives from the master key — not one the
+  // running Vault hands out — and registers each incarnation after Vault's
+  // identity is born, through the administrative path.
   const publicKeyFile = path.join(dir, 'vault-public.pem');
-  fs.writeFileSync(publicKeyFile, identityService.publicKey.export({ type: 'spki', format: 'pem' }), { mode: 0o444 });
+  fs.writeFileSync(publicKeyFile, signingPublicKeyPem({ masterKey, universe: UNIVERSE }), { mode: 0o444 });
 
-  // The parent registers each incarnation after Vault's identity is born.
   const envs = {};
   for (const unit of units) {
     const bootstrap = crypto.randomBytes(32).toString('hex');
     const bootstrapFile = path.join(dir, `${unit}-bootstrap`);
     fs.writeFileSync(bootstrapFile, bootstrap, { mode: 0o600 });
     const incarnation = `${unit}-live-1`;
-    await adminQuery(`INSERT INTO vault.unit_identities
-      (universe_id, unit_id, incarnation, epoch, grants, bootstrap_digest, bootstrap_expires_at)
-      VALUES (?, ?, ?, 1, ?, ?, TIMESTAMPADD(HOUR, 1, UTC_TIMESTAMP(3)))`,
-    [UNIVERSE, unit, incarnation, JSON.stringify({ logger: ['logger:ingest'] }),
-      crypto.createHash('sha256').update(bootstrap).digest('hex')]);
+    const { sql, params } = registrationStatement({
+      universe: UNIVERSE, unit, incarnation, grants: { logger: ['logger:ingest'] }, bootstrapToken: bootstrap, ttlSeconds: 3600,
+    });
+    await adminQuery(`USE vault; ${sql}`, params);
     envs[unit] = {
       VAULT_URL: vaultUrl,
       UNIT_AUTH_PUBLIC_KEY_FILE: publicKeyFile,
