@@ -17,9 +17,36 @@ import {
   normalizeMasterKey,
   normalizeSecretKey,
 } from './index.js';
+import { createHash, randomUUID } from 'node:crypto';
 import { UnitDbError } from '../pkg-db/index.js';
-import { assertSchema, openUnitDb, probeDb } from '../pkg-db/pool.js';
+import { assertSchema, openUnitDb, probeDb, withTransaction } from '../pkg-db/pool.js';
+import { appendOutbox, outboxStatus } from '../pkg-db/outbox.js';
 import { vitals, ageSeconds } from '../pkg-logger/vitals.js';
+import { assertPublicEvent } from '../pkg-logger/public-event.js';
+
+/**
+ * How a secret is named in evidence: its key, which is a public reference —
+ * unless the key itself looks like a credential to Logger's public-event
+ * boundary, in which case only its digest leaves the Vault. Never the value.
+ * @param {string} key - a normalized secret key
+ */
+export function secretRef(key) {
+  try {
+    assertPublicEvent({ secretRef: key });
+    return key;
+  } catch {
+    return `sha256:${createHash('sha256').update(key).digest('hex')}`;
+  }
+}
+
+/** The outbox entry for one committed secret mutation; it carries no value. */
+export function secretEvidence(event, key, extra = {}) {
+  const eventId = randomUUID();
+  return {
+    eventId,
+    entry: { pod: 'vault', event, level: 'INFO', executionId: eventId, data: { secretRef: secretRef(key), ...extra } },
+  };
+}
 
 export const VAULT_SCHEMA_VERSION = 2;
 const KEY_VERSION = 1;
@@ -63,14 +90,19 @@ export class MariaDbVaultStore {
     const normalizedKey = normalizeSecretKey(key);
     assertStorablePayload(normalizedKey, payload);
     const { iv, authTag, ciphertext } = encryptSecret(payload, this.masterKey);
-    await this.pool.execute(
-      `INSERT INTO secrets (secret_key, iv, auth_tag, ciphertext, key_version)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE iv = VALUES(iv), auth_tag = VALUES(auth_tag),
-         ciphertext = VALUES(ciphertext), key_version = VALUES(key_version),
-         secret_version = secret_version + 1`,
-      [normalizedKey, iv, authTag, ciphertext, KEY_VERSION],
-    );
+    // The mutation and its evidence commit together, or neither does.
+    await withTransaction(this.pool, async (conn) => {
+      const [result] = await conn.execute(
+        `INSERT INTO secrets (secret_key, iv, auth_tag, ciphertext, key_version)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE iv = VALUES(iv), auth_tag = VALUES(auth_tag),
+           ciphertext = VALUES(ciphertext), key_version = VALUES(key_version),
+           secret_version = secret_version + 1`,
+        [normalizedKey, iv, authTag, ciphertext, KEY_VERSION],
+      );
+      const { eventId, entry } = secretEvidence('SECRET_STORED', normalizedKey, { created: Number(result?.affectedRows) === 1 });
+      await appendOutbox(conn, entry, { eventId });
+    });
     this.lastWriteAt = new Date().toISOString();
     return true;
   }
@@ -92,9 +124,16 @@ export class MariaDbVaultStore {
 
   async deleteSecret(key) {
     if (!key) return false;
-    const [result] = await this.pool.execute('DELETE FROM secrets WHERE secret_key = ?', [normalizeSecretKey(key)]);
-    if (result.affectedRows > 0) this.lastWriteAt = new Date().toISOString();
-    return result.affectedRows > 0;
+    const normalizedKey = normalizeSecretKey(key);
+    const deleted = await withTransaction(this.pool, async (conn) => {
+      const [result] = await conn.execute('DELETE FROM secrets WHERE secret_key = ?', [normalizedKey]);
+      if (!(result.affectedRows > 0)) return false;
+      const { eventId, entry } = secretEvidence('SECRET_DELETED', normalizedKey);
+      await appendOutbox(conn, entry, { eventId });
+      return true;
+    });
+    if (deleted) this.lastWriteAt = new Date().toISOString();
+    return deleted;
   }
 
   async listKeys() {
@@ -107,12 +146,19 @@ export class MariaDbVaultStore {
     return { ...db, user: `${this.config.user}@localhost`, database: this.config.database, passwordSource: this.config.passwordSource };
   }
 
+  /** The evidence still owed to Logger: observable, never silent. */
+  async evidenceStatus() {
+    return outboxStatus(this.pool);
+  }
+
   async vitals(now = Date.now()) {
     const db = await this.probe();
     let secretsHeld = null;
+    let evidence = null;
     if (db.ok) {
       const [rows] = await this.pool.query('SELECT COUNT(*) AS n FROM secrets');
       secretsHeld = Number(rows[0].n);
+      evidence = await this.evidenceStatus();
     }
     return vitals({
       service: 'brick-vault',
@@ -122,6 +168,9 @@ export class MariaDbVaultStore {
         lastSuccessfulDecryptAgeSeconds: ageSeconds(this.lastDecryptAt, now),
         lastWriteAgeSeconds: ageSeconds(this.lastWriteAt, now),
         keyVersion: this.identity.keyVersion,
+        // Evidence committed with a mutation and not yet receipted by Logger.
+        evidencePending: evidence ? evidence.pending : null,
+        oldestPendingEvidenceAt: evidence ? evidence.oldestPendingAt : null,
       },
       checks: {
         storage: { ok: db.ok, latencyMs: db.latencyMs, ...(db.error ? { error: db.error } : {}) },

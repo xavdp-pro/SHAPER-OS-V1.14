@@ -6,15 +6,37 @@
  *
  * Storage is the unit's private MariaDB (Rules 4 and 26). The encrypted file
  * store remains only as declared DEV scaffolding, chosen explicitly with
- * VAULT_STORE=file; nothing falls back to it.
+ * VAULT_STORE=file; nothing falls back to it, and it is refused when a
+ * promotion or qualification flag is set.
+ *
+ * On MariaDB, every secret mutation and credential issuance commits its
+ * evidence to the unit's outbox in the same transaction; after listening, one
+ * relay lane delivers it to Logger under a logger-audience credential Vault
+ * issues to itself through its own registered incarnation.
+ *
+ * Intent: software/packages/pkg-vault/INTENT.md#evidence-relay
  */
 
 import fs from 'node:fs';
 import { createVaultServer } from './index.js';
+import { assertDisposableStoreAllowed } from '../pkg-db/index.js';
 
 const PORT = parseInt(process.env.PORT || process.env.VAULT_PORT || '8610', 10);
 const HOST = process.env.HOST || process.env.VAULT_HOST || '0.0.0.0';
 const STORE = (process.env.VAULT_STORE || 'mariadb').trim();
+
+function refuse(err) {
+  console.error(`[brick-vault] refusing to start: ${err.code || 'ERROR'} — ${err.message}`);
+  process.exit(1);
+}
+
+if (STORE === 'file') {
+  try {
+    assertDisposableStoreAllowed({ unit: 'vault', store: 'file' });
+  } catch (err) {
+    refuse(err);
+  }
+}
 
 function readMasterKey() {
   const file = process.env.VAULT_MASTER_KEY_FILE;
@@ -50,6 +72,7 @@ const VAULT_TOKEN = process.env.VAULT_TOKEN || null;
 
 let vaultStore = null;
 let identityService = null;
+let evidenceRelay = null;
 let storageFile = null;
 if (STORE === 'mariadb') {
   const { MariaDbVaultStore } = await import('./mariadb-store.js');
@@ -61,9 +84,15 @@ if (STORE === 'mariadb') {
     identityService = new VaultUnitIdentity({ pool: vaultStore.pool, masterKey: vaultStore.masterKey,
       universe: process.env.SHAPER_UNIVERSE_ID,
       ttl: process.env.UNIT_CREDENTIAL_TTL_SECONDS === undefined ? 300 : Number(process.env.UNIT_CREDENTIAL_TTL_SECONDS) });
+    const { createVaultEvidenceRelay } = await import('./evidence-runtime.js');
+    evidenceRelay = createVaultEvidenceRelay({
+      pool: vaultStore.pool,
+      identityService,
+      report: (event) => console.warn(`[brick-vault] ${JSON.stringify(event)}`),
+    });
   } catch (err) {
-    console.error(`[brick-vault] refusing to start: ${err.code || 'ERROR'} — ${err.message}`);
-    process.exit(1);
+    if (vaultStore) await vaultStore.close().catch(() => {});
+    refuse(err);
   }
   console.log(`[brick-vault] Storage: private MariaDB ${vaultStore.config.user}@localhost/${vaultStore.config.database} via ${vaultStore.config.socketPath} (identity ${vaultStore.identity.born ? 'born now' : 'continued'})`);
 } else if (STORE === 'file') {
@@ -79,7 +108,7 @@ if (STORE === 'mariadb') {
 }
 
 console.log(`[brick-vault] Starting Vault Engine on ${HOST}:${PORT}...`);
-console.log(`[brick-vault] Token Auth: ${VAULT_TOKEN ? 'ENABLED' : 'DISABLED (open localhost)'}`);
+console.log(`[brick-vault] Administrative surface: ${VAULT_TOKEN ? 'credential configured' : identityService ? 'disabled (no VAULT_TOKEN)' : 'DEV open surface'}`);
 
 const server = createVaultServer({
   port: PORT,
@@ -92,15 +121,28 @@ const server = createVaultServer({
 });
 
 server.on('listening', () => {
-  console.log(`[brick-vault] Ready and listening on http://${HOST}:${PORT}`);
+  console.log(`[brick-vault] Ready and listening on http://${HOST}:${server.address().port}`);
+  evidenceRelay?.start();
 });
 
-function shutdown(signal) {
+let stopping = false;
+async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
   console.log(`[brick-vault] Received ${signal}, shutting down...`);
-  server.close(async () => {
-    if (vaultStore) await vaultStore.close().catch(() => {});
-    process.exit(0);
-  });
+  let code = 0;
+  try {
+    await Promise.all([
+      new Promise((resolve) => server.close(resolve)),
+      evidenceRelay ? evidenceRelay.close() : Promise.resolve(),
+    ]);
+  } catch (err) {
+    // The batch in flight did not settle in time: its debt stays in MariaDB.
+    console.error(`[brick-vault] ${err.code || 'SHUTDOWN_UNCONFIRMED'}: evidence delivery in flight not confirmed; the debt is retained`);
+    code = 1;
+  }
+  if (vaultStore) await vaultStore.close().catch(() => {});
+  process.exit(code);
 }
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT', () => { void shutdown('SIGINT'); });
