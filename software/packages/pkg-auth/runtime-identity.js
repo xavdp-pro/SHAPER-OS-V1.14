@@ -67,7 +67,10 @@ export function runtimeCredentialClient(env = process.env, fetchImpl = fetch, { 
   return {
     async headers(audience) {
       const old = cache.get(audience);
-      if (old && old.claims.expiresAt * 1000 - Date.now() > 30000) return { Authorization: `Bearer ${old.token}` };
+      // Renew within 30 s of expiry, or within half the lifetime of a short
+      // one: a margin larger than the lifetime would renew on every call.
+      const margin = old ? Math.min(30, (old.claims.expiresAt - old.claims.issuedAt) / 2) * 1000 : 0;
+      if (old && old.claims.expiresAt * 1000 - Date.now() > margin) return { Authorization: `Bearer ${old.token}` };
       if (!pending.has(audience)) {
         const renewal = (async () => {
           const bootstrap = bootstrapFromFile(env.UNIT_BOOTSTRAP_TOKEN_FILE);

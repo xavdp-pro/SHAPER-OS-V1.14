@@ -64,3 +64,25 @@ test('Vault renews its own credential in-process through the same bootstrap, inc
     await assert.rejects(wrongKey.headers('logger'), { code: 'CREDENTIAL_SIGNATURE_INVALID' });
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('a short credential lifetime is still cached for half of it, not renewed on every call', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'unit-identity-short-'));
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const universe = '550e8400-e29b-41d4-a716-446655440000';
+  const env = { SHAPER_UNIVERSE_ID: universe, SHAPER_UNIT_SLUG: 'vault', SHAPER_UNIT_INCARNATION: 'vault-1',
+    UNIT_BOOTSTRAP_TOKEN_FILE: path.join(dir, 'bootstrap') };
+  fs.writeFileSync(env.UNIT_BOOTSTRAP_TOKEN_FILE, 'c'.repeat(64), { mode: 0o600 });
+  let issued = 0;
+  const issuer = async (ask) => {
+    issued++;
+    return issueCredential({ universe, unit: ask.unit, incarnation: ask.incarnation, audience: ask.audience,
+      scopes: ['logger:ingest'], epoch: 1, revocationRef: 'vault:1' }, privateKey, { ttl: 20 });
+  };
+  try {
+    const client = runtimeCredentialClient(env, fetch, { issuer, publicKey });
+    await client.headers('logger');
+    await client.headers('logger');
+    await client.headers('logger');
+    assert.equal(issued, 1, 'a 20 s credential is reused for its first 10 s');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
