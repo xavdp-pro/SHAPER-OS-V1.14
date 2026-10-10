@@ -7,7 +7,10 @@
 # For each unit:
 #   1. a crash-consistent dump through the root path (mariadb-dump
 #      --single-transaction --databases <slug>), written under a .part name and
-#      kept only when it has a size, root-only (Rule 12);
+#      kept only when it has a size, root-only (Rule 12). The live tables are
+#      fingerprinted before and after the dump and the dump is retaken until
+#      both agree: units renew credentials and relay evidence on their own, so
+#      a "quiet" universe still writes, and the comparison below must be exact;
 #   2. a throwaway unit container from the SAME image as the live unit, over a
 #      fresh etc/mysql, sav and log, started with UNIT_RESTORE_DUMP and
 #      UNIT_MODE=database: the supervisor births a new datadir, loads the dump
@@ -18,6 +21,12 @@
 #      the unit's application reads a control record back through its own API
 #      — the Vault decrypts a controlled secret with the universe's key, and a
 #      Vault started with any other key refuses to serve.
+#
+# A throwaway unit never reaches the live universe with a write: its
+# evidence relay and Queue address an unused port (127.0.0.1:9), and its
+# bootstrap is a random value no Vault ever registered. The one exception is
+# a read: the restored Logger checks the proof's credential at the live Vault,
+# the authority that issued it.
 #
 # Run it on a quiet universe, after proof.sh: the comparison is exact, and a
 # unit that writes between the dump and the comparison is reported, not hidden.
@@ -63,51 +72,75 @@ wait_drill_ready() {
   return 1
 }
 
-# What each unit's application needs to answer on its drill port, and nothing
-# that reaches the live universe.
+volumes_of() { jq -r --arg s "$1" '.bricks[] | select(.database.slug == $s) | (.database.volumes // ["etc/mysql", "sav", "log"]) | join(" ")' "$MANIFEST"; }
+UNIVERSE_ID="$(universe_uuid)"
+NOWHERE="http://127.0.0.1:9"
+
+# What each unit's application needs to answer on its drill port — its own
+# identity inputs from the throwaway etc/identity/ — and nothing that writes
+# to the live universe.
 drill_args() {
   local s="$1" port="$2" key="$3"
+  local identity="-e SHAPER_UNIVERSE_ID=$UNIVERSE_ID -v $4/etc/identity:/apps/$s/etc/identity:ro,Z"
+  local holds="-e SHAPER_UNIT_INCARNATION=$s-drill-$STAMP -e UNIT_BOOTSTRAP_TOKEN_FILE=/apps/$s/etc/identity/bootstrap"
+  local pin="-e UNIT_AUTH_PUBLIC_KEY_FILE=/apps/$s/etc/identity/vault-signing.pub"
   case "$s" in
-    vault)   echo "-e VAULT_PORT=$port -e VAULT_TOKEN=$DRILL_TOKEN -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -v $key:/apps/vault/etc/vault/master.key:ro,Z" ;;
-    logger)  echo "-e LOGGER_PORT=$port" ;;
-    queue)   echo "-e QUEUE_PORT=$port -e QUEUE_AUTO_DISPATCH=0" ;;
-    maestro) echo "-e MAESTRO_PORT=$port -e MAESTRO_AUTO_START=0 -e SHAPER_UNIVERSE_ID=$UNIVERSE -e MAESTRO_QUEUE_URL=http://127.0.0.1:9" ;;
+    vault)   echo "$identity $holds -e LOGGER_URL=$NOWHERE -e VAULT_PORT=$port -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -v $key:/apps/vault/etc/vault/master.key:ro,Z" ;;
+    logger)  echo "$identity $pin -e VAULT_URL=http://127.0.0.1:$(port_of vault) -e LOGGER_PORT=$port" ;;
+    queue)   echo "$identity $holds $pin -e VAULT_URL=$NOWHERE -e LOGGER_URL=$NOWHERE -e QUEUE_PORT=$port -e QUEUE_AUTO_DISPATCH=0" ;;
+    maestro) echo "$identity $holds $pin -e VAULT_URL=$NOWHERE -e LOGGER_URL=$NOWHERE -e MAESTRO_PORT=$port -e MAESTRO_AUTO_START=0 -e MAESTRO_QUEUE_URL=$NOWHERE" ;;
   esac
 }
 start_drill() {  # <slug> <work> <mode> <port> [key-file] [extra -e…]
-  local s="$1" work="$2" mode="$3" port="$4" key="$5"; shift 5
-  local network=(--network none)
+  local s="$1" work="$2" mode="$3" port="$4" key="$5" v; shift 5
+  local network=(--network none) volumes=()
   [[ "$mode" == serve ]] && network=(--network host)
+  for v in $(volumes_of "$s"); do volumes+=(-v "$work/$v:/apps/$s/$v:Z"); done
+  # The Vault's drill token reaches the container by name, never on a command line.
   # shellcheck disable=SC2046
-  podman run -d --name "$(drill_ctr "$s")" --replace --restart=no "${network[@]}" \
+  VAULT_TOKEN="$DRILL_TOKEN" podman run -d --name "$(drill_ctr "$s")" --replace --restart=no "${network[@]}" \
     --stop-timeout 90 \
     --cap-drop=all --cap-add=CHOWN,DAC_OVERRIDE,FOWNER,KILL,SETGID,SETUID \
     --security-opt=no-new-privileges \
     -e HOST=127.0.0.1 -e UNIT_MODE="$mode" -e UNIT_HEALTH_URL="http://127.0.0.1:$port/api/health" "$@" \
-    -v "$work/etc/mysql:/apps/$s/etc/mysql:Z" -v "$work/sav:/apps/$s/sav:Z" -v "$work/log:/apps/$s/log:Z" \
-    $( [[ "$mode" == serve ]] && drill_args "$s" "$port" "$key" ) \
+    "${volumes[@]}" \
+    $( [[ "$mode" == serve ]] && drill_args "$s" "$port" "$key" "$work" ) \
+    $( [[ "$mode" == serve && "$s" == vault ]] && echo "-e VAULT_TOKEN" ) \
     "$IMAGE" >/dev/null
+}
+# The throwaway unit's identity: the live pin (public), and a random bootstrap
+# no Vault holds a digest of — enough for the application to start, never to
+# obtain a credential.
+drill_identity() {  # <slug> <work>
+  local s="$1" work="$2" uid
+  uid="$(uid_of "$s")"
+  install -d -m 0750 -o root -g "$uid" "$work/etc/identity"
+  if [[ -s "$VAULT_ETC_DIR/vault-signing.pub" ]]; then install -m 0644 -o root -g root "$VAULT_ETC_DIR/vault-signing.pub" "$work/etc/identity/vault-signing.pub"; fi
+  ( umask 077; openssl rand -hex 32 | tr -d '\n' > "$work/etc/identity/bootstrap" )
+  chown "$uid:$uid" "$work/etc/identity/bootstrap"
 }
 
 DRILL_TOKEN="$(openssl rand -hex 16)"
-VAULT_TOKEN="$(cat "$APPS_ROOT/vault/etc/vault/api-token" 2>/dev/null || true)"
-KEY_FILE="$APPS_ROOT/vault/etc/vault/master.key"
+KEY_FILE="$VAULT_ETC_DIR/master.key"
 
 # ── Control records, written through the live units' APIs ──────────────────
 CONTROL_KEY="restore-drill/$STAMP"
 CONTROL_VALUE="$(openssl rand -hex 16)"
-curl -sf -o /dev/null -X POST -H "Authorization: Bearer $VAULT_TOKEN" -H "$H" -d "{\"data\":\"$CONTROL_VALUE\"}" \
+vault_curl -sf -o /dev/null -X POST -H "$H" -d "{\"data\":\"$CONTROL_VALUE\"}" \
   "http://127.0.0.1:$(port_of vault)/api/secret/$CONTROL_KEY" \
   && ok vault-control "controlled secret $CONTROL_KEY stored through the live Vault" \
   || fail vault-control "the live Vault refused the controlled secret"
-CONTROL_EVENT="$(curl -s -X POST "http://127.0.0.1:$(port_of logger)/api/ingest" -H "$H" \
-  -d "{\"pod\":\"restore-drill\",\"event\":\"RESTORE_DRILL\",\"correlationId\":\"$STAMP\",\"sourceEventId\":\"restore-drill/$STAMP\",\"data\":{\"stamp\":\"$STAMP\"}}" | jq -r '.record.id // empty')"
+CONTROL_EVENT="$(logger_curl -s -X POST "http://127.0.0.1:$(port_of logger)/api/ingest" -H "$H" \
+  -d "{\"pod\":\"proof\",\"event\":\"RESTORE_DRILL\",\"correlationId\":\"$STAMP\",\"sourceEventId\":\"restore-drill/$STAMP\",\"data\":{\"stamp\":\"$STAMP\"}}" | jq -r '.record.id // empty')"
 [[ -n "$CONTROL_EVENT" ]] && ok logger-control "event $CONTROL_EVENT ingested by the live Logger" || fail logger-control "the live Logger refused the control event"
 CONTROL_JOB="$(curl -s -X POST "http://127.0.0.1:$(port_of queue)/api/jobs" -H "$H" \
   -d "{\"type\":\"restore.drill\",\"payload\":{\"stamp\":\"$STAMP\"},\"idempotencyKey\":\"restore-drill-$STAMP\"}" | jq -r '.job.id // empty')"
 curl -s -o /dev/null -X PATCH "http://127.0.0.1:$(port_of queue)/api/jobs/$CONTROL_JOB" -H "$H" -d '{"status":"COMPLETED","progress":100,"step":1,"result":{"drill":true}}'
 [[ -n "$CONTROL_JOB" ]] && ok queue-control "job $CONTROL_JOB COMPLETED in the live Queue" || fail queue-control "the live Queue refused the control job"
-sleep 2   # let the Queue's audit event reach the Logger before the Logger is dumped
+# The Queue's evidence of the control job reaches the Logger before the Logger is dumped.
+evidence_delivered queue "JSON_VALUE(body, '\$.correlationId') = '$CONTROL_JOB'" \
+  && ok queue-control-evidence "the control job's evidence receipted by the live Logger" \
+  || fail queue-control-evidence "the control job's evidence did not reach the live Logger"
 
 for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST"); do
   printf '\n── %s\n' "$s"
@@ -115,19 +148,29 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
   IMAGE="$(podman inspect -f '{{.Image}}' "$live")"
   dumps="$APPS_ROOT/$s/sav/dumps"; install -d -m 0700 -o root -g root "$dumps"
   dump="$dumps/$s-$STAMP.sql"
-  if podman exec "$live" mariadb-dump --no-defaults -S "/run/$s/mysqld.sock" -uroot --single-transaction --routines --triggers --databases "$s" > "$dump.part" \
-     && [[ -s "$dump.part" ]]; then
+  # The dump is kept only when the live tables did not move while it was taken.
+  livefp=""; attempt=0
+  while (( attempt++ < 5 )); do
+    before="$(fingerprint rootsql "$s")"
+    if podman exec "$live" mariadb-dump --no-defaults -S "/run/$s/mysqld.sock" -uroot --single-transaction --routines --triggers --databases "$s" > "$dump.part" \
+       && [[ -s "$dump.part" ]]; then
+      livefp="$(fingerprint rootsql "$s")"
+      [[ -n "$before" && "$before" == "$livefp" ]] && break
+    fi
+    livefp=""; sleep 3
+  done
+  if [[ -n "$livefp" ]]; then
     mv "$dump.part" "$dump"; chmod 0600 "$dump"
-    ok "$s-dump" "$(stat -c %s "$dump") bytes, sha256 $(sha256sum "$dump" | cut -c1-16)…"
+    ok "$s-dump" "$(stat -c %s "$dump") bytes, sha256 $(sha256sum "$dump" | cut -c1-16)…, live tables unchanged across it (attempt $attempt)"
   else
-    rm -f "$dump.part"; fail "$s-dump" "mariadb-dump failed or produced nothing"; continue
+    rm -f -- "$dump.part"; fail "$s-dump" "no dump with the live tables still: mariadb-dump failed, or $s kept writing across 5 attempts"; continue
   fi
-  livefp="$(fingerprint rootsql "$s")"
 
   # The fresh volume: what a recovery onto a new host starts from.
   work="$APPS_ROOT/$s/nosav/restore-drill-$STAMP"
   install -d -m 0755 -o root -g root "$APPS_ROOT/$s/nosav" "$work" "$work/etc" "$work/etc/mysql" "$work/sav"
   install -d -m 0750 -o "$(uid_of "$s")" -g "$(uid_of "$s")" "$work/log"
+  drill_identity "$s" "$work"
   install -d -m 0700 -o root -g root "$work/sav/restore"
   install -m 0600 -o root -g root "$dump" "$work/sav/restore/$s.sql"
 
@@ -160,7 +203,9 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
   D="http://127.0.0.1:$dport"
   case "$s" in
     vault)
-      got="$(curl -sf -H "Authorization: Bearer $DRILL_TOKEN" "$D/api/secret/$CONTROL_KEY" | jq -r '.data // empty')"
+      ( umask 077; printf '%s' "$DRILL_TOKEN" > "$work/drill-token" )
+      write_header "$work/drill.header" "$work/drill-token"
+      got="$(curl -sf -H @"$work/drill.header" "$D/api/secret/$CONTROL_KEY" | jq -r '.data // empty')"
       [[ "$got" == "$CONTROL_VALUE" ]] && ok vault-restore-decrypts "the restored Vault decrypts the controlled secret with the universe's key" \
         || fail vault-restore-decrypts "expected the controlled value, got '${got:0:8}…'"
       podman rm -f "$(drill_ctr "$s")" >/dev/null
@@ -176,7 +221,7 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
       fi
       ;;
     logger)
-      got="$(curl -s "$D/api/events/last?correlationId=$STAMP&event=RESTORE_DRILL" | jq -r '.events[0].id // empty')"
+      got="$(logger_curl -s "$D/api/events/last?correlationId=$STAMP&event=RESTORE_DRILL" | jq -r '.events[0].id // empty')"
       [[ -n "$got" && "$got" == "$CONTROL_EVENT" ]] && ok logger-restore-reads "the restored Logger returns the control event $got" \
         || fail logger-restore-reads "expected event $CONTROL_EVENT, got '$got'"
       ;;
@@ -198,7 +243,7 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
   rm -rf "$work"
 done
 
-curl -sf -o /dev/null -X DELETE -H "Authorization: Bearer $VAULT_TOKEN" "http://127.0.0.1:$(port_of vault)/api/secret/$CONTROL_KEY" \
+vault_curl -sf -o /dev/null -X DELETE "http://127.0.0.1:$(port_of vault)/api/secret/$CONTROL_KEY" \
   && ok vault-control-removed "controlled secret removed from the live Vault" \
   || fail vault-control-removed "the controlled secret is still in the live Vault"
 

@@ -14,6 +14,11 @@ model stands on; the reference universe adds the OpenCode bridge on top of it
 
 Maestro is present and idle: with no declared schedule it submits nothing.
 
+Every state change of Vault, Queue and Maestro commits its evidence to the
+unit's own outbox in the same transaction, and each unit delivers it to Logger
+under a short-lived credential Vault signs for it ([identity](#identity)).
+Logger accepts and serves nothing without such a credential.
+
 ## Exact runtime — four units, four containers, eight processes
 
 | Unit | Container | Application account | MariaDB server account | Socket (inside the container) |
@@ -66,17 +71,66 @@ outside the unit:
    health command) is gated on the MariaDB process the supervisor started. The
    durable state of every unit is in its database — no JSON, JSONL or SQLite
    store serves in this universe.
-7. **Persistent and restorable.** Three volumes per unit, on the universe
-   container: `/apps/<slug>/etc/mysql` (the password), `/apps/<slug>/sav` (the
-   datadir `sav/mariadb`, owned by the unit's engine uid, and `sav/dumps`), and
-   `/apps/<slug>/log`. Ownership is set on single directories only, never
+7. **Persistent and restorable.** The volumes each unit declares
+   (`database.volumes` in the manifest), on the universe container:
+   `/apps/<slug>/etc/mysql` (the password), `/apps/<slug>/sav` (the datadir
+   `sav/mariadb`, owned by the unit's engine uid, and `sav/dumps`), and
+   `/apps/<slug>/log` for Vault, Logger and Queue. Maestro has no log volume:
+   its durable path writes no local file, its evidence is an outbox row until
+   Logger receipts it. Ownership is set on single directories only, never
    recursively.
 
 The Vault master key is `/apps/vault/etc/vault/master.key` (`0400`, owned by
 `vault`, mounted read-only as a single file). It is generated only when the
 Vault is born; a Vault whose datadir exists without its key is a halt, never a
 new key. The Vault API token sits beside it, root-only, and reaches the unit
-through its environment; `etc/vault/` itself is never mounted.
+through its environment, by name; `etc/vault/` itself is never mounted.
+
+<a id="identity"></a>
+## Unit identities: the parent's registration and the birth order
+
+The universe identity is a lowercase UUID, `/apps/vault/etc/vault/universe-id`,
+generated once beside the master key (or named by `SHAPER_UNIVERSE_ID` at
+birth). With the key it derives Vault's Ed25519 signing key, and it is part of
+every Maestro occurrence id: a Vault or Maestro database without it is a halt,
+never a new identity, and a `SHAPER_UNIVERSE_ID` that differs from the
+recorded one is refused.
+
+`deploy/podman-up.sh` is the parent of
+[`pkg-vault/unit-registration.js`](../../packages/pkg-vault/INTENT.md#parent-registration),
+which it runs from the Vault image itself (no network, no capability). At every
+run, before any unit starts:
+
+1. **The pin.** Vault's public key, derived from the master key and the
+   universe UUID — never read from a running Vault — written root-owned `0644`
+   to `/apps/<slug>/etc/identity/vault-signing.pub` for Logger, Queue and
+   Maestro (`UNIT_AUTH_PUBLIC_KEY_FILE`).
+2. **The registrations.** A new incarnation `<slug>-<UTC stamp>` for each unit
+   that owes evidence to Logger — `vault`, `queue`, `maestro`, each with
+   `--grant logger=logger:ingest` — and one for the proof's reader `proof`
+   (`logger:ingest`, `logger:read:own`). Each bootstrap is a new file owned by
+   its unit's account, `0600`, at `/apps/<slug>/etc/identity/bootstrap`
+   (`UNIT_BOOTSTRAP_TOKEN_FILE`); the proof's is root-only under
+   `PROOF_STATE_DIR` (`/var/lib/univ-proof/<universe>/identity/`). The
+   statements root applies carry each bootstrap's SHA-256, never its value;
+   they wait in `/apps/vault/etc/vault/registration/registration.sql`
+   (root-only).
+
+Then the units start in `bootOrder` — Vault alone first. As soon as Vault is
+ready, root applies the registrations to Vault's database through its socket
+(`mariadb -uroot vault < registration.sql`) and reads them back; only then do
+Logger, Queue and Maestro start, each in its own layer. Every unit receives
+`SHAPER_UNIVERSE_ID` and its `etc/identity/` read-only; a unit that holds a
+credential also receives `SHAPER_UNIT_INCARNATION` and
+`UNIT_BOOTSTRAP_TOKEN_FILE`, one that verifies receives `VAULT_URL` and the
+pin. Vault and the units that owe evidence receive `LOGGER_URL`.
+
+A recreation is a new incarnation: the epoch of each identity moves, and the
+credentials of the containers it replaces stop being current at once. A
+bootstrap expires after 30 days (pkg-vault's default): a universe that has not
+been recreated within that time must run `podman-up.sh` again — it re-delivers
+every bootstrap — or its units stop obtaining credentials and their evidence
+waits in their outboxes (never lost, reported once).
 
 <a id="host"></a>
 ## What the universe container must provide
@@ -116,6 +170,20 @@ and all their ancestors not writable by the unit's uid; the datadir not
 listable and `mariadbd` not signalable by it — and each unit proves one real
 effect read back from its database through the root path.
 
+Each unit's identity is in the same inventory: `etc/identity/` mounted
+read-only, the universe UUID in its environment, the pin root-owned and equal
+to the parent's derivation, the bootstrap a `0600` file of the unit's account
+and never a value in its environment, a credential Vault issued to the unit's
+current incarnation (read from `vault.unit_credentials` by the root path), and
+no evidence owed to Logger for more than 15 minutes. Among the effects: an
+anonymous ingest refused by Logger (401); the proof writing as `proof` and
+refused another unit's events (403); and the evidence of the proof's own Vault
+write, Queue jobs and Maestro occurrence found receipted in each unit's outbox
+and held by Logger under that unit's name — both read from the databases,
+never from either unit's answer. The proof calls Logger under a credential
+Vault issues to its own identity for each call, and the Vault API with the
+construction path's token; no credential is ever on a command line.
+
 A green health endpoint is not in that list as a proof: it shows a process is
 up, never that work happened.
 
@@ -129,26 +197,51 @@ container). After each: the markers are unchanged in the databases, no table
 lost a row, every password file is the same; each unit's log shows the
 application stopped before MariaDB and MariaDB shut down cleanly, no crash
 recovery, then MariaDB ready, the password kept and the schema retained before
-the application started.
+the application started. After the recreation, each unit that holds a
+credential runs a new incarnation — the only one Vault holds for it — and Vault
+has issued it a credential.
 
 <a id="restore"></a>
 ## Restore into a fresh volume
 
 `deploy/restore-drill.sh`, for each unit: a `mariadb-dump --single-transaction
---databases <slug>` through the root path into `sav/dumps/` (root-only); a
+--databases <slug>` through the root path into `sav/dumps/` (root-only), kept
+only when the live tables are identical before and after it (the units renew
+credentials and relay evidence by themselves, so even a quiet universe writes);
+a
 throwaway container from the live unit's own image over fresh volumes, started
 with `UNIT_RESTORE_DUMP` and `UNIT_MODE=database` — the unit births a new
 datadir, loads the dump as root, checks the exact schema version and creates
 its account with a new password; the restored tables compared with the live
 ones; then the same volumes served by the unit's own application on a drill
 port, which reads a control record back through its API (the Vault decrypts a
-controlled secret with the universe's key, and refuses another key).
+controlled secret with the universe's key, and refuses another key). A
+throwaway unit gets the live pin and a random bootstrap no Vault registered;
+its evidence relay and Queue address an unused port, so nothing it does writes
+to the live universe. The restored Logger checks the proof's credential at the
+live Vault — a read.
 
 The same mechanism restores a unit for real: stop its container, move its
 `sav/` aside (kept), put the dump at `sav/restore/<slug>.sql` (root, `0600`) in
 an empty `sav/`, and run `podman-up.sh` once with
 `RESTORE_DUMP_<slug>=/apps/<slug>/sav/restore/<slug>.sql`; unset it afterwards
 (a restore dump is refused by a datadir that already holds a database).
+
+<a id="rehearsal"></a>
+## Rehearsal where podman cannot run
+
+`test/rehearsal/rehearsal.live.mjs` runs the real `deploy/podman-up.sh` and the
+effects section of `deploy/proof.sh` on a workstation without podman: a fake
+podman (`test/rehearsal/bin/podman`) starts each unit's real `server.js` as a
+process, its container paths redirected, its database on one throwaway MariaDB
+that pkg-db's live runner provisions. It checks the birth order, the
+registrations Vault holds by digest, the pin and the bootstraps, that no secret
+reaches a command line or the output, each unit's credential and evidence, a
+recreation's new incarnations (the old credential refused), the refusal of a
+changed universe identity, and the effects section green twice. It proves
+nothing about the container shape — one process per unit, one uid for all, no
+supervisor, no Rule 26 inventory — and never qualifies the universe: the proof
+above, on a real podman, does.
 
 <a id="migration"></a>
 ## Migration from the separate-database shape
@@ -173,6 +266,15 @@ owner, and no recursive `chown` is ever made. Per unit, in bootOrder:
 The Vault keeps its master key file; its restored `vault_identity` row checks
 it at start.
 
+The separate-database shape named Maestro's universe by its instance slug
+(`SHAPER_UNIVERSE_ID=<universe>`); the units now require a UUID. Occurrence
+ids recorded under the slug stay as they are, and the schedules' next instants
+get ids under the UUID: name `SHAPER_UNIVERSE_ID` at the migration and expect
+no deduplication between an occurrence recorded before and one after. The
+schema version of Vault, Queue and Maestro is now 2 (the evidence outbox,
+Vault's unit identities): a dump of a version-1 database is refused by the new
+image (exit 7) and needs its own authorized migration (Rule 30).
+
 <a id="image-lock"></a>
 ## Images
 
@@ -191,9 +293,13 @@ may not.
 Recorded so nobody reads the floor as the full target contract of the units
 (`operator-deliverables/*-FUNCTIONAL-UNIT-TARGET-2026-09-22.md`):
 
-- no short-lived, Vault-signed unit credentials: the internal APIs rely on the
-  `127.0.0.1` boundary and Vault's bearer token (Rule 0K);
-- no transactional outbox to Logger: audit events are still sent over HTTP;
+- Queue's and Maestro's own APIs still rely on the `127.0.0.1` boundary; only
+  Logger and Vault's identity endpoints check Vault-signed credentials, and
+  Vault's generic secret API keeps its bearer token (Rule 0K);
+- a unit's bootstrap expires after 30 days and is re-delivered only by a run
+  of `podman-up.sh` — no automatic redelivery;
+- Vault records evidence of mutations and issuance, not of reads or refusals;
+  a Queue job settled as interrupted can still be PATCHed to `COMPLETED`;
 - no Logger cross-event chain or external checkpoint;
 - no Queue leases, attempts table or dead letter; no Maestro scheduler leases;
 - no automated partition maintenance, off-host encrypted recovery points or

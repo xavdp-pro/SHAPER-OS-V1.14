@@ -1,0 +1,11 @@
+#!/bin/bash
+# Intent: software/universes/univ-minimal/INTENT.md#rehearsal
+# Rehearsal-only: drop -o/-g other than root (see chown).
+args=()
+while (( $# )); do
+  case "$1" in
+    -o|-g) if [[ "$2" == root || "$2" == 0 ]]; then args+=("$1" "$2"); fi; shift 2 ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+exec /usr/bin/install "${args[@]}"

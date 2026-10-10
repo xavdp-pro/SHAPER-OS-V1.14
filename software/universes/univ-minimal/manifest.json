@@ -8,7 +8,7 @@
   "dataLifecycle": {
     "personalData": false,
     "retention": "unlimited — evidence and configuration only; each functional unit's MariaDB rows follow that unit's contract",
-    "onTermination": "destroy every unit's volumes (etc/mysql, sav, log) and the Vault master key; nothing is exported"
+    "onTermination": "destroy every unit's declared volumes (etc/mysql, sav, and log where declared) and its etc/identity, the Vault master key, the universe identity, and the proof's state and reader identity; nothing is exported"
   },
   "description": "The minimal composition: Vault, Logger, Queue and Maestro, each one functional Podman holding its application and its own MariaDB server, two processes in one container (Rules 4 and 26, Turbinobash method). No cognition adapter, no catalogue brick, no domain.",
   "intent": "./INTENT.md",
@@ -142,7 +142,9 @@
   },
   "bootOrder": [
     [
-      "brick-vault",
+      "brick-vault"
+    ],
+    [
       "brick-logger"
     ],
     [

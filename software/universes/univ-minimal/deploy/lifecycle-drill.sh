@@ -12,7 +12,12 @@
 #      ready before the application started, no crash recovery, the password
 #      kept and the schema retained, not re-applied;
 #   3. recreation of the universe (deploy/podman-up.sh replaces every
-#      container): new containers, same markers, counts and password.
+#      container): new containers, same markers, counts and password; each
+#      unit that holds a credential runs a new incarnation, the only one Vault
+#      now holds for it, and Vault has issued it a credential.
+#
+# The Vault and Logger markers are written under credentials (the Vault's API
+# token, the proof's Vault-signed identity), never on a command line.
 #
 # Run it on a quiet universe (Maestro idle). Exit 0 only when every check passed.
 set -uo pipefail
@@ -37,7 +42,8 @@ check() { local name="$1" detail="$2"; shift 2; if "$@"; then ok "$name" "$detai
 mapfile -t UNITS < <(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
 port() { jq -r --arg s "$1" '.bricks[] | select(.database.slug == $s) | .port' "$MANIFEST"; }
 url() { echo "http://127.0.0.1:$(port "$1")"; }
-VAULT_TOKEN="$(cat "$APPS_ROOT/vault/etc/vault/api-token" 2>/dev/null || true)"
+UNIVERSE_ID="$(universe_uuid)"
+HOLDS_CREDENTIAL="vault queue maestro"
 
 passwd_digest() { podman exec "${UNIVERSE}-ctr-$1" sha256sum "/apps/$1/etc/mysql/localhost/passwd" 2>/dev/null | cut -d' ' -f1; }
 row_counts() {  # "<table>:<rows> ..." for every base table of the unit database
@@ -74,15 +80,17 @@ log_in_order() {  # <ctr> <since> <pattern>...
 # ── 1. Markers, counts and password digests ────────────────────────────────
 printf '\n── markers\n'
 declare -A DIGEST COUNTS
-curl -sf -o /dev/null -X POST -H "Authorization: Bearer $VAULT_TOKEN" -H "$H" -d "{\"data\":\"lifecycle-$STAMP\"}" "$(url vault)/api/secret/lifecycle/$STAMP" \
+vault_curl -sf -o /dev/null -X POST -H "$H" -d "{\"data\":\"lifecycle-$STAMP\"}" "$(url vault)/api/secret/lifecycle/$STAMP" \
   && ok vault-marker "secret lifecycle/$STAMP stored" || fail vault-marker "the Vault refused the marker"
 vault_marker() { rootsql vault vault -e "SELECT SHA2(CONCAT(secret_key,iv,auth_tag,ciphertext),256) FROM secrets WHERE secret_key='lifecycle/$STAMP'" 2>/dev/null; }
-eid="$(curl -s -X POST "$(url logger)/api/ingest" -H "$H" -d "{\"pod\":\"lifecycle\",\"event\":\"LIFECYCLE_MARKER\",\"correlationId\":\"$STAMP\",\"sourceEventId\":\"lifecycle/$STAMP\",\"data\":{\"stamp\":\"$STAMP\"}}" | jq -r '.record.id // empty')"
+eid="$(logger_curl -s -X POST "$(url logger)/api/ingest" -H "$H" -d "{\"pod\":\"proof\",\"event\":\"LIFECYCLE_MARKER\",\"correlationId\":\"$STAMP\",\"sourceEventId\":\"lifecycle/$STAMP\",\"data\":{\"stamp\":\"$STAMP\"}}" | jq -r '.record.id // empty')"
 [[ -n "$eid" ]] && ok logger-marker "event $eid ingested" || fail logger-marker "the Logger refused the marker"
 logger_marker() { rootsql logger logger -e "SELECT digest FROM events WHERE id='$eid'" 2>/dev/null; }
 job="$(curl -s -X POST "$(url queue)/api/jobs" -H "$H" -d "{\"type\":\"lifecycle.marker\",\"payload\":{\"stamp\":\"$STAMP\"},\"idempotencyKey\":\"lifecycle-$STAMP\"}" | jq -r '.job.id // empty')"
 curl -s -o /dev/null -X PATCH "$(url queue)/api/jobs/$job" -H "$H" -d '{"status":"COMPLETED","progress":100,"step":1,"result":{"marker":true}}'
 [[ -n "$job" ]] && ok queue-marker "job $job COMPLETED" || fail queue-marker "the Queue refused the marker"
+check queue-marker-evidence "the marker job's evidence receipted by Logger and held there as queue's" \
+  evidence_delivered queue "JSON_VALUE(body, '\$.correlationId') = '$job'"
 queue_marker() { rootsql queue queue -e "SELECT CONCAT(status,'|',idempotency_key) FROM jobs WHERE id='$job'" 2>/dev/null; }
 
 MARK_VAULT="$(vault_marker)"; MARK_LOGGER="$(logger_marker)"; MARK_QUEUE="$(queue_marker)"
@@ -97,7 +105,7 @@ after_checks() {  # <phase>
   local phase="$1" s
   check "$phase-markers" "the Vault, Logger and Queue markers are unchanged in their databases" markers_kept
   check "$phase-vault-reads" "the Vault still decrypts its marker through its API" \
-    test "$(curl -sf -H "Authorization: Bearer $VAULT_TOKEN" "$(url vault)/api/secret/lifecycle/$STAMP" | jq -r .data)" = "lifecycle-$STAMP"
+    test "$(vault_curl -sf "$(url vault)/api/secret/lifecycle/$STAMP" | jq -r .data)" = "lifecycle-$STAMP"
   for s in "${UNITS[@]}"; do
     check "$phase-$s-password" "$s's password file is the same file content" test -n "${DIGEST[$s]}" -a "$(passwd_digest "$s")" = "${DIGEST[$s]}"
     check "$phase-$s-rows" "no table of $s lost a row" counts_kept "${COUNTS[$s]}" "$(row_counts "$s")"
@@ -121,10 +129,26 @@ for s in "${UNITS[@]}"; do
 done
 after_checks restart
 
+# The unit's current incarnation is the one Vault holds, and Vault has issued
+# it a logger credential (waits up to 60 s for the unit's first renewal).
+credential_current() {  # <slug>
+  local s="$1" inc tries=60
+  inc="$(unit_env "${UNIVERSE}-ctr-$s" SHAPER_UNIT_INCARNATION)"
+  [[ -n "$inc" && "$(rootsql vault vault -e "SELECT incarnation FROM unit_identities WHERE universe_id='$UNIVERSE_ID' AND unit_id='$s' AND NOT revoked" 2>/dev/null)" == "$inc" ]] || return 1
+  while (( tries-- > 0 )); do
+    [[ "$(rootsql vault vault -e "SELECT COUNT(*) FROM unit_credentials WHERE universe_id='$UNIVERSE_ID' AND unit_id='$s' AND incarnation='$inc' AND audience='logger'" 2>/dev/null)" -ge 1 ]] && return 0
+    sleep 1
+  done
+  return 1
+}
+
 # ── 3. Recreation: new containers over the same volumes ─────────────────────
 printf '\n── recreation\n'
-declare -A ID_BEFORE
-for s in "${UNITS[@]}"; do ID_BEFORE[$s]="$(podman inspect -f '{{.Id}}' "${UNIVERSE}-ctr-$s")"; done
+declare -A ID_BEFORE INC_BEFORE
+for s in "${UNITS[@]}"; do
+  ID_BEFORE[$s]="$(podman inspect -f '{{.Id}}' "${UNIVERSE}-ctr-$s")"
+  INC_BEFORE[$s]="$(unit_env "${UNIVERSE}-ctr-$s" SHAPER_UNIT_INCARNATION)"
+done
 if bash "$UNIV/deploy/podman-up.sh" >/dev/null; then ok recreate "deploy/podman-up.sh replaced every unit container"
 else fail recreate "deploy/podman-up.sh failed"; fi
 for s in "${UNITS[@]}"; do
@@ -132,10 +156,15 @@ for s in "${UNITS[@]}"; do
   check "recreate-$s-new" "$ctr is a new container" test "$(podman inspect -f '{{.Id}}' "$ctr" 2>/dev/null)" != "${ID_BEFORE[$s]}"
   check "recreate-$s-kept" "the new $ctr kept the password and the schema" \
     log_in_order "$ctr" "1970-01-01T00:00:00Z" "password: /apps/$s/etc/mysql/localhost/passwd kept" "schema: retained" "application: node server.js started"
+  if [[ " $HOLDS_CREDENTIAL " == *" $s "* ]]; then
+    check "recreate-$s-incarnation" "a new incarnation (not ${INC_BEFORE[$s]:-?}), the only one Vault holds for $s, with a credential issued to it" \
+      bash -c '[[ -n "$1" && "$1" != "$2" ]]' _ "$(unit_env "$ctr" SHAPER_UNIT_INCARNATION)" "${INC_BEFORE[$s]}"
+    check "recreate-$s-credential" "Vault issued a logger credential to $s's new incarnation" credential_current "$s"
+  fi
 done
 after_checks recreate
 
-curl -sf -o /dev/null -X DELETE -H "Authorization: Bearer $VAULT_TOKEN" "$(url vault)/api/secret/lifecycle/$STAMP" \
+vault_curl -sf -o /dev/null -X DELETE "$(url vault)/api/secret/lifecycle/$STAMP" \
   && ok vault-marker-removed "marker secret removed" || fail vault-marker-removed "the marker secret is still in the Vault"
 
 printf '\n%s lifecycle drill %s: %d passed, %d failed\n' "$UNIVERSE" "$STAMP" "$PASS" "$FAILS"

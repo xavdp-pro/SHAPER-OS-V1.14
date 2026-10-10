@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Intent: software/universes/univ-minimal/INTENT.md#proof
 # Sourced by proof-effects.sh, definitions only: the real effects of Logger,
-# Queue and Maestro,
-# each read back from the unit's own database through the root path. Every job
-# this proof creates ends COMPLETED; it leaves nothing PENDING behind.
+# Queue and Maestro, each read back from the unit's own database through the
+# root path, and the evidence Queue and Maestro owe Logger read back from both
+# databases. Logger is called under the proof's own Vault-signed credential
+# (logger_curl, unit-probes.sh): every event this proof writes is sourced as
+# "proof". Every job this proof creates ends COMPLETED; it leaves nothing
+# PENDING behind.
 
 H='Content-Type: application/json'
 
@@ -63,6 +66,8 @@ effects_queue() {
             AND (SELECT COUNT(*) FROM job_transitions t WHERE t.job_id=j.id) >= 2")" = 2
   check "queue-nothing-pending" "no job left PENDING by this proof" \
     test "$(rootsql queue queue -e "SELECT COUNT(*) FROM jobs WHERE status='PENDING' AND idempotency_key LIKE '$RUN_ID%'")" = 0
+  check "queue-evidence" "every transition of both jobs committed its evidence, receipted by Logger and held there as queue's (both databases)" \
+    evidence_delivered queue "JSON_VALUE(body, '\$.correlationId') IN ('$job', '$racejob')"
   record queue_job "$job"; record queue_key "$K"
   rm -f /tmp/proof-q1.json /tmp/proof-q2.json /tmp/proof-race-*.json
 }
@@ -73,13 +78,15 @@ effects_logger() {
   section "logger — events accepted once, immutable, in the month's partition"
   L="$(url logger)"; C="$RUN_ID"
   once='{"pod":"proof","event":"PROOF_ONCE","correlationId":"'"$C"'","sourceEventId":"'"$C"'/once","data":{"run":"'"$RUN_ID"'"}}'
-  first="$(curl -s -X POST "$L/api/ingest" -H "$H" -d "$once")"
+  check "logger-refuses-anonymous" "an ingest without a credential is refused (401), and nothing is written" \
+    test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$L/api/ingest" -H "$H" -d "$once")" = 401
+  first="$(logger_curl -s -X POST "$L/api/ingest" -H "$H" -d "$once")"
   eid="$(jq -r '.record.id // empty' <<<"$first")"
   check "logger-ingest" "POST /api/ingest with a source event id → record $eid" test -n "$eid"
   check "logger-replay" "the same event again → the original record, replayed:true" \
-    test "$(curl -s -X POST "$L/api/ingest" -H "$H" -d "$once" | jq -r '"\(.replayed)|\(.record.id)"')" = "true|$eid"
+    test "$(logger_curl -s -X POST "$L/api/ingest" -H "$H" -d "$once" | jq -r '"\(.replayed)|\(.record.id)"')" = "true|$eid"
   check "logger-conflict" "same source id, other content → 409 SOURCE_EVENT_CONFLICT" \
-    test "$(curl -s -o /tmp/proof-l.json -w '%{http_code}' -X POST "$L/api/ingest" -H "$H" \
+    test "$(logger_curl -s -o /tmp/proof-l.json -w '%{http_code}' -X POST "$L/api/ingest" -H "$H" \
             -d '{"pod":"proof","event":"PROOF_ONCE","correlationId":"'"$C"'","sourceEventId":"'"$C"'/once","data":{"other":1}}')|$(jq -r .code /tmp/proof-l.json)" = "409|SOURCE_EVENT_CONFLICT"
   rm -f /tmp/proof-l.json
   check "logger-one-row" "one PROOF_ONCE row and one ingest key for this run (root path)" \
@@ -93,9 +100,11 @@ effects_logger() {
     grep -q 'immutable' <<<"$(rootsql logger logger -e "UPDATE events SET level=level WHERE id='$eid'" 2>&1)"
   # The digest recomputed here, from the event as the API lists it, by jq and
   # sha256sum — no code of the Logger involved.
-  recomputed="$(curl -s "$L/api/events/last?correlationId=$C&event=PROOF_ONCE" | jq -cS '.events[0] | {kind:"shaper.logger.event",v:1,id,receivedAt:.at,pod,event,level,correlationId,executionId:.execution_id,durationMs:.duration_ms,sourceEventId,data}' | tr -d '\n' | sha256sum | cut -d' ' -f1)"
+  recomputed="$(logger_curl -s "$L/api/events/last?correlationId=$C&event=PROOF_ONCE" | jq -cS '.events[0] | {kind:"shaper.logger.event",v:1,id,receivedAt:.at,pod,event,level,correlationId,executionId:.execution_id,durationMs:.duration_ms,sourceEventId,data}' | tr -d '\n' | sha256sum | cut -d' ' -f1)"
   check "logger-digest-independent" "the stored digest equals SHA-256 of the canonical event, recomputed outside the Logger" \
     test "$(rootsql logger logger -e "SELECT digest FROM events WHERE id='$eid'")" = "$recomputed"
+  check "logger-own-source" "a credential for proof writes as proof and reads proof's events only (403 for another source)" \
+    test "$(rootsql logger logger -e "SELECT pod FROM events WHERE id='$eid'")|$(logger_curl -s -o /dev/null -w '%{http_code}' "$L/api/events/last?pod=queue")" = "proof|403"
   record logger_event "$eid"; record logger_digest "$(rootsql logger logger -e "SELECT digest FROM events WHERE id='$eid'")"
 }
 
@@ -118,8 +127,8 @@ effects_maestro() {
   rev="$(jq -r '.result.occurrence.revision // empty' <<<"$tick")"
   check "maestro-tick-enqueued" "tick → occurrence ENQUEUED with a Queue job ($mjob)" \
     test "$(jq -r '.result.occurrence.state' <<<"$tick")" = ENQUEUED -a -n "$mjob"
-  check "maestro-occurrence-id" "occurrence id = occ-sha256(universe|schedule|revision|planned), recomputed outside Maestro" \
-    test "occ-$(printf '%s' "$UNIVERSE|$S|$rev|$planned" | sha256sum | cut -d' ' -f1)" = "$occ"
+  check "maestro-occurrence-id" "occurrence id = occ-sha256(universe UUID|schedule|revision|planned), recomputed outside Maestro" \
+    test "occ-$(printf '%s' "$UNIVERSE_ID|$S|$rev|$planned" | sha256sum | cut -d' ' -f1)" = "$occ"
   check "maestro-in-db" "the occurrence row in maestro.occurrences (root path) names the same job" \
     test "$(rootsql maestro maestro -e "SELECT CONCAT(state,'|',queue_job_id) FROM occurrences WHERE occurrence_id='$occ'")" = "ENQUEUED|$mjob"
   check "maestro-one-job" "Queue holds exactly one job under the occurrence id (queue.jobs, root path)" \
@@ -138,6 +147,8 @@ effects_maestro() {
     test "$(rootsql maestro maestro -e "SELECT COUNT(*) FROM schedules WHERE enabled=1")" = 0
   check "maestro-job-settled" "the proof's Maestro job is COMPLETED in queue.jobs" \
     test "$(rootsql queue queue -e "SELECT status FROM jobs WHERE id='$mjob'")" = COMPLETED
+  check "maestro-evidence" "the occurrence's evidence (due, enqueued) receipted by Logger and held there as maestro's (both databases)" \
+    evidence_delivered maestro "JSON_VALUE(body, '\$.executionId') = '$occ'"
   record maestro_occurrence "$occ"; record maestro_job "$mjob"
 }
 

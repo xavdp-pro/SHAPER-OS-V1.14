@@ -1,0 +1,8 @@
+#!/bin/sh
+# Intent: software/universes/univ-minimal/INTENT.md#rehearsal
+# Rehearsal-only: a user namespace maps one uid; ownership by a unit's numeric
+# uid cannot be represented and is skipped (the services run as that one uid).
+case "$1" in
+  0|0:0|root|root:root) exec /bin/chown "$@" ;;
+  *) exit 0 ;;
+esac

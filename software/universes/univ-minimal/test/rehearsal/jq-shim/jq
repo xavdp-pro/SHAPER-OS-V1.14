@@ -1,0 +1,137 @@
+#!/usr/bin/env node
+// Intent: software/universes/univ-minimal/INTENT.md#rehearsal
+// Rehearsal-only jq: the subset of jq univ-minimal's deploy and proof scripts
+// use — paths (.a, .a[$v], .a["k"], .a[0], .a[]), `//` with `empty` or a
+// literal, pipes, `to_entries[]`, `join(s)`, string interpolation, `+` of a
+// string and a path, object construction, `.[$k] = $v`. Anything else exits 3,
+// loudly, so the rehearsal never guesses.
+import fs from 'node:fs';
+const argv = process.argv.slice(2);
+let raw = false, compact = false, exitStatus = false, sortKeys = false, filter = null;
+const vars = {};
+const files = [];
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === '--arg') { vars[argv[i + 1]] = argv[i + 2]; i += 2; continue; }
+  if (a === '--argjson') { vars[argv[i + 1]] = JSON.parse(argv[i + 2]); i += 2; continue; }
+  if (/^-[a-zA-Z]+$/.test(a)) {
+    for (const c of a.slice(1)) {
+      if (c === 'r') raw = true; else if (c === 'c') compact = true; else if (c === 'e') exitStatus = true; else if (c === 'S') sortKeys = true;
+      else { console.error(`jq-shim: option -${c}`); process.exit(3); }
+    }
+    continue;
+  }
+  if (filter === null) filter = a; else files.push(a);
+}
+const unsupported = (what) => { console.error(`jq-shim: unsupported ${what} in ${filter}`); process.exit(3); };
+const text = files.length ? fs.readFileSync(files[0], 'utf8') : fs.readFileSync(0, 'utf8');
+const inputs = [];
+{
+  const t = text.trim();
+  if (t) { try { inputs.push(JSON.parse(t)); } catch { process.exit(2); } }
+}
+
+// Split at top-level occurrences of a separator (outside strings, parens, brackets, braces).
+function splitTop(expr, sep) {
+  const parts = []; let depth = 0, inStr = false, start = 0;
+  for (let i = 0; i < expr.length; i++) {
+    const c = expr[i];
+    if (inStr) { if (c === '\\') { i++; continue; } if (c === '"') inStr = false; continue; }
+    if (c === '"') { inStr = true; continue; }
+    if ('([{'.includes(c)) depth++;
+    else if (')]}'.includes(c)) depth--;
+    else if (depth === 0 && expr.startsWith(sep, i)) { parts.push(expr.slice(start, i)); start = i + sep.length; i += sep.length - 1; }
+  }
+  parts.push(expr.slice(start));
+  return parts.map((p) => p.trim());
+}
+
+function evalPath(expr, value) {
+  let outs = [value];
+  const re = /\.([A-Za-z_][A-Za-z0-9_]*)|\[\$([a-z]+)\]|\["([^"]+)"\]|\[(\d+)\]|\[\]|\./gy;
+  re.lastIndex = 0;
+  while (re.lastIndex < expr.length) {
+    const m = re.exec(expr);
+    if (!m) unsupported(`path ${expr}`);
+    if (m[0] === '.') continue;
+    const next = [];
+    for (const v of outs) {
+      if (m[0] === '[]') {
+        if (Array.isArray(v)) next.push(...v); else if (v && typeof v === 'object') next.push(...Object.values(v)); else { console.error('jq-shim: cannot iterate'); process.exit(5); }
+        continue;
+      }
+      const key = m[1] ?? (m[2] !== undefined ? vars[m[2]] : m[3] !== undefined ? m[3] : Number(m[4]));
+      next.push(v == null ? null : v[key] === undefined ? null : v[key]);
+    }
+    outs = next;
+  }
+  return outs;
+}
+const isPath = (e) => /^(\.[A-Za-z_][A-Za-z0-9_]*|\.?\[\$[a-z]+\]|\.?\["[^"]+"\]|\.?\[\d+\]|\.?\[\])+$/.test(e) || e === '.';
+const tostring = (v) => (typeof v === 'string' ? v : JSON.stringify(v));
+
+function evalTerm(term, value) {
+  term = term.trim();
+  if (term.startsWith('(') && term.endsWith(')') && splitTop(term.slice(1, -1), '|').length >= 1 && balanced(term)) return evalPipe(term.slice(1, -1), value);
+  if (isPath(term)) return evalPath(term, value);
+  const alt = splitTop(term, '//');
+  if (alt.length === 2) {
+    const left = evalTerm(alt[0], value).filter((v) => v !== null && v !== false);
+    if (left.length) return left;
+    return alt[1] === 'empty' ? [] : evalTerm(alt[1], value);
+  }
+  const assign = /^\.\[\$([a-z]+)\]\s*=\s*\$([a-z]+)$/.exec(term);
+  if (assign) return [{ ...value, [vars[assign[1]]]: vars[assign[2]] }];
+  const plus = splitTop(term, '+');
+  if (plus.length > 1) return [plus.map((p) => evalTerm(p, value)[0]).reduce((a, b) => (a === null || b === null ? null : typeof a === 'string' ? a + tostring(b) : a + b))];
+  if (term === 'to_entries[]') return Object.entries(value).map(([key, v]) => ({ key, value: v }));
+  if (term === 'empty') return [];
+  const join = /^join\("([^"]*)"\)$/.exec(term);
+  if (join) return [value.map(tostring).join(join[1])];
+  if (term.startsWith('"') && term.endsWith('"')) {
+    let out = ''; const body = term.slice(1, -1);
+    for (let i = 0; i < body.length; i++) {
+      if (body[i] === '\\' && body[i + 1] === '(') {
+        let depth = 1, j = i + 2;
+        for (; j < body.length && depth; j++) { if (body[j] === '(') depth++; else if (body[j] === ')') depth--; }
+        out += tostring(evalPipe(body.slice(i + 2, j - 1), value)[0]);
+        i = j - 1;
+      } else if (body[i] === '\\') { out += body[i + 1]; i++; } else out += body[i];
+    }
+    return [out];
+  }
+  if (term.startsWith('[') && term.endsWith(']')) return [JSON.parse(term)];
+  if (/^-?\d+(\.\d+)?$/.test(term)) return [Number(term)];
+  if (term.startsWith('{') && term.endsWith('}')) {
+    const obj = {};
+    for (const entry of splitTop(term.slice(1, -1), ',')) {
+      const colon = splitTop(entry, ':');
+      if (colon.length === 1) { obj[entry] = evalPath(`.${entry}`, value)[0]; continue; }
+      obj[colon[0]] = evalTerm(colon.slice(1).join(':'), value)[0];
+    }
+    return [obj];
+  }
+  return unsupported(`term ${term}`);
+}
+function balanced(t) { let d = 0; for (let i = 0; i < t.length - 1; i++) { if (t[i] === '(') d++; else if (t[i] === ')') d--; if (d === 0) return false; } return true; }
+function evalPipe(expr, value) {
+  let outs = [value];
+  for (const stage of splitTop(expr, '|')) outs = outs.flatMap((v) => evalTerm(stage, v));
+  return outs;
+}
+function sorted(v) {
+  if (Array.isArray(v)) return v.map(sorted);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, sorted(v[k])]));
+  return v;
+}
+
+const outputs = inputs.flatMap((input) => evalPipe(filter, input));
+for (let o of outputs) {
+  if (sortKeys) o = sorted(o);
+  if (raw && typeof o === 'string') process.stdout.write(`${o}\n`);
+  else process.stdout.write(`${JSON.stringify(o, null, compact ? 0 : 2)}\n`);
+}
+if (exitStatus) {
+  const last = outputs.at(-1);
+  process.exit(last === null || last === false || last === undefined ? 1 : 0);
+}

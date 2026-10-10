@@ -150,7 +150,7 @@ for (const slug of UNITS) {
       assert.match(quadlet, new RegExp(`^Volume=/apps/${slug}/etc/identity:/apps/${slug}/etc/identity:ro,Z$`, 'm'));
       assert.equal(env('UNIT_BOOTSTRAP_TOKEN_FILE'), want.bootstrap ? `/apps/${slug}/etc/identity/bootstrap` : undefined);
       assert.equal(env('SHAPER_UNIT_INCARNATION'), want.bootstrap ? '@INCARNATION@' : undefined);
-      assert.equal(env('UNIT_AUTH_PUBLIC_KEY_FILE'), want.pin ? `/apps/${slug}/etc/identity/vault-public.pem` : undefined);
+      assert.equal(env('UNIT_AUTH_PUBLIC_KEY_FILE'), want.pin ? `/apps/${slug}/etc/identity/vault-signing.pub` : undefined);
       assert.equal(env('VAULT_URL'), want.vaultUrl ? `http://127.0.0.1:${manifest.bricks['brick-vault'].port}` : undefined);
       assert.equal(env('LOGGER_URL'), want.loggerUrl ? `http://127.0.0.1:${manifest.bricks['brick-logger'].port}` : undefined);
       assert.doesNotMatch(quadlet, /^Environment=(VAULT_TOKEN|VAULT_MASTER_KEY|MYSQL_PASSWORD|MYSQL_PWD)=/m, 'a secret never sits in a unit file');
@@ -194,4 +194,55 @@ test('univ-minimal has no separate database container and no recursive ownership
   for (const name of fs.readdirSync(path.join(SOFTWARE, 'runtime/unit-mariadb')).filter((f) => f.endsWith('.mjs'))) {
     assert.doesNotMatch(read(`runtime/unit-mariadb/${name}`), /recursive:\s*true[^\n]*chown|chown[^\n]*-R/, name);
   }
+});
+
+describe('univ-minimal births the units in the order their identities need', () => {
+  const deploy = path.join(SOFTWARE, 'universes/univ-minimal/deploy');
+  const up = fs.readFileSync(path.join(deploy, 'podman-up.sh'), 'utf8');
+
+  test('Vault is born alone, first; Logger before Queue, Queue before Maestro', () => {
+    assert.deepEqual(manifest.bootOrder, [['brick-vault'], ['brick-logger'], ['brick-queue'], ['brick-maestro']]);
+  });
+
+  test('podman-up registers exactly the units that hold a credential, and pins the key for the ones that verify', () => {
+    const grants = /declare -A GRANTS=\(([^)]*)\)/.exec(up);
+    assert.ok(grants, 'the holders are declared once');
+    const holders = [...grants[1].matchAll(/\[([a-z]+)\]="logger=logger:ingest"/g)].map((m) => m[1]).sort();
+    assert.deepEqual(holders, UNITS.filter((s) => IDENTITY[s].bootstrap).sort());
+    const pinned = /^PINNED="([^"]+)"$/m.exec(up)[1].split(' ').sort();
+    assert.deepEqual(pinned, UNITS.filter((s) => IDENTITY[s].pin).sort());
+    assert.match(up, /^PROOF_GRANTS="logger=logger:ingest logger=logger:read:own"$/m);
+  });
+
+  test('the parent derives the pin and registers through pkg-vault/unit-registration.js, from the Vault image', () => {
+    assert.match(up, /REG_TOOL=\/apps\/vault\/app\/packages\/pkg-vault\/unit-registration\.js/);
+    assert.match(up, /"\$REG_TOOL" public-key > "\$PIN\.next"/);
+    assert.match(up, /"\$REG_TOOL" register \\\n\s+--unit "\$unit" --incarnation "\$inc" "\$\{grants\[@\]\}" --bootstrap-file/);
+    assert.match(up, /registration\(\) \{ podman run --rm --network none --cap-drop=all --security-opt=no-new-privileges --entrypoint node "\$@"; \}/);
+  });
+
+  test('root applies the registrations once Vault is ready, before any later layer starts', () => {
+    const loop = up.slice(up.indexOf('while read -r bricks; do'));
+    const waited = loop.indexOf('wait_ready "$(jq');
+    const applied = loop.indexOf('apply_registrations; fi');
+    const next = loop.indexOf('layer=$((layer + 1))');
+    assert.ok(waited > 0 && applied > waited && next > applied);
+    assert.match(up, /podman exec -i "\$ctr" mariadb --no-defaults -S \/run\/vault\/mysqld\.sock -uroot -N -B vault < "\$STAGE\/registration\.sql"/);
+  });
+
+  test('no credential reaches a command line in any deploy script', () => {
+    for (const name of fs.readdirSync(deploy)) {
+      const text = fs.readFileSync(path.join(deploy, name), 'utf8');
+      assert.doesNotMatch(text, /-H "Authorization: Bearer \$/, `${name} puts a bearer value on curl's command line`);
+      assert.doesNotMatch(text, /-e (VAULT_TOKEN|MYSQL_PWD|MYSQL_PASSWORD)=\$/, `${name} puts a secret on podman's command line`);
+      assert.doesNotMatch(text, /--grant [^\n]*\$\(cat|bootstrap[^\n]*echo "\$\(cat/, `${name} prints a bootstrap`);
+    }
+  });
+
+  test('the proofs address Maestro occurrences and drill units by the universe UUID, never the instance name', () => {
+    for (const name of ['proof-effects-units.sh', 'restore-drill.sh']) {
+      const text = fs.readFileSync(path.join(deploy, name), 'utf8');
+      assert.doesNotMatch(text, /SHAPER_UNIVERSE_ID=\$UNIVERSE\b|"\$UNIVERSE\|\$S\|/, name);
+    }
+  });
 });

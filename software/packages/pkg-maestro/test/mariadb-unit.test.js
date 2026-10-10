@@ -308,7 +308,7 @@ describe('the brick runs Maestro as its own account on its own database', () => 
     assert.match(quadlet, /^Environment=LOGGER_URL=\S+$/m);
     assert.match(quadlet, /^Environment=VAULT_URL=\S+$/m);
     assert.match(quadlet, /^Environment=UNIT_BOOTSTRAP_TOKEN_FILE=\/apps\/maestro\/etc\/identity\/bootstrap$/m);
-    assert.match(quadlet, /^Environment=UNIT_AUTH_PUBLIC_KEY_FILE=\/apps\/maestro\/etc\/identity\/vault-public\.pem$/m);
+    assert.match(quadlet, /^Environment=UNIT_AUTH_PUBLIC_KEY_FILE=\/apps\/maestro\/etc\/identity\/vault-signing\.pub$/m);
     assert.match(quadlet, /^Volume=\/apps\/maestro\/etc\/mysql:\/apps\/maestro\/etc\/mysql:Z$/m);
     assert.match(quadlet, /^Volume=\/apps\/maestro\/sav:\/apps\/maestro\/sav:Z$/m);
     assert.doesNotMatch(quadlet, /^Volume=\/apps\/maestro\/log/m, 'no log volume: the outbox is the record');

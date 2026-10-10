@@ -579,7 +579,7 @@ describe('the brick runs the logger as its own account on its own database', () 
     assert.doesNotMatch(quadlet, /nosav\/run\/mysqld|ctr-\S*-mariadb/);
     assert.match(quadlet, /^Environment=HOST=127\.0\.0\.1$/m);
     assert.match(quadlet, /^Environment=VAULT_URL=http:\/\/127\.0\.0\.1:8610$/m);
-    assert.match(quadlet, /^Environment=UNIT_AUTH_PUBLIC_KEY_FILE=\/apps\/logger\/etc\/identity\/vault-public\.pem$/m);
+    assert.match(quadlet, /^Environment=UNIT_AUTH_PUBLIC_KEY_FILE=\/apps\/logger\/etc\/identity\/vault-signing\.pub$/m);
     assert.match(quadlet, /^Environment=SHAPER_UNIVERSE_ID=@UNIVERSE_ID@$/m);
     assert.doesNotMatch(quadlet, /LOG_DIR|vol-%i-log|LOGGER_STORE=file/);
   });

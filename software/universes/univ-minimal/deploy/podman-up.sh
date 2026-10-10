@@ -7,8 +7,22 @@
 # It does only what the manifest declares, in the order bootOrder states, from
 # the images the lock (or an explicitly published tag) names. Each unit image
 # births its own database through its own root path (runtime/unit-mariadb);
-# this script prepares the unit's three volumes, the Vault's key material, and
-# waits for each unit's readiness, which is gated on its MariaDB.
+# this script prepares the unit's declared volumes, the Vault's key material
+# and the universe identity, and waits for each unit's readiness, which is
+# gated on its MariaDB.
+#
+# It is also the parent that lets units hold Vault-signed credentials
+# (pkg-vault INTENT.md#parent-registration), in this birth order:
+#   1. pin Vault's signing public key, derived here from the master key and
+#      the universe UUID, for every unit that verifies a credential;
+#   2. register a fresh incarnation of each unit that owes evidence to Logger
+#      (vault, queue, maestro: logger=logger:ingest) and of the proof's reader
+#      (logger:ingest, logger:read:own); each bootstrap is a new owner-only file;
+#   3. start Vault; once it is ready, root applies the registrations to Vault's
+#      database through its socket and reads them back;
+#   4. start Logger, Queue and Maestro, layer by layer.
+# No bootstrap value, password, key or token reaches a command line, git or
+# this script's output.
 #
 # Names follow docs/architecture/NAMING.md, prefixed by the instance slug:
 #   <universe>-ctr-<slug>          the unit: its application and its MariaDB
@@ -44,13 +58,19 @@ elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then
   shaper_source_env "$UNIV/cfg-univ-minimal.env"
 fi
 
-for tool in podman jq openssl ss; do
+for tool in podman jq openssl ss sha256sum; do
   command -v "$tool" >/dev/null || { echo "[podman-up] $tool is missing in the universe container — install it at first boot" >&2; exit 1; }
 done
 
 UNIVERSE="${SHAPER_UNIVERSE:-univ-minimal}"
 APPS_ROOT="${SHAPER_APPS_ROOT:-/apps}"
 [[ "$UNIVERSE" =~ ^univ-[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "[podman-up] SHAPER_UNIVERSE must be an instance slug (univ-…), got $UNIVERSE" >&2; exit 1; }
+# The proof's state and its reader identity (deploy/proof-effects.sh, unit-probes.sh).
+PROOF_DIR="${PROOF_STATE_DIR:-/var/lib/univ-proof/$UNIVERSE}"
+# One incarnation per unit per run: a recreated universe is a new incarnation,
+# and the credentials of the one before stop being current at once.
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+halt() { echo "[podman-up] $*" >&2; exit 1; }
 
 # ── 2. Images: pinned, or explicitly published, never guessed ───────────────
 # SHAPER_REGISTRY=localhost with SHAPER_IMAGE_TAG names images built on this
@@ -88,10 +108,11 @@ while read -r slug; do
   fi
 done < <(jq -r '.bricks[].database.slug' "$MANIFEST")
 
-# ── 5. Instance secrets the construction path owns ──────────────────────────
-# The API token and the master key live under the Vault's etc/vault/, which is
-# never mounted as a directory: the container receives the key file alone,
-# read-only, and the token through its environment.
+# ── 5. Instance secrets and identity the construction path owns ─────────────
+# The API token, the master key and the universe identity live under the
+# Vault's etc/vault/, which is never mounted as a directory: the container
+# receives the key file alone, read-only, and the token through its
+# environment, by name.
 VAULT_UID="$(jq -r '.bricks["brick-vault"].database.uid' "$MANIFEST")"
 VAULT_ETC="$APPS_ROOT/vault/etc/vault"
 install -d -m 0755 -o root -g root "$APPS_ROOT" "$APPS_ROOT/vault" "$APPS_ROOT/vault/etc"
@@ -116,17 +137,164 @@ fi
 # The key belongs to the account that reads it, and to nobody else.
 chown "$VAULT_UID:$VAULT_UID" "$KEY_FILE"; chmod 0400 "$KEY_FILE"
 
-# ── 6. Units, layer by layer, in the declared bootOrder ─────────────────────
+# The universe identity: a UUID, generated once beside the master key. With
+# the key it derives Vault's signing key — the public half every unit pins —
+# and it is part of every Maestro occurrence id, so it never changes under an
+# existing Vault or Maestro database. SHAPER_UNIVERSE_ID may name it at birth.
+UUID_PATTERN='^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+UNIVERSE_ID_FILE="$VAULT_ETC/universe-id"
+if [[ -s "$UNIVERSE_ID_FILE" ]]; then
+  UNIVERSE_ID="$(<"$UNIVERSE_ID_FILE")"
+  if [[ -n "${SHAPER_UNIVERSE_ID:-}" && "$SHAPER_UNIVERSE_ID" != "$UNIVERSE_ID" ]]; then
+    halt "SHAPER_UNIVERSE_ID is $SHAPER_UNIVERSE_ID but this universe is $UNIVERSE_ID ($UNIVERSE_ID_FILE). An identity is never replaced under its databases. Halt."
+  fi
+else
+  for s in vault maestro; do
+    if [[ -d "$APPS_ROOT/$s/sav/mariadb/$s" ]]; then
+      halt "the $s database exists but the universe identity $UNIVERSE_ID_FILE does not. Restore it with the master key; a new one would change Vault's signing key and every occurrence id. Halt."
+    fi
+  done
+  UNIVERSE_ID="${SHAPER_UNIVERSE_ID:-$(cat /proc/sys/kernel/random/uuid)}"
+  [[ "$UNIVERSE_ID" =~ $UUID_PATTERN ]] || halt "SHAPER_UNIVERSE_ID must be a lowercase UUID, got $UNIVERSE_ID"
+  ( umask 022; printf '%s\n' "$UNIVERSE_ID" > "$UNIVERSE_ID_FILE" )
+  echo "[podman-up] universe identity $UNIVERSE_ID recorded for a universe being born ($UNIVERSE_ID_FILE)"
+fi
+[[ "$UNIVERSE_ID" =~ $UUID_PATTERN ]] || halt "$UNIVERSE_ID_FILE holds no lowercase UUID. Halt."
+export SHAPER_UNIVERSE_ID="$UNIVERSE_ID"
+
+# ── 6. Every unit's image and volumes, checked before anything starts ───────
 port_of() { jq -r --arg b "brick-$1" '.bricks[$b].port' "$MANIFEST"; }
+VAULT_URL="http://127.0.0.1:$(port_of vault)"
 LOGGER_URL="http://127.0.0.1:$(port_of logger)"
 QUEUE_URL="http://127.0.0.1:$(port_of queue)"
 
-# What each unit needs beyond its database — declared once, here.
+# The unit's declared volumes (manifest database.volumes): its password
+# (etc/mysql), its datadir and dumps (sav), and its log when it declares one.
+# Single directories only — the unit's supervisor converges the rest from
+# inside, and nothing here changes ownership recursively. etc/identity/ is the
+# parent's delivery to the unit: root-owned, entered by the unit's group,
+# mounted read-only.
+prepare_volumes() {
+  local slug="$1" uid="$2" engine="$3" volumes="$4" owner
+  install -d -m 0755 -o root -g root "$APPS_ROOT/$slug" "$APPS_ROOT/$slug/etc" "$APPS_ROOT/$slug/etc/mysql" "$APPS_ROOT/$slug/sav"
+  install -d -m 0750 -o root -g "$uid" "$APPS_ROOT/$slug/etc/identity"
+  if [[ " $volumes " == *" log "* ]]; then
+    install -d -m 0750 -o "$uid" -g "$uid" "$APPS_ROOT/$slug/log"
+  fi
+  if [[ -d "$APPS_ROOT/$slug/sav/mariadb" ]]; then
+    owner="$(stat -c %u "$APPS_ROOT/$slug/sav/mariadb")"
+    if [[ "$owner" != "$engine" ]]; then
+      echo "[podman-up] $APPS_ROOT/$slug/sav/mariadb belongs to uid $owner; the $slug image's engine account is $engine." >&2
+      echo "[podman-up] It is a datadir of another shape or image. Move it aside and restore its logical dump (INTENT.md#migration); no recursive chown is made. Halt." >&2
+      exit 1
+    fi
+  fi
+}
+
+declare -A IMAGE_OF UID_OF VOLUMES_OF
+for brick in $(jq -r '.bootOrder[][]' "$MANIFEST"); do
+  db="$(jq -c --arg b "$brick" '.bricks[$b].database' "$MANIFEST")"
+  slug="$(jq -r '.slug' <<<"$db")"; uid="$(jq -r '.uid' <<<"$db")"; engine="$(jq -r '.engineUid' <<<"$db")"
+  version="$(jq -r '.schemaVersion' <<<"$db")"
+  [[ "$(jq -r '.engine' <<<"$db")" == mariadb && "$(jq -r '.placement' <<<"$db")" == in-unit ]] \
+    || halt "$brick declares no MariaDB inside its own container — Rules 4 and 26 forbid starting it"
+  image="$(resolve_image "$(jq -r --arg b "$brick" '.bricks[$b].image' "$MANIFEST")")"
+  podman pull -q "$image" >/dev/null 2>&1 || podman image exists "$image" \
+    || halt "image $image is neither pullable nor present"
+  label="$(podman image inspect -f '{{index .Labels "org.shaper.unit.slug"}}:{{index .Labels "org.shaper.unit.uid"}}:{{index .Labels "org.shaper.unit.engine-uid"}}:{{index .Labels "org.shaper.unit.schema-version"}}' "$image")"
+  [[ "$label" == "$slug:$uid:$engine:$version" ]] \
+    || halt "$image declares unit $label (slug:uid:engine-uid:schema-version); the manifest declares $slug:$uid:$engine:$version"
+  IMAGE_OF[$slug]="$image"; UID_OF[$slug]="$uid"
+  VOLUMES_OF[$slug]="$(jq -r '(.volumes // ["etc/mysql", "sav", "log"]) | join(" ")' <<<"$db")"
+  prepare_volumes "$slug" "$uid" "$engine" "${VOLUMES_OF[$slug]}"
+done
+[[ -n "${IMAGE_OF[vault]:-}" ]] || halt "the manifest declares no brick-vault: no unit could hold a credential"
+
+# ── 7. Unit identities: the parent's two steps (pkg-vault/unit-registration.js) ─
+# Who holds a Vault-signed credential, and for what: every unit that owes
+# evidence to Logger. Logger holds none — it verifies. Who pins Vault's public
+# key: every unit that verifies a credential, or the ones it receives.
+declare -A GRANTS=([vault]="logger=logger:ingest" [queue]="logger=logger:ingest" [maestro]="logger=logger:ingest")
+PINNED="logger queue maestro"
+# The proof's reader: it writes its own events and reads them back, nothing else.
+PROOF_GRANTS="logger=logger:ingest logger=logger:read:own"
+
+# The tool runs from the Vault image itself — the code that verifies what it
+# registers — with no network and no capability.
+REG_TOOL=/apps/vault/app/packages/pkg-vault/unit-registration.js
+registration() { podman run --rm --network none --cap-drop=all --security-opt=no-new-privileges --entrypoint node "$@"; }
+
+# 7a. Vault's signing public key, derived by the parent — never taken from a
+# running Vault — as the vault account, the only one that reads the key.
+PIN="$VAULT_ETC/vault-signing.pub"
+registration --user "$VAULT_UID:$VAULT_UID" -e SHAPER_UNIVERSE_ID \
+  -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -v "$KEY_FILE:/apps/vault/etc/vault/master.key:ro,Z" \
+  "${IMAGE_OF[vault]}" "$REG_TOOL" public-key > "$PIN.next"
+[[ "$(head -n1 "$PIN.next")" == '-----BEGIN PUBLIC KEY-----' ]] || halt "the Vault image did not derive a public key"
+mv -f "$PIN.next" "$PIN"; chmod 0644 "$PIN"
+for slug in $PINNED; do
+  if [[ -n "${IMAGE_OF[$slug]:-}" ]]; then
+    install -m 0644 -o root -g root "$PIN" "$APPS_ROOT/$slug/etc/identity/vault-signing.pub"
+  fi
+done
+echo "[podman-up] Vault public key pinned for: $PINNED (sha256 $(sha256sum "$PIN" | cut -c1-16)…)"
+
+# 7b. One fresh incarnation per unit: its bootstrap (a new file, owner-only)
+# and the one statement root applies to Vault's database — the bootstrap's
+# SHA-256, never its value. The statements wait in a root-only file.
+STAGE="$VAULT_ETC/registration"
+install -d -m 0700 -o root -g root "$STAGE"
+declare -A INCARNATION
+register() {  # <unit> <incarnation> <grant>...
+  local unit="$1" inc="$2" g; shift 2
+  local grants=()
+  for g; do grants+=(--grant "$g"); done
+  rm -f -- "${STAGE:?}/$unit.bootstrap"
+  registration -e SHAPER_UNIVERSE_ID -v "$STAGE:/identity:Z" "${IMAGE_OF[vault]}" "$REG_TOOL" register \
+    --unit "$unit" --incarnation "$inc" "${grants[@]}" --bootstrap-file "/identity/$unit.bootstrap" >> "$STAGE/registration.sql.next"
+  [[ -s "$STAGE/$unit.bootstrap" ]] || halt "no bootstrap was written for $unit"
+  REGISTERED+="${REGISTERED:+,}'$unit:$inc'"
+}
+REGISTERED=""
+( umask 077; : > "$STAGE/registration.sql.next" )
+for slug in vault queue maestro; do
+  [[ -n "${GRANTS[$slug]:-}" && -n "${IMAGE_OF[$slug]:-}" ]] || continue
+  INCARNATION[$slug]="$slug-$STAMP"
+  # shellcheck disable=SC2086
+  register "$slug" "${INCARNATION[$slug]}" ${GRANTS[$slug]}
+  chown "${UID_OF[$slug]}:${UID_OF[$slug]}" "$STAGE/$slug.bootstrap"; chmod 0600 "$STAGE/$slug.bootstrap"
+  mv -f "$STAGE/$slug.bootstrap" "$APPS_ROOT/$slug/etc/identity/bootstrap"
+done
+install -d -m 0700 -o root -g root "$PROOF_DIR" "$PROOF_DIR/identity"
+# shellcheck disable=SC2086
+register proof "proof-$STAMP" $PROOF_GRANTS
+chmod 0600 "$STAGE/proof.bootstrap"; mv -f "$STAGE/proof.bootstrap" "$PROOF_DIR/identity/bootstrap"
+( umask 077; printf '%s\n' "proof-$STAMP" > "$PROOF_DIR/identity/incarnation" )
+rm -f -- "${PROOF_DIR:?}/identity/bootstrap.header" "${PROOF_DIR:?}/identity/logger.header" "${PROOF_DIR:?}/identity/vault.header"
+mv -f "$STAGE/registration.sql.next" "$STAGE/registration.sql"
+echo "[podman-up] incarnations *-$STAMP registered for: ${!INCARNATION[*]} proof (bootstraps delivered owner-only)"
+
+# Root applies the registrations through Vault's own socket, then reads them
+# back: every identity of this run live in Vault's database.
+apply_registrations() {
+  local ctr="${UNIVERSE}-ctr-vault" want got
+  want="$(( ${#INCARNATION[@]} + 1 ))"
+  podman exec -i "$ctr" mariadb --no-defaults -S /run/vault/mysqld.sock -uroot -N -B vault < "$STAGE/registration.sql" \
+    || halt "root could not apply the unit registrations to Vault's database"
+  got="$(podman exec "$ctr" mariadb --no-defaults -S /run/vault/mysqld.sock -uroot -N -B vault -e \
+    "SELECT COUNT(*) FROM unit_identities WHERE universe_id = '$UNIVERSE_ID' AND NOT revoked
+       AND bootstrap_expires_at > UTC_TIMESTAMP(3) AND CONCAT(unit_id, ':', incarnation) IN ($REGISTERED)")"
+  [[ "$got" == "$want" ]] || halt "Vault holds $got of the $want registrations just applied"
+  echo "  OK   identities — $got incarnations live in Vault's database, applied by root"
+}
+
+# ── 8. Units, layer by layer, in the declared bootOrder ─────────────────────
+# What each unit needs beyond its database and its identity — declared once, here.
 unit_args() {
   local slug="$1" port="$2"
   case "$slug" in
     vault)
-      echo "-e VAULT_PORT=$port -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -e VAULT_TOKEN"
+      echo "-e VAULT_PORT=$port -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -e VAULT_TOKEN -e LOGGER_URL=$LOGGER_URL"
       echo "-v $KEY_FILE:/apps/vault/etc/vault/master.key:ro,Z"
       ;;
     logger)
@@ -144,21 +312,23 @@ unit_args() {
   esac
 }
 
-# The unit's three volumes: its password (etc/mysql), its datadir and dumps
-# (sav), its log. Single directories only — the unit's supervisor converges the
-# rest from inside, and nothing here changes ownership recursively.
-prepare_volumes() {
-  local slug="$1" uid="$2" engine="$3" owner
-  install -d -m 0755 -o root -g root "$APPS_ROOT/$slug" "$APPS_ROOT/$slug/etc" "$APPS_ROOT/$slug/etc/mysql" "$APPS_ROOT/$slug/sav"
-  install -d -m 0750 -o "$uid" -g "$uid" "$APPS_ROOT/$slug/log"
-  if [[ -d "$APPS_ROOT/$slug/sav/mariadb" ]]; then
-    owner="$(stat -c %u "$APPS_ROOT/$slug/sav/mariadb")"
-    if [[ "$owner" != "$engine" ]]; then
-      echo "[podman-up] $APPS_ROOT/$slug/sav/mariadb belongs to uid $owner; the $slug image's engine account is $engine." >&2
-      echo "[podman-up] It is a datadir of another shape or image. Move it aside and restore its logical dump (INTENT.md#migration); no recursive chown is made. Halt." >&2
-      exit 1
-    fi
+# The identity inputs the unit's application reads (pkg-auth): the universe,
+# its etc/identity/ read-only, and — as the unit holds or verifies a
+# credential — its incarnation and bootstrap, or Vault's address and the pin.
+identity_args() {
+  local slug="$1"
+  echo "-e SHAPER_UNIVERSE_ID=$UNIVERSE_ID -v $APPS_ROOT/$slug/etc/identity:/apps/$slug/etc/identity:ro,Z"
+  if [[ -n "${INCARNATION[$slug]:-}" ]]; then
+    echo "-e SHAPER_UNIT_INCARNATION=${INCARNATION[$slug]} -e UNIT_BOOTSTRAP_TOKEN_FILE=/apps/$slug/etc/identity/bootstrap"
   fi
+  if [[ " $PINNED " == *" $slug "* ]]; then
+    echo "-e VAULT_URL=$VAULT_URL -e UNIT_AUTH_PUBLIC_KEY_FILE=/apps/$slug/etc/identity/vault-signing.pub"
+  fi
+}
+
+volume_args() {
+  local slug="$1" v
+  for v in ${VOLUMES_OF[$slug]}; do echo "-v $APPS_ROOT/$slug/$v:/apps/$slug/$v:Z"; done
 }
 
 wait_ready() {
@@ -186,20 +356,8 @@ layer=0
 while read -r bricks; do
   echo "[podman-up] layer $layer — $bricks"
   for brick in $bricks; do
-    db="$(jq -c --arg b "$brick" '.bricks[$b].database' "$MANIFEST")"
-    slug="$(jq -r '.slug' <<<"$db")"; uid="$(jq -r '.uid' <<<"$db")"; engine="$(jq -r '.engineUid' <<<"$db")"
+    slug="$(jq -r --arg b "$brick" '.bricks[$b].database.slug' "$MANIFEST")"
     port="$(jq -r --arg b "$brick" '.bricks[$b].port' "$MANIFEST")"
-    image="$(resolve_image "$(jq -r --arg b "$brick" '.bricks[$b].image' "$MANIFEST")")"
-    [[ "$(jq -r '.engine' <<<"$db")" == mariadb && "$(jq -r '.placement' <<<"$db")" == in-unit ]] \
-      || { echo "[podman-up] $brick declares no MariaDB inside its own container — Rules 4 and 26 forbid starting it" >&2; exit 1; }
-
-    podman pull -q "$image" >/dev/null 2>&1 || podman image exists "$image" \
-      || { echo "[podman-up] image $image is neither pullable nor present" >&2; exit 1; }
-    label="$(podman image inspect -f '{{index .Labels "org.shaper.unit.slug"}}:{{index .Labels "org.shaper.unit.uid"}}:{{index .Labels "org.shaper.unit.engine-uid"}}' "$image")"
-    [[ "$label" == "$slug:$uid:$engine" ]] \
-      || { echo "[podman-up] $image declares unit $label; the manifest declares $slug:$uid:$engine" >&2; exit 1; }
-
-    prepare_volumes "$slug" "$uid" "$engine"
 
     # A restore into a fresh volume: RESTORE_DUMP_<slug>=/apps/<slug>/sav/restore/<file>.sql
     restore_var="RESTORE_DUMP_${slug}"
@@ -212,19 +370,21 @@ while read -r bricks; do
       --cap-drop=all --cap-add=CHOWN,DAC_OVERRIDE,FOWNER,KILL,SETGID,SETUID \
       --security-opt=no-new-privileges \
       --health-cmd=/usr/local/bin/unit-ready --health-interval=15s --health-retries=3 --health-start-period=180s \
-      -e HOST=127.0.0.1 -e SHAPER_UNIVERSE_ID="$UNIVERSE" \
+      -e HOST=127.0.0.1 \
       -e UNIT_HEALTH_URL="http://127.0.0.1:$port/api/health" \
       "${restore[@]}" \
-      -v "$APPS_ROOT/$slug/etc/mysql:/apps/$slug/etc/mysql:Z" \
-      -v "$APPS_ROOT/$slug/sav:/apps/$slug/sav:Z" \
-      -v "$APPS_ROOT/$slug/log:/apps/$slug/log:Z" \
+      $(volume_args "$slug") \
+      $(identity_args "$slug") \
       $(unit_args "$slug" "$port") \
-      "$image" >/dev/null
+      "${IMAGE_OF[$slug]}" >/dev/null
   done
   for brick in $bricks; do
     wait_ready "$(jq -r --arg b "$brick" '.bricks[$b].database.slug' "$MANIFEST")"
   done
+  # Vault is up: its database takes the registrations before any later layer
+  # starts, so every unit after it finds its identity live.
+  if [[ " $bricks " == *" brick-vault "* ]]; then apply_registrations; fi
   layer=$((layer + 1))
 done < <(jq -r '.bootOrder[] | join(" ")' "$MANIFEST")
 
-echo "[podman-up] $UNIVERSE is up. Prove it: bash $UNIV/deploy/proof.sh"
+echo "[podman-up] $UNIVERSE ($UNIVERSE_ID) is up. Prove it: bash $UNIV/deploy/proof.sh"

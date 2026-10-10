@@ -275,13 +275,13 @@ describe('processes and secrets', () => {
     const env = applicationEnv({
       ...controls,
       UNIT_BOOTSTRAP_TOKEN_FILE: '/apps/queue/etc/identity/bootstrap',
-      UNIT_AUTH_PUBLIC_KEY_FILE: '/apps/queue/etc/identity/vault-public.pem',
+      UNIT_AUTH_PUBLIC_KEY_FILE: '/apps/queue/etc/identity/vault-signing.pub',
       UNIT_CREDENTIAL_TTL_SECONDS: '300',
       SHAPER_UNIT_INCARNATION: 'queue-1',
     }, { slug: 'queue', home: '/apps/queue', socket: '/run/queue/mysqld.sock' });
     for (const key of SUPERVISOR_CONTROLS) assert.ok(!(key in env), `${key} stays with the supervisor`);
     assert.equal(env.UNIT_BOOTSTRAP_TOKEN_FILE, '/apps/queue/etc/identity/bootstrap');
-    assert.equal(env.UNIT_AUTH_PUBLIC_KEY_FILE, '/apps/queue/etc/identity/vault-public.pem');
+    assert.equal(env.UNIT_AUTH_PUBLIC_KEY_FILE, '/apps/queue/etc/identity/vault-signing.pub');
     assert.equal(env.UNIT_CREDENTIAL_TTL_SECONDS, '300');
     assert.equal(env.SHAPER_UNIT_INCARNATION, 'queue-1');
   });

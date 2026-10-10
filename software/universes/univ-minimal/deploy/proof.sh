@@ -7,6 +7,11 @@
 # application does not have — then one real effect per unit, read back from
 # that unit's database through the root path, never from the unit's own answer.
 #
+# Each unit's identity is checked too: the parent's pin and bootstrap where
+# the unit reads them, a credential Vault issued to the unit's current
+# incarnation, and no evidence owed to Logger for long. Logger is called under
+# a credential Vault issues to the proof's own identity (unit "proof").
+#
 # Exit 0 only when every check passed. Nothing here writes to a unit's
 # database except through the unit's own API, and every job it creates ends in
 # a terminal state. Restart, recreation and the coordinated stop are proven by
@@ -31,14 +36,20 @@ check() { local name="$1" detail="$2"; shift 2; if "$@"; then ok "$name" "$detai
 section() { printf '\n── %s %s\n' "$1" "$(printf '─%.0s' $(seq 1 $((70 - ${#1}))))"; }
 
 mapfile -t UNITS < <(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
-declare -A UID_OF ENGINE_OF PORT_OF VERSION_OF
+declare -A UID_OF ENGINE_OF PORT_OF VERSION_OF VOLUMES_OF
 for b in $(jq -r '.bootOrder[][]' "$MANIFEST"); do
   s="$(jq -r --arg b "$b" '.bricks[$b].database.slug' "$MANIFEST")"
   UID_OF[$s]="$(jq -r --arg b "$b" '.bricks[$b].database.uid' "$MANIFEST")"
   ENGINE_OF[$s]="$(jq -r --arg b "$b" '.bricks[$b].database.engineUid' "$MANIFEST")"
   PORT_OF[$s]="$(jq -r --arg b "$b" '.bricks[$b].port' "$MANIFEST")"
   VERSION_OF[$s]="$(jq -r --arg b "$b" '.bricks[$b].database.schemaVersion' "$MANIFEST")"
+  VOLUMES_OF[$s]="$(jq -r --arg b "$b" '(.bricks[$b].database.volumes // ["etc/mysql", "sav", "log"]) | join(" ")' "$MANIFEST")"
 done
+UNIVERSE_ID="$(universe_uuid)"
+# The units that hold a credential (a bootstrap and an incarnation) and the
+# ones that pin Vault's public key, as podman-up.sh registers them.
+HOLDS_CREDENTIAL="vault queue maestro"
+PINNED="logger queue maestro"
 
 # ── The Rule 26 inventory, unit by unit ─────────────────────────────────────
 gate_unit() {
@@ -67,8 +78,14 @@ gate_unit() {
     test "$(engine_tcp_listeners "$ctr" "$engine")" = 0
   check "$s-socket-not-mounted" "nothing is mounted on /run or /run/$s: the socket stays in the container" \
     bash -c "! podman inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' '$ctr' | tr ' ' '\n' | grep -qE '^/run(/$s)?/?$'"
-  check "$s-volumes" "volumes: etc/mysql, sav, log from $APPS_ROOT/$s" \
-    bash -c "podman inspect -f '{{range .Mounts}}{{.Source}}={{.Destination}} {{end}}' '$ctr' | tr ' ' '\n' | sort | grep -c -e '^$APPS_ROOT/$s/etc/mysql=/apps/$s/etc/mysql\$' -e '^$APPS_ROOT/$s/sav=/apps/$s/sav\$' -e '^$APPS_ROOT/$s/log=/apps/$s/log\$' | grep -qx 3"
+  local mounts v want_volumes="" got_volumes=""
+  mounts="$(podman inspect -f '{{range .Mounts}}{{.Source}}={{.Destination}} {{end}}' "$ctr" 2>/dev/null | tr ' ' '\n')"
+  for v in etc/mysql sav log; do
+    [[ " ${VOLUMES_OF[$s]} " == *" $v "* ]] && want_volumes+="$v "
+    grep -qx "$APPS_ROOT/$s/$v=/apps/$s/$v" <<<"$mounts" && got_volumes+="$v "
+  done
+  check "$s-volumes" "volumes: exactly the declared ${VOLUMES_OF[$s]} from $APPS_ROOT/$s${got_volumes:+ (mounted: $got_volumes)}" \
+    test "$got_volumes" = "$want_volumes"
 
   local accounts expected
   accounts="$(rootsql "$s" -e "SELECT CONCAT(user,'@',host,':',plugin) FROM mysql.user ORDER BY 1" 2>/dev/null | sort | paste -sd' ')"
@@ -104,6 +121,27 @@ gate_unit() {
   check "$s-engine-not-super" "the engine's own OS account is no MariaDB account" \
     bash -c "podman exec --user '$engine' '$ctr' mariadb --no-defaults -S '$sock' -umysql -e 'SELECT 1' 2>&1 | grep -q 'Access denied'"
 
+  # The unit's identity, as the parent delivered it and as Vault holds it.
+  check "$s-identity-mount" "$APPS_ROOT/$s/etc/identity is mounted read-only at /apps/$s/etc/identity" \
+    bash -c "podman inspect -f '{{range .Mounts}}{{.Source}}={{.Destination}}:{{.RW}} {{end}}' '$ctr' | tr ' ' '\n' | grep -qx '$APPS_ROOT/$s/etc/identity=/apps/$s/etc/identity:false'"
+  check "$s-universe-id" "the unit runs in universe $UNIVERSE_ID (SHAPER_UNIVERSE_ID)" \
+    test -n "$UNIVERSE_ID" -a "$(unit_env "$ctr" SHAPER_UNIVERSE_ID)" = "$UNIVERSE_ID"
+  if [[ " $PINNED " == *" $s "* ]]; then
+    check "$s-pin" "the pinned Vault public key is a root-owned 0644 file, the one the parent derived" \
+      test "$(podman exec "$ctr" stat -c '%F %a %u' "/apps/$s/etc/identity/vault-signing.pub" 2>/dev/null):$(podman exec "$ctr" sha256sum "/apps/$s/etc/identity/vault-signing.pub" 2>/dev/null | cut -d' ' -f1)" \
+        = "regular file 644 0:$(sha256sum "$VAULT_ETC_DIR/vault-signing.pub" 2>/dev/null | cut -d' ' -f1)"
+  fi
+  if [[ " $HOLDS_CREDENTIAL " == *" $s "* ]]; then
+    local incarnation
+    incarnation="$(unit_env "$ctr" SHAPER_UNIT_INCARNATION)"
+    check "$s-bootstrap" "its bootstrap is a 0600 file owned by $s ($uid), and no bootstrap value is in its environment" \
+      bash -c "[[ \"\$(podman exec '$ctr' stat -c '%F %a %u' /apps/$s/etc/identity/bootstrap 2>/dev/null)\" == 'regular file 600 $uid' ]] && ! podman inspect -f '{{range .Config.Env}}{{println .}}{{end}}' '$ctr' | grep -qE '^[A-Z_]*BOOTSTRAP[A-Z_]*=[0-9a-f]{64}\$'"
+    check "$s-credential" "Vault issued a logger credential to $s's current incarnation ${incarnation:-?} (vault.unit_credentials, root path)" \
+      test -n "$incarnation" -a "$(rootsql vault vault -e "SELECT COUNT(*) FROM unit_credentials c JOIN unit_identities i ON i.universe_id = c.universe_id AND i.unit_id = c.unit_id AND i.incarnation = c.incarnation AND i.epoch = c.epoch WHERE c.universe_id = '$UNIVERSE_ID' AND c.unit_id = '$s' AND c.incarnation = '$incarnation' AND c.audience = 'logger' AND NOT i.revoked" 2>/dev/null || echo 0)" -ge 1
+    check "$s-evidence-flowing" "no evidence owed to Logger for more than 15 minutes in $s.event_outbox" \
+      test "$(rootsql "$s" "$s" -e "SELECT COUNT(*) FROM event_outbox WHERE receipt IS NULL AND created_at < TIMESTAMPADD(MINUTE, -15, UTC_TIMESTAMP(3))" 2>/dev/null || echo unknown)" = 0
+  fi
+
   local other refused=0 tried=0
   for other in "${UNITS[@]}"; do
     [[ "$other" == "$s" ]] && continue
@@ -117,7 +155,7 @@ gate_unit() {
   local writable
   writable="$(app_writable "$ctr" "$uid" \
     "/apps/$s/sav/mariadb" "/apps/$s/sav" "/apps/$s" /apps / "/run/$s" /run \
-    "/apps/$s/etc/mysql/localhost" "/apps/$s/etc/mysql" "/apps/$s/etc" \
+    "/apps/$s/etc/mysql/localhost" "/apps/$s/etc/mysql" "/apps/$s/etc" "/apps/$s/etc/identity" \
     /etc/my.cnf /etc/my.cnf.d /etc/my.cnf.d/zz-shaper-unit.cnf /usr/local/lib/shaper/unit-mariadb \
     "/apps/$s/app" "$(jq -r --arg s "$s" '.bricks[] | select(.database.slug == $s) | .database.schema' "$MANIFEST")")"
   check "$s-fs-protected" "datadir, socket, password and admin paths and their ancestors are not writable by $s${writable:+ — writable: $writable}" \
@@ -130,7 +168,11 @@ gate_unit() {
     bash -c "[[ -n '$epid' ]] && ! podman exec --user '$uid' '$ctr' kill -0 '$epid' 2>/dev/null"
 }
 
-section "universe — no database listens on a network"
+section "universe — one identity, no database on a network"
+check "universe-id" "the universe identity is a UUID ($VAULT_ETC_DIR/universe-id)" \
+  bash -c "[[ '$UNIVERSE_ID' =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\$ ]]"
+check "proof-identity" "the proof's reader identity is root-only ($PROOF_DIR/identity)" \
+  test "$(stat -c '%a %u' "$PROOF_DIR/identity" 2>/dev/null):$(stat -c '%a %u' "$PROOF_DIR/identity/bootstrap" 2>/dev/null)" = "700 0:600 0"
 check "no-tcp-mariadb" "no mariadbd in ss -ltnp, no :3306" \
   bash -c "! ss -ltnpH | grep -qE 'mariadbd|:3306 '"
 check "restart-on-boot" "podman-restart.service is enabled" \

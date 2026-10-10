@@ -38,7 +38,7 @@ Environment=UNIT_HEALTH_URL=http://127.0.0.1:8620/api/health
 # Every request is authorized by a Vault-signed credential, checked current at Vault.
 Environment=SHAPER_UNIVERSE_ID=@UNIVERSE_ID@
 Environment=VAULT_URL=http://127.0.0.1:8610
-Environment=UNIT_AUTH_PUBLIC_KEY_FILE=/apps/logger/etc/identity/vault-public.pem
+Environment=UNIT_AUTH_PUBLIC_KEY_FILE=/apps/logger/etc/identity/vault-signing.pub
 Volume=/apps/logger/etc/mysql:/apps/logger/etc/mysql:Z
 Volume=/apps/logger/sav:/apps/logger/sav:Z
 Volume=/apps/logger/log:/apps/logger/log:Z

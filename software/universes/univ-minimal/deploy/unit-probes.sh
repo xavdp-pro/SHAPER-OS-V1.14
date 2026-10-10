@@ -109,3 +109,70 @@ probe_engine_args() {  # <procs-json> <socket>
   [[ "$(jq -r --arg s "$2" '[.[] | select(.comm == "mariadbd") | (.args | test("(^|/)mariadbd --no-defaults ")) and (.args | contains("--skip-networking")) and (.args | contains("--socket=" + $s))] | map(tostring) | join(",")' <<<"$1")" == true ]]
 }
 engine_pid_of() { jq -r '[.[] | select(.comm == "mariadbd") | .pid] | if length == 1 then .[0] else "" end' <<<"$1"; }
+
+# ── Identity and authenticated calls ────────────────────────────────────────
+# What podman-up.sh, the parent, wrote: the universe UUID beside the Vault's
+# key material, and the proof's own reader identity (unit "proof",
+# logger:ingest and logger:read:own) under the proof's state directory.
+VAULT_ETC_DIR="$APPS_ROOT/vault/etc/vault"
+PROOF_DIR="${PROOF_STATE_DIR:-/var/lib/univ-proof/$UNIVERSE}"
+universe_uuid() { cat "$VAULT_ETC_DIR/universe-id" 2>/dev/null; }
+vault_base() { echo "http://127.0.0.1:$(jq -r '.bricks["brick-vault"].port' "$MANIFEST")"; }
+
+# A credential never reaches a command line: curl reads the Authorization
+# header from a root-only file (-H @file), written by the shell's own printf —
+# a builtin, so the value is in no process's argv.
+#   write_header <header-file> <token-file>
+write_header() {
+  ( umask 077; printf 'Authorization: Bearer %s\n' "$(tr -d '\n' < "$2")" > "$1" )
+}
+
+# The Vault's administrative API, with the token the construction path holds.
+#   vault_curl <curl args…>
+vault_curl() {
+  install -d -m 0700 "$PROOF_DIR" "$PROOF_DIR/identity"
+  write_header "$PROOF_DIR/identity/vault.header" "$VAULT_ETC_DIR/api-token" || return 1
+  curl -H @"$PROOF_DIR/identity/vault.header" "$@"
+}
+
+# Logger, under a Vault-signed credential issued to the proof's identity for
+# this call — it lives 300 s at most, and a recreated universe registers a new
+# incarnation, so one is never kept. The token goes from Vault's answer to the
+# header file through jq, never through a variable or an argument.
+#   logger_curl <curl args…>
+logger_curl() {
+  local dir="$PROOF_DIR/identity" incarnation
+  incarnation="$(cat "$dir/incarnation" 2>/dev/null)"
+  [[ -n "$incarnation" && -s "$dir/bootstrap" ]] || { echo "logger_curl: no proof identity in $dir — run deploy/podman-up.sh" >&2; return 1; }
+  write_header "$dir/bootstrap.header" "$dir/bootstrap" || return 1
+  curl -sf -X POST -H @"$dir/bootstrap.header" -H 'Content-Type: application/json' \
+    -d "{\"unit\":\"proof\",\"incarnation\":\"$incarnation\",\"audience\":\"logger\"}" \
+    "$(vault_base)/api/identity/issue" \
+    | ( umask 077; jq -er '"Authorization: Bearer " + .token' > "$dir/logger.header" ) \
+    || { echo "logger_curl: Vault issued no credential to the proof's identity" >&2; return 1; }
+  curl -H @"$dir/logger.header" "$@"
+}
+
+# One variable of a unit container's environment, as podman created it.
+#   unit_env <ctr> <NAME>
+unit_env() {
+  podman inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$1" 2>/dev/null | sed -n "s/^$2=//p" | head -n1
+}
+
+# Evidence delivered: every row of <slug>'s outbox matching <where> carries
+# Logger's receipt (waiting up to <seconds>), and Logger holds each of them
+# under the unit's own name — read from both databases by the root path,
+# never from either unit's answer.
+#   evidence_delivered <slug> <sql-where> [seconds]
+evidence_delivered() {
+  local s="$1" where="$2" tries="${3:-60}" ids n
+  while (( tries-- > 0 )); do
+    [[ "$(rootsql "$s" "$s" -e "SELECT COUNT(*) FROM event_outbox WHERE ($where) AND receipt IS NULL" 2>/dev/null)" == 0 ]] && break
+    sleep 1
+  done
+  [[ "$(rootsql "$s" "$s" -e "SELECT COUNT(*) FROM event_outbox WHERE ($where) AND receipt IS NULL" 2>/dev/null)" == 0 ]] || return 1
+  ids="$(rootsql "$s" "$s" -e "SELECT CONCAT(\"'\", event_id, \"'\") FROM event_outbox WHERE ($where)" 2>/dev/null | paste -sd,)"
+  n="$(rootsql "$s" "$s" -e "SELECT COUNT(*) FROM event_outbox WHERE ($where)" 2>/dev/null)"
+  [[ -n "$ids" && "$n" =~ ^[1-9][0-9]*$ ]] || return 1
+  [[ "$(rootsql logger logger -e "SELECT COUNT(*) FROM ingest_keys WHERE pod = '$s' AND source_event_id IN ($ids)" 2>/dev/null)" == "$n" ]]
+}

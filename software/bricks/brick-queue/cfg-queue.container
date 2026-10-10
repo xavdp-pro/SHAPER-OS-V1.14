@@ -40,7 +40,7 @@ Environment=UNIT_HEALTH_URL=http://127.0.0.1:8640/api/health
 Environment=SHAPER_UNIVERSE_ID=@UNIVERSE_ID@
 Environment=SHAPER_UNIT_INCARNATION=@INCARNATION@
 Environment=VAULT_URL=http://127.0.0.1:8610
-Environment=UNIT_AUTH_PUBLIC_KEY_FILE=/apps/queue/etc/identity/vault-public.pem
+Environment=UNIT_AUTH_PUBLIC_KEY_FILE=/apps/queue/etc/identity/vault-signing.pub
 Environment=UNIT_BOOTSTRAP_TOKEN_FILE=/apps/queue/etc/identity/bootstrap
 Volume=/apps/queue/etc/mysql:/apps/queue/etc/mysql:Z
 Volume=/apps/queue/sav:/apps/queue/sav:Z
