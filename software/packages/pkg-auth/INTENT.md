@@ -43,6 +43,11 @@ foreign-universe/audience and insufficient-scope credentials are refused.
 A protected service also checks the current incarnation and revocation with
 Vault; signature validity alone grants no surviving authority.
 
+Vault itself renews its own logger-audience credential through the same
+`runtimeCredentialClient`, with an in-process `issuer` and the issuing public
+key in place of the HTTP request and the pinned key file: same bootstrap file,
+incarnation, renewal and verification, no request to itself.
+
 `runtime-identity.js` loads a parent-pinned public key and an owner-only runtime
 bootstrap file. It renews credentials in memory before expiry, coalesces
 concurrent renewals and never persists access tokens. The bootstrap capability

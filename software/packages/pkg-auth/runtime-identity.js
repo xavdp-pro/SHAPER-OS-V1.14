@@ -47,10 +47,19 @@ export function runtimeAuthorizer(env = process.env, fetchImpl = fetch) {
   });
 }
 
-export function runtimeCredentialClient(env = process.env, fetchImpl = fetch) {
-  const publicKey = keyFromFile(env.UNIT_AUTH_PUBLIC_KEY_FILE);
+/**
+ * @param {Record<string, string|undefined>} [env]
+ * @param {typeof fetch} [fetchImpl]
+ * @param {object} [local] - Vault only: issue in-process instead of over HTTP.
+ *   `issuer({ unit, incarnation, audience, bootstrapToken })` resolves to
+ *   `{ token }`, and `publicKey` is the issuing key itself; the bootstrap file,
+ *   incarnation, renewal and verification are exactly those of every other unit.
+ */
+export function runtimeCredentialClient(env = process.env, fetchImpl = fetch, { issuer = null, publicKey: localKey = null } = {}) {
+  if (Boolean(issuer) !== Boolean(localKey)) throw new CredentialError('IDENTITY_CLIENT_CONFIG_REQUIRED', 503);
+  const publicKey = localKey ?? keyFromFile(env.UNIT_AUTH_PUBLIC_KEY_FILE);
   assertIdentityBoundary({ universe: env.SHAPER_UNIVERSE_ID, audience: env.SHAPER_UNIT_SLUG });
-  if (!env.VAULT_URL || !env.UNIT_BOOTSTRAP_TOKEN_FILE || !env.SHAPER_UNIT_INCARNATION) {
+  if ((!issuer && !env.VAULT_URL) || !env.UNIT_BOOTSTRAP_TOKEN_FILE || !env.SHAPER_UNIT_INCARNATION) {
     throw new CredentialError('IDENTITY_CLIENT_CONFIG_REQUIRED', 503);
   }
   bootstrapFromFile(env.UNIT_BOOTSTRAP_TOKEN_FILE);
@@ -62,8 +71,10 @@ export function runtimeCredentialClient(env = process.env, fetchImpl = fetch) {
       if (!pending.has(audience)) {
         const renewal = (async () => {
           const bootstrap = bootstrapFromFile(env.UNIT_BOOTSTRAP_TOKEN_FILE);
-          const result = await request(env.VAULT_URL, '/api/identity/issue', bootstrap,
-            { unit: env.SHAPER_UNIT_SLUG, incarnation: env.SHAPER_UNIT_INCARNATION, audience }, fetchImpl);
+          const ask = { unit: env.SHAPER_UNIT_SLUG, incarnation: env.SHAPER_UNIT_INCARNATION, audience };
+          const result = issuer
+            ? await issuer({ ...ask, bootstrapToken: bootstrap })
+            : await request(env.VAULT_URL, '/api/identity/issue', bootstrap, ask, fetchImpl);
           const claims = verifyCredential(result.token, publicKey, { universe: env.SHAPER_UNIVERSE_ID, audience });
           if (claims.unit !== env.SHAPER_UNIT_SLUG || claims.incarnation !== env.SHAPER_UNIT_INCARNATION) {
             throw new CredentialError('IDENTITY_RENEWAL_MISMATCH', 403);

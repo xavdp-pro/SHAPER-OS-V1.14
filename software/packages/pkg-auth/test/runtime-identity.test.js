@@ -40,3 +40,27 @@ test('renewal coalesces callers, caches a verified token and refuses unsafe runt
     assert.throws(() => runtimeCredentialClient(env, fetchImpl), { code: 'IDENTITY_PUBLIC_KEY_UNTRUSTED' });
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('Vault renews its own credential in-process through the same bootstrap, incarnation and verification', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'unit-identity-local-'));
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const universe = '550e8400-e29b-41d4-a716-446655440000', bootstrap = 'b'.repeat(64);
+  const env = { SHAPER_UNIVERSE_ID: universe, SHAPER_UNIT_SLUG: 'vault', SHAPER_UNIT_INCARNATION: 'vault-1',
+    UNIT_BOOTSTRAP_TOKEN_FILE: path.join(dir, 'bootstrap') };
+  fs.writeFileSync(env.UNIT_BOOTSTRAP_TOKEN_FILE, bootstrap, { mode: 0o600 });
+  const asked = [];
+  const issuer = async (ask) => {
+    asked.push(ask);
+    return issueCredential({ universe, unit: ask.unit, incarnation: ask.incarnation, audience: ask.audience,
+      scopes: ['logger:ingest'], epoch: 1, revocationRef: 'vault:1' }, privateKey);
+  };
+  try {
+    const client = runtimeCredentialClient(env, async () => assert.fail('no HTTP for the local issuer'), { issuer, publicKey });
+    assert.match((await client.headers('logger')).Authorization, /^Bearer /);
+    assert.deepEqual(asked, [{ unit: 'vault', incarnation: 'vault-1', audience: 'logger', bootstrapToken: bootstrap }]);
+    assert.throws(() => runtimeCredentialClient(env, fetch, { issuer }), { code: 'IDENTITY_CLIENT_CONFIG_REQUIRED' });
+    const other = generateKeyPairSync('ed25519').publicKey;
+    const wrongKey = runtimeCredentialClient(env, fetch, { issuer, publicKey: other });
+    await assert.rejects(wrongKey.headers('logger'), { code: 'CREDENTIAL_SIGNATURE_INVALID' });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
