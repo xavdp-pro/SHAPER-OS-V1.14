@@ -123,3 +123,24 @@ oldest pending instant) for each unit's vitals: a down Logger is observable.
 
 Vault, Queue and Maestro carry this exact table in their own schema; a test
 holds the three definitions equal to `sql/outbox.sql`.
+
+<a id="live-tests"></a>
+## Live tests
+
+`test/live/run-live.mjs` starts one throwaway MariaDB server on a private
+socket (no TCP), provisions the four base units as the administrative path
+does — database and account of the slug, `SELECT, INSERT, UPDATE, DELETE` on
+that database only, schema installed by root, password in
+`<apps>/<slug>/etc/mysql/localhost/passwd` (0600) — runs the given
+`*.live.mjs` files against it one at a time, then removes everything:
+
+```sh
+MARIADB_BASEDIR=<extracted MariaDB, holding usr/sbin/mariadbd> \
+  node software/packages/pkg-db/test/live/run-live.mjs \
+  software/packages/pkg-{queue,vault,maestro}/test/*.live.mjs
+```
+
+A live file run any other way fails at once; no other database is substituted
+(Rule 0G). These files prove the services' SQL, transactions, outbox,
+recovery and the real Vault → Logger authorization path. They do not replace
+the universe's Rule 26 inventory of the running containers.
