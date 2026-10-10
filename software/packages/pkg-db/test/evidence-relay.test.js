@@ -1,11 +1,16 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { appendOutbox, createEvidenceRelay } from '../outbox.js';
 
 // Intent: software/packages/pkg-db/INTENT.md#transactional-outbox-helper
 // Database-free lane semantics. The real transaction, crash and drain proofs
 // run against MariaDB in the units' *.live.mjs files (run-live.mjs).
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 function fixture() {
   const rows = [];
@@ -92,4 +97,20 @@ describe('the evidence relay lane', () => {
       assert.throws(() => createEvidenceRelay({ pool: f.pool, deliver: async () => ({}), ...bad }), { code: 'OUTBOX_RELAY_INVALID' });
     }
   });
+});
+
+describe('every unit installs the same outbox table', () => {
+  const normalize = (text) => text.replace(/--[^\n]*\n/g, '\n').replace(/\s+/g, ' ').trim();
+  const table = (file) => {
+    const m = fs.readFileSync(file, 'utf8').match(/CREATE TABLE IF NOT EXISTS event_outbox \([\s\S]*?\) ENGINE=InnoDB[^;]*;/);
+    assert.ok(m, `${file} has no event_outbox table`);
+    return normalize(m[0]);
+  };
+  const reference = table(path.join(here, '../sql/outbox.sql'));
+
+  for (const unit of ['vault', 'queue', 'maestro']) {
+    it(`${unit}'s schema carries the pkg-db outbox definition`, () => {
+      assert.equal(table(path.join(here, `../../pkg-${unit}/sql/schema.sql`)), reference);
+    });
+  }
 });

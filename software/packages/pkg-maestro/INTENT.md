@@ -19,7 +19,9 @@ creates no work.
 
 1. **Beat Engine**: Periodic heartbeat every `<CADENCE_SECONDS>`. Handler decides if LLM is needed.
 2. **Registry**: A task requires `<SLUG>` and nothing else; a label, a port, a bridge or a context are optional and never invented. Vault key and context path are opaque references.
-3. **Audit**: Every beat logged via `@shaper/pkg-logger` as JSONL.
+3. **Audit**: Every beat and its outcome is evidence for Logger. On the durable
+   path it is an outbox row committed with the change it reports
+   ([§4](#evidence)); only the memory scaffolding still writes JSONL.
 4. **Isolation**: No universe business logic. Scheduling only.
 5. **Context snapshot**: Before enqueueing, the handler reads the task's
    configured context and puts the text in `payload.context`. An unreadable or
@@ -38,8 +40,9 @@ creates no work.
    (`MariaDbMaestroStore`, `sql/schema.sql`), and MariaDB is the source of
    truth — not timer phase, not process memory. The in-memory
    `MaestroScheduler` remains as declared DEV scaffolding, selected only with
-   `MAESTRO_STORE=memory`; the brick default is `mariadb` and nothing falls
-   back to memory.
+   `MAESTRO_STORE=memory`; the brick default is `mariadb`, nothing falls back
+   to memory, and memory is refused (`DEV_STORE_REFUSED`) when
+   `SHAPER_QUALIFICATION` or a non-development `SHAPER_RUNTIME_MODE` is set.
 7. **The schema is installed by the administrative path.** The application
    account holds `SELECT, INSERT, UPDATE, DELETE` on `maestro.*` only, issues
    no DDL, and refuses to start when `schema_meta` is absent or older than the
@@ -103,10 +106,8 @@ tick, start and stop are still open on localhost); scheduler leases for several
 replicas (the schedule row lock and Queue idempotency are the only barriers
 today); the `catch_up_bounded` and `halt` missed policies (refused at
 declaration); civil-calendar cadences with declared timezone and
-daylight-saving rules (cadence is a fixed number of UTC seconds); a
-transactional outbox to Logger (evidence is still local JSONL plus
-fire-and-forget ingest); monthly-partitioned archival of settled occurrence
-history; declared stream, topic, job class and schema version on schedules
+daylight-saving rules (cadence is a fixed number of UTC seconds);
+monthly-partitioned archival of settled occurrence history; declared stream, topic, job class and schema version on schedules
 (only an optional `jobType`); refusal of arbitrary bridge URLs and model names
 in a schedule; persistence of the started/stopped state (it follows
 `MAESTRO_AUTO_START` at every start); and removal of the memory scaffolding
@@ -118,4 +119,54 @@ with its direct-to-bridge legacy path.
 
 * **Brick port**: `8630` | **Default cadence**: `300`s
 * **Storage**: `maestro` database in the unit's private MariaDB, socket `/apps/maestro/nosav/run/mysqld/mysqld.sock` on the universe side
-* **Logs**: `/apps/maestro/log` (local JSONL audit — evidence, not state)
+* **Logs**: none on the durable path — evidence lives in the `maestro`
+  database's `event_outbox` until Logger receipts it; `LOG_DIR` serves only the
+  memory scaffolding
+
+<a id="evidence"></a>
+## 4. Evidence: the outbox, not a local file
+
+Every report of the durable scheduler is an `event_outbox` row (schema version
+2, the pkg-db outbox table) written in the transaction of the change it
+reports. Store writes take an `evidence` argument; the scheduler builds the
+entries, the store appends them before its commit:
+
+| Change (store write) | Evidence |
+| :--- | :--- |
+| declared file materialized (`materialize`) | `SCHEDULE_MATERIALIZED` per created/revised/re-enabled schedule, `SCHEDULE_RETIRED` per schedule no longer declared |
+| API registration (`materialize`, declared by `api`) | `TASK_REGISTERED` |
+| evaluation (`evaluate`) | `OCCURRENCES_MISSED` (count, reasons, latest instant), `OCCURRENCE_DUE` |
+| explicit beat (`createManual`) | `OCCURRENCE_DUE` (`trigger: manual`) or `BEAT_SKIPPED` |
+| Queue answered with a job (`markEnqueued`) | `BEAT_ENQUEUED`, correlated to the job id |
+| refused, previous run open, retries spent (`settleMissed`) | `ENQUEUE_REFUSED` or `BEAT_SKIPPED` |
+| a retryable attempt failed (`recordAttemptError`) | `ENQUEUE_RETRY` |
+| no row change: start, stop, failed tick, daemon start (`recordEvidence`) | `SCHEDULER_STARTED`, `SCHEDULER_STOPPED`, `MAESTRO_TICK_FAILED`, `MAESTRO_STARTED` |
+
+A failed evidence insert rolls the change back: an occurrence is not created,
+or not marked `ENQUEUED`, without its evidence. Lifecycle evidence that
+MariaDB refuses is said on the console and never claimed recorded. The source
+of every entry is the unit, `pod: "maestro"` (Logger binds it to the
+authenticated caller); the schedule travels in `data.slug`, the occurrence in
+`executionId`.
+
+The durable path writes **no local JSONL audit** and sends no best-effort HTTP
+line: the outbox is the record, Logger the destination, the console says what
+happened. `LOG_DIR` and `EventLogger` serve only `MAESTRO_STORE=memory`.
+
+The entrypoint delivers the outbox with one relay lane (pkg-db
+`createEvidenceRelay`, `deliverLog` receipt check) under a logger-audience
+credential renewed from Vault (`runtimeCredentialClient`). On MariaDB it
+therefore requires `LOGGER_URL` and the identity inputs (`VAULT_URL`,
+`UNIT_AUTH_PUBLIC_KEY_FILE`, `UNIT_BOOTSTRAP_TOKEN_FILE`,
+`SHAPER_UNIT_INCARNATION`, beside `SHAPER_UNIVERSE_ID`) and a parent-registered
+grant `{"logger":["logger:ingest"]}` for unit `maestro`; until the grant exists
+or while Logger is down, the debt waits and is reported once. Optional:
+`MAESTRO_RELAY_INTERVAL_MS`, `MAESTRO_RELAY_BATCH`, `MAESTRO_RELAY_TIMEOUT_MS`,
+`MAESTRO_SHUTDOWN_TIMEOUT_MS`. Shutdown: scheduler drained, relay batch
+settled (exit 1 if unconfirmed, debt kept), database closed. `/api/vitals`
+reports `evidencePending` and `oldestPendingEvidenceAt`.
+
+Adapted from the reference branch's neutral Maestro (f2edc86, e5e590e) to the
+retained scheduler and API, without its neutral runtime, leases or signed
+receipts. Proof: `test/evidence-outbox.live.mjs` (real MariaDB for Maestro and
+Queue, real Vault and Logger) and `test/evidence-and-dev-store.test.js`.

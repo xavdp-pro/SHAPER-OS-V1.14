@@ -15,7 +15,9 @@
  * Intent: software/packages/pkg-maestro/INTENT.md#private-mariadb
  */
 
+import { UnitDbError } from '../pkg-db/index.js';
 import { assertSchema, openUnitDb, probeDb, withTransaction } from '../pkg-db/pool.js';
+import { appendOutbox, outboxStatus } from '../pkg-db/outbox.js';
 import {
   ScheduleError,
   canonicalJson,
@@ -26,7 +28,7 @@ import {
   sha256Hex,
 } from './occurrence.js';
 
-export const MAESTRO_SCHEMA_VERSION = 1;
+export const MAESTRO_SCHEMA_VERSION = 2;
 
 /** Columns an API reader may see; the frozen request stays inside the unit. */
 const PUBLIC_OCCURRENCE_COLUMNS = [
@@ -34,6 +36,19 @@ const PUBLIC_OCCURRENCE_COLUMNS = [
   'request_digest', 'queue_job_id', 'enqueue_attempts', 'first_attempt_at', 'last_attempt_at',
   'enqueued_at', 'final_reason', 'last_error', 'created_at', 'updated_at',
 ].join(', ');
+
+/**
+ * Appends a write's evidence in the write's own transaction. `evidence` is an
+ * item `{ eventId, entry }`, an array of items, or a function of the write's
+ * result returning either; nothing is appended for null or an empty array.
+ * The entries are built by the scheduler; their delivery is the relay's.
+ */
+async function appendEvidence(conn, evidence, result) {
+  const items = typeof evidence === 'function' ? evidence(result) : evidence;
+  for (const item of [].concat(items ?? [])) {
+    if (item) await appendOutbox(conn, item.entry, { eventId: item.eventId });
+  }
+}
 
 /** @param {number} ms @returns {string} 'YYYY-MM-DD HH:MM:SS.mmm' in UTC */
 export function sqlTime(ms) {
@@ -120,6 +135,14 @@ export class MariaDbMaestroStore {
     const { pool, config } = await openUnitDb({ slug, ...db });
     try {
       await assertSchema(pool, { unit: 'maestro', minVersion: MAESTRO_SCHEMA_VERSION });
+      try {
+        await pool.query('SELECT event_id FROM event_outbox LIMIT 1');
+      } catch (err) {
+        if (err.code === 'ER_NO_SUCH_TABLE') {
+          throw new UnitDbError('SCHEMA_MISSING', 'event_outbox is absent: install maestro\'s schema through the administrative path');
+        }
+        throw err;
+      }
       return new MariaDbMaestroStore({ pool, config });
     } catch (err) {
       await pool.end().catch(() => {});
@@ -145,7 +168,7 @@ export class MariaDbMaestroStore {
    * @param {boolean} [options.retireUndeclared=false] - disable enabled schedules absent from `declarations`
    * @returns {Promise<{ results: Array<{ scheduleId: string, revision: string, outcome: string }>, retired: string[] }>}
    */
-  async materialize(declarations, { declaredBy, nowMs, retireUndeclared = false }) {
+  async materialize(declarations, { declaredBy, nowMs, retireUndeclared = false, evidence = null }) {
     return withTransaction(this.pool, async (conn) => {
       const results = [];
       for (const declaration of declarations) {
@@ -165,7 +188,9 @@ export class MariaDbMaestroStore {
           );
         }
       }
-      return { results, retired };
+      const summary = { results, retired };
+      await appendEvidence(conn, evidence, summary);
+      return summary;
     });
   }
 
@@ -195,7 +220,7 @@ export class MariaDbMaestroStore {
    * @param {string} options.universeId
    * @param {(task: object, occ: object) => ({ requestText: string, requestDigest: string } | { reason: string, error: string })} options.buildRequest
    */
-  async evaluate(scheduleId, nowMs, { universeId, buildRequest }) {
+  async evaluate(scheduleId, nowMs, { universeId, buildRequest, evidence = null }) {
     return withTransaction(this.pool, async (conn) => {
       const [rows] = await conn.query('SELECT * FROM schedules WHERE schedule_id = ? FOR UPDATE', [scheduleId]);
       if (!rows.length || Number(rows[0].enabled) !== 1) return null;
@@ -275,7 +300,7 @@ export class MariaDbMaestroStore {
         ],
       );
 
-      return {
+      const result = {
         scheduleId,
         revision: s.revision,
         due: dueRow,
@@ -285,6 +310,8 @@ export class MariaDbMaestroStore {
         missedNotRecorded: plan.missedNotRecorded,
         nextDueAt: isoUtc(plan.nextDueMs),
       };
+      await appendEvidence(conn, evidence, result);
+      return result;
     });
   }
 
@@ -292,7 +319,7 @@ export class MariaDbMaestroStore {
    * An explicit occurrence under a declared schedule, planned at the current
    * second. Asking twice within one second names the same occurrence.
    */
-  async createManual(scheduleId, nowMs, { universeId, buildRequest }) {
+  async createManual(scheduleId, nowMs, { universeId, buildRequest, evidence = null }) {
     return withTransaction(this.pool, async (conn) => {
       const [rows] = await conn.query('SELECT * FROM schedules WHERE schedule_id = ? FOR UPDATE', [scheduleId]);
       if (!rows.length) throw new ScheduleError('SCHEDULE_UNKNOWN', `Task not registered in Maestro: ${scheduleId}`, 404);
@@ -326,7 +353,9 @@ export class MariaDbMaestroStore {
         await conn.query('UPDATE schedules SET missed_total = missed_total + 1, updated_at = ? WHERE schedule_id = ?', [stamp, scheduleId]);
       }
       const [created] = await conn.query('SELECT * FROM occurrences WHERE occurrence_id = ?', [id]);
-      return { occurrence: created[0], created: true, kind: task.kind };
+      const result = { occurrence: created[0], created: true, kind: task.kind };
+      await appendEvidence(conn, evidence, result);
+      return result;
     });
   }
 
@@ -379,7 +408,7 @@ export class MariaDbMaestroStore {
    * ENQUEUED. The schedule row is locked first, in the same order every
    * writer of this schedule uses, so two writers never wait on each other.
    */
-  async markEnqueued(id, scheduleId, { jobId, reason, nowMs }) {
+  async markEnqueued(id, scheduleId, { jobId, reason, nowMs, evidence = null }) {
     return withTransaction(this.pool, async (conn) => {
       const stamp = sqlTime(nowMs);
       await conn.query('SELECT schedule_id FROM schedules WHERE schedule_id = ? FOR UPDATE', [scheduleId]);
@@ -398,12 +427,13 @@ export class MariaDbMaestroStore {
           WHERE schedule_id = ?`,
         [stamp, stamp, stamp, scheduleId],
       );
+      await appendEvidence(conn, evidence, true);
       return true;
     });
   }
 
   /** A DUE occurrence that will not be enqueued: MISSED with its typed reason. */
-  async settleMissed(id, scheduleId, { reason, error = null, nowMs }) {
+  async settleMissed(id, scheduleId, { reason, error = null, nowMs, evidence = null }) {
     return withTransaction(this.pool, async (conn) => {
       const stamp = sqlTime(nowMs);
       await conn.query('SELECT schedule_id FROM schedules WHERE schedule_id = ? FOR UPDATE', [scheduleId]);
@@ -414,16 +444,35 @@ export class MariaDbMaestroStore {
       );
       if (res.affectedRows !== 1) return false;
       await conn.query('UPDATE schedules SET missed_total = missed_total + 1, updated_at = ? WHERE schedule_id = ?', [stamp, scheduleId]);
+      await appendEvidence(conn, evidence, true);
       return true;
     });
   }
 
   /** The attempt failed without a durable answer; the occurrence stays DUE. */
-  async recordAttemptError(id, { error, nowMs }) {
-    await this.pool.query(
-      "UPDATE occurrences SET last_error = ?, updated_at = ? WHERE occurrence_id = ? AND state = 'DUE'",
-      [String(error).slice(0, 512), sqlTime(nowMs), id],
-    );
+  async recordAttemptError(id, { error, nowMs, evidence = null }) {
+    return withTransaction(this.pool, async (conn) => {
+      const [res] = await conn.query(
+        "UPDATE occurrences SET last_error = ?, updated_at = ? WHERE occurrence_id = ? AND state = 'DUE'",
+        [String(error).slice(0, 512), sqlTime(nowMs), id],
+      );
+      if (res.affectedRows !== 1) return false;
+      await appendEvidence(conn, evidence, true);
+      return true;
+    });
+  }
+
+  /**
+   * Evidence that belongs to no row change — the scheduler starting, stopping
+   * or failing a tick — committed on its own. Same outbox, same delivery.
+   */
+  async recordEvidence(evidence) {
+    await withTransaction(this.pool, async (conn) => appendEvidence(conn, evidence, null));
+  }
+
+  /** The evidence still owed to Logger: observable, never silent. */
+  async evidenceStatus() {
+    return outboxStatus(this.pool);
   }
 
   /** The schedule's latest ENQUEUED occurrence planned before `plannedMs`. */

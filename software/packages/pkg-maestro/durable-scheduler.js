@@ -28,12 +28,19 @@
  * the tick: nothing is claimed as emitted, and the next tick starts again from
  * what MariaDB holds.
  *
+ * ── Evidence ───────────────────────────────────────────────────────────────
+ * Every report is an outbox row written in the transaction of the change it
+ * reports (store methods take an `evidence` argument), so a crash can lose
+ * neither the change nor its evidence alone. A relay lane in the service
+ * lifecycle delivers the rows to Logger until Logger's receipt matches. There
+ * is no local JSONL audit on this path: the outbox is the record, Logger the
+ * destination, and the console only says what happened.
+ *
  * Intent: software/packages/pkg-maestro/INTENT.md#private-mariadb
  */
 
-import { EventLogger } from '../pkg-logger/index.js';
+import { randomUUID } from 'node:crypto';
 import { ageSeconds, dependency, vitals } from '../pkg-logger/vitals.js';
-import { ingestLog } from '../pkg-logger/ingest-client.js';
 import { readTaskContext } from '../pkg-agent-runtime/context.js';
 import { occurrenceRequestText } from './queue-beat.js';
 import {
@@ -66,6 +73,20 @@ export function buildOccurrenceRequest(task, occurrence) {
   }
   const requestText = occurrenceRequestText(task, context, occurrence);
   return { requestText, requestDigest: sha256Hex(requestText) };
+}
+
+/**
+ * One evidence item for the outbox: the Logger entry and its stable source
+ * event id. The source is always the unit, `maestro` — Logger binds it to the
+ * authenticated caller — and the schedule travels in `data.slug`.
+ * @returns {{ eventId: string, entry: object }}
+ */
+export function maestroEvidence(event, data = {}, { level = 'INFO', correlationId = null, executionId = null } = {}) {
+  const eventId = randomUUID();
+  return {
+    eventId,
+    entry: { pod: 'maestro', event, level, correlationId, executionId: executionId || eventId, data },
+  };
 }
 
 /** The registered-task view of a stored schedule: today's entry shape, plus the durable fields. */
@@ -114,9 +135,7 @@ export class DurableMaestro {
    * @param {string} options.universeId - SHAPER_UNIVERSE_ID, part of every occurrence id
    * @param {string} options.queueUrl
    * @param {string} [options.authToken] - bearer sent to Queue
-   * @param {string|null} [options.loggerUrl]
    * @param {string} [options.service]
-   * @param {string} options.logDir - local JSONL audit (evidence, not state)
    * @param {typeof fetch} [options.fetchImpl]
    * @param {() => number} [options.now]
    * @param {number} [options.maxEnqueueAttempts]
@@ -128,9 +147,7 @@ export class DurableMaestro {
     universeId,
     queueUrl,
     authToken = '',
-    loggerUrl = null,
     service = 'brick-maestro',
-    logDir,
     fetchImpl = fetch,
     now = Date.now,
     maxEnqueueAttempts = DEFAULT_MAX_ENQUEUE_ATTEMPTS,
@@ -145,9 +162,7 @@ export class DurableMaestro {
     this.universeId = assertUniverseId(universeId);
     this.queueUrl = queueUrl.replace(/\/$/, '');
     this.authToken = authToken;
-    this.loggerUrl = loggerUrl;
     this.service = service;
-    this.logger = new EventLogger({ pod: service, logDir });
     this.fetchImpl = fetchImpl;
     this.now = now;
     this.maxEnqueueAttempts = maxEnqueueAttempts;
@@ -169,15 +184,31 @@ export class DurableMaestro {
 
   // ── Evidence ──────────────────────────────────────────────────────────────
 
-  /** Reported only after the change it describes has committed. */
-  _record(event, data = {}, { level = 'INFO', pod = null, correlationId = null } = {}) {
+  /**
+   * Evidence that belongs to no row change (scheduler started, stopped, a
+   * failed tick), committed on its own. When MariaDB cannot take it, the
+   * console says so: nothing pretends it was recorded.
+   */
+  async _recordStandalone(event, data = {}, options = {}) {
     try {
-      this.logger.log({ level, event, data, correlationId });
+      await this.store.recordEvidence(maestroEvidence(event, data, options));
+      return true;
     } catch (err) {
-      console.error(`[brick-maestro] local audit write failed for ${event}: ${err.code || err.message}`);
+      console.error(`[brick-maestro] evidence ${event} not recorded: ${err.code || err.name} — ${err.message}`);
+      return false;
     }
-    ingestLog({ loggerUrl: this.loggerUrl, pod: pod || 'maestro', event, level, correlationId, data, fetchImpl: this.fetchImpl })
-      .catch(() => {});
+  }
+
+  /** Public form of the above, for the service lifecycle (MAESTRO_STARTED). */
+  recordEvidence(event, data = {}, options = {}) {
+    return this._recordStandalone(event, data, options);
+  }
+
+  /** BEAT_SKIPPED for an occurrence settled MISSED, correlated to its job or itself. */
+  _skippedEvidence(scheduleId, reason, occurrenceId, plannedAt, jobId = null, level = 'WARN') {
+    return maestroEvidence('BEAT_SKIPPED', {
+      slug: scheduleId, reason, occurrenceId, plannedAt: plannedAt ? new Date(msOf(plannedAt)).toISOString() : null, jobId,
+    }, { level, correlationId: jobId || occurrenceId, executionId: occurrenceId });
   }
 
   // ── Declarations ──────────────────────────────────────────────────────────
@@ -194,14 +225,15 @@ export class DurableMaestro {
       if (seen.has(d.slug)) throw new ScheduleError('INVALID_SCHEDULE', `task ${d.slug} is declared twice`);
       seen.add(d.slug);
     }
-    const summary = await this.store.materialize(normalized, { declaredBy: 'file', nowMs: this.now(), retireUndeclared: true });
-    for (const r of summary.results) {
-      if (r.outcome !== 'unchanged') this._record('SCHEDULE_MATERIALIZED', r);
-    }
-    for (const scheduleId of summary.retired) {
-      this._record('SCHEDULE_RETIRED', { scheduleId, reason: 'not_declared' }, { level: 'WARN' });
-    }
-    return summary;
+    return this.store.materialize(normalized, {
+      declaredBy: 'file',
+      nowMs: this.now(),
+      retireUndeclared: true,
+      evidence: (summary) => [
+        ...summary.results.filter((r) => r.outcome !== 'unchanged').map((r) => maestroEvidence('SCHEDULE_MATERIALIZED', r)),
+        ...summary.retired.map((scheduleId) => maestroEvidence('SCHEDULE_RETIRED', { scheduleId, reason: 'not_declared' }, { level: 'WARN' })),
+      ],
+    });
   }
 
   /**
@@ -210,9 +242,12 @@ export class DurableMaestro {
    */
   async registerTask(taskConfig = {}) {
     const declaration = normalizeDeclaration(taskConfig);
-    const { results } = await this.store.materialize([declaration], { declaredBy: 'api', nowMs: this.now() });
-    this._record('TASK_REGISTERED', {
-      slug: declaration.slug, kind: declaration.kind, cadence: declaration.cadenceSeconds, ...results[0],
+    await this.store.materialize([declaration], {
+      declaredBy: 'api',
+      nowMs: this.now(),
+      evidence: ({ results }) => maestroEvidence('TASK_REGISTERED', {
+        slug: declaration.slug, kind: declaration.kind, cadence: declaration.cadenceSeconds, ...results[0],
+      }),
     });
     this._kick();
     return scheduleEntry(await this.store.getSchedule(declaration.slug));
@@ -235,11 +270,16 @@ export class DurableMaestro {
   async triggerBeat(slug) {
     const start = this.now();
     const { occurrence, created, kind } = await this.store.createManual(slug, start, {
-      universeId: this.universeId, buildRequest: this._buildRequest,
+      universeId: this.universeId,
+      buildRequest: this._buildRequest,
+      evidence: (r) => (r.occurrence.state === 'MISSED'
+        ? this._skippedEvidence(slug, r.occurrence.final_reason, r.occurrence.occurrence_id, r.occurrence.planned_at)
+        : maestroEvidence('OCCURRENCE_DUE', {
+          slug, occurrenceId: r.occurrence.occurrence_id, revision: r.occurrence.revision,
+          plannedAt: publicOccurrence(r.occurrence).plannedAt, trigger: 'manual',
+        }, { correlationId: r.occurrence.occurrence_id, executionId: r.occurrence.occurrence_id })),
     });
-    if (created && occurrence.state === 'MISSED') {
-      this._noteSkipped(slug, occurrence.final_reason, occurrence.occurrence_id, occurrence.planned_at);
-    }
+    if (created && occurrence.state === 'MISSED') this.lastSkipped.set(slug, occurrence.final_reason);
     if (occurrence.state === 'DUE') await this._submit(occurrence);
     const final = await this.store.getOccurrence(occurrence.occurrence_id);
     return {
@@ -264,7 +304,7 @@ export class DurableMaestro {
   startScheduler() {
     if (this.isRunning) return Promise.resolve(null);
     this.isRunning = true;
-    this._record('SCHEDULER_STARTED', { store: 'mariadb', universeId: this.universeId });
+    this._startRecorded = this._recordStandalone('SCHEDULER_STARTED', { store: 'mariadb', universeId: this.universeId });
     return this._loop(true);
   }
 
@@ -273,12 +313,21 @@ export class DurableMaestro {
     this.isRunning = false;
     if (this._timer) clearTimeout(this._timer);
     this._timer = null;
-    if (wasRunning) this._record('SCHEDULER_STOPPED');
+    if (wasRunning) this._stopRecorded = this._recordStandalone('SCHEDULER_STOPPED');
+  }
+
+  /**
+   * Stops the loop and waits for the tick in flight and the stop's evidence;
+   * the store is closed by its owner once the relay has drained.
+   */
+  async drain() {
+    this.stopScheduler();
+    if (this._ticking) await this._ticking.catch(() => {});
+    await Promise.all([this._startRecorded, this._stopRecorded]);
   }
 
   async close() {
-    this.stopScheduler();
-    if (this._ticking) await this._ticking.catch(() => {});
+    await this.drain();
     await this.store.close();
   }
 
@@ -333,28 +382,40 @@ export class DurableMaestro {
       nowMs = this.now();
       for (const scheduleId of await this.store.schedulesDue(nowMs)) {
         if (!this.isRunning) break;
-        const ev = await this.store.evaluate(scheduleId, nowMs, { universeId: this.universeId, buildRequest: this._buildRequest });
+        const ev = await this.store.evaluate(scheduleId, nowMs, {
+          universeId: this.universeId,
+          buildRequest: this._buildRequest,
+          evidence: (r) => {
+            const items = [];
+            if (r.missedCount > 0) {
+              const latest = r.missed[r.missed.length - 1];
+              items.push(maestroEvidence('OCCURRENCES_MISSED', {
+                slug: scheduleId,
+                revision: r.revision,
+                count: r.missedCount,
+                recorded: r.missed.length,
+                notRecorded: r.missedNotRecorded,
+                reasons: [...new Set(r.missed.map((m) => m.reason))],
+                latestPlannedAt: latest ? latest.plannedAt : null,
+              }, { level: 'WARN' }));
+            }
+            if (r.due && r.dueCreated && r.due.state === 'DUE') {
+              items.push(maestroEvidence('OCCURRENCE_DUE', {
+                slug: scheduleId, occurrenceId: r.due.occurrence_id, revision: r.revision, plannedAt: publicOccurrence(r.due).plannedAt,
+              }, { correlationId: r.due.occurrence_id, executionId: r.due.occurrence_id }));
+            }
+            return items;
+          },
+        });
         if (!ev) continue;
         summary.evaluated += 1;
         summary.missed += ev.missedCount;
         if (ev.missedCount > 0) {
           const latest = ev.missed[ev.missed.length - 1];
-          this._record('OCCURRENCES_MISSED', {
-            slug: scheduleId,
-            revision: ev.revision,
-            count: ev.missedCount,
-            recorded: ev.missed.length,
-            notRecorded: ev.missedNotRecorded,
-            reasons: [...new Set(ev.missed.map((m) => m.reason))],
-            latestPlannedAt: latest ? latest.plannedAt : null,
-          }, { level: 'WARN', pod: scheduleId });
           if (latest) this.lastSkipped.set(scheduleId, latest.reason);
         }
         if (ev.due && ev.dueCreated && ev.due.state === 'DUE') {
           summary.newlyDue += 1;
-          this._record('OCCURRENCE_DUE', {
-            slug: scheduleId, occurrenceId: ev.due.occurrence_id, revision: ev.revision, plannedAt: publicOccurrence(ev.due).plannedAt,
-          }, { correlationId: ev.due.occurrence_id });
           tally(await this._submit(ev.due));
         }
       }
@@ -366,10 +427,10 @@ export class DurableMaestro {
       // Nothing is claimed: whatever was committed stays true, whatever was
       // not is recomputed from MariaDB on the next tick.
       this.lastTick = { at, ok: false, error: `${err.code || err.name}: ${err.message}` };
-      try {
-        this.logger.log({ level: 'ERROR', event: 'MAESTRO_TICK_FAILED', data: { code: err.code || null, error: err.message, summary } });
-      } catch { /* the console line below still says it */ }
       console.error(`[brick-maestro] tick failed: ${err.code || err.name} — ${err.message}`);
+      // Most tick failures are the database itself; this is then refused too,
+      // and the console line above is all there is — said, not invented.
+      await this._recordStandalone('MAESTRO_TICK_FAILED', { code: err.code || null, summary }, { level: 'ERROR' });
       return { summary, waitMs: TICK_FAILURE_BACKOFF_MS };
     }
   }
@@ -420,8 +481,9 @@ export class DurableMaestro {
       if (open) {
         const settled = await this.store.settleMissed(id, scheduleId, {
           reason: 'previous_run_still_open', error: `job ${open.id} is ${open.status}`, nowMs: this.now(),
+          evidence: this._skippedEvidence(scheduleId, 'previous_run_still_open', id, occ.planned_at, open.id),
         });
-        if (settled) this._noteSkipped(scheduleId, 'previous_run_still_open', id, occ.planned_at, open.id);
+        if (settled) this.lastSkipped.set(scheduleId, 'previous_run_still_open');
         return 'missed';
       }
     }
@@ -435,22 +497,23 @@ export class DurableMaestro {
     if (decision.outcome === 'conflict' || decision.outcome === 'rejected') {
       const settled = await this.store.settleMissed(id, scheduleId, {
         reason: decision.reason, error: decision.detail || null, nowMs: this.now(),
-      });
-      if (settled) {
-        this.lastSkipped.set(scheduleId, decision.reason);
-        this._record('ENQUEUE_REFUSED', {
+        evidence: maestroEvidence('ENQUEUE_REFUSED', {
           slug: scheduleId, occurrenceId: id, reason: decision.reason, detail: decision.detail, queue: this.queueUrl,
-        }, { level: 'ERROR', pod: scheduleId, correlationId: id });
-      }
+        }, { level: 'ERROR', correlationId: id, executionId: id }),
+      });
+      if (settled) this.lastSkipped.set(scheduleId, decision.reason);
       return 'missed';
     }
 
     if (attempts + 1 >= this.maxEnqueueAttempts) return this._exhaust(occ, decision);
-    await this.store.recordAttemptError(id, { error: `${decision.reason}: ${decision.detail || ''}`, nowMs: this.now() });
-    this._record('ENQUEUE_RETRY', {
-      slug: scheduleId, occurrenceId: id, attempt: attempts + 1, reason: decision.reason,
-      retryInMs: retryDelayMs(attempts + 1), queue: this.queueUrl,
-    }, { level: 'WARN', pod: scheduleId, correlationId: id });
+    await this.store.recordAttemptError(id, {
+      error: `${decision.reason}: ${decision.detail || ''}`,
+      nowMs: this.now(),
+      evidence: maestroEvidence('ENQUEUE_RETRY', {
+        slug: scheduleId, occurrenceId: id, attempt: attempts + 1, reason: decision.reason,
+        retryInMs: retryDelayMs(attempts + 1), queue: this.queueUrl,
+      }, { level: 'WARN', correlationId: id, executionId: id }),
+    });
     return 'retry';
   }
 
@@ -465,16 +528,20 @@ export class DurableMaestro {
       reason: 'enqueue_retries_exhausted',
       error: `${decision.reason}: ${decision.detail || ''}; lookup by key ${jobs === null ? 'failed' : 'found no job'}`,
       nowMs: this.now(),
+      evidence: this._skippedEvidence(occ.schedule_id, 'enqueue_retries_exhausted', key, occ.planned_at, null, 'ERROR'),
     });
-    if (settled) this._noteSkipped(occ.schedule_id, 'enqueue_retries_exhausted', key, occ.planned_at, null, 'ERROR');
+    if (settled) this.lastSkipped.set(occ.schedule_id, 'enqueue_retries_exhausted');
     return 'missed';
   }
 
   async _enqueued(occ, jobId, reason, duplicate) {
-    const marked = await this.store.markEnqueued(occ.occurrence_id, occ.schedule_id, { jobId, reason, nowMs: this.now() });
-    if (marked) {
-      // After the commit, correlated to the JOB id (runbook proof #4).
-      this._record('BEAT_ENQUEUED', {
+    // In the commit that marks the occurrence ENQUEUED, correlated to the JOB
+    // id (runbook proof #4).
+    await this.store.markEnqueued(occ.occurrence_id, occ.schedule_id, {
+      jobId,
+      reason,
+      nowMs: this.now(),
+      evidence: maestroEvidence('BEAT_ENQUEUED', {
         slug: occ.schedule_id,
         jobId,
         queue: this.queueUrl,
@@ -483,8 +550,8 @@ export class DurableMaestro {
         plannedAt: publicOccurrence(occ).plannedAt,
         duplicate: Boolean(duplicate),
         reason,
-      }, { correlationId: jobId });
-    }
+      }, { correlationId: jobId, executionId: occ.occurrence_id }),
+    });
     return 'enqueued';
   }
 
@@ -497,13 +564,6 @@ export class DurableMaestro {
     if (!jobs) return null;
     const job = jobs.find((j) => j && j.id === previous.queue_job_id);
     return job && OPEN_JOB_STATES.has(job.status) ? { id: job.id, status: job.status } : null;
-  }
-
-  _noteSkipped(scheduleId, reason, occurrenceId, plannedAt, jobId = null, level = 'WARN') {
-    this.lastSkipped.set(scheduleId, reason);
-    this._record('BEAT_SKIPPED', {
-      slug: scheduleId, reason, occurrenceId, plannedAt: plannedAt ? new Date(msOf(plannedAt)).toISOString() : null, jobId,
-    }, { level, pod: scheduleId, correlationId: jobId || occurrenceId });
   }
 
   _noteQueue(decision) {
@@ -568,9 +628,15 @@ export class DurableMaestro {
       isRunning: this.isRunning,
       beatsSkippedTotal: null,
       occurrencesDue: null,
+      // Evidence committed with a change and not yet receipted by Logger.
+      evidencePending: null,
+      oldestPendingEvidenceAt: null,
       tasks: {},
     };
     if (db.ok) {
+      const evidence = await this.store.evidenceStatus();
+      signals.evidencePending = evidence.pending;
+      signals.oldestPendingEvidenceAt = evidence.oldestPendingAt;
       const schedules = await this.store.listSchedules();
       signals.tasksRegistered = schedules.length;
       signals.activeTasks = schedules.length;
