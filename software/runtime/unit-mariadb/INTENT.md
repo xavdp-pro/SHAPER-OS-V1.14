@@ -101,6 +101,13 @@ Set by the universe at run time:
 | `UNIT_HEALTH_URL` | the application's health endpoint, checked by `unit-ready` |
 | `UNIT_DRAIN_SECONDS`, `UNIT_ENGINE_START_SECONDS`, `UNIT_ENGINE_STOP_SECONDS` | bounds of the lifecycle (20, 120, 60) |
 
+These are the supervisor's controls (`SUPERVISOR_CONTROLS` in `lib.mjs`, with
+`UNIT_IMPORT_CHECK`, `UNIT_APPS_ROOT` and `UNIT_RUN_ROOT`), named one by one and
+kept from the application. Every other variable reaches the application,
+including its own `UNIT_*` inputs — pkg-auth's `UNIT_BOOTSTRAP_TOKEN_FILE` and
+`UNIT_AUTH_PUBLIC_KEY_FILE`, Vault's `UNIT_CREDENTIAL_TTL_SECONDS`; `MYSQL_PWD`
+never does.
+
 The container needs: root inside it (the administrative path), the capabilities
 `CHOWN DAC_OVERRIDE FOWNER KILL SETGID SETUID` only, `no-new-privileges`, and
 three persistent volumes per unit: `/apps/<slug>/etc/mysql` (the password),

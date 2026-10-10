@@ -1,8 +1,11 @@
 // Intent: software/runtime/unit-mariadb/INTENT.md
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test, { describe } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
-  EXIT, UnitError, adminPredicateSql, applicationEnv, assertGrants, assertPassword, assertProtectedFrom,
+  EXIT, SUPERVISOR_CONTROLS, UnitError, adminPredicateSql, applicationEnv, assertGrants, assertPassword, assertProtectedFrom,
   chainOf, createAccountSql, decideSchema, engineArgs, exitCodeOf, expectedGrants, firstBirthSql,
   grantsSql, installDbArgs, parseAdminPredicate, parsePrincipals, parseRetained, parseVersion,
   readConfig, redact, resolveAccounts, rootClientArgs, sqlString, unitPaths, writableBy,
@@ -262,6 +265,36 @@ describe('processes and secrets', () => {
       PATH: '/bin', VAULT_TOKEN: 't', HOME: '/apps/vault', USER: 'vault', LOGNAME: 'vault',
       SHAPER_UNIT_SLUG: 'vault', SHAPER_DB_SOCKET: '/run/vault/mysqld.sock',
     });
+  });
+
+  // Non-regression (Rule 29): the supervisor once dropped every UNIT_* variable,
+  // so pkg-auth's identity inputs never reached the application and every unit
+  // that relays evidence refused to start (IDENTITY_CLIENT_CONFIG_REQUIRED).
+  test('the application keeps its own UNIT_* inputs; only the named controls stay with the supervisor', () => {
+    const controls = Object.fromEntries(SUPERVISOR_CONTROLS.map((k) => [k, 'x']));
+    const env = applicationEnv({
+      ...controls,
+      UNIT_BOOTSTRAP_TOKEN_FILE: '/apps/queue/etc/identity/bootstrap',
+      UNIT_AUTH_PUBLIC_KEY_FILE: '/apps/queue/etc/identity/vault-public.pem',
+      UNIT_CREDENTIAL_TTL_SECONDS: '300',
+      SHAPER_UNIT_INCARNATION: 'queue-1',
+    }, { slug: 'queue', home: '/apps/queue', socket: '/run/queue/mysqld.sock' });
+    for (const key of SUPERVISOR_CONTROLS) assert.ok(!(key in env), `${key} stays with the supervisor`);
+    assert.equal(env.UNIT_BOOTSTRAP_TOKEN_FILE, '/apps/queue/etc/identity/bootstrap');
+    assert.equal(env.UNIT_AUTH_PUBLIC_KEY_FILE, '/apps/queue/etc/identity/vault-public.pem');
+    assert.equal(env.UNIT_CREDENTIAL_TTL_SECONDS, '300');
+    assert.equal(env.SHAPER_UNIT_INCARNATION, 'queue-1');
+  });
+
+  test('every UNIT_* variable the runtime reads is a named supervisor control', () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const read = new Set();
+    for (const name of fs.readdirSync(path.join(here, '..')).filter((f) => f.endsWith('.mjs'))) {
+      const text = fs.readFileSync(path.join(here, '..', name), 'utf8');
+      for (const m of text.matchAll(/env\.(UNIT_[A-Z_]+)|process\.env\.(UNIT_[A-Z_]+)/g)) read.add(m[1] || m[2]);
+    }
+    assert.ok(read.size >= 10, `found ${[...read].join(', ')}`);
+    for (const key of read) assert.ok(SUPERVISOR_CONTROLS.includes(key), `${key} is read by the runtime but not a named control`);
   });
 
   test('redact removes every occurrence of a secret', () => {

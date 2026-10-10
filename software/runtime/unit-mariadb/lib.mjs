@@ -535,11 +535,27 @@ export function installDbArgs(paths) {
   ];
 }
 
+/**
+ * The variables this runtime reads for itself — the image's declaration, the
+ * run mode, the lifecycle bounds — named one by one. They stay with the
+ * supervisor. The prefix alone does not decide: the application has `UNIT_*`
+ * inputs of its own (pkg-auth's `UNIT_BOOTSTRAP_TOKEN_FILE` and
+ * `UNIT_AUTH_PUBLIC_KEY_FILE`, Vault's `UNIT_CREDENTIAL_TTL_SECONDS`), and a
+ * unit that never receives them cannot hold a credential.
+ */
+export const SUPERVISOR_CONTROLS = Object.freeze([
+  'UNIT_UID', 'UNIT_ENGINE_UID', 'UNIT_SCHEMA_FILE', 'UNIT_SCHEMA_VERSION',
+  'UNIT_MODE', 'UNIT_RESTORE_DUMP', 'UNIT_HEALTH_URL', 'UNIT_IMPORT_CHECK',
+  'UNIT_DRAIN_SECONDS', 'UNIT_ENGINE_START_SECONDS', 'UNIT_ENGINE_STOP_SECONDS',
+  'UNIT_APPS_ROOT', 'UNIT_RUN_ROOT',
+]);
+const NOT_FOR_THE_APPLICATION = new Set([...SUPERVISOR_CONTROLS, 'MYSQL_PWD']);
+
 /** The application's environment: the container's, minus the supervisor's own controls. */
 export function applicationEnv(env, { slug, home, socket }) {
   const out = {};
   for (const [key, value] of Object.entries(env)) {
-    if (key.startsWith('UNIT_') || key === 'MYSQL_PWD') continue;
+    if (NOT_FOR_THE_APPLICATION.has(key)) continue;
     out[key] = value;
   }
   out.HOME = home;
