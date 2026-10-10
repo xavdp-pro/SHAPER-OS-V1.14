@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MariaDbJobQueue } from '../mariadb-store.js';
 
+// Intent: software/packages/pkg-queue/INTENT.md#transactional-evidence-delivery
 // Regression: a committed job used to lose its evidence during Logger outage.
 // Refusal to persist the evidence must roll back the owning job as well.
 test('enqueue cannot acknowledge or stream a job whose evidence insert failed', async () => {

@@ -4,7 +4,8 @@ import fs from 'node:fs';
 
 import { verifyIdentity } from '../pool.js';
 
-// Intent: software/packages/pkg-db/INTENT.md (invariant 8)
+// Intent: software/packages/pkg-db/INTENT.md#2-invariants
+// (invariant 8: every session speaks UTC)
 // Non-regression: sessions inherited the server's time zone. Vault compares a
 // bootstrap expiry through UNIX_TIMESTAMP(DATETIME) and stores credential
 // expiry with FROM_UNIXTIME, so on a server whose zone was ahead of UTC every
