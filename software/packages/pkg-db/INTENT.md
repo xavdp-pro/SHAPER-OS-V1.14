@@ -104,12 +104,28 @@ the owning unit's transaction. `sql/outbox.sql` is a schema fragment for that
 unit's administrative installation; the helper performs no DDL. No shared
 database or separate outbox service is introduced.
 
-The relay excludes simultaneous sends of one row with an InnoDB row lock,
-retains stable event bytes and digest until the recipient's validated durable
-receipt is stored, and retries failures with capped backoff. The supplied
-transport verifies its recipient contract and honors the AbortSignal deadline.
-Lost replies and failed commits require recipient idempotency: no universal
-exactly-once effect is claimed. Corrupt rows refuse delivery with a typed error.
+The relay works row by row in three steps, and holds no lock and no
+connection while it waits for the recipient:
+
+1. **Claim**, in a short READ COMMITTED transaction: the oldest due row is read
+   `FOR UPDATE SKIP LOCKED`, its `next_attempt_at` is pushed past the delivery
+   deadline plus five seconds (a lease), and the transaction commits.
+2. **Send** the stored bytes, bounded by the AbortSignal deadline.
+3. **Settle**, in another short transaction: the validated receipt is stored,
+   or the attempt is counted with `DELIVERY_UNCONFIRMED` and the row comes due
+   again after a backoff of one second doubling to 256 seconds.
+
+A relay that dies between claim and settlement leaves its row leased, then due
+again under the same `sourceEventId`; a second relay never sends a leased row.
+Lost replies and failed commits therefore require recipient idempotency: no
+universal exactly-once effect is claimed. A row whose bytes, digest or source
+id do not match is never sent nor guessed around: it is marked
+`OUTBOX_ROW_INVALID`, kept as it is for repair, set aside for 300 seconds, and
+the rows behind it are delivered. Before this, the relay kept one transaction
+open across the send: under REPEATABLE READ its locking read held gap locks, so
+every evidence insert of the unit waited for the Logger round trip (the live
+test measured inserts blocked until the lock-wait timeout), and one damaged
+oldest row stopped all delivery.
 
 `createEvidenceRelay` is the one delivery lane a unit's service lifecycle
 runs: started after the service listens, a timer runs one non-overlapping
@@ -119,7 +135,9 @@ waits a bounded time for the batch in flight before the database closes — an
 unconfirmed batch is reported, never claimed, and its debt stays. Repeated
 identical failures are reported once, then again when the reason changes or
 delivery resumes. `outboxStatus` gives the debt still owed (pending, retrying,
-oldest pending instant) for each unit's vitals: a down Logger is observable.
+oldest pending instant, rows set aside as invalid) for each unit's vitals: a
+down Logger is observable. Each pool connection that cannot be pinned to UTC
+is destroyed rather than used.
 
 Vault, Queue and Maestro carry this exact table in their own schema; a test
 holds the three definitions equal to `sql/outbox.sql`.

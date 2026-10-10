@@ -22,71 +22,127 @@ export async function appendOutbox(conn, event, { eventId = randomUUID() } = {})
   return eventId;
 }
 
+/** How long a claimed row stays out of other relays' reach beyond its deadline. */
+export const LEASE_MARGIN_SECONDS = 5;
+/** How long a damaged row is set aside before it is looked at again. */
+export const INVALID_ROW_RETRY_SECONDS = 300;
+
 /**
- * deliver must return a contract-validated durable recipient receipt,
- * and honor the supplied AbortSignal. Tokens belong to deliver, never the row.
- * A row lock excludes concurrent relays. A lost response/commit leaves the same
- * sourceEventId pending, so the recipient must deduplicate it on retry.
+ * Claims the oldest due row in a short transaction of its own: the row is read
+ * under a READ COMMITTED locking read (no gap locks, so writers of the unit
+ * never wait on the relay), its next attempt is pushed past the delivery
+ * deadline — a lease — and the transaction commits before anything is sent.
+ * A damaged row is marked OUTBOX_ROW_INVALID and set aside, never sent.
+ * @returns {Promise<null | { invalid: true } | { row: object, event: object }>}
  */
-export async function relayOutbox(pool, { deliver, maxEvents = 10, timeoutMs = 3000 } = {}) {
-  if (typeof deliver !== 'function' || !Number.isInteger(maxEvents) || maxEvents < 1 || maxEvents > 100
+async function claimNext(pool, leaseSeconds) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+    await conn.beginTransaction();
+    const [rows] = await conn.query(`SELECT event_id, body, body_digest, attempts FROM event_outbox
+      WHERE delivered_at IS NULL AND receipt IS NULL AND next_attempt_at <= UTC_TIMESTAMP(3)
+      ORDER BY created_at, event_id LIMIT 1 FOR UPDATE SKIP LOCKED`);
+    if (!rows.length) {
+      await conn.commit();
+      return null;
+    }
+    const row = rows[0];
+    const body = Buffer.isBuffer(row.body) ? row.body.toString('utf8') : row.body;
+    let event = null;
+    if (typeof body === 'string' && Buffer.byteLength(body) <= MAX_BYTES && digest(body) === row.body_digest) {
+      try { event = JSON.parse(body); } catch { event = null; }
+    }
+    if (!event || event.sourceEventId !== row.event_id) {
+      // Kept as it is for whoever repairs it; it stays owed and observable.
+      await conn.execute(`UPDATE event_outbox SET last_error = 'OUTBOX_ROW_INVALID',
+        next_attempt_at = TIMESTAMPADD(SECOND, ?, UTC_TIMESTAMP(3)) WHERE event_id = ? AND receipt IS NULL`,
+      [INVALID_ROW_RETRY_SECONDS, row.event_id]);
+      await conn.commit();
+      return { invalid: true };
+    }
+    await conn.execute(`UPDATE event_outbox SET next_attempt_at = TIMESTAMPADD(SECOND, ?, UTC_TIMESTAMP(3))
+      WHERE event_id = ? AND receipt IS NULL`, [leaseSeconds, row.event_id]);
+    await conn.commit();
+    return { row, event };
+  } catch (err) {
+    await conn.rollback().catch(() => {});
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+/**
+ * Delivers due rows one by one. Each row is claimed in a short transaction
+ * (claimNext), sent with no connection or lock held, then settled in another
+ * short transaction: the receipt is stored, or the attempt is counted and the
+ * row comes due again after a capped backoff (1 s doubling to 256 s).
+ *
+ * deliver must return a contract-validated durable recipient receipt and honor
+ * the supplied AbortSignal. Tokens belong to deliver, never the row. A relay
+ * that dies between claim and settlement leaves the row leased until its
+ * deadline plus LEASE_MARGIN_SECONDS, then due again under the same
+ * sourceEventId, so the recipient must deduplicate it on retry. A damaged row
+ * is counted in `invalid` (present only when non-zero) and does not stop the
+ * rows behind it. `shouldStop` is asked between rows, so a closing lane does
+ * not start another send.
+ */
+export async function relayOutbox(pool, { deliver, maxEvents = 10, timeoutMs = 3000, shouldStop = () => false } = {}) {
+  if (typeof deliver !== 'function' || typeof shouldStop !== 'function' || !Number.isInteger(maxEvents) || maxEvents < 1 || maxEvents > 100
       || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) {
     throw new OutboxError('OUTBOX_RELAY_INVALID');
   }
-  let delivered = 0, deferred = 0;
-  for (let i = 0; i < maxEvents; i++) {
-    const outcome = await withTransaction(pool, async (conn) => {
-      const [rows] = await conn.query(`SELECT event_id, body, body_digest, attempts FROM event_outbox
-        WHERE delivered_at IS NULL AND receipt IS NULL AND next_attempt_at <= UTC_TIMESTAMP(3)
-        ORDER BY created_at, event_id LIMIT 1 FOR UPDATE SKIP LOCKED`);
-      if (!rows.length) return 'empty';
-      const row = rows[0];
-      const body = Buffer.isBuffer(row.body) ? row.body.toString('utf8') : row.body;
-      if (typeof body !== 'string' || Buffer.byteLength(body) > MAX_BYTES || digest(body) !== row.body_digest) {
-        throw new OutboxError('OUTBOX_ROW_INVALID');
+  const leaseSeconds = Math.ceil(timeoutMs / 1000) + LEASE_MARGIN_SECONDS;
+  let delivered = 0, deferred = 0, invalid = 0;
+  for (let i = 0; i < maxEvents && !shouldStop(); i++) {
+    const claimed = await claimNext(pool, leaseSeconds);
+    if (!claimed) break;
+    if (claimed.invalid) { invalid++; continue; }
+    const { row, event } = claimed;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let receipt = null;
+    try {
+      receipt = await deliver(event, controller.signal);
+      if (controller.signal.aborted || !receipt || typeof receipt !== 'object' || Array.isArray(receipt)
+          || Buffer.byteLength(JSON.stringify(receipt)) > MAX_BYTES) {
+        receipt = null;
       }
-      let event;
-      try { event = JSON.parse(body); } catch { throw new OutboxError('OUTBOX_ROW_INVALID'); }
-      if (event?.sourceEventId !== row.event_id) throw new OutboxError('OUTBOX_ROW_INVALID');
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      let receipt;
-      try {
-        receipt = await deliver(event, controller.signal);
-        if (controller.signal.aborted || !receipt || typeof receipt !== 'object' || Array.isArray(receipt)
-            || Buffer.byteLength(JSON.stringify(receipt)) > MAX_BYTES) {
-          throw new OutboxError('OUTBOX_RECEIPT_INVALID');
-        }
-      } catch {
-        // A typed debt marker, never remote response text or credential content.
-        const delay = Math.min(300, 2 ** Math.min(8, Number(row.attempts) || 0));
-        await conn.execute(`UPDATE event_outbox SET attempts = attempts + 1,
-          last_error = 'DELIVERY_UNCONFIRMED', next_attempt_at = TIMESTAMPADD(SECOND, ?, UTC_TIMESTAMP(3))
-          WHERE event_id = ? AND receipt IS NULL`, [delay, row.event_id]);
-        return 'deferred';
-      } finally { clearTimeout(timer); }
-      await conn.execute(`UPDATE event_outbox SET receipt = ?, delivered_at = UTC_TIMESTAMP(3),
+    } catch {
+      // A typed debt marker, never remote response text or credential content.
+      receipt = null;
+    } finally {
+      clearTimeout(timer);
+    }
+    if (receipt) {
+      await withTransaction(pool, (conn) => conn.execute(`UPDATE event_outbox SET receipt = ?, delivered_at = UTC_TIMESTAMP(3),
         attempts = attempts + 1, last_error = NULL WHERE event_id = ? AND receipt IS NULL`,
-      [JSON.stringify(receipt), row.event_id]);
-      return 'delivered';
-    });
-    if (outcome === 'empty') break;
-    if (outcome === 'delivered') delivered++; else deferred++;
+      [JSON.stringify(receipt), row.event_id]));
+      delivered++;
+    } else {
+      const delay = Math.min(300, 2 ** Math.min(8, Number(row.attempts) || 0));
+      await withTransaction(pool, (conn) => conn.execute(`UPDATE event_outbox SET attempts = attempts + 1,
+        last_error = 'DELIVERY_UNCONFIRMED', next_attempt_at = TIMESTAMPADD(SECOND, ?, UTC_TIMESTAMP(3))
+        WHERE event_id = ? AND receipt IS NULL`, [delay, row.event_id]));
+      deferred++;
+    }
   }
-  return { delivered, deferred };
+  return invalid ? { delivered, deferred, invalid } : { delivered, deferred };
 }
 
 /**
  * What a unit can say about its own evidence debt: how much is still owed and
  * since when. A down Logger is observable here, never silent.
  * @param {import('mysql2/promise').Pool} pool
- * @returns {Promise<{ pending: number, oldestPendingAt: string|null, retrying: number, delivered: number }>}
+ * @returns {Promise<{ pending: number, oldestPendingAt: string|null, retrying: number, delivered: number, invalid: number }>}
  */
 export async function outboxStatus(pool) {
   const [[row]] = await pool.query(`SELECT
       COALESCE(SUM(receipt IS NULL), 0) AS pending,
       COALESCE(SUM(receipt IS NULL AND attempts > 0), 0) AS retrying,
       COALESCE(SUM(receipt IS NOT NULL), 0) AS delivered,
+      COALESCE(SUM(receipt IS NULL AND last_error = 'OUTBOX_ROW_INVALID'), 0) AS invalid,
       MIN(CASE WHEN receipt IS NULL THEN created_at END) AS oldest
     FROM event_outbox`);
   const oldest = row.oldest ? new Date(`${String(row.oldest).replace(' ', 'T')}Z`) : null;
@@ -94,6 +150,7 @@ export async function outboxStatus(pool) {
     pending: Number(row.pending),
     retrying: Number(row.retrying),
     delivered: Number(row.delivered),
+    invalid: Number(row.invalid),
     oldestPendingAt: oldest && !Number.isNaN(oldest.getTime()) ? oldest.toISOString() : null,
   };
 }
@@ -174,10 +231,12 @@ export function createEvidenceRelay({
         const result = await relayOutbox(pool, {
           maxEvents: settings.maxEvents,
           timeoutMs: settings.timeoutMs,
+          shouldStop: () => stopping,
           deliver: (entry, signal) => deliver(entry, signal, headers),
         });
-        Object.assign(last, { at: new Date().toISOString(), ...result, error: null });
-        if (result.deferred) say({ event: 'EVIDENCE_DELIVERY_DEFERRED', code: 'DELIVERY_UNCONFIRMED' });
+        Object.assign(last, { at: new Date().toISOString(), invalid: 0, ...result, error: null });
+        if (result.invalid) say({ event: 'EVIDENCE_ROW_INVALID', code: 'OUTBOX_ROW_INVALID' });
+        else if (result.deferred) say({ event: 'EVIDENCE_DELIVERY_DEFERRED', code: 'DELIVERY_UNCONFIRMED' });
         else if (lastReported !== null) {
           lastReported = null;
           report({ event: 'EVIDENCE_DELIVERY_RESUMED', delivered: result.delivered });

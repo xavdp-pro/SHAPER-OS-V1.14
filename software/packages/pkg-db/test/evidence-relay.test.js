@@ -23,8 +23,9 @@ function fixture() {
     query: async () => [rows.filter((r) => !r.receipt).slice(0, 1).map((r) => structuredClone(r))],
     execute: async (sql, params) => {
       if (sql.startsWith('INSERT')) rows.push({ event_id: params[0], body: params[1], body_digest: params[2], attempts: 0, receipt: null });
-      else if (sql.includes('receipt = ?')) { const r = rows.find((x) => x.event_id === params[1]); r.receipt = params[0]; }
-      else { const r = rows.find((x) => x.event_id === params[1]); r.attempts += 1; r.last_error = 'DELIVERY_UNCONFIRMED'; r.deferred = true; }
+      else if (sql.includes('SET receipt = ?')) { const r = rows.find((x) => x.event_id === params[1]); r.receipt = params[0]; }
+      else if (sql.includes("'DELIVERY_UNCONFIRMED'")) { const r = rows.find((x) => x.event_id === params[1]); r.attempts += 1; r.last_error = 'DELIVERY_UNCONFIRMED'; r.deferred = true; }
+      else if (!sql.includes('SET next_attempt_at')) throw new Error(`unexpected statement: ${sql}`);
       return [{}];
     },
   };
@@ -42,7 +43,7 @@ describe('the evidence relay lane', () => {
       deliver: async (entry, _signal, headers) => { seen.push(['deliver', f.openTransactions(), headers.Authorization]); return { id: 'r1' }; },
     });
     assert.deepEqual(await relay.tick(), { delivered: 1, deferred: 0 });
-    assert.deepEqual(seen, [['credentials', 0], ['deliver', 1, 'Bearer transient']]);
+    assert.deepEqual(seen, [['credentials', 0], ['deliver', 0, 'Bearer transient']], 'no transaction is open during the send');
     assert.doesNotMatch(JSON.stringify(f.rows), /transient/);
   });
 
@@ -80,15 +81,27 @@ describe('the evidence relay lane', () => {
   it('close waits for the batch in flight, and refuses success when it does not settle in time', async () => {
     const f = fixture();
     await appendOutbox(f.conn, { pod: 'queue', event: 'JOB_CREATED', executionId: 'j1' });
-    let release;
+    let release, entered;
     const gate = new Promise((r) => { release = r; });
-    const relay = createEvidenceRelay({ pool: f.pool, shutdownMs: 100, deliver: async () => { await gate; return { id: 'r' }; } });
+    const sending = new Promise((r) => { entered = r; });
+    const relay = createEvidenceRelay({ pool: f.pool, shutdownMs: 100, deliver: async () => { entered(); await gate; return { id: 'r' }; } });
     const running = relay.tick();
+    await sending;
     await assert.rejects(relay.close(), { code: 'OUTBOX_RELAY_SHUTDOWN_UNCONFIRMED' });
     assert.equal(f.rows[0].receipt, null, 'nothing is claimed delivered');
     release();
     await running;
     assert.equal(await relay.tick(), null, 'a closed lane starts nothing');
+  });
+
+  it('a lane closed before its send starts sends nothing', async () => {
+    const f = fixture();
+    await appendOutbox(f.conn, { pod: 'queue', event: 'JOB_CREATED', executionId: 'j1' });
+    const relay = createEvidenceRelay({ pool: f.pool, deliver: async () => assert.fail('closing lanes start no send') });
+    const running = relay.tick();
+    await relay.close();
+    assert.deepEqual(await running, { delivered: 0, deferred: 0 });
+    assert.equal(f.rows[0].receipt, null);
   });
 
   it('refuses unbounded settings', () => {

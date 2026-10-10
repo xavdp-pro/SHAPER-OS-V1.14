@@ -35,7 +35,9 @@ export async function openUnitDb({ connectionLimit = 5, ...resolveOptions } = {}
   // whatever time zone the server or its host was given. The command is queued
   // on each new connection before the connection is handed out.
   pool.on('connection', (connection) => {
-    connection.query("SET time_zone = '+00:00'", () => {});
+    // A connection that cannot be pinned is destroyed: its next statement then
+    // fails as an unavailable database instead of misreading an instant.
+    connection.query("SET time_zone = '+00:00'", (err) => { if (err) connection.destroy(); });
   });
   try {
     await verifyIdentity(pool, config.slug);

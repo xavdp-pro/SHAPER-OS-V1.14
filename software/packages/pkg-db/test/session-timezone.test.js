@@ -26,6 +26,8 @@ describe('a unit session reads and writes instants in UTC', () => {
 
   it('pins the session on every new pool connection', () => {
     const source = fs.readFileSync(new URL('../pool.js', import.meta.url), 'utf8');
-    assert.match(source, /pool\.on\('connection', \(connection\) => \{\s*connection\.query\("SET time_zone = '\+00:00'"/);
+    assert.match(source, /pool\.on\('connection', \(connection\) => \{/);
+    assert.ok(source.includes(`connection.query("SET time_zone = '+00:00'", (err) => { if (err) connection.destroy(); });`),
+      'a connection that cannot be pinned is destroyed, never used');
   });
 });
