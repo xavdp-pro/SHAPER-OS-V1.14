@@ -75,3 +75,153 @@ export async function relayOutbox(pool, { deliver, maxEvents = 10, timeoutMs = 3
   }
   return { delivered, deferred };
 }
+
+/**
+ * What a unit can say about its own evidence debt: how much is still owed and
+ * since when. A down Logger is observable here, never silent.
+ * @param {import('mysql2/promise').Pool} pool
+ * @returns {Promise<{ pending: number, oldestPendingAt: string|null, retrying: number, delivered: number }>}
+ */
+export async function outboxStatus(pool) {
+  const [[row]] = await pool.query(`SELECT
+      COALESCE(SUM(receipt IS NULL), 0) AS pending,
+      COALESCE(SUM(receipt IS NULL AND attempts > 0), 0) AS retrying,
+      COALESCE(SUM(receipt IS NOT NULL), 0) AS delivered,
+      MIN(CASE WHEN receipt IS NULL THEN created_at END) AS oldest
+    FROM event_outbox`);
+  const oldest = row.oldest ? new Date(`${String(row.oldest).replace(' ', 'T')}Z`) : null;
+  return {
+    pending: Number(row.pending),
+    retrying: Number(row.retrying),
+    delivered: Number(row.delivered),
+    oldestPendingAt: oldest && !Number.isNaN(oldest.getTime()) ? oldest.toISOString() : null,
+  };
+}
+
+const bounded = (value, fallback, min, max, code) => {
+  const n = value === undefined || value === null || value === '' ? fallback : Number(value);
+  if (!Number.isInteger(n) || n < min || n > max) throw new OutboxError(code);
+  return n;
+};
+
+/**
+ * One non-overlapping delivery lane over a unit's outbox, for a service
+ * lifecycle: start after listening, close before the database closes.
+ *
+ * `credentials()` runs before the relay opens its transaction: obtaining a
+ * credential may itself append evidence to this outbox (Vault issuing to
+ * itself), and it must not do so while the relay holds a row lock.
+ * `deliver(entry, signal, headers)` returns a verified recipient receipt or
+ * throws; anything else leaves the debt in place for a later attempt.
+ *
+ * @param {object} options
+ * @param {import('mysql2/promise').Pool} options.pool
+ * @param {(entry: object, signal: AbortSignal, headers: object) => Promise<object>} options.deliver
+ * @param {() => Promise<object>} [options.credentials] - transport headers, never stored
+ * @param {(event: object) => void} [options.report] - typed lane events, never response text
+ * @param {number} [options.intervalMs=2000]
+ * @param {number} [options.maxEvents=10]
+ * @param {number} [options.timeoutMs=3000]
+ * @param {number} [options.shutdownMs=15000]
+ */
+export function createEvidenceRelay({
+  pool,
+  deliver,
+  credentials = async () => ({}),
+  report = () => {},
+  intervalMs = 2000,
+  maxEvents = 10,
+  timeoutMs = 3000,
+  shutdownMs = 15000,
+} = {}) {
+  if (!pool || typeof deliver !== 'function' || typeof credentials !== 'function') {
+    throw new OutboxError('OUTBOX_RELAY_INVALID');
+  }
+  const settings = Object.freeze({
+    intervalMs: bounded(intervalMs, 2000, 100, 60000, 'OUTBOX_RELAY_INVALID'),
+    maxEvents: bounded(maxEvents, 10, 1, 100, 'OUTBOX_RELAY_INVALID'),
+    timeoutMs: bounded(timeoutMs, 3000, 1, 30000, 'OUTBOX_RELAY_INVALID'),
+    shutdownMs: bounded(shutdownMs, 15000, 100, 60000, 'OUTBOX_RELAY_INVALID'),
+  });
+  let pending = null;
+  let timer = null;
+  let stopping = false;
+  let closed = null;
+  const last = { at: null, delivered: 0, deferred: 0, error: null };
+  // A lane that keeps failing the same way says so once, then again when the
+  // reason changes or after it has recovered: observable, not a flood.
+  let lastReported = null;
+  const say = (event) => {
+    const key = `${event.event}:${event.code ?? ''}`;
+    if (key === lastReported) return;
+    lastReported = key;
+    report(event);
+  };
+
+  const tick = () => {
+    if (stopping) return Promise.resolve(null);
+    if (pending) return pending;
+    pending = (async () => {
+      let headers;
+      try {
+        headers = await credentials();
+      } catch (err) {
+        last.error = err?.code || 'IDENTITY_UNAVAILABLE';
+        say({ event: 'EVIDENCE_CREDENTIAL_UNAVAILABLE', code: last.error });
+        return null;
+      }
+      try {
+        const result = await relayOutbox(pool, {
+          maxEvents: settings.maxEvents,
+          timeoutMs: settings.timeoutMs,
+          deliver: (entry, signal) => deliver(entry, signal, headers),
+        });
+        Object.assign(last, { at: new Date().toISOString(), ...result, error: null });
+        if (result.deferred) say({ event: 'EVIDENCE_DELIVERY_DEFERRED', code: 'DELIVERY_UNCONFIRMED' });
+        else if (lastReported !== null) {
+          lastReported = null;
+          report({ event: 'EVIDENCE_DELIVERY_RESUMED', delivered: result.delivered });
+        }
+        return result;
+      } catch (err) {
+        last.error = err?.code || 'DELIVERY_UNCONFIRMED';
+        say({ event: 'EVIDENCE_RELAY_UNAVAILABLE', code: last.error });
+        return null;
+      }
+    })().finally(() => { pending = null; });
+    return pending;
+  };
+
+  return {
+    settings,
+    last,
+    tick,
+    start() {
+      if (stopping || timer) return;
+      timer = setInterval(tick, settings.intervalMs);
+      timer.unref?.();
+      void tick();
+    },
+    /** Stops the lane and waits for the batch in flight, bounded. */
+    close() {
+      if (closed) return closed;
+      stopping = true;
+      if (timer) clearInterval(timer);
+      timer = null;
+      closed = (async () => {
+        let deadline;
+        try {
+          await Promise.race([
+            pending ?? Promise.resolve(),
+            new Promise((_, reject) => {
+              deadline = setTimeout(() => reject(new OutboxError('OUTBOX_RELAY_SHUTDOWN_UNCONFIRMED')), settings.shutdownMs);
+            }),
+          ]);
+        } finally {
+          clearTimeout(deadline);
+        }
+      })();
+      return closed;
+    },
+  };
+}

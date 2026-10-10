@@ -45,6 +45,20 @@ who the unit is before it serves anything.
    this, Vault's credential issuance refused every bootstrap on a server whose
    zone was ahead of UTC.
 
+<a id="dev-scaffolding"></a>
+## DEV scaffolding never qualifies
+
+`qualificationFlags(env)` names the flags that declare a promotion or
+qualification run: `SHAPER_QUALIFICATION` set to anything but empty or `0`, or
+`SHAPER_RUNTIME_MODE` set to anything but `dev` or `development` (test, demo,
+production). `assertDisposableStoreAllowed({ unit, store })` refuses a file or
+memory store under either flag with `DEV_STORE_REFUSED`; each unit entrypoint
+calls it before it builds such a store, so an explicit `*_STORE=file` (or
+`memory`) remains possible for disposable DEV and impossible for anything
+promoted. `resolveUnitDbConfig` refuses the `MYSQL_PASSWORD` fallback the same
+way (`DEV_FALLBACK_REFUSED`). No entrypoint ever selects a DEV store by itself:
+MariaDB is the default and an unknown store is a refusal.
+
 ## 3. Specialisation Points
 
 | Parameter | Meaning |
@@ -52,6 +66,8 @@ who the unit is before it serves anything.
 | `slug` | The functional unit (`vault`, `logger`, `queue`, `maestro`, …) |
 | `SHAPER_DB_SOCKET` | Private socket path inside the unit's container (default `/run/mysqld/mysqld.sock`) |
 | `appsRoot` | Root of the Turbinobash layout (default `/apps`) |
+| `SHAPER_QUALIFICATION` | Any value but empty or `0`: a qualification or promotion run — DEV stores and the password fallback are refused |
+| `SHAPER_RUNTIME_MODE` | Anything but `dev`/`development` has the same effect |
 
 ## 4. Proof of Correct Operation
 
@@ -94,5 +110,16 @@ receipt is stored, and retries failures with capped backoff. The supplied
 transport verifies its recipient contract and honors the AbortSignal deadline.
 Lost replies and failed commits require recipient idempotency: no universal
 exactly-once effect is claimed. Corrupt rows refuse delivery with a typed error.
-Database-free tests check refusal/debt semantics; real concurrency, restart and
-restore proof remain the owning universe's installed qualification obligations.
+
+`createEvidenceRelay` is the one delivery lane a unit's service lifecycle
+runs: started after the service listens, a timer runs one non-overlapping
+batch at a time, the transport credential is obtained *before* the relay opens
+its transaction (Vault's own issuance appends to the same outbox), and `close()`
+waits a bounded time for the batch in flight before the database closes — an
+unconfirmed batch is reported, never claimed, and its debt stays. Repeated
+identical failures are reported once, then again when the reason changes or
+delivery resumes. `outboxStatus` gives the debt still owed (pending, retrying,
+oldest pending instant) for each unit's vitals: a down Logger is observable.
+
+Vault, Queue and Maestro carry this exact table in their own schema; a test
+holds the three definitions equal to `sql/outbox.sql`.

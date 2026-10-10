@@ -31,6 +31,53 @@ export class UnitDbError extends Error {
 }
 
 /**
+ * The environment flags that declare a promotion or qualification run, as
+ * `NAME=value` strings; empty when the run is disposable DEV.
+ *
+ * `SHAPER_QUALIFICATION` set to anything but empty or `0`, or
+ * `SHAPER_RUNTIME_MODE` set to anything but `dev` or `development`, declares
+ * that the artefact is being qualified or promoted (test, demo, production).
+ * Under either, DEV scaffolding never qualifies (Rule 4, password resolution
+ * order; Rule 26, no file-based substitute).
+ *
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {string[]}
+ */
+export function qualificationFlags(env = process.env) {
+  const flags = [];
+  const qualification = env.SHAPER_QUALIFICATION;
+  if (qualification !== undefined && qualification !== '' && qualification !== '0') {
+    flags.push(`SHAPER_QUALIFICATION=${qualification}`);
+  }
+  const mode = env.SHAPER_RUNTIME_MODE;
+  if (mode !== undefined && mode !== '' && mode !== 'dev' && mode !== 'development') {
+    flags.push(`SHAPER_RUNTIME_MODE=${mode}`);
+  }
+  return flags;
+}
+
+/**
+ * Refuses a disposable DEV store (file, memory) when the run is a promotion or
+ * qualification. The store is chosen explicitly by its entrypoint; this check
+ * makes sure that choice cannot carry an artefact past a gate.
+ *
+ * @param {object} options
+ * @param {string} options.unit - the functional unit, for the message
+ * @param {string} options.store - the DEV store asked for (`file`, `memory`)
+ * @param {Record<string, string|undefined>} [options.env]
+ */
+export function assertDisposableStoreAllowed({ unit, store, env = process.env }) {
+  const flags = qualificationFlags(env);
+  if (flags.length) {
+    throw new UnitDbError(
+      'DEV_STORE_REFUSED',
+      `${unit}: the ${store} store is disposable DEV scaffolding and is refused under ${flags.join(', ')}; `
+      + 'only the unit\'s private MariaDB qualifies (Rules 4 and 26)',
+    );
+  }
+}
+
+/**
  * @param {string} slug
  * @returns {string} the slug, unchanged
  */
@@ -126,6 +173,13 @@ export function resolveUnitDbConfig({
   if (fsImpl.existsSync(passwdFile)) {
     password = readPasswdFile(passwdFile, { expectedUid, fsImpl });
   } else if (allowDevFallback && env.MYSQL_PASSWORD) {
+    const flags = qualificationFlags(env);
+    if (flags.length) {
+      throw new UnitDbError(
+        'DEV_FALLBACK_REFUSED',
+        `MariaDB password file ${passwdFile} is absent, and the MYSQL_PASSWORD fallback is refused under ${flags.join(', ')}`,
+      );
+    }
     password = env.MYSQL_PASSWORD;
     passwordSource = 'env-dev-fallback';
   } else {
