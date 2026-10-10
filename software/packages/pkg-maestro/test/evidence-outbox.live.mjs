@@ -68,9 +68,10 @@ describe('Maestro evidence is committed with the change it reports', () => {
     assert.ok(beat.jobId);
 
     const rows = await outbox();
-    assert.deepEqual(rows.map((r) => r.entry.event), ['SCHEDULE_MATERIALIZED', 'OCCURRENCE_DUE', 'BEAT_ENQUEUED']);
+    // Rows written within one millisecond have no order between them: compare as a set.
+    assert.deepEqual(rows.map((r) => r.entry.event).sort(), ['BEAT_ENQUEUED', 'OCCURRENCE_DUE', 'SCHEDULE_MATERIALIZED']);
     for (const r of rows) assert.equal(r.entry.pod, 'maestro', 'the source is the unit; the schedule is data.slug');
-    const enqueued = rows[2].entry;
+    const enqueued = rows.find((r) => r.entry.event === 'BEAT_ENQUEUED').entry;
     assert.equal(enqueued.correlationId, beat.jobId);
     assert.equal(enqueued.data.slug, 'live-beat');
     assert.equal(enqueued.executionId, beat.occurrence.occurrenceId);

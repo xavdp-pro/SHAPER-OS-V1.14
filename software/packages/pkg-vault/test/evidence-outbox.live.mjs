@@ -57,14 +57,15 @@ describe('Vault evidence is committed with the change it reports', () => {
 
   it('store, overwrite and delete each commit one evidence row, without the value', async () => {
     const store = stack.vaultStore;
-    const before = (await outbox()).length;
+    const before = new Set((await outbox()).map((r) => r.event_id));
     await store.setSecret('mailbox/ops', { pass: VALUE });
     await store.setSecret('mailbox/ops', { pass: `${VALUE}-2` });
     assert.equal(await store.deleteSecret('mailbox/ops'), true);
     assert.equal(await store.deleteSecret('mailbox/ops'), false, 'deleting nothing changes nothing and reports nothing');
-    const rows = (await outbox()).slice(before);
-    assert.deepEqual(rows.map((r) => [r.entry.event, r.entry.data.secretRef, r.entry.data.created]),
-      [['SECRET_STORED', 'mailbox/ops', true], ['SECRET_STORED', 'mailbox/ops', false], ['SECRET_DELETED', 'mailbox/ops', undefined]]);
+    // Rows written within one millisecond have no order between them: compare as a set.
+    const rows = (await outbox()).filter((r) => !before.has(r.event_id));
+    assert.deepEqual(rows.map((r) => `${r.entry.event} ${r.entry.data.secretRef} ${r.entry.data.created}`).sort(),
+      ['SECRET_DELETED mailbox/ops undefined', 'SECRET_STORED mailbox/ops false', 'SECRET_STORED mailbox/ops true']);
     for (const r of rows) {
       assert.equal(r.entry.pod, 'vault');
       assert.equal(r.receipt, null);
