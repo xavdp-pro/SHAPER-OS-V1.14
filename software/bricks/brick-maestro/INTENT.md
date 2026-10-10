@@ -11,7 +11,7 @@ idempotent occurrence per due instant to Queue; zero idle LLM waste.
 ## 2. Invariants
 
 1. Scheduling only — no AI inference, no execution of the work it schedules.
-2. Requires logger for audit trail.
+2. Requires Logger for its evidence: every change commits an outbox row in its own database (schema version 2), relayed to Logger under a logger credential renewed from Vault (`SHAPER_UNIT_INCARNATION`, `UNIT_BOOTSTRAP_TOKEN_FILE`, `UNIT_AUTH_PUBLIC_KEY_FILE`, `VAULT_URL`, `LOGGER_URL`, from `/apps/maestro/etc/identity/`, mounted read-only). It writes no local log: the unit has no log volume.
 3. Tasks loaded from `MAESTRO_TASKS_FILE` — zero hardcoded mailboxes (Rule 0B).
 4. Podman Quadlet lifecycle.
 5. Maestro's durable state — schedules, revisions, occurrences, Queue job ids —
@@ -23,7 +23,7 @@ idempotent occurrence per due instant to Queue; zero idle LLM waste.
    generated once inside the unit, `0600`, owned by the `maestro` account, in a
    directory the account cannot write, never in an image, a log or a dump.
 7. The image selects `MAESTRO_STORE=mariadb`; it refuses to start without its
-   passwd file, its schema, `SHAPER_UNIVERSE_ID` (part of every occurrence id)
+   passwd file, its schema, `SHAPER_UNIVERSE_ID` (a UUID, part of every occurrence id)
    or `MAESTRO_QUEUE_URL`, each with a typed reason. It never falls back to the
    in-memory scaffolding or to a direct bridge call.
 8. Every occurrence reaches Queue under its deterministic idempotency key, so a

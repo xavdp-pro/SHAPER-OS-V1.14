@@ -110,8 +110,10 @@ never does.
 
 The container needs: root inside it (the administrative path), the capabilities
 `CHOWN DAC_OVERRIDE FOWNER KILL SETGID SETUID` only, `no-new-privileges`, and
-three persistent volumes per unit: `/apps/<slug>/etc/mysql` (the password),
-`/apps/<slug>/sav` (the datadir, dumps) and `/apps/<slug>/log`.
+the persistent volumes the unit declares (`unit.volumes` in its `brick.json`):
+`/apps/<slug>/etc/mysql` (the password) and `/apps/<slug>/sav` (the datadir,
+dumps) always, `/apps/<slug>/log` when the unit keeps one. Without a log
+volume, `log/` is converged inside the container and lost with it.
 
 ## 4. Proof of Correct Operation
 

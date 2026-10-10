@@ -17,6 +17,7 @@ private MariaDB; the package intent states the contract
 4. Localhost or mesh bind only.
 5. Podman Quadlet lifecycle.
 6. One instance per universe.
+7. Every transition commits its evidence to the unit's outbox in the same transaction (schema version 2); the unit relays it to Logger under a logger credential renewed from Vault (`SHAPER_UNIT_INCARNATION`, `UNIT_BOOTSTRAP_TOKEN_FILE`, `UNIT_AUTH_PUBLIC_KEY_FILE`, `VAULT_URL`, `LOGGER_URL`, from `/apps/queue/etc/identity/`, mounted read-only). A job found `RUNNING` at start is settled `FAILED` as interrupted, whatever the worker setting.
 
 ---
 
@@ -104,9 +105,8 @@ lesson instead of the bug (Rule 29, applied to intent as well as to tests).
 Against the Queue target contract of 22 September 2026, and listed in full in
 the package intent: authenticated producers and consumers with scopes, durable
 leases with heartbeat, an attempts table with at-least-once lease recovery,
-`DEAD_LETTER`, a transactional outbox to Logger (audit is still fire-and-forget
-over HTTP), evidence policies, and the removal of task framing, Bridge dispatch
-and the quality gate from Queue.
+`DEAD_LETTER`, evidence policies, and the removal of task framing, Bridge
+dispatch and the quality gate from Queue.
 
 ---
 
