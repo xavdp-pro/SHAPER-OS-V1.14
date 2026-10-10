@@ -28,12 +28,14 @@ Jobs live in the unit's own private MariaDB (Rules 4 and 26,
    No crash-survival claim may rest on this queue re-running work; a universe
    that needs at-least-once execution must make its jobs idempotent and
    re-enqueue from its own beat (maestro), reading the recorded jobs to know
-   what was in flight. One scoping note, verified in `worker.js`: recorded
-   **PENDING** jobs are dispatched normally after a restart when the worker
-   runs — a first execution, not a resumption; recorded **RUNNING** jobs are
-   adopted as `FAILED`, never re-run. The in-memory store (`QUEUE_STORE=memory`)
-   loses everything with the process; it and the JSONL file store
-   (`QUEUE_STORE=file`) are DEV scaffolding only.
+   what was in flight. Recorded **PENDING** jobs are dispatched normally after
+   a restart when a worker runs — a first execution, not a resumption.
+   Recorded **RUNNING** jobs are settled by the service itself at start
+   ([§4](#lifecycle)): `FAILED` with the interrupted / unknown-outcome reason,
+   whatever the worker setting and whatever the job type, never re-run. The
+   in-memory store (`QUEUE_STORE=memory`) loses everything with the process; it
+   and the JSONL file store (`QUEUE_STORE=file`) are DEV scaffolding only, and
+   both are refused under a promotion or qualification flag.
 3. **The queue testifies for its own work** *(V1.13.4)*: with `LOGGER_URL` set,
    every job emits `JOB_CREATED` and its terminal `JOB_COMPLETED` /
    `JOB_FAILED`, **correlated to the job id**. The queue is the ledger of
@@ -163,8 +165,11 @@ What this storage does not yet provide, against the Queue target contract of
   `PENDING → RUNNING` transition, not a lease: no lease id, no incarnation, no
   heartbeat, no expiry.
 * **Attempts and at-least-once recovery.** There is no `attempts` table; a
-  `RUNNING` job left by a dead worker is settled as `FAILED` (orphan) at the
-  next start, never retried after a bounded backoff.
+  `RUNNING` job left by a dead process is settled as `FAILED` (interrupted) at
+  the next start of the service, never retried after a bounded backoff. Nothing
+  stops a consumer that outlived the restart from later patching that job to
+  `COMPLETED`: the retained API lets any status follow any other, and the
+  history then shows both transitions.
 * **`DEAD_LETTER` and `CANCELLED`.** Neither state exists.
 * **Installed outbox qualification.** The MariaDB path now stores bounded
   evidence with each transition and retries until a validated receipt. Its
@@ -184,8 +189,8 @@ What this storage does not yet provide, against the Queue target contract of
   archiving terminal jobs, belong to the administrative path and are not
   automated.
 * **An outcome observed while MariaDB is unavailable is not retried.** The job
-  keeps its last committed state (a `RUNNING` one becomes an orphan at the
-  next start), and the worker says so on stderr.
+  keeps its last committed state (a `RUNNING` one is settled as interrupted at
+  the next start), and the worker says so on stderr.
 * **The JSONL file store still logs a failed append and answers success, and
   skips (now with a warning) a line it cannot parse.** It is DEV scaffolding
   and is recorded as debt, not presented as compliance.
@@ -216,3 +221,42 @@ public key to obtain a short-lived `logger` audience credential. Every relay
 request carries that credential in its HTTP header; tokens never enter the
 outbox. Inbound Queue producer/consumer scopes and lease settlement remain
 open work and are not inferred from authenticated Logger delivery.
+
+<a id="lifecycle"></a>
+## 4. Service lifecycle
+
+`server.js` runs one order, whatever the store and whatever
+`QUEUE_AUTO_DISPATCH` says:
+
+1. **Select and open the store.** MariaDB by default. `QUEUE_STORE=file` or
+   `memory` is explicit DEV scaffolding and is refused (`DEV_STORE_REFUSED`,
+   exit 1) when `SHAPER_QUALIFICATION` or a non-development
+   `SHAPER_RUNTIME_MODE` is set (pkg-db `#dev-scaffolding`). On MariaDB the
+   entrypoint also requires `LOGGER_URL` (`LOGGER_URL_MISSING`) and the unit's
+   identity inputs (`SHAPER_UNIVERSE_ID`, `SHAPER_UNIT_INCARNATION`, `VAULT_URL`,
+   `UNIT_AUTH_PUBLIC_KEY_FILE`, `UNIT_BOOTSTRAP_TOKEN_FILE`): evidence it commits
+   but could never deliver would be debt kept in silence.
+2. **Settle what the previous process left RUNNING** (`recoverInterrupted`).
+   Each such job becomes `FAILED` with `INTERRUPTED_REASON`, its result marked
+   `orphaned: true, outcome: "unknown"`, a `job_transitions` row of kind
+   `interrupted`, and `JOB_FAILED` evidence (`reason: interrupted`) — all in one
+   transaction, before anything is served. `PENDING` jobs are left for their
+   first execution. A failure here is a refusal to start. The worker's own
+   orphan adoption remains for in-process library use; at service start it
+   finds nothing left.
+3. **Listen**, then start the evidence relay (one lane: `QUEUE_RELAY_*`
+   interval, batch and timeout) and, only if asked, the `agent.inject` worker.
+4. **Stop** on SIGTERM/SIGINT: worker, then server and relay together (the
+   relay waits up to `QUEUE_SHUTDOWN_TIMEOUT_MS` for its batch in flight — an
+   unconfirmed batch exits 1 and its debt stays in MariaDB), then the database.
+
+`/api/vitals` reports `evidencePending`, `evidenceRetrying` and
+`oldestPendingEvidenceAt` on the MariaDB path.
+
+Proof: `test/lifecycle-and-dev-store.test.js` drives the entrypoint end to
+end on the DEV file store with the worker off and checks the refusals;
+`test/evidence-and-recovery.live.mjs` (run through pkg-db's `run-live.mjs`)
+kills a process with SIGKILL between the SQL commit and Logger delivery, and
+after a job went RUNNING, then proves on the real MariaDB, Vault and Logger
+that the evidence is delivered once — also across a Logger outage and a lost
+response — and that the RUNNING job is settled as interrupted.

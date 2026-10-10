@@ -172,6 +172,35 @@ export function newJobRecord(normalized, { id, digest, now }) {
 }
 
 /**
+ * Why a job found RUNNING when the Queue service starts is settled FAILED.
+ * Durability keeps the record, not the computation: the process that was
+ * following the run is gone, so the outcome is unknown, and the job is never
+ * replayed automatically (contracts/queue.md, lifecycle and crash semantics).
+ */
+export const INTERRUPTED_REASON = 'interrupted: the job was RUNNING when the Queue service stopped; '
+  + 'its outcome is unknown and it is never replayed automatically — reconcile its effects, '
+  + 'then re-enqueue idempotently if the work is still wanted';
+
+/**
+ * The record of a RUNNING job settled at start: FAILED with the interrupted
+ * reason, its result marked so a reader need not parse the error text.
+ * @param {object} job - the RUNNING job as stored
+ * @param {Date} now
+ */
+export function interruptedJob(job, now) {
+  const result = job.result;
+  const plain = result === null || result === undefined
+    || (typeof result === 'object' && !Array.isArray(result));
+  return {
+    ...job,
+    status: 'FAILED',
+    error: INTERRUPTED_REASON,
+    result: plain ? { ...(result || {}), orphaned: true, outcome: 'unknown' } : result,
+    updatedAt: now.toISOString(),
+  };
+}
+
+/**
  * Same key and same request: the original job, no new one. Same key and a
  * different request: a conflict naming the job that owns the key.
  * @param {object} existing - the job that already holds the key

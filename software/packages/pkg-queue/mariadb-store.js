@@ -15,11 +15,12 @@
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { terminalAudit, validateQualityGate } from './index.js';
-import { appendOutbox, relayOutbox } from '../pkg-db/outbox.js';
+import { appendOutbox, outboxStatus, relayOutbox } from '../pkg-db/outbox.js';
 import { deliverLog } from '../pkg-logger/ingest-client.js';
 import {
   QueueError,
   applyJobPatch,
+  interruptedJob,
   newJobRecord,
   normalizeCreateRequest,
   normalizeJobPatch,
@@ -204,9 +205,9 @@ function transitionParams(job, kind, before) {
   ];
 }
 
-function evidence(job, event, level = 'INFO') {
+function evidence(job, event, level = 'INFO', extra = {}) {
   return { pod: 'queue', event, level, correlationId: job.id, executionId: job.id,
-    data: { jobId: job.id, type: job.type, status: job.status } };
+    data: { jobId: job.id, type: job.type, status: job.status, ...extra } };
 }
 
 /**
@@ -383,6 +384,47 @@ export class MariaDbJobQueue extends EventEmitter {
     return updated;
   }
 
+  /**
+   * Restart recovery, run by the service lifecycle before it serves: every job
+   * still RUNNING was being followed by a process that no longer exists, so it
+   * becomes FAILED with the interrupted reason — whatever the worker setting,
+   * whatever the job type — with its history row and its JOB_FAILED evidence
+   * in the same transaction. Nothing is re-executed; PENDING jobs are left for
+   * their first execution.
+   *
+   * @returns {Promise<object[]>} the jobs settled, as stored
+   */
+  async recoverInterrupted() {
+    const settled = await withTransaction(this.pool, async (conn) => {
+      const [rows] = await conn.query(`SELECT ${JOB_COLUMNS} FROM jobs WHERE status = 'RUNNING' ORDER BY created_at, id FOR UPDATE`);
+      const out = [];
+      for (const row of rows) {
+        const current = rowToJob(row);
+        const next = interruptedJob(current, this.now());
+        await conn.execute(UPDATE_JOB, [
+          next.contractType ?? null,
+          next.status,
+          next.progress,
+          next.step,
+          next.result === null || next.result === undefined ? null : JSON.stringify(next.result),
+          next.error,
+          next.qualityGateStatus ?? null,
+          toSqlDateTime(next.updatedAt),
+          next.id,
+        ]);
+        await conn.execute(INSERT_TRANSITION, transitionParams(next, 'interrupted', current));
+        await appendOutbox(conn, evidence(next, 'JOB_FAILED', 'ERROR', { reason: 'interrupted', outcome: 'unknown' }));
+        out.push(next);
+      }
+      return out;
+    });
+    for (const job of settled) {
+      this.emit('jobUpdated', job);
+      this.emit('statusChange', job);
+    }
+    return settled;
+  }
+
   /** Records a quality-gate verdict on a job without changing its status. */
   async runQualityGate(jobId, { gedRoot = this.gedRoot, testRunner = null } = {}) {
     let gateResult;
@@ -438,6 +480,11 @@ export class MariaDbJobQueue extends EventEmitter {
     const db = await probeDb(this.pool);
     if (!this.config) return db;
     return { ...db, user: `${this.config.user}@localhost`, database: this.config.database, passwordSource: this.config.passwordSource };
+  }
+
+  /** The evidence still owed to Logger: observable, never silent. */
+  async evidenceStatus() {
+    return outboxStatus(this.pool);
   }
 
   async storageCheck() {

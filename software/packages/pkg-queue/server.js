@@ -5,15 +5,28 @@
  *
  * Storage is the unit's private MariaDB (Rules 4 and 26). The memory and JSONL
  * stores remain only as declared DEV scaffolding, chosen explicitly with
- * QUEUE_STORE=memory or QUEUE_STORE=file; nothing falls back to them.
+ * QUEUE_STORE=memory or QUEUE_STORE=file; nothing falls back to them, and
+ * neither is accepted when a promotion or qualification flag is set.
+ *
+ * Lifecycle: open the store → settle every job left RUNNING as interrupted
+ * (whatever the worker setting) → listen → start the evidence relay and, if
+ * asked, the worker. Stop: worker, relay drain, server, database.
+ *
+ * Intent: software/packages/pkg-queue/INTENT.md#lifecycle
  */
 import { JobQueue, createQueueServer } from './index.js';
 import { startQueueAgentWorker } from './worker.js';
+import { assertDisposableStoreAllowed } from '../pkg-db/index.js';
 
 const PORT = parseInt(process.env.PORT || process.env.QUEUE_PORT || '8640', 10);
 const HOST = process.env.HOST || process.env.QUEUE_HOST || '0.0.0.0';
 const AUTO = process.env.QUEUE_AUTO_DISPATCH === '1';
 const STORE = (process.env.QUEUE_STORE || 'mariadb').trim();
+
+function refuse(err) {
+  console.error(`[brick-queue] refusing to start: ${err.code || 'ERROR'} — ${err.message}`);
+  process.exit(1);
+}
 
 const storeOptions = {
   // Off by default: the gate is opt-in during build-out, enabled per universe
@@ -24,17 +37,34 @@ const storeOptions = {
 };
 
 let queue;
-let identityClient = null;
+let relay = null;
 if (STORE === 'mariadb') {
   const { MariaDbJobQueue } = await import('./mariadb-store.js');
   const slug = process.env.SHAPER_UNIT_SLUG || 'queue';
   try {
     queue = await MariaDbJobQueue.open({ slug, ...storeOptions });
+    // Every transition commits its evidence to the outbox; a Queue that could
+    // never deliver it would pile up debt in silence.
+    if (!storeOptions.loggerUrl) {
+      throw Object.assign(new Error('LOGGER_URL is required with QUEUE_STORE=mariadb: committed evidence is owed to Logger'), { code: 'LOGGER_URL_MISSING' });
+    }
     const { runtimeCredentialClient } = await import('../pkg-auth/runtime-identity.js');
-    identityClient = runtimeCredentialClient(process.env);
+    const identityClient = runtimeCredentialClient({ ...process.env, SHAPER_UNIT_SLUG: slug });
+    const { createEvidenceRelay } = await import('../pkg-db/outbox.js');
+    const { deliverLog } = await import('../pkg-logger/ingest-client.js');
+    relay = createEvidenceRelay({
+      pool: queue.pool,
+      credentials: () => identityClient.headers('logger'),
+      deliver: (entry, signal, headers) => deliverLog({ loggerUrl: storeOptions.loggerUrl, entry, signal, headers }),
+      report: (event) => console.warn(`[brick-queue] ${JSON.stringify(event)}`),
+      intervalMs: process.env.QUEUE_RELAY_INTERVAL_MS,
+      maxEvents: process.env.QUEUE_RELAY_BATCH,
+      timeoutMs: process.env.QUEUE_RELAY_TIMEOUT_MS,
+      shutdownMs: process.env.QUEUE_SHUTDOWN_TIMEOUT_MS,
+    });
   } catch (err) {
-    console.error(`[brick-queue] refusing to start: ${err.code || 'ERROR'} — ${err.message}`);
-    process.exit(1);
+    if (queue) await queue.close().catch(() => {});
+    refuse(err);
   }
   const { jobs, byStatus } = queue.hydrated;
   const states = Object.entries(byStatus).map(([s, n]) => `${s} ${n}`).join(', ') || 'none';
@@ -43,6 +73,11 @@ if (STORE === 'mariadb') {
     console.warn(`[brick-queue] QUEUE_STORAGE_FILE=${process.env.QUEUE_STORAGE_FILE} is ignored: the store is MariaDB`);
   }
 } else if (STORE === 'file') {
+  try {
+    assertDisposableStoreAllowed({ unit: 'queue', store: 'file' });
+  } catch (err) {
+    refuse(err);
+  }
   const storageFile = process.env.QUEUE_STORAGE_FILE;
   if (!storageFile) {
     console.error('[brick-queue] QUEUE_STORE=file needs an explicit QUEUE_STORAGE_FILE');
@@ -51,6 +86,11 @@ if (STORE === 'mariadb') {
   queue = new JobQueue({ storageFile, ...storeOptions });
   console.warn(`[brick-queue] DEV scaffolding: JSONL file store ${storageFile}. It never satisfies Rule 26.`);
 } else if (STORE === 'memory') {
+  try {
+    assertDisposableStoreAllowed({ unit: 'queue', store: 'memory' });
+  } catch (err) {
+    refuse(err);
+  }
   queue = new JobQueue(storeOptions);
   console.warn('[brick-queue] DEV scaffolding: in-memory store — every job is lost when this process ends. It never satisfies Rule 26.');
 } else {
@@ -58,29 +98,26 @@ if (STORE === 'mariadb') {
   process.exit(1);
 }
 
+// Restart recovery belongs to the service, not to the optional worker: a job
+// left RUNNING by the previous process is settled before anything is served.
+try {
+  const settled = await queue.recoverInterrupted();
+  if (settled.length) {
+    console.warn(`[brick-queue] ${settled.length} job(s) found RUNNING at start settled FAILED as interrupted (outcome unknown, not replayed): ${settled.map((j) => j.id).join(', ')}`);
+  }
+} catch (err) {
+  if (typeof queue.close === 'function') await queue.close().catch(() => {});
+  refuse(err);
+}
+
 console.log(`[brick-queue] Starting Job Queue Gateway on ${HOST}:${PORT}...`);
 
 const server = createQueueServer({ port: PORT, host: HOST, queue });
 let worker = null;
-let relayTimer = null;
-let relayInFlight = null;
 
 server.on('listening', () => {
-  console.log(`[brick-queue] Ready and listening on http://${HOST}:${PORT}`);
-  if (typeof queue.relayEvidence === 'function' && storeOptions.loggerUrl) {
-    const relay = () => {
-      if (relayInFlight) return;
-      relayInFlight = (async () => queue.relayEvidence({ headers: await identityClient.headers('logger') }))()
-        .then((result) => {
-          if (result.deferred) console.warn(`[brick-queue] evidence delivery deferred: ${result.deferred} event(s); durable debt retained`);
-        })
-        .catch((err) => console.error(`[brick-queue] evidence relay unavailable: ${err.code || 'DELIVERY_UNCONFIRMED'}`))
-        .finally(() => { relayInFlight = null; });
-    };
-    relayTimer = setInterval(relay, 2000);
-    relayTimer.unref();
-    relay();
-  }
+  console.log(`[brick-queue] Ready and listening on http://${HOST}:${server.address().port}`);
+  relay?.start();
   if (AUTO) {
     worker = startQueueAgentWorker({
       queue: server.jobQueue,
@@ -93,14 +130,25 @@ server.on('listening', () => {
   }
 });
 
-function shutdown() {
+let stopping = false;
+async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`[brick-queue] Received ${signal}, shutting down...`);
   if (worker) worker.stop();
-  if (relayTimer) clearInterval(relayTimer);
-  server.close(async () => {
-    if (relayInFlight) await relayInFlight;
-    if (typeof queue.close === 'function') await queue.close().catch(() => {});
-    process.exit(0);
-  });
+  let code = 0;
+  try {
+    await Promise.all([
+      new Promise((resolve) => server.close(resolve)),
+      relay ? relay.close() : Promise.resolve(),
+    ]);
+  } catch (err) {
+    // The batch in flight did not settle in time: its debt stays in MariaDB.
+    console.error(`[brick-queue] ${err.code || 'SHUTDOWN_UNCONFIRMED'}: evidence delivery in flight not confirmed; the debt is retained`);
+    code = 1;
+  }
+  if (typeof queue.close === 'function') await queue.close().catch(() => {});
+  process.exit(code);
 }
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT', () => { void shutdown('SIGINT'); });
