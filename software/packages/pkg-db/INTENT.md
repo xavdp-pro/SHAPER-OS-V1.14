@@ -37,6 +37,13 @@ who the unit is before it serves anything.
 7. **One dependency, in one file.** `index.js` uses Node built-ins only;
    `pool.js` loads the pinned `mysql2` driver. A consumer that only resolves
    identity never needs the driver installed.
+8. **Every session speaks UTC.** `openUnitDb` sets `time_zone = '+00:00'` on
+   each new pool connection, and refuses to serve (`SESSION_TIMEZONE`) when
+   the first connection does not report it. Units write UTC `DATETIME`s, and
+   SQL that converts instants (`UNIX_TIMESTAMP`, `FROM_UNIXTIME`, `NOW`) must
+   read them as UTC whatever time zone the server or its host carries; before
+   this, Vault's credential issuance refused every bootstrap on a server whose
+   zone was ahead of UTC.
 
 ## 3. Specialisation Points
 

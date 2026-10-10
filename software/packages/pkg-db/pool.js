@@ -30,6 +30,13 @@ export async function openUnitDb({ connectionLimit = 5, ...resolveOptions } = {}
     dateStrings: true,
     timezone: 'Z',
   });
+  // Every DATETIME a unit writes is UTC, and SQL that reads the clock or
+  // converts an instant (UNIX_TIMESTAMP, FROM_UNIXTIME, NOW) must mean UTC too,
+  // whatever time zone the server or its host was given. The command is queued
+  // on each new connection before the connection is handed out.
+  pool.on('connection', (connection) => {
+    connection.query("SET time_zone = '+00:00'", () => {});
+  });
   try {
     await verifyIdentity(pool, config.slug);
   } catch (err) {
@@ -47,13 +54,16 @@ export async function openUnitDb({ connectionLimit = 5, ...resolveOptions } = {}
 export async function verifyIdentity(pool, slug) {
   let rows;
   try {
-    [rows] = await pool.query('SELECT CURRENT_USER() AS who, DATABASE() AS db');
+    [rows] = await pool.query('SELECT CURRENT_USER() AS who, DATABASE() AS db, @@session.time_zone AS tz');
   } catch (err) {
     throw new UnitDbError('DB_UNAVAILABLE', `private MariaDB refused or unreachable: ${err.code || err.message}`);
   }
-  const { who, db } = rows[0];
+  const { who, db, tz } = rows[0];
   if (who !== `${slug}@localhost` || db !== slug) {
     throw new UnitDbError('IDENTITY_MISMATCH', `connected as ${who} to ${db}; the unit is ${slug}@localhost on ${slug}`);
+  }
+  if (tz !== undefined && tz !== '+00:00') {
+    throw new UnitDbError('SESSION_TIMEZONE', `the session time zone is ${tz}, not UTC; instants would be misread`);
   }
 }
 
