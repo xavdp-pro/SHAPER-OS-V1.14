@@ -6,12 +6,14 @@
  *
  * Storage is the unit's private MariaDB (Rules 4 and 26). The JSONL collector
  * remains only as declared DEV scaffolding, chosen explicitly with
- * LOGGER_STORE=file and an explicit LOG_DIR; nothing falls back to it.
+ * LOGGER_STORE=file and an explicit LOG_DIR; nothing falls back to it, and it
+ * is refused when a promotion or qualification flag is set.
  *
  * Intent: software/packages/pkg-logger/INTENT.md#private-mariadb
  */
 
 import { createLoggerServer, resolveLimits } from './index.js';
+import { assertDisposableStoreAllowed } from '../pkg-db/index.js';
 
 const PORT = parseInt(process.env.PORT || process.env.LOGGER_PORT || '8620', 10);
 const HOST = process.env.HOST || process.env.LOGGER_HOST || '0.0.0.0';
@@ -38,12 +40,17 @@ if (STORE === 'mariadb') {
   try {
     store = await MariaDbLoggerStore.open({ slug, limits });
     const { runtimeAuthorizer } = await import('../pkg-auth/runtime-identity.js');
-    authorizeRequest = runtimeAuthorizer(process.env);
+    authorizeRequest = runtimeAuthorizer({ ...process.env, SHAPER_UNIT_SLUG: slug });
   } catch (err) {
     refuse(err);
   }
   console.log(`[brick-logger] Storage: private MariaDB ${store.config.user}@localhost/${store.config.database} via ${store.config.socketPath} (schema ${store.schemaVersion})`);
 } else if (STORE === 'file') {
+  try {
+    assertDisposableStoreAllowed({ unit: 'logger', store: 'file' });
+  } catch (err) {
+    refuse(err);
+  }
   logDir = process.env.LOG_DIR;
   if (!logDir) {
     console.error('[brick-logger] LOGGER_STORE=file needs an explicit LOG_DIR');
