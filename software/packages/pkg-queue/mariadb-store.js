@@ -15,8 +15,8 @@
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { terminalAudit, validateQualityGate } from './index.js';
-import { appendOutbox, outboxStatus, relayOutbox } from '../pkg-db/outbox.js';
-import { deliverLog } from '../pkg-logger/ingest-client.js';
+import { appendOutbox, outboxStatus } from '../pkg-db/outbox.js';
+import { publicEvidence } from '../pkg-logger/public-event.js';
 import {
   QueueError,
   applyJobPatch,
@@ -205,9 +205,14 @@ function transitionParams(job, kind, before) {
   ];
 }
 
+/**
+ * The evidence of a job transition. Its source is the unit, `queue`, which the
+ * entrypoint guarantees is the unit's own name; a job type that looks like a
+ * credential is reduced to a digest rather than stopping the transition.
+ */
 function evidence(job, event, level = 'INFO', extra = {}) {
-  return { pod: 'queue', event, level, correlationId: job.id, executionId: job.id,
-    data: { jobId: job.id, type: job.type, status: job.status, ...extra } };
+  return publicEvidence({ pod: 'queue', event, level, correlationId: job.id, executionId: job.id,
+    data: { jobId: job.id, type: job.type, status: job.status, ...extra } });
 }
 
 /**
@@ -282,13 +287,6 @@ export class MariaDbJobQueue extends EventEmitter {
     this.newId = newId;
     this.storageKind = 'mariadb';
     this.persisted = true;
-  }
-
-  async relayEvidence({ headers = {} } = {}) {
-    if (!this.loggerUrl) return { delivered: 0, deferred: 0, unavailable: true };
-    return relayOutbox(this.pool, { deliver: (entry, signal) => deliverLog({
-      loggerUrl: this.loggerUrl, entry, signal, headers, fetchImpl: this.fetchImpl,
-    }) });
   }
 
   /**

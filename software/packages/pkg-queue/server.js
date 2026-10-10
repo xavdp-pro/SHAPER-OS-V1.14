@@ -41,6 +41,11 @@ let relay = null;
 if (STORE === 'mariadb') {
   const { MariaDbJobQueue } = await import('./mariadb-store.js');
   const slug = process.env.SHAPER_UNIT_SLUG || 'queue';
+  if (slug !== 'queue') {
+    // Evidence is sourced as `queue`; Logger binds the source to the
+    // authenticated unit and would refuse every row of a unit named otherwise.
+    refuse(Object.assign(new Error(`SHAPER_UNIT_SLUG is ${slug}; this Queue sources its evidence as queue`), { code: 'EVIDENCE_SOURCE_MISMATCH' }));
+  }
   try {
     queue = await MariaDbJobQueue.open({ slug, ...storeOptions });
     // Every transition commits its evidence to the outbox; a Queue that could
@@ -130,6 +135,19 @@ server.on('listening', () => {
   }
 });
 
+/**
+ * Stops accepting connections, lets requests in flight finish, then ends what
+ * is still open — an event stream never ends by itself — after a short grace.
+ */
+function closeServer(server, graceMs = 5000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => server.closeAllConnections?.(), graceMs);
+    timer.unref?.();
+    server.close(() => { clearTimeout(timer); resolve(); });
+    server.closeIdleConnections?.();
+  });
+}
+
 let stopping = false;
 async function shutdown(signal) {
   if (stopping) return;
@@ -137,14 +155,11 @@ async function shutdown(signal) {
   console.log(`[brick-queue] Received ${signal}, shutting down...`);
   if (worker) worker.stop();
   let code = 0;
-  try {
-    await Promise.all([
-      new Promise((resolve) => server.close(resolve)),
-      relay ? relay.close() : Promise.resolve(),
-    ]);
-  } catch (err) {
+  // Both settle before the database closes, whichever finishes first.
+  const [, relayed] = await Promise.allSettled([closeServer(server), relay ? relay.close() : Promise.resolve()]);
+  if (relayed.status === 'rejected') {
     // The batch in flight did not settle in time: its debt stays in MariaDB.
-    console.error(`[brick-queue] ${err.code || 'SHUTDOWN_UNCONFIRMED'}: evidence delivery in flight not confirmed; the debt is retained`);
+    console.error(`[brick-queue] ${relayed.reason?.code || 'SHUTDOWN_UNCONFIRMED'}: evidence delivery in flight not confirmed; the debt is retained`);
     code = 1;
   }
   if (typeof queue.close === 'function') await queue.close().catch(() => {});

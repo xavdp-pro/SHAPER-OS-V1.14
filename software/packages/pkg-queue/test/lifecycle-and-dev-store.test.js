@@ -110,3 +110,51 @@ describe('the DEV stores are refused under a promotion or qualification flag', (
     assert.doesNotMatch(r.stderr + r.stdout, /DEV scaffolding/);
   });
 });
+
+describe('the entrypoint keeps its evidence deliverable and its stop bounded', () => {
+  it('refuses a unit name its evidence source would contradict', () => {
+    const r = spawnSync(process.execPath, [SERVER], {
+      env: { PATH: process.env.PATH, QUEUE_PORT: '0', SHAPER_UNIT_SLUG: 'jobs' }, encoding: 'utf8', timeout: 10000,
+    });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /refusing to start: EVIDENCE_SOURCE_MISMATCH/);
+  });
+
+  it('stops while an event stream is open, instead of waiting for it forever', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'queue-stop-'));
+    const child = spawn(process.execPath, [SERVER], {
+      env: { PATH: process.env.PATH, QUEUE_STORE: 'file', QUEUE_STORAGE_FILE: path.join(dir, 'jobs.jsonl'), QUEUE_PORT: '0', HOST: '127.0.0.1' },
+    });
+    try {
+      const { out } = await waitForLine(child, /QUEUE_AUTO_DISPATCH off/);
+      const base = `http://127.0.0.1:${out.match(/listening on http:\/\/127\.0\.0\.1:(\d+)/)[1]}`;
+      const stream = await fetch(`${base}/api/jobs/events`);
+      assert.equal(stream.status, 200);
+      const started = Date.now();
+      child.kill('SIGTERM');
+      const code = await new Promise((resolve) => child.once('exit', resolve));
+      assert.equal(code, 0);
+      assert.ok(Date.now() - started < 9000, 'the stream was ended after the grace');
+      await stream.body?.cancel().catch(() => {});
+    } finally {
+      if (child.exitCode === null) child.kill('SIGKILL');
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('job evidence stays deliverable whatever a producer names its job', () => {
+  it('a job type that looks like a credential is reduced to a digest, and the job is still created', async () => {
+    const { MariaDbJobQueue } = await import('../mariadb-store.js');
+    let evidence;
+    const conn = {
+      beginTransaction: async () => {}, commit: async () => {}, rollback: async () => {}, release() {},
+      execute: async (sql, params) => { if (sql.includes('INSERT INTO event_outbox')) evidence = JSON.parse(params[1]); return [{}]; },
+    };
+    const queue = new MariaDbJobQueue({ pool: { getConnection: async () => conn } });
+    const { job } = await queue.enqueue({ type: 'api_key=PRIVATE_SENTINEL' });
+    assert.equal(evidence.correlationId, job.id);
+    assert.equal(evidence.data.redacted, 'EVENT_SECRET_DENIED');
+    assert.doesNotMatch(JSON.stringify(evidence), /PRIVATE_SENTINEL/);
+  });
+});

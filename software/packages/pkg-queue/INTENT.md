@@ -202,11 +202,15 @@ administrative path. Enqueue, progress/status and quality-verdict writes append
 evidence in their owning transaction; failed outbox writes roll back the job
 change and emit no success. Evidence excludes job payloads and results.
 
-A relay locks one eligible row while sending a bounded request (3-second
-deadline), retains failures with capped retry delay, and records only a receipt
-whose source claim and stored-event digest match. The same source event and
-execution identities are reused after a lost response or failed receipt commit.
-Concurrent relays skip locked rows. No active debt is time-expired or deleted.
+A relay claims one due row under a short lease, sends a bounded request
+(3-second deadline) with no lock held, retains failures with capped retry delay,
+and records only a receipt whose source claim and stored-event digest match
+(pkg-db `#transactional-outbox-helper`). The same source event and execution
+identities are reused after a lost response or failed receipt commit.
+Concurrent relays never send a leased row. No active debt is time-expired or
+deleted. A job type that Logger's public-event boundary would refuse is reduced
+to a digest in the evidence, so the job is still created and its evidence still
+deliverable.
 The recipient must provide idempotent durable ingest; a transport acknowledgment
 alone is refused. Application credentials are transport-only, never outbox data.
 
@@ -228,7 +232,9 @@ open work and are not inferred from authenticated Logger delivery.
 `server.js` runs one order, whatever the store and whatever
 `QUEUE_AUTO_DISPATCH` says:
 
-1. **Select and open the store.** MariaDB by default. `QUEUE_STORE=file` or
+1. **Select and open the store.** MariaDB by default, as unit `queue` — the
+   name its evidence is sourced as; another `SHAPER_UNIT_SLUG` is refused
+   (`EVIDENCE_SOURCE_MISMATCH`), since Logger would refuse every row of it. `QUEUE_STORE=file` or
    `memory` is explicit DEV scaffolding and is refused (`DEV_STORE_REFUSED`,
    exit 1) when `SHAPER_QUALIFICATION` or a non-development
    `SHAPER_RUNTIME_MODE` is set (pkg-db `#dev-scaffolding`). On MariaDB the
@@ -246,9 +252,11 @@ open work and are not inferred from authenticated Logger delivery.
    finds nothing left.
 3. **Listen**, then start the evidence relay (one lane: `QUEUE_RELAY_*`
    interval, batch and timeout) and, only if asked, the `agent.inject` worker.
-4. **Stop** on SIGTERM/SIGINT: worker, then server and relay together (the
-   relay waits up to `QUEUE_SHUTDOWN_TIMEOUT_MS` for its batch in flight — an
-   unconfirmed batch exits 1 and its debt stays in MariaDB), then the database.
+4. **Stop** on SIGTERM/SIGINT: worker; then the server (requests in flight
+   finish, event streams are ended after a 5-second grace) and the relay (it
+   starts no new send, and waits up to `QUEUE_SHUTDOWN_TIMEOUT_MS` for the one
+   in flight — an unconfirmed send exits 1 and its debt stays in MariaDB), both
+   settled before the database closes.
 
 `/api/vitals` reports `evidencePending`, `evidenceRetrying` and
 `oldestPendingEvidenceAt` on the MariaDB path.

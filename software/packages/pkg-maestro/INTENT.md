@@ -149,6 +149,13 @@ of every entry is the unit, `pod: "maestro"` (Logger binds it to the
 authenticated caller); the schedule travels in `data.slug`, the occurrence in
 `executionId`.
 
+Free text that reaches evidence — Queue's error message, a schedule field — is
+reduced to a digest when Logger's public-event boundary would refuse it, so the
+change commits and the row stays deliverable. `MAESTRO_QUEUE_URL` must be a
+plain http(s) base without credentials, query or fragment
+(`QUEUE_URL_INVALID`), and the unit must be named `maestro`, the source its
+evidence carries (`EVIDENCE_SOURCE_MISMATCH` otherwise).
+
 The durable path writes **no local JSONL audit** and sends no best-effort HTTP
 line: the outbox is the record, Logger the destination, the console says what
 happened. `LOG_DIR` and `EventLogger` serve only `MAESTRO_STORE=memory`.

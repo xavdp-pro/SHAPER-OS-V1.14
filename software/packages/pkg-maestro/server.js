@@ -98,6 +98,11 @@ async function startDurable() {
   const { DurableMaestro } = await import('./durable-scheduler.js');
 
   const slug = process.env.SHAPER_UNIT_SLUG || 'maestro';
+  if (slug !== 'maestro') {
+    // Evidence is sourced as `maestro`; Logger binds the source to the
+    // authenticated unit and would refuse every row of a unit named otherwise.
+    refuse('EVIDENCE_SOURCE_MISMATCH', `SHAPER_UNIT_SLUG is ${slug}; this Maestro sources its evidence as maestro`);
+  }
   let store;
   try {
     store = await MariaDbMaestroStore.open({ slug });
@@ -243,6 +248,19 @@ server.on('listening', async () => {
   }
 });
 
+/**
+ * Stops accepting connections, lets requests in flight finish, then ends what
+ * is still open — an event stream never ends by itself — after a short grace.
+ */
+function closeServer(server, graceMs = 5000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => server.closeAllConnections?.(), graceMs);
+    timer.unref?.();
+    server.close(() => { clearTimeout(timer); resolve(); });
+    server.closeIdleConnections?.();
+  });
+}
+
 let stopping = false;
 async function shutdown(signal) {
   if (stopping) return;
@@ -250,7 +268,7 @@ async function shutdown(signal) {
   console.log(`[brick-maestro] Received ${signal}, shutting down...`);
   scheduler.stopScheduler();
   let code = 0;
-  await new Promise((resolve) => server.close(resolve));
+  await closeServer(server);
   if (STORE === 'mariadb') {
     // No new evidence after the scheduler has drained; then the relay settles
     // the batch in flight; the database closes last.

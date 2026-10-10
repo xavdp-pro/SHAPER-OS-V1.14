@@ -82,3 +82,27 @@ describe('the memory scaffolding is refused under a promotion or qualification f
     });
   }
 });
+
+describe('nothing a credential could ride on enters Maestro evidence', () => {
+  it('refuses a queue URL carrying credentials, a query or a fragment', () => {
+    for (const queueUrl of ['http://user:secret@127.0.0.1:8640', 'http://127.0.0.1:8640/?token=x', 'ftp://127.0.0.1']) {
+      assert.throws(() => new DurableMaestro({ store: {}, universeId: UNIVERSE, queueUrl }), { code: 'QUEUE_URL_INVALID' }, queueUrl);
+    }
+  });
+
+  it('reduces a remote error that looks like a credential to a digest', () => {
+    const { entry } = maestroEvidence('ENQUEUE_REFUSED', { detail: 'Bearer PRIVATE_SENTINEL_TOKEN_VALUE' }, { executionId: 'occ-1' });
+    assert.equal(entry.executionId, 'occ-1');
+    assert.equal(entry.data.redacted, 'EVENT_SECRET_DENIED');
+    assert.doesNotMatch(JSON.stringify(entry), /PRIVATE_SENTINEL/);
+  });
+
+  it('refuses a unit name its evidence source would contradict', () => {
+    const r = spawnSync(process.execPath, [SERVER], {
+      env: { PATH: process.env.PATH, MAESTRO_PORT: '0', SHAPER_UNIVERSE_ID: UNIVERSE, MAESTRO_QUEUE_URL: 'http://127.0.0.1:9', SHAPER_UNIT_SLUG: 'beats' },
+      encoding: 'utf8', timeout: 10000,
+    });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /refusing to start: EVIDENCE_SOURCE_MISMATCH/);
+  });
+});

@@ -41,6 +41,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { ageSeconds, dependency, vitals } from '../pkg-logger/vitals.js';
+import { publicEvidence } from '../pkg-logger/public-event.js';
 import { readTaskContext } from '../pkg-agent-runtime/context.js';
 import { occurrenceRequestText } from './queue-beat.js';
 import {
@@ -85,7 +86,9 @@ export function maestroEvidence(event, data = {}, { level = 'INFO', correlationI
   const eventId = randomUUID();
   return {
     eventId,
-    entry: { pod: 'maestro', event, level, correlationId, executionId: executionId || eventId, data },
+    // Queue's error text or a schedule field that looks like a credential is
+    // reduced to a digest: the change still commits, and Logger accepts it.
+    entry: publicEvidence({ pod: 'maestro', event, level, correlationId, executionId: executionId || eventId, data }),
   };
 }
 
@@ -157,6 +160,12 @@ export class DurableMaestro {
     if (!store) throw new Error('store is required');
     if (!queueUrl) {
       throw new ScheduleError('QUEUE_URL_MISSING', 'a queue URL is required: every occurrence goes through Queue');
+    }
+    let parsed;
+    try { parsed = new URL(queueUrl); } catch { parsed = null; }
+    if (!parsed || !['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
+      // The URL travels in evidence; a credential never belongs in it.
+      throw new ScheduleError('QUEUE_URL_INVALID', 'the queue URL must be a plain http(s) base, without credentials, query or fragment');
     }
     this.store = store;
     this.universeId = assertUniverseId(universeId);
