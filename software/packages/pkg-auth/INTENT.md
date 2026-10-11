@@ -33,6 +33,20 @@ Every service that needs the policy imports it — that is the whole deployment.
 - **degraded**: refuse
 - **rationale**: Token comparison is mechanical. A model has no place in an authorisation decision.
 
+<a id="secret-files"></a>
+## Secrets as private files
+
+`secret-file.js` is how a unit reads a secret it consumes (SOL-DECISIONS-2
+§M): from the file `<NAME>_FILE` names — a regular file of the reading
+account, not a symbolic link, with no group or other permission bit, not
+empty — read once into memory and never placed back into any environment.
+A value in the environment itself (`<NAME>=…`) is refused
+(`SECRET_IN_ENVIRONMENT`) unless the caller allows it for a disposable DEV
+store; both set is refused (`SECRET_AMBIGUOUS`). No error carries the value.
+Vault (`VAULT_MASTER_KEY_FILE`, `VAULT_TOKEN_FILE`), Queue
+(`QUEUE_BRIDGE_TOKEN_FILE`, `BRIDGE_AUTH_TOKEN_FILE`) and Maestro
+(`BRIDGE_AUTH_TOKEN_FILE`) read their secrets through it.
+
 ## Vault-signed unit identities
 
 `unit-credentials.js` provides a versioned Ed25519-signed envelope. Its signed

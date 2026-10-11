@@ -40,6 +40,7 @@ export const EXIT = Object.freeze({
   GRANTS: 10,
   RESTORE: 11,
   ENGINE_LOST: 12,
+  SECRET_IN_ENVIRONMENT: 13,
 });
 
 export class UnitError extends Error {
@@ -559,6 +560,41 @@ export const SUPERVISOR_CONTROLS = Object.freeze([
   'UNIT_APPS_ROOT', 'UNIT_RUN_ROOT',
 ]);
 const NOT_FOR_THE_APPLICATION = new Set([...SUPERVISOR_CONTROLS, 'MYSQL_PWD']);
+
+/**
+ * A variable whose name says it holds a secret (SOL-DECISIONS-2 §M). Every
+ * secret a unit consumes arrives as a private file named by `<NAME>_FILE`;
+ * the file reference itself never matches, since the name ends in `_FILE`.
+ * `PWD` and `OLDPWD` are the shell's directories, not passwords.
+ */
+export const SECRET_NAME_PATTERN = /(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASSPHRASE|API_KEY|MASTER_KEY|PRIVATE_KEY|ENCRYPTION_KEY|SECRET_KEY|ACCESS_KEY)$/;
+const NOT_A_SECRET_NAME = new Set(['PWD', 'OLDPWD']);
+
+/** The names — never the values — of the secret-shaped variables that carry a value. */
+export function secretNamesIn(env) {
+  return Object.keys(env)
+    .filter((name) => !NOT_A_SECRET_NAME.has(name) && SECRET_NAME_PATTERN.test(name) && String(env[name] ?? '') !== '')
+    .sort();
+}
+
+/**
+ * The container's initial environment carries no secret value: it would sit in
+ * the container's configuration (`podman inspect`), in PID 1's environment and
+ * in every process that inherits it. The supervisor cannot take it out of PID
+ * 1 — tini already holds it — so it refuses to start, and the universe passes
+ * the secret as a private file instead (`<NAME>_FILE`). A plain `unset` would
+ * not qualify (SOL-DECISIONS-2 §M).
+ */
+export function assertNoSecretInEnvironment(env) {
+  const names = secretNamesIn(env);
+  if (names.length) {
+    throw new UnitError(
+      'SECRET_IN_ENVIRONMENT',
+      `${names.join(', ')} ${names.length === 1 ? 'carries' : 'carry'} a value in the container's environment; a unit receives each secret as a private read-only file named by <NAME>_FILE`,
+      EXIT.SECRET_IN_ENVIRONMENT,
+    );
+  }
+}
 
 /** The application's environment: the container's, minus the supervisor's own controls. */
 export function applicationEnv(env, { slug, home, socket }) {

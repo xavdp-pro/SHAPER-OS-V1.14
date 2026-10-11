@@ -134,7 +134,11 @@ for (const slug of UNITS) {
         if (unit.volumes.includes(v)) assert.match(quadlet, line, `${v} is declared`);
         else assert.doesNotMatch(quadlet, new RegExp(`^Volume=/apps/${slug}/${v}:`, 'm'), `${v} is not declared`);
       }
-      assert.doesNotMatch(quadlet, /^Volume=.*:\/run/m, 'the socket stays inside the container');
+      // The socket stays inside: nothing is mounted on /run or /run/<slug>; under
+      // /run only /run/secrets/<NAME>, one secret file each (SOL-DECISIONS-2 §M).
+      for (const [, dest] of quadlet.matchAll(/^Volume=[^:]*:([^:]*)/gm)) {
+        if (dest === '/run' || dest.startsWith('/run/')) assert.match(dest, /^\/run\/secrets\/[A-Z][A-Z0-9_]*$/, `the socket stays inside the container (${dest})`);
+      }
       assert.match(quadlet, /^DropCapability=all$/m);
       assert.match(quadlet, /^AddCapability=CHOWN DAC_OVERRIDE FOWNER KILL SETGID SETUID$/m);
       assert.match(quadlet, /^NoNewPrivileges=true$/m);
@@ -156,6 +160,17 @@ for (const slug of UNITS) {
       assert.equal(env('VAULT_URL'), want.vaultUrl ? `http://127.0.0.1:${manifest.bricks['brick-vault'].port}` : undefined);
       assert.equal(env('LOGGER_URL'), want.loggerUrl ? `http://127.0.0.1:${manifest.bricks['brick-logger'].port}` : undefined);
       assert.doesNotMatch(quadlet, /^Environment=(VAULT_TOKEN|VAULT_MASTER_KEY|MYSQL_PASSWORD|MYSQL_PWD)=/m, 'a secret never sits in a unit file');
+      // SOL-DECISIONS-2 §M: every secret the unit consumes is one file, mounted
+      // read-only at /run/secrets/<NAME> and named by <NAME>_FILE.
+      const secrets = slug === 'vault' ? ['VAULT_TOKEN'] : [];
+      for (const name of secrets) {
+        assert.equal(env(`${name}_FILE`), `/run/secrets/${name}`);
+        assert.match(quadlet, new RegExp(`^Volume=/apps/\\.state/secrets/${slug}/mount/${name}:/run/secrets/${name}:ro,Z$`, 'm'));
+      }
+      assert.deepEqual([...quadlet.matchAll(/^Volume=[^:]*:\/run\/secrets\/([A-Z_]+):/gm)].map((m) => m[1]), secrets, 'only the declared secrets, one file each');
+      for (const [, source] of quadlet.matchAll(/^Volume=([^:]*\.state\/secrets[^:]*):/gm)) {
+        assert.match(source, new RegExp(`^/apps/\\.state/secrets/${slug}/mount/[A-Z][A-Z0-9_]*$`), `never a directory of the store, never another unit's file (${source})`);
+      }
     });
 
     test('univ-minimal declares the same unit', () => {
@@ -372,6 +387,10 @@ describe('univ-minimal births the units in the order their identities need', () 
       const text = fs.readFileSync(path.join(deploy, name), 'utf8');
       assert.doesNotMatch(text, /-H "Authorization: Bearer \$/, `${name} puts a bearer value on curl's command line`);
       assert.doesNotMatch(text, /-e (VAULT_TOKEN|MYSQL_PWD|MYSQL_PASSWORD)=\$/, `${name} puts a secret on podman's command line`);
+      // SOL-DECISIONS-2 §M: not even by name — a secret passed by name sits in
+      // the container's configuration and PID 1's environment. Only <NAME>_FILE.
+      assert.doesNotMatch(text, /-e "?[A-Z0-9_]*(TOKEN|SECRET|PASSWORD|PASSWD|PWD|API_KEY|MASTER_KEY|PRIVATE_KEY)(=|"|\s|$)/m, `${name} passes a secret into a container's environment`);
+      assert.doesNotMatch(text, /^\s*export\s+[A-Z0-9_]*(TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|MASTER_KEY)\b/m, `${name} exports a secret into every child's environment`);
       assert.doesNotMatch(text, /--grant [^\n]*\$\(cat|bootstrap[^\n]*echo "\$\(cat/, `${name} prints a bootstrap`);
     }
   });

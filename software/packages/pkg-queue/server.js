@@ -22,6 +22,7 @@
 import { JobQueue, createQueueServer } from './index.js';
 import { startQueueAgentWorker } from './worker.js';
 import { assertDisposableStoreAllowed } from '../pkg-db/index.js';
+import { readFirstSecret } from '../pkg-auth/secret-file.js';
 
 const PORT = parseInt(process.env.PORT || process.env.QUEUE_PORT || '8640', 10);
 const HOST = process.env.HOST || process.env.QUEUE_HOST || '0.0.0.0';
@@ -45,6 +46,17 @@ let queue;
 let relay = null;
 let maintenance = null;
 let authorizeRequest = null;
+// The bridge token, when a worker dispatches, is a private file
+// (QUEUE_BRIDGE_TOKEN_FILE or BRIDGE_AUTH_TOKEN_FILE; SOL-DECISIONS-2 §M). An
+// environment value is DEV scaffolding, refused on MariaDB. Read before the
+// store opens, so a refused secret stops the unit at once.
+let bridgeToken = '';
+try {
+  bridgeToken = readFirstSecret(process.env, ['QUEUE_BRIDGE_TOKEN', 'BRIDGE_AUTH_TOKEN'], { allowEnvValue: STORE !== 'mariadb' }) || '';
+} catch (err) {
+  refuse(err);
+}
+
 if (STORE === 'mariadb') {
   const { MariaDbJobQueue } = await import('./mariadb-store.js');
   const slug = process.env.SHAPER_UNIT_SLUG || 'queue';
@@ -145,7 +157,7 @@ server.on('listening', () => {
     worker = startQueueAgentWorker({
       queue: server.jobQueue,
       bridgeUrl: process.env.QUEUE_BRIDGE_URL || 'http://127.0.0.1:4440',
-      bridgeToken: process.env.QUEUE_BRIDGE_TOKEN || process.env.BRIDGE_AUTH_TOKEN || '',
+      bridgeToken,
       pollMs: Number(process.env.QUEUE_POLL_MS || 2000),
     });
   } else {

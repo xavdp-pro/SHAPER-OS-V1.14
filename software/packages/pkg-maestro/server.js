@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { createMaestroServer } from './index.js';
 import { ingestLog } from '../pkg-logger/ingest-client.js';
 import { assertDisposableStoreAllowed } from '../pkg-db/index.js';
+import { readSecret } from '../pkg-auth/secret-file.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHAPER_ROOT = path.resolve(__dirname, '../..');
@@ -41,7 +42,6 @@ const TASKS_FILE = process.env.MAESTRO_TASKS_FILE || '';
 const BRIDGE_URL = process.env.MAESTRO_BRIDGE_URL || '';
 const QUEUE_URL = process.env.MAESTRO_QUEUE_URL || '';
 const LOGGER_URL = process.env.LOGGER_URL || '';
-const BRIDGE_AUTH_TOKEN = process.env.BRIDGE_AUTH_TOKEN || '';
 const AUTO_START = process.env.MAESTRO_AUTO_START === '1';
 const STORE = (process.env.MAESTRO_STORE || 'mariadb').trim();
 
@@ -53,6 +53,16 @@ function refuse(code, message) {
 if (STORE !== 'mariadb' && STORE !== 'memory') {
   console.error(`[brick-maestro] MAESTRO_STORE must be "mariadb" or "memory"; got "${STORE}"`);
   process.exit(1);
+}
+
+// The bridge token of the memory-mode legacy path is a private file
+// (BRIDGE_AUTH_TOKEN_FILE; SOL-DECISIONS-2 §M). An environment value is DEV
+// scaffolding, refused on MariaDB.
+let BRIDGE_AUTH_TOKEN = '';
+try {
+  BRIDGE_AUTH_TOKEN = readSecret(process.env, 'BRIDGE_AUTH_TOKEN', { allowEnvValue: STORE !== 'mariadb' }) || '';
+} catch (err) {
+  refuse(err.code, err.message);
 }
 if (STORE === 'memory') {
   try {

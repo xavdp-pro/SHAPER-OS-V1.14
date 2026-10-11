@@ -17,9 +17,9 @@
  * Intent: software/packages/pkg-vault/INTENT.md#evidence-relay
  */
 
-import fs from 'node:fs';
 import { createVaultServer } from './index.js';
 import { assertDisposableStoreAllowed } from '../pkg-db/index.js';
+import { readFirstSecret } from '../pkg-auth/secret-file.js';
 
 const PORT = parseInt(process.env.PORT || process.env.VAULT_PORT || '8610', 10);
 const HOST = process.env.HOST || process.env.VAULT_HOST || '0.0.0.0';
@@ -38,37 +38,34 @@ if (STORE === 'file') {
   }
 }
 
-function readMasterKey() {
-  const file = process.env.VAULT_MASTER_KEY_FILE;
-  if (file) {
-    try {
-      const stat = fs.lstatSync(file);
-      if (!stat.isFile() || stat.mode & 0o077 || stat.uid !== process.getuid()) {
-        throw Object.assign(new Error('master-key file must be a private regular file owned by the unit'), { code: 'VAULT_KEY_FILE_UNTRUSTED' });
-      }
-      return fs.readFileSync(file, 'utf8').trim();
-    } catch (err) {
-      console.error(`[brick-vault] VAULT_MASTER_KEY_FILE ${file} is not readable: ${err.code || err.message}`);
-      process.exit(1);
-    }
+// Every secret Vault consumes arrives as a private file (SOL-DECISIONS-2 §M):
+// the master key in VAULT_MASTER_KEY_FILE, the generic secret API's token in
+// VAULT_TOKEN_FILE, each owned by this account, 0400 or 0600. A value in the
+// environment is DEV scaffolding for the file store only; on MariaDB it is
+// refused, never read.
+const ALLOW_ENV_VALUE = STORE !== 'mariadb';
+function secret(names) {
+  try {
+    return readFirstSecret(process.env, names, { allowEnvValue: ALLOW_ENV_VALUE });
+  } catch (err) {
+    return refuse(err);
   }
-  if (STORE === 'mariadb') {
-    console.error('[brick-vault] VAULT_MASTER_KEY_FILE is required for MariaDB; environment key values are DEV scaffolding only');
-    process.exit(1);
-  }
-  return process.env.VAULT_MASTER_KEY || process.env.VAULT_ENCRYPTION_KEY;
 }
 
-const MASTER_KEY = readMasterKey();
+if (STORE === 'mariadb' && !process.env.VAULT_MASTER_KEY_FILE) {
+  console.error('[brick-vault] VAULT_MASTER_KEY_FILE is required for MariaDB; environment key values are DEV scaffolding only');
+  process.exit(1);
+}
+const MASTER_KEY = secret(['VAULT_MASTER_KEY', 'VAULT_ENCRYPTION_KEY']);
 if (!MASTER_KEY || !MASTER_KEY.trim()) {
   console.error(
     '[brick-vault] VAULT_MASTER_KEY is not set. This repository ships no default key: '
     + 'a vault encrypted with a published key is not encrypted. '
-    + 'Generate one with `openssl rand -hex 32` and pass it in the environment.',
+    + 'Generate one with `openssl rand -hex 32` and give its file in VAULT_MASTER_KEY_FILE.',
   );
   process.exit(1);
 }
-const VAULT_TOKEN = process.env.VAULT_TOKEN || null;
+const VAULT_TOKEN = secret(['VAULT_TOKEN']);
 
 let vaultStore = null;
 let identityService = null;
@@ -125,7 +122,7 @@ if (STORE === 'mariadb') {
 }
 
 console.log(`[brick-vault] Starting Vault Engine on ${HOST}:${PORT}...`);
-console.log(`[brick-vault] Administrative surface: ${VAULT_TOKEN ? 'credential configured' : identityService ? 'disabled (no VAULT_TOKEN)' : 'DEV open surface'}`);
+console.log(`[brick-vault] Administrative surface: ${VAULT_TOKEN ? 'credential configured' : identityService ? 'disabled (no VAULT_TOKEN_FILE)' : 'DEV open surface'}`);
 
 const server = createVaultServer({
   port: PORT,

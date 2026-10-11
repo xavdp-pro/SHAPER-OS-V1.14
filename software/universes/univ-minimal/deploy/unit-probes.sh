@@ -190,6 +190,130 @@ grants_json() {
   printf '{%s}' "$out"
 }
 
+# ── Secrets each unit consumes: private files, never its environment ───────
+# SOL-DECISIONS-2 §M. The parent keeps each source root-only (0600) under the
+# universe's secrets store, one directory per unit, its ancestors protected;
+# the unit receives a copy owned by its own account (0400) under mount/,
+# mounted alone and read-only at /run/secrets/<NAME>, and the variable
+# <NAME>_FILE names it. The store and its directories are never mounted; no
+# secret is sourced or exported into a process environment. The Vault master
+# key and the bootstraps keep their own delivery (etc/vault/master.key,
+# etc/identity/bootstrap); the MariaDB passwords keep their canonical place.
+SECRETS_ROOT="${SHAPER_SECRETS_ROOT:-$APPS_ROOT/.state/secrets}"
+SECRETS_IN_UNIT=/run/secrets
+#   secrets_of <unit>   → the names of the secrets the unit consumes
+secrets_of() {
+  case "$1" in
+    vault) echo VAULT_TOKEN ;;   # the generic secret API's bearer (Rule 0K)
+    *) ;;
+  esac
+}
+#   secret_source <unit> <NAME>    the parent's root-only source
+secret_source() { printf '%s/%s/%s\n' "$SECRETS_ROOT" "$1" "$2"; }
+#   secret_mounted <unit> <NAME>   the consumer's copy, the one file mounted
+secret_mounted() { printf '%s/%s/mount/%s\n' "$SECRETS_ROOT" "$1" "$2"; }
+
+# A path no account but root can replace: every existing component, the path
+# itself included, belongs to root and is writable by nobody else unless it is
+# a sticky directory (/tmp). The path is resolved first. In a namespace that
+# maps a single uid (`unshare -r`, the rehearsal) the unmapped owner of the
+# outer directories reads as the overflow uid and counts as root there: no
+# other account exists in that namespace. Prints the first fault.
+#   path_protected <path>
+path_protected() {
+  local p owner mode overflow="" map
+  map="$(cat /proc/self/uid_map 2>/dev/null)"
+  if [[ "$(wc -l <<<"$map")" == 1 && "$(awk '{print $3}' <<<"$map")" == 1 ]]; then
+    overflow="$(cat /proc/sys/kernel/overflowuid 2>/dev/null)"
+  fi
+  p="$(readlink -m -- "$1")" || { echo "$1 cannot be resolved"; return 1; }
+  while :; do
+    if [[ -e "$p" ]]; then
+      read -r owner mode < <(stat -c '%u %a' -- "$p") || { echo "$p cannot be read"; return 1; }
+      if [[ "$owner" != 0 && ( -z "$overflow" || "$owner" != "$overflow" ) ]]; then echo "$p belongs to uid $owner, not root"; return 1; fi
+      if (( (8#$mode & 8#022) && !(8#$mode & 8#1000) )); then echo "$p is writable by group or others (mode $mode)"; return 1; fi
+    fi
+    [[ "$p" == / ]] && return 0
+    p="$(dirname -- "$p")"
+  done
+}
+
+# Every secret value the universe holds, one per line, into a root-only file —
+# for the proof to look for them without printing one: the secrets store's
+# sources, the Vault master key, every bootstrap (the units' and the
+# proof's) and every unit's MariaDB password. Values shorter than 16
+# characters are not secrets this universe generates and are left out, so a
+# short string can never match by accident.
+#   secret_values_file <out-file> <unit>…
+secret_values_file() {
+  local out="$1" s f; shift
+  ( umask 077; : > "$out" ) || return 1
+  {
+    for f in "$SECRETS_ROOT"/*/*; do [[ -f "$f" && ! -L "$f" ]] && printf '%s\n' "$(tr -d '\n' < "$f")"; done
+    [[ -s "$APPS_ROOT/vault/etc/vault/master.key" ]] && printf '%s\n' "$(tr -d '\n' < "$APPS_ROOT/vault/etc/vault/master.key")"
+    [[ -s "$PROOF_DIR/identity/bootstrap" ]] && printf '%s\n' "$(tr -d '\n' < "$PROOF_DIR/identity/bootstrap")"
+    for s in "$@"; do
+      for f in "$APPS_ROOT/$s/etc/identity/bootstrap" "$APPS_ROOT/$s/etc/mysql/localhost/passwd"; do
+        [[ -s "$f" ]] && printf '%s\n' "$(tr -d '\n' < "$f")"
+      done
+    done
+    :  # a last absent file is no failure of the list
+  } | awk 'length($0) >= 16' | sort -u > "$out"
+}
+
+# The host processes of a unit container: PID 1 (as podman reports it) and
+# every process in its pid namespace — its children and anything exec'd in.
+#   container_pids <ctr> [<proc root>]
+container_pids() {
+  local ctr="$1" proc="${2:-/proc}" pid1 ns d
+  pid1="$(podman inspect -f '{{.State.Pid}}' "$ctr" 2>/dev/null)"
+  [[ "$pid1" =~ ^[1-9][0-9]*$ ]] || return 1
+  ns="$(readlink "$proc/$pid1/ns/pid" 2>/dev/null)" || return 1
+  [[ -n "$ns" ]] || return 1
+  for d in "$proc"/[0-9]*; do
+    [[ "$(readlink "$d/ns/pid" 2>/dev/null)" == "$ns" ]] && echo "${d##*/}"
+  done
+  return 0
+}
+
+# No secret value in a unit's argv or environment: PID 1 and every process
+# of its pid namespace, read from the host's /proc (root reads every
+# process's initial environment there), each value matched as a fixed string
+# from the root-only values file — nothing printed but the verdict. An
+# unreadable environ or cmdline fails, never counts as clean. Prints
+# "<processes read> <processes holding a secret>".
+#   secrets_in_processes <ctr> <values-file> [<proc root>]
+secrets_in_processes() {
+  local ctr="$1" values="$2" proc="${3:-/proc}" pid read=0 hits=0 pids
+  [[ -s "$values" ]] || { echo "0 unknown"; return 1; }
+  pids="$(container_pids "$ctr" "$proc")" || { echo "0 unknown"; return 1; }
+  [[ -n "$pids" ]] || { echo "0 unknown"; return 1; }
+  local env cmd
+  for pid in $pids; do
+    # A process gone between the listing and the read (a health check's exec)
+    # is not counted; one still there that cannot be read fails the probe.
+    if ! env="$(tr '\0' '\n' < "$proc/$pid/environ" 2>/dev/null)" || ! cmd="$(tr '\0' ' ' < "$proc/$pid/cmdline" 2>/dev/null)"; then
+      [[ -d "$proc/$pid" ]] && { echo "$read unknown"; return 1; }
+      continue
+    fi
+    read=$((read + 1))
+    if grep -qFf "$values" <<<"$env" || grep -qFf "$values" <<<"$cmd"; then hits=$((hits + 1)); fi
+  done
+  echo "$read $hits"
+  (( read > 0 && hits == 0 ))
+}
+
+# No secret value anywhere in what podman holds for the container: its whole
+# inspect document — environment, command, arguments, labels, annotations,
+# mounts and the create command.
+#   secrets_in_inspect <ctr> <values-file>
+secrets_in_inspect() {
+  local doc
+  [[ -s "$2" ]] || return 1
+  doc="$(podman inspect "$1" 2>/dev/null)" && [[ -n "$doc" ]] || return 1
+  ! grep -qFf "$2" <<<"$doc"
+}
+
 # What podman-up.sh, the parent, wrote: the universe UUID beside the Vault's
 # key material, and the proof's own reader identity (unit "proof") under the
 # proof's state directory.
@@ -213,11 +337,12 @@ curl_with_header() {
   return "$status"
 }
 
-# The Vault's administrative API, with the token the construction path holds.
+# The Vault's administrative API, with the token the construction path holds:
+# read by root from its source in the secrets store, never from the unit.
 #   vault_curl <curl args…>
 vault_curl() {
   install -d -m 0700 "$PROOF_DIR" "$PROOF_DIR/identity"
-  write_header "$PROOF_DIR/identity/vault.header" "$VAULT_ETC_DIR/api-token" || return 1
+  write_header "$PROOF_DIR/identity/vault.header" "$(secret_source vault VAULT_TOKEN)" || return 1
   curl_with_header "$PROOF_DIR/identity/vault.header" "$@"
 }
 

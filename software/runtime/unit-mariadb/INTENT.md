@@ -107,6 +107,17 @@ Set by the universe at run time:
 | `UNIT_HEALTH_URL` | the application's health endpoint, checked by `unit-ready` |
 | `UNIT_DRAIN_SECONDS`, `UNIT_ENGINE_START_SECONDS`, `UNIT_ENGINE_STOP_SECONDS` | bounds of the lifecycle (20, 120, 60) |
 
+**No secret value in the container's environment** (SOL-DECISIONS-2 §M).
+Before anything else the supervisor refuses an environment where a
+secret-shaped variable — a name ending in `TOKEN`, `SECRET`, `PASSWORD`,
+`PASSWD`, `PWD`, `PASSPHRASE`, `API_KEY`, `MASTER_KEY`, `PRIVATE_KEY`,
+`ENCRYPTION_KEY`, `SECRET_KEY` or `ACCESS_KEY` (`SECRET_NAME_PATTERN`; not
+`PWD`/`OLDPWD`) — carries a value: `SECRET_IN_ENVIRONMENT`, exit 13, naming
+the variables, never their values. Such a value is already in `podman
+inspect` and in `tini`'s environment as PID 1, which the supervisor cannot
+clean; refusing makes the universe pass the secret as a private read-only
+file named by `<NAME>_FILE` instead. `<NAME>_FILE` references pass.
+
 These are the supervisor's controls (`SUPERVISOR_CONTROLS` in `lib.mjs`, with
 `UNIT_IMPORT_CHECK`, `UNIT_APPS_ROOT` and `UNIT_RUN_ROOT`), named one by one and
 kept from the application. Every other variable reaches the application,

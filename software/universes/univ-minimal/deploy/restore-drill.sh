@@ -98,7 +98,14 @@ drill_args() {  # <slug> <port> <key-file> <work>
   local holds=(-e "SHAPER_UNIT_INCARNATION=$s-drill-$STAMP" -e "UNIT_BOOTSTRAP_TOKEN_FILE=/apps/$s/etc/identity/bootstrap")
   local pin=(-e "UNIT_AUTH_PUBLIC_KEY_FILE=/apps/$s/etc/identity/vault-signing.pub")
   case "$s" in
-    vault)   DRILL_ARGS+=("${identity[@]}" "${holds[@]}" -e "LOGGER_URL=$NOWHERE" -e "VAULT_PORT=$port" -e VAULT_TOKEN
+    vault)   # The drill's own API token, as the live Vault receives its own: a
+             # private file owned by vault, mounted alone (SOL-DECISIONS-2 §M).
+             if [[ ! -s "$work/drill-token" ]]; then
+               ( umask 077; printf '%s' "$DRILL_TOKEN" > "$work/drill-token" )
+               chown "$(uid_of vault):$(uid_of vault)" "$work/drill-token"; chmod 0400 "$work/drill-token"
+             fi
+             DRILL_ARGS+=("${identity[@]}" "${holds[@]}" -e "LOGGER_URL=$NOWHERE" -e "VAULT_PORT=$port"
+               -e VAULT_TOKEN_FILE=/run/secrets/VAULT_TOKEN -v "$work/drill-token:/run/secrets/VAULT_TOKEN:ro,Z"
                -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -v "$key:/apps/vault/etc/vault/master.key:ro,Z") ;;
     logger)  DRILL_ARGS+=("${identity[@]}" "${pin[@]}" -e "VAULT_URL=http://127.0.0.1:$(port_of vault)" -e "LOGGER_PORT=$port") ;;
     queue)   DRILL_ARGS+=("${identity[@]}" "${holds[@]}" "${pin[@]}" -e "VAULT_URL=http://127.0.0.1:$(port_of vault)" -e "LOGGER_URL=$NOWHERE"
@@ -115,8 +122,9 @@ start_drill() {  # <slug> <work> <mode> <port> [key-file] [extra -e…]
   [[ "$mode" == serve ]] && network=(--network host)
   for v in $(volumes_of "$s"); do DRILL_ARGS+=(-v "$work/$v:/apps/$s/$v:Z"); done
   if [[ "$mode" == serve ]]; then drill_args "$s" "$port" "$key" "$work" || return 1; fi
-  # The Vault's drill token reaches the container by name (-e VAULT_TOKEN), never on a command line.
-  VAULT_TOKEN="$DRILL_TOKEN" podman run -d --name "$(drill_ctr "$s")" --replace --restart=no "${network[@]}" \
+  # No secret value in the container's environment: the Vault's drill token is
+  # a file (drill_args), its value never on a command line.
+  podman run -d --name "$(drill_ctr "$s")" --replace --restart=no "${network[@]}" \
     --stop-timeout 90 \
     --cap-drop=all --cap-add=CHOWN,DAC_OVERRIDE,FOWNER,KILL,SETGID,SETUID \
     --security-opt=no-new-privileges \
@@ -221,7 +229,6 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
   D="http://127.0.0.1:$dport"
   case "$s" in
     vault)
-      ( umask 077; printf '%s' "$DRILL_TOKEN" > "$work/drill-token" )
       write_header "$work/drill.header" "$work/drill-token"
       got="$(curl_with_header "$work/drill.header" -sf "$D/api/secret/$CONTROL_KEY" | jq -r '.data // empty')"
       [[ "$got" == "$CONTROL_VALUE" ]] && ok vault-restore-decrypts "the restored Vault decrypts the controlled secret with the universe's key" \

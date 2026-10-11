@@ -50,6 +50,65 @@ done
 # HOLDS_CREDENTIAL and PINNED come from unit-probes.sh, the list podman-up.sh registers.
 UNIVERSE_ID="$(universe_uuid)"
 
+# Every secret value the universe holds, root-only, for the checks below to
+# look for without printing one; removed when the proof ends.
+install -d -m 0700 "$PROOF_DIR"
+SECRET_VALUES="$(mktemp "$PROOF_DIR/secret-values-XXXXXX")"
+trap 'rm -f -- "$SECRET_VALUES"' EXIT
+secret_values_file "$SECRET_VALUES" "${UNITS[@]}"
+
+# A secret the unit consumes, delivered as SOL-DECISIONS-2 §M requires: the
+# reference <NAME>_FILE and no <NAME>= in the container's environment; one
+# file mounted read-only from the unit's own copy; inside, a regular file of
+# the unit's account, 0400, with exactly the source's content (compared by
+# digest, never printed).
+#   secret_delivered <ctr> <slug> <uid> <NAME>
+secret_delivered() {
+  local ctr="$1" s="$2" uid="$3" name="$4" env mounts inside source
+  env="$(podman inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$ctr" 2>/dev/null)" || return 1
+  grep -qx "${name}_FILE=$SECRETS_IN_UNIT/$name" <<<"$env" || return 1
+  ! grep -q "^${name}=" <<<"$env" || return 1
+  mounts="$(podman inspect -f '{{range .Mounts}}{{.Source}}={{.Destination}}:{{.RW}} {{end}}' "$ctr" 2>/dev/null | tr ' ' '\n')"
+  grep -qx "$(secret_mounted "$s" "$name")=$SECRETS_IN_UNIT/$name:false" <<<"$mounts" || return 1
+  [[ "$(podman exec "$ctr" stat -c '%F %a %u' "$SECRETS_IN_UNIT/$name" 2>/dev/null)" == "regular file 400 $uid" ]] || return 1
+  inside="$(podman exec "$ctr" sha256sum "$SECRETS_IN_UNIT/$name" 2>/dev/null | cut -c1-64)"
+  source="$(sha256sum < "$(secret_source "$s" "$name")" 2>/dev/null | cut -c1-64)"
+  [[ -n "$inside" && "$inside" == "$source" ]]
+}
+# Read as <user> inside the container, the content discarded: succeeds only
+# when that account can read the file.
+#   reads_as <ctr> <user> <path>
+reads_as() { podman exec --user "$2" "$1" sh -c 'cat -- "$1" > /dev/null 2>&1' _ "$3"; }
+# The consumer reads its secret; the engine account and nobody are refused.
+#   reader_only <ctr> <uid> <engine-uid> <path>
+reader_only() { reads_as "$1" "$2" "$4" && ! reads_as "$1" "$3" "$4" && ! reads_as "$1" 65534 "$4"; }
+# secrets_in_processes' verdict: at least the four processes of a unit (tini,
+# the supervisor, mariadbd, the application) read, and none holds a value.
+#   processes_clean "<read> <hits>"
+processes_clean() { [[ "$1" =~ ^([0-9]+)\ 0$ ]] && (( BASH_REMATCH[1] >= 4 )); }
+# The store: root's alone, 0700, ancestors protected; one root 0700 directory
+# per unit (and its mount/), each source a root 0600 file.
+#   secrets_store_sound <path_protected's fault>
+secrets_store_sound() {
+  [[ -z "$1" && "$(stat -c '%u %a' "$SECRETS_ROOT" 2>/dev/null)" == '0 700' ]] || return 1
+  [[ -z "$(find "$SECRETS_ROOT" -mindepth 1 -maxdepth 2 -type d ! \( -user 0 -perm 0700 \) 2>&1)" ]] || return 1
+  [[ -z "$(find "$SECRETS_ROOT" -mindepth 2 -maxdepth 2 ! -type d ! \( -type f -user 0 -perm 0600 \) 2>&1)" ]]
+}
+# Nothing of the secrets store is mounted but the unit's own copies, one file
+# each — never the store, a unit's directory, or another unit's file.
+#   store_not_mounted <ctr> <slug>
+store_not_mounted() {
+  local ctr="$1" s="$2" line src allowed="" name mounts
+  for name in $(secrets_of "$s"); do allowed+=" $(secret_mounted "$s" "$name") "; done
+  mounts="$(podman inspect -f '{{range .Mounts}}{{.Source}} {{end}}' "$ctr" 2>/dev/null)" || return 1
+  for src in $mounts; do
+    case "$src" in
+      "$SECRETS_ROOT"|"$SECRETS_ROOT"/*) [[ "$allowed" == *" $src "* ]] || return 1 ;;
+      "$VAULT_ETC_DIR"|"$VAULT_ETC_DIR"/registration*) return 1 ;;
+    esac
+  done
+}
+
 # ── The Rule 26 inventory, unit by unit ─────────────────────────────────────
 gate_unit() {
   local s="$1" uid="${UID_OF[$1]}" engine="${ENGINE_OF[$1]}" ctr="${UNIVERSE}-ctr-$1"
@@ -144,6 +203,24 @@ gate_unit() {
       test "$(rootsql "$s" "$s" -e "SELECT COUNT(*) FROM event_outbox WHERE receipt IS NULL AND created_at < TIMESTAMPADD(MINUTE, -15, UTC_TIMESTAMP(3))" 2>/dev/null || echo unknown)" = 0
   fi
 
+  # Secrets (SOL-DECISIONS-2 §M): each one a private read-only file; none in
+  # podman's record of the container, nor in the argv or initial environment
+  # of PID 1 or of any process of the container. Root keeps its declared
+  # administrative access to the files.
+  local name hits
+  for name in $(secrets_of "$s"); do
+    check "$s-secret-$name" "$name reaches $s as $SECRETS_IN_UNIT/$name alone: read-only, $s's ($uid) 0400, by ${name}_FILE, the source's content, no $name= in its environment" \
+      secret_delivered "$ctr" "$s" "$uid" "$name"
+    check "$s-secret-$name-reader" "only $s reads $SECRETS_IN_UNIT/$name: its account does, mysql ($engine) and nobody (65534) are refused" \
+      reader_only "$ctr" "$uid" "$engine" "$SECRETS_IN_UNIT/$name"
+  done
+  check "$s-secrets-store-unmounted" "no directory of the secrets store or of etc/vault is mounted; only $s's own copies" store_not_mounted "$ctr" "$s"
+  check "$s-no-secret-in-inspect" "no secret value of the universe in podman inspect $ctr (environment, command, labels, mounts, create command)" \
+    secrets_in_inspect "$ctr" "$SECRET_VALUES"
+  hits="$(secrets_in_processes "$ctr" "$SECRET_VALUES")"
+  check "$s-no-secret-in-processes" "no secret value in the argv or environment of PID 1 or any process of $ctr (host /proc, $(cut -d' ' -f1 <<<"$hits") processes read)" \
+    processes_clean "$hits"
+
   local other refused=0 tried=0
   for other in "${UNITS[@]}"; do
     [[ "$other" == "$s" ]] && continue
@@ -179,6 +256,11 @@ check "proof-identity" "the proof's reader identity is root-only ($PROOF_DIR/ide
   test "$(stat -c '%a %u' "$PROOF_DIR/identity" 2>/dev/null):$(stat -c '%a %u' "$PROOF_DIR/identity/bootstrap" 2>/dev/null)" = "700 0:600 0"
 check "no-tcp-mariadb" "no mariadbd in ss -ltnp, no :3306" \
   bash -c "! ss -ltnpH | grep -qE 'mariadbd|:3306 '"
+store_fault="$(path_protected "$SECRETS_ROOT")"
+check "secrets-store" "the secrets store $SECRETS_ROOT is root's alone (0700, ancestors protected${store_fault:+ — $store_fault}); each source a root 0600 file" \
+  secrets_store_sound "$store_fault"
+check "secret-values-known" "$(wc -l < "$SECRET_VALUES") secret values of the universe gathered, root-only, for the checks below (none printed)" \
+  test -s "$SECRET_VALUES"
 check "restart-on-boot" "podman-restart.service is enabled" \
   bash -c "systemctl is-enabled podman-restart.service 2>/dev/null | grep -qx enabled"
 

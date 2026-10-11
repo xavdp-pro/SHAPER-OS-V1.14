@@ -41,7 +41,9 @@
 #      what renew-bootstraps.sh checks Vault against);
 #   4. start (or keep) Logger, Queue and Maestro, layer by layer.
 # No bootstrap value, password, key or token reaches a command line, git or
-# this script's output.
+# this script's output — nor any unit's environment: each secret a unit
+# consumes is a private file, mounted alone and read-only, named by
+# <NAME>_FILE (SOL-DECISIONS-2 §M; secrets_of in unit-probes.sh).
 #
 # Names follow docs/architecture/NAMING.md, prefixed by the instance slug:
 #   <universe>-ctr-<slug>          the unit: its application and its MariaDB
@@ -82,8 +84,29 @@ shaper_env_file_is_variables_only() {
   echo "[podman-up] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
   return 1
 }
+# The settings file carries parameters and *_FILE references only
+# (SOL-DECISIONS-2 §M): a variable whose name says it holds a secret, with a
+# value, is refused by name — sourcing it would export it into this script,
+# podman and conmon. The value is never printed.
+SECRET_NAME_RE='(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASSPHRASE|API_KEY|MASTER_KEY|PRIVATE_KEY|ENCRYPTION_KEY|SECRET_KEY|ACCESS_KEY)$'
+shaper_env_file_carries_no_secret() {
+  local file="$1" line name value found=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*([A-Z][A-Z0-9_]*)=(.*)$ ]] || continue
+    name="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
+    [[ "$name" == PWD || "$name" == OLDPWD ]] && continue
+    [[ "$name" =~ $SECRET_NAME_RE ]] || continue
+    [[ -z "$value" || "$value" == '""' || "$value" == "''" ]] && continue
+    found+=("$name")
+  done < "$file"
+  (( ${#found[@]} == 0 )) && return 0
+  echo "[podman-up] $file gives a secret a value: ${found[*]} — a settings file carries parameters and *_FILE references only." >&2
+  echo "[podman-up] Put the secret in its root-only source file (the secrets store, deploy/unit-probes.sh secrets_of) and leave its line empty or remove it. Halt." >&2
+  return 1
+}
 shaper_source_env() {
   shaper_env_file_is_variables_only "$1" || exit 1
+  shaper_env_file_carries_no_secret "$1" || exit 1
   set -a; source "$1"; set +a
 }
 if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
@@ -147,14 +170,17 @@ while read -r slug; do
 done < <(jq -r '.bricks[].database.slug' "$MANIFEST")
 
 # ── 5. Instance secrets and identity the construction path owns ─────────────
-# The API token, the master key and the universe identity live under the
-# Vault's etc/vault/, which is never mounted as a directory: the container
-# receives the key file alone, read-only, and the token through its
-# environment, by name.
+# The master key and the universe identity live under the Vault's etc/vault/,
+# which is never mounted as a directory: the container receives the key file
+# alone, read-only. The secrets the units consume (secrets_of) live in the
+# secrets store, root-only, one directory per unit; each unit receives its
+# own as single files (section 6). The Vault's API token is one of them.
 VAULT_UID="$(jq -r '.bricks["brick-vault"].database.uid' "$MANIFEST")"
 VAULT_ETC="$APPS_ROOT/vault/etc/vault"
-TOKEN_FILE="$VAULT_ETC/api-token"
+TOKEN_FILE="$(secret_source vault VAULT_TOKEN)"
+LEGACY_TOKEN_FILE="$VAULT_ETC/api-token"
 KEY_FILE="$VAULT_ETC/master.key"
+fault="$(path_protected "$SECRETS_ROOT")" || halt "the secrets store $SECRETS_ROOT is not protected: $fault. A secret is kept only where no account but root can replace it. Halt."
 if (( ! PREFLIGHT )); then
   install -d -m 0755 -o root -g root "$APPS_ROOT" "$APPS_ROOT/vault" "$APPS_ROOT/vault/etc"
   install -d -m 0700 -o root -g root "$VAULT_ETC"
@@ -165,14 +191,33 @@ if (( ! PREFLIGHT )); then
   # The lock is this script's alone: no container, conmon or podman process
   # may inherit it and hold it after the run.
   podman() { command podman "$@" 9>&-; }
+  install -d -m 0700 -o root -g root "$SECRETS_ROOT"
+  fault="$(path_protected "$SECRETS_ROOT")" || halt "the secrets store $SECRETS_ROOT is not protected: $fault. Halt."
+  install -d -m 0700 -o root -g root "$(dirname "$TOKEN_FILE")"
+  # A universe born before the secrets store kept its token beside the master
+  # key: it moves, the same value, so the running Vault and the proof agree.
+  if [[ ! -s "$TOKEN_FILE" && -s "$LEGACY_TOKEN_FILE" ]]; then
+    mv -f -- "$LEGACY_TOKEN_FILE" "$TOKEN_FILE"
+    say "Vault API token moved into the secrets store ($TOKEN_FILE), value kept"
+  elif [[ -s "$TOKEN_FILE" && -e "$LEGACY_TOKEN_FILE" ]]; then
+    # Two copies of one secret: the earlier one goes when it is the same
+    # value; two different tokens are a human's decision, never a guess.
+    cmp -s -- "$TOKEN_FILE" "$LEGACY_TOKEN_FILE" \
+      || halt "two Vault API tokens differ: $TOKEN_FILE and $LEGACY_TOKEN_FILE. Keep the one the running Vault uses, remove the other. Halt."
+    rm -f -- "$LEGACY_TOKEN_FILE"
+    say "earlier copy of the Vault API token removed ($LEGACY_TOKEN_FILE), the same value as the store's"
+  fi
   if [[ ! -s "$TOKEN_FILE" ]]; then
     ( umask 077; openssl rand -hex 32 > "$TOKEN_FILE" )
   fi
-  chmod 0600 "$TOKEN_FILE"
+  chown root:root "$TOKEN_FILE"; chmod 0600 "$TOKEN_FILE"
 elif [[ ! -s "$TOKEN_FILE" ]]; then
-  say "would generate the Vault API token ($TOKEN_FILE)"
+  if [[ -s "$LEGACY_TOKEN_FILE" ]]; then
+    say "would move the Vault API token into the secrets store ($LEGACY_TOKEN_FILE → $TOKEN_FILE)"
+  else
+    say "would generate the Vault API token ($TOKEN_FILE)"
+  fi
 fi
-VAULT_TOKEN="$(cat "$TOKEN_FILE" 2>/dev/null || true)"
 
 if [[ ! -s "$KEY_FILE" ]]; then
   if [[ -d "$APPS_ROOT/vault/sav/mariadb/vault" ]]; then
@@ -254,6 +299,40 @@ prepare_volumes() {
   fi
 }
 
+# Each secret the unit consumes (secrets_of): its root-only source must exist
+# and hold a value (Rule 0J: no unit starts hoping an absent secret works);
+# the unit's copy — owned by its account, 0400, alone in a root-only
+# directory — is replaced only when it differs, so a kept container keeps
+# what it reads. The source is read by cat into the copy, never through a
+# variable or an argument.
+copy_current() {  # <copy> <source> <uid>
+  [[ -f "$1" && ! -L "$1" && "$(stat -c '%u %g %a' -- "$1")" == "$3 $3 400" ]] && cmp -s -- "$2" "$1"
+}
+deliver_secrets() {  # <slug> <uid>
+  local slug="$1" uid="$2" name src copy tmp
+  for name in $(secrets_of "$slug"); do
+    src="$(secret_source "$slug" "$name")"; copy="$(secret_mounted "$slug" "$name")"
+    if (( PREFLIGHT )); then
+      # Vault's API token is the one secret this script generates (section 5).
+      [[ -s "$src" || "$src" == "$TOKEN_FILE" ]] \
+        || halt "$slug consumes $name, whose source $src is absent or empty: provision it (root, 0600). Halt."
+      copy_current "$copy" "$src" "$uid" || say "would deliver $name to $slug ($copy, $uid, 0400)"
+      continue
+    fi
+    [[ -s "$src" && ! -L "$src" && -f "$src" ]] \
+      || halt "$slug consumes $name, whose source $src is absent or empty: provision it (root, 0600). Halt."
+    [[ "$(stat -c '%u %a' -- "$src")" == "0 600" ]] \
+      || halt "$src is not root's alone (0600): $(stat -c '%U %a' -- "$src"). Halt."
+    install -d -m 0700 -o root -g root "$SECRETS_ROOT/$slug" "$(dirname "$copy")"
+    copy_current "$copy" "$src" "$uid" && continue
+    tmp="$(mktemp "$(dirname "$copy")/.$name.XXXXXX")"
+    cat -- "$src" > "$tmp"
+    chown "$uid:$uid" "$tmp"; chmod 0400 "$tmp"
+    mv -f -- "$tmp" "$copy"
+    say "$name delivered to $slug: $copy ($uid, 0400), mounted alone at $SECRETS_IN_UNIT/$name"
+  done
+}
+
 declare -A IMAGE_OF IMAGE_ID_OF UID_OF VOLUMES_OF PORT_OF
 UNITS_IN_ORDER=()
 for brick in $(jq -r '.bootOrder[][]' "$MANIFEST"); do
@@ -278,6 +357,7 @@ for brick in $(jq -r '.bootOrder[][]' "$MANIFEST"); do
   PORT_OF[$slug]="$(jq -r --arg b "$brick" '.bricks[$b].port' "$MANIFEST")"
   VOLUMES_OF[$slug]="$(jq -r '(.volumes // ["etc/mysql", "sav", "log"]) | join(" ")' <<<"$db")"
   prepare_volumes "$slug" "$uid" "$engine" "${VOLUMES_OF[$slug]}"
+  deliver_secrets "$slug" "$uid"
 done
 [[ -n "${IMAGE_OF[vault]:-}" ]] || halt "the manifest declares no brick-vault: no unit could hold a credential"
 
@@ -334,7 +414,7 @@ unit_args() {
   local slug="$1" port="$2"
   case "$slug" in
     vault)
-      add -e "VAULT_PORT=$port" -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -e VAULT_TOKEN -e "LOGGER_URL=$LOGGER_URL"
+      add -e "VAULT_PORT=$port" -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -e "LOGGER_URL=$LOGGER_URL"
       add -v "$KEY_FILE:/apps/vault/etc/vault/master.key:ro,Z"
       ;;
     logger)
@@ -372,6 +452,15 @@ volume_args() {
   for v in ${VOLUMES_OF[$slug]}; do add -v "$APPS_ROOT/$slug/$v:/apps/$slug/$v:Z"; done
 }
 
+# Each secret the unit consumes: its one file, read-only, and the reference to
+# it. Never the value, never the store's directory.
+secret_args() {
+  local slug="$1" name
+  for name in $(secrets_of "$slug"); do
+    add -e "${name}_FILE=$SECRETS_IN_UNIT/$name" -v "$(secret_mounted "$slug" "$name"):$SECRETS_IN_UNIT/$name:ro,Z"
+  done
+}
+
 spec_args() {  # fills RUN_ARGS for <slug>, without its incarnation
   local slug="$1" restore_var
   RUN_ARGS=()
@@ -381,16 +470,21 @@ spec_args() {  # fills RUN_ARGS for <slug>, without its incarnation
   if [[ -n "${!restore_var:-}" ]]; then add -e "UNIT_RESTORE_DUMP=${!restore_var}"; fi
   volume_args "$slug"
   identity_args "$slug"
+  secret_args "$slug"
   unit_args "$slug" "${PORT_OF[$slug]}"
   add -e "UNIT_HEALTH_URL=http://127.0.0.1:${PORT_OF[$slug]}/api/health"
 }
 
 # What a unit reads only at its start, beyond its arguments, is part of its
 # specification too: a changed value recreates the unit (Maestro's declared
-# schedule; Vault's API token, by its digest, never its value).
+# schedule; each secret it consumes, by its digest, never its value).
 content_of() {
+  local name src
+  for name in $(secrets_of "$1"); do
+    src="$(secret_source "$1" "$name")"
+    if [[ -s "$src" ]]; then printf 'secret:%s:%s;' "$name" "$(sha256sum < "$src" | cut -c1-64)"; else printf 'secret:%s:none;' "$name"; fi
+  done
   case "$1" in
-    vault) if [[ -s "$TOKEN_FILE" ]]; then printf 'api-token:%s' "$(sha256sum < "$TOKEN_FILE" | cut -c1-64)"; else printf 'api-token:none'; fi ;;
     maestro) printf 'task-schedule:%s' "$(sha256sum < "$UNIV/task-schedule.json" | cut -c1-64)" ;;
   esac
 }
@@ -589,7 +683,6 @@ wait_ready() {
   return 1
 }
 
-export VAULT_TOKEN
 layer=0
 while read -r bricks; do
   echo "[podman-up] layer $layer — $bricks"
