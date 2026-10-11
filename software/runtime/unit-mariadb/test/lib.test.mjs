@@ -6,9 +6,9 @@ import test, { describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   EXIT, SUPERVISOR_CONTROLS, UnitError, adminPredicateSql, applicationEnv, assertGrants, assertPassword, assertProtectedFrom,
-  chainOf, createAccountSql, decideSchema, engineArgs, exitCodeOf, expectedGrants, firstBirthSql,
+  chainOf, createAccountSql, createDatabaseSql, decideSchema, engineArgs, exitCodeOf, expectedGrants, firstBirthSql,
   grantsSql, installDbArgs, parseAdminPredicate, parsePrincipals, parseRetained, parseVersion,
-  readConfig, redact, resolveAccounts, rootClientArgs, sqlString, unitPaths, writableBy,
+  readConfig, redact, resolveAccounts, rootClientArgs, schemaVersionSql, sqlString, unitPaths, writableBy,
 } from '../lib.mjs';
 
 const ENV = {
@@ -64,6 +64,23 @@ describe('readConfig', () => {
     refuses(() => readConfig({ ...ENV, UNIT_RESTORE_DUMP: '/tmp/vault.sql' }), 'CONFIG_INVALID');
     refuses(() => readConfig({ ...ENV, UNIT_RESTORE_DUMP: '/apps/vault/sav/../log/x.sql' }), 'CONFIG_INVALID');
     refuses(() => readConfig({ ...ENV, UNIT_RESTORE_DUMP: '/apps/logger/sav/x.sql' }), 'CONFIG_INVALID');
+  });
+});
+
+describe('a hyphenated functional slug (DECISIONS-20261011 §K)', () => {
+  test('is the unit name as it is: account, database, socket and paths', () => {
+    const config = readConfig({ ...ENV, SHAPER_UNIT_SLUG: 'brick-voice', SHAPER_DB_SOCKET: '/run/brick-voice/mysqld.sock', UNIT_SCHEMA_FILE: '/apps/brick-voice/app/schema.sql' });
+    assert.equal(config.slug, 'brick-voice');
+    assert.equal(config.paths.socket, '/run/brick-voice/mysqld.sock');
+    assert.equal(config.paths.passwd, '/apps/brick-voice/etc/mysql/localhost/passwd');
+    for (const bad of ['brick-', '-voice', 'Brick-voice']) refuses(() => readConfig({ ...ENV, SHAPER_UNIT_SLUG: bad, SHAPER_DB_SOCKET: undefined }), 'CONFIG_INVALID');
+  });
+
+  test('is quoted in every statement the root path runs for it', () => {
+    assert.match(createDatabaseSql('brick-voice'), /CREATE DATABASE IF NOT EXISTS `brick-voice` /);
+    assert.match(grantsSql('brick-voice'), /GRANT SELECT, INSERT, UPDATE, DELETE ON `brick-voice`\.\* TO 'brick-voice'@'localhost'/);
+    assert.match(schemaVersionSql('brick-voice'), /FROM `brick-voice`\.schema_meta WHERE unit = 'brick-voice'/);
+    assert.match(createAccountSql('brick-voice', 'f'.repeat(64)), /^CREATE USER IF NOT EXISTS 'brick-voice'@'localhost' /);
   });
 });
 

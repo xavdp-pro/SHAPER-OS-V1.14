@@ -17,7 +17,10 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const SLUG_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
+// The functional-slug grammar of pkg-auth (UNIT_NAME_PATTERN) and pkg-db,
+// copied: the runtime depends on no application module. A contract test holds
+// the three equal. Hyphenated slugs (brick-voice) are quoted in every statement.
+export const SLUG_PATTERN = /^[a-z](?:[a-z0-9_-]{0,30}[a-z0-9_])?$/;
 export const PASSWORD_PATTERN = /^[0-9a-f]{64}$/;
 export const MODES = new Set(['serve', 'birth', 'database']);
 export const STATE_DIR = '/run/shaper-unit';

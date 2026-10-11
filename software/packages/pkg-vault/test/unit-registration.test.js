@@ -59,6 +59,17 @@ describe('the parent registers an incarnation without exposing its bootstrap', (
     }
   });
 
+  it('registers a hyphenated unit and audience under their own names (DECISIONS §K)', () => {
+    const { params, text } = registrationStatement({ universe, unit: 'brick-voice', incarnation: 'brick-voice-1',
+      grants: { 'brick-ipbx': ['ipbx:callctx:claim'], logger: ['logger:ingest'] }, bootstrapToken: 'b'.repeat(64) });
+    assert.equal(params[1], 'brick-voice');
+    assert.deepEqual(JSON.parse(params[3]), { 'brick-ipbx': ['ipbx:callctx:claim'], logger: ['logger:ingest'] });
+    assert.match(text, /'brick-voice', 'brick-voice-1', 1, '\{"brick-ipbx":\["ipbx:callctx:claim"\]/);
+    for (const bad of [{ unit: 'brick-' }, { unit: 'brick_voice;' }, { grants: { '-ipbx': ['x'] } }]) {
+      assert.throws(() => registrationStatement({ universe, unit: 'brick-voice', incarnation: 'v-1', grants: { logger: ['logger:ingest'] }, bootstrapToken: 'b'.repeat(64), ...bad }), { code: 'REGISTRATION_INVALID' });
+    }
+  });
+
   it('writes the token owner-only, prints the statement, and never overwrites a token', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-reg-'));
     try {

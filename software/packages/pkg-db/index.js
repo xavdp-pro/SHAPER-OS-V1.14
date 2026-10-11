@@ -15,8 +15,12 @@ export const DEFAULT_APPS_ROOT = '/apps';
 export const DEFAULT_SOCKET_PATH = '/run/mysqld/mysqld.sock';
 
 // A slug is a Linux account name, a MariaDB account and a database name at
-// once, so it takes the narrowest grammar the three accept without quoting.
-const SLUG_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
+// once: a lowercase letter, then at most 31 lowercase letters, digits,
+// underscores or hyphens, not ending with a hyphen — the grammar pkg-auth and
+// Vault apply to the same name (UNIT_NAME_PATTERN), so `brick-voice` is one
+// name everywhere, never aliased. A hyphen needs quoting in SQL: every
+// statement of the base quotes the slug (`…` identifier, '…' account).
+export const SLUG_PATTERN = /^[a-z](?:[a-z0-9_-]{0,30}[a-z0-9_])?$/;
 
 export class UnitDbError extends Error {
   /**

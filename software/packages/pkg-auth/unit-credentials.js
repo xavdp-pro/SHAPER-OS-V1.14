@@ -2,7 +2,17 @@
 import { createHash, createPublicKey, randomUUID, sign, verify } from 'node:crypto';
 
 export const MAX_CREDENTIAL_SECONDS = 300;
-const NAME = /^[a-z][a-z0-9_]{0,31}$/;
+/**
+ * The functional-slug grammar every base package applies to a unit name and an
+ * audience (pkg-db, the unit runtime and Vault's registration check the same
+ * pattern): a lowercase letter, then at most 31 lowercase letters, digits,
+ * underscores or hyphens, not ending with a hyphen. `brick-voice` is a unit
+ * name as it is — never an alias of `brick_voice` (Rule 4, one name).
+ */
+export const UNIT_NAME_PATTERN = /^[a-z](?:[a-z0-9_-]{0,30}[a-z0-9_])?$/;
+const NAME = UNIT_NAME_PATTERN;
+/** @param {unknown} value */
+export const isUnitName = (value) => typeof value === 'string' && UNIT_NAME_PATTERN.test(value);
 const ID = /^[A-Za-z0-9._:-]{1,190}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const text = (value, pattern) => typeof value === 'string' && pattern.test(value);

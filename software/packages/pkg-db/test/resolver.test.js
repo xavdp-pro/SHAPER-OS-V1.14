@@ -46,8 +46,16 @@ describe('one name everywhere', () => {
     }
   });
 
+  it('accepts a hyphenated functional slug as it is (DECISIONS-20261011 §K: no alias)', () => {
+    for (const slug of ['brick-voice', 'brick-ipbx', 'brick-tools', 'a-b_c-9', 'a'.repeat(32)]) {
+      assert.equal(assertFunctionalSlug(slug), slug);
+    }
+    const config = (writePasswd('brick-voice', 'secret-voice\n', 0o600), resolveUnitDbConfig({ slug: 'brick-voice', appsRoot: root, env: {} }));
+    assert.deepEqual([config.user, config.database], ['brick-voice', 'brick-voice']);
+  });
+
   it('refuses a slug that is not an account and a database name at once', () => {
-    for (const slug of ['', 'Vault', '1vault', 'my-app', 'a'.repeat(33), 'vault;drop', null]) {
+    for (const slug of ['', 'Vault', '1vault', '-app', 'app-', 'my app', 'a'.repeat(33), 'vault;drop', 'brick`voice', null]) {
       assert.equal(codeOf(() => assertFunctionalSlug(slug)), 'INVALID_SLUG', String(slug));
     }
   });

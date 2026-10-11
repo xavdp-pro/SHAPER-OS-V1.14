@@ -1,6 +1,6 @@
 /** Vault-owned unit control state, backed by Vault's private MariaDB. */
 import { createPrivateKey, createPublicKey, createHash, hkdfSync, timingSafeEqual } from 'node:crypto';
-import { issueCredential, verifyCredential, CredentialError } from '../pkg-auth/unit-credentials.js';
+import { issueCredential, isUnitName, verifyCredential, CredentialError } from '../pkg-auth/unit-credentials.js';
 import { appendOutbox } from '../pkg-db/outbox.js';
 import { withTransaction } from '../pkg-db/pool.js';
 
@@ -26,9 +26,9 @@ export class VaultUnitIdentity {
   }
 
   async issue({ unit, incarnation, audience, bootstrapToken }) {
-    if (typeof unit !== 'string' || !/^[a-z][a-z0-9_]{0,31}$/.test(unit)
+    if (!isUnitName(unit)
         || typeof incarnation !== 'string' || !/^[A-Za-z0-9._:-]{1,190}$/.test(incarnation)
-        || typeof audience !== 'string' || !/^[a-z][a-z0-9_]{0,31}$/.test(audience)
+        || !isUnitName(audience)
         || typeof bootstrapToken !== 'string' || !/^[0-9a-f]{64}$/.test(bootstrapToken)) {
       throw new CredentialError('IDENTITY_ISSUE_DENIED', 403);
     }

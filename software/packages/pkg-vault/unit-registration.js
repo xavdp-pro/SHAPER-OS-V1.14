@@ -33,9 +33,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeMasterKey } from './index.js';
 import { deriveSigningKey } from './unit-identity.js';
+import { UNIT_NAME_PATTERN } from '../pkg-auth/unit-credentials.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const NAME = /^[a-z][a-z0-9_]{0,31}$/;
+const NAME = UNIT_NAME_PATTERN;
 const ID = /^[A-Za-z0-9._:-]{1,190}$/;
 export const DEFAULT_BOOTSTRAP_TTL_SECONDS = 30 * 24 * 3600;
 

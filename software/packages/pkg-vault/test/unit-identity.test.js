@@ -45,3 +45,16 @@ test('revoked credential, replaced incarnation and removed grant invalidate sign
     await assert.rejects(f.service.check(token, 'logger'), { code: 'CREDENTIAL_REVOKED' });
   }
 });
+
+test('a hyphenated unit and audience are issued and checked under their own names (DECISIONS §K)', async () => {
+  const f = fixture();
+  f.row.grants = JSON.stringify({ 'brick-ipbx': ['ipbx:callctx:claim'] });
+  const { token, claims } = await f.service.issue({ unit: 'brick-voice', incarnation: 'inc-1', audience: 'brick-ipbx', bootstrapToken });
+  assert.deepEqual([claims.unit, claims.audience, claims.revocationRef], ['brick-voice', 'brick-ipbx', 'brick-voice:1']);
+  assert.equal((await f.service.check(token, 'brick-ipbx')).unit, 'brick-voice');
+  const stored = f.writes[0];
+  assert.deepEqual([stored[2], stored[5]], ['brick-voice', 'brick-ipbx'], 'unit_credentials stores the names unchanged');
+  for (const unit of ['brick-', '-voice', 'Brick-voice']) {
+    await assert.rejects(f.service.issue({ unit, incarnation: 'inc-1', audience: 'brick-ipbx', bootstrapToken }), { code: 'IDENTITY_ISSUE_DENIED' });
+  }
+});

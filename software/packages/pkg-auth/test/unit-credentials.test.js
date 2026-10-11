@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
-import { createUnitAuthorizer, issueCredential, verifyCredential } from '../unit-credentials.js';
+import { createUnitAuthorizer, isUnitName, issueCredential, UNIT_NAME_PATTERN, verifyCredential } from '../unit-credentials.js';
 
 const universe = '550e8400-e29b-41d4-a716-446655440000';
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -39,4 +39,28 @@ test('valid signature cannot bypass current revocation or an unavailable verifie
   await assert.rejects(createUnitAuthorizer({ ...options, checkCurrent: async () => false })(req, 'logger:ingest'), { code: 'CREDENTIAL_REVOKED' });
   await assert.rejects(createUnitAuthorizer({ ...options, checkCurrent: async () => { throw new Error('unavailable'); } })(req, 'logger:ingest'));
   assert.throws(() => createUnitAuthorizer(options), { code: 'IDENTITY_CURRENT_CHECK_REQUIRED' });
+});
+
+test('a hyphenated functional slug is a unit and an audience as it is, never an alias (DECISIONS §K)', async () => {
+  const voice = { ...identity, unit: 'brick-voice', audience: 'brick-ipbx', scopes: ['ipbx:callctx:claim'], revocationRef: 'brick-voice:1' };
+  const { token, claims } = issueCredential(voice, privateKey, { now });
+  assert.equal(claims.unit, 'brick-voice');
+  assert.deepEqual(verifyCredential(token, publicKey, { universe, audience: 'brick-ipbx', scope: 'ipbx:callctx:claim', now }), claims);
+  assert.throws(() => verifyCredential(token, publicKey, { universe, audience: 'brick_ipbx', now }), { code: 'CREDENTIAL_BOUNDARY_DENIED' });
+  const authorize = createUnitAuthorizer({ publicKey, universe, audience: 'brick-ipbx', checkCurrent: async () => true, now: () => now });
+  assert.equal((await authorize({ headers: { authorization: `Bearer ${token}` } }, 'ipbx:callctx:claim')).unit, 'brick-voice');
+  for (const name of ['-voice', 'voice-', 'Brick-voice', '1brick', 'brick voice', 'a'.repeat(33)]) {
+    assert.equal(isUnitName(name), false, name);
+    assert.throws(() => issueCredential({ ...voice, unit: name }, privateKey, { now }), { code: 'CREDENTIAL_INVALID' }, name);
+    assert.throws(() => verifyCredential(token, publicKey, { universe, audience: name, now }), { code: 'IDENTITY_POLICY_MISSING' }, name);
+  }
+});
+
+test('pkg-auth, pkg-db and the unit runtime hold one functional-slug grammar', async () => {
+  const { SLUG_PATTERN: db } = await import('../../pkg-db/index.js');
+  const { SLUG_PATTERN: runtime } = await import('../../../runtime/unit-mariadb/lib.mjs');
+  assert.equal(db.source, UNIT_NAME_PATTERN.source);
+  assert.equal(runtime.source, UNIT_NAME_PATTERN.source);
+  assert.equal(db.flags, UNIT_NAME_PATTERN.flags);
+  assert.equal(runtime.flags, UNIT_NAME_PATTERN.flags);
 });

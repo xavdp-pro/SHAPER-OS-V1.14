@@ -38,6 +38,12 @@ Every service that needs the policy imports it — that is the whole deployment.
 `unit-credentials.js` provides a versioned Ed25519-signed envelope. Its signed
 claims bind a universe UUID, unit, runtime incarnation, one audience, exact
 scopes, issue/expiry times, credential id, epoch and revocation reference.
+A unit name and an audience follow one functional-slug grammar, shared with
+pkg-db and the unit runtime (`UNIT_NAME_PATTERN`): a lowercase letter, then at
+most 31 lowercase letters, digits, underscores or hyphens, not ending with a
+hyphen. A hyphenated slug such as `brick-voice` is accepted as it is in
+validation, audience, Vault registration and storage — never rewritten into an
+alias (Rule 4, one name everywhere).
 Validity is at most 300 seconds; future-issued, expired, malformed, tampered,
 foreign-universe/audience and insufficient-scope credentials are refused.
 A protected service also checks the current incarnation and revocation with
