@@ -127,6 +127,30 @@ grants_of() {
     *) return 1 ;;
   esac
 }
+holds_credential() { [[ " $HOLDS_CREDENTIAL " == *" $1 "* ]]; }
+# The parent's record of each identity it registered (podman-up.sh
+# write_record): root-only JSON — unit, incarnation, epoch, grants, the
+# bootstrap's SHA-256 — what Vault must hold, and what renew-bootstraps.sh
+# checks it against.
+RECORDS_DIR="$APPS_ROOT/vault/etc/vault/registration/records"
+#   record_field <unit> <field>
+record_field() {
+  [[ -s "$RECORDS_DIR/$1.json" ]] || return 0
+  if [[ "$2" == grants ]]; then jq -c '.grants' "$RECORDS_DIR/$1.json"; else jq -r --arg f "$2" '.[$f] // empty' "$RECORDS_DIR/$1.json"; fi
+}
+# An identity is live when Vault holds exactly the recorded incarnation,
+# epoch, grants and bootstrap digest, not revoked, its bootstrap unexpired,
+# and the bootstrap file in place is the one recorded. Root path, fails closed.
+#   identity_live <unit> <bootstrap-file>
+identity_live() {
+  local unit="$1" file="$2" want got
+  [[ -s "$RECORDS_DIR/$unit.json" && -s "$file" ]] || return 1
+  [[ "$(sha256sum < "$file" | cut -c1-64)" == "$(record_field "$unit" bootstrapDigest)" ]] || return 1
+  want="$(record_field "$unit" incarnation) $(record_field "$unit" epoch) $(record_field "$unit" bootstrapDigest) $(record_field "$unit" grants)"
+  got="$(rootsql vault vault -e "SELECT CONCAT(incarnation, ' ', epoch, ' ', bootstrap_digest, ' ', grants) FROM unit_identities WHERE universe_id = '$(universe_uuid)' AND unit_id = '$unit' AND NOT revoked AND bootstrap_expires_at > UTC_TIMESTAMP(3)" 2>/dev/null)"
+  [[ -n "$got" && "$got" == "$want" ]]
+}
+
 # The proof's own identity (unit "proof", a qualification identity, no Vault
 # administration): it writes its own events and reads them back, runs Queue
 # jobs as a consumer (enqueue, read, claim, update under its attempt), and

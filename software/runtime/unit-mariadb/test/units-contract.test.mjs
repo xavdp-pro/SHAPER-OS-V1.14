@@ -215,7 +215,7 @@ describe('univ-minimal births the units in the order their identities need', () 
     assert.match(probes, /^PROOF_GRANTS="logger=logger:ingest logger=logger:read:own queue=queue:enqueue queue=queue:read queue=queue:claim queue=queue:attempt maestro=maestro:read maestro=maestro:admin"$/m);
     // Declared once: podman-up and the proofs read the same lists.
     assert.match(up, /^source "\$UNIV\/deploy\/unit-probes\.sh"$/m);
-    assert.match(up, /^for slug in \$HOLDS_CREDENTIAL; do$/m);
+    assert.match(up, /^ {2}for slug in \$HOLDS_CREDENTIAL; do$/m);
     for (const name of fs.readdirSync(deploy)) {
       if (name === 'unit-probes.sh') continue;
       const text = fs.readFileSync(path.join(deploy, name), 'utf8');
@@ -224,14 +224,31 @@ describe('univ-minimal births the units in the order their identities need', () 
   });
 
   test('a unit\'s bootstrap replaces the one in use only once Vault holds its digest; Vault\'s goes first', () => {
-    const apply = up.slice(up.indexOf('apply_registrations() {'), up.indexOf('# ── 8.'));
+    const apply = up.slice(up.indexOf('apply_registrations() {'), up.indexOf('# The parent\'s record of one identity'));
     const verified = apply.indexOf('|| halt "Vault holds');
-    const delivered = apply.indexOf('mv -f "$STAGE/$slug.bootstrap"');
+    const delivered = apply.indexOf('mv -f "$STAGE/$unit.bootstrap"');
     assert.ok(verified > 0 && delivered > verified, 'queue and maestro bootstraps are delivered after the read-back');
     assert.ok(apply.indexOf('mv -f "$STAGE/proof.bootstrap"') > verified, "the proof's too");
-    const staging = up.slice(up.indexOf('for slug in $HOLDS_CREDENTIAL; do'), up.indexOf('apply_registrations() {'));
+    assert.ok(apply.indexOf('write_record "$unit"') > verified, 'each identity is recorded from what Vault holds, after the read-back');
+    const staging = up.slice(up.indexOf('# 7c.'), up.indexOf('apply_registrations() {'));
     assert.match(staging, /mv -f "\$STAGE\/vault\.bootstrap" "\$APPS_ROOT\/vault\/etc\/identity\/bootstrap"/);
-    assert.deepEqual(staging.match(/\/etc\/identity\/bootstrap"/g), ['/etc/identity/bootstrap"'], "before Vault holds the digests, only Vault's own bootstrap is delivered");
+    assert.deepEqual(staging.match(/mv -f [^\n]*\/etc\/identity\/bootstrap"/g), ['mv -f "$STAGE/vault.bootstrap" "$APPS_ROOT/vault/etc/identity/bootstrap"'],
+      "before Vault holds the digests, only Vault's own bootstrap is delivered");
+  });
+
+  test('a unit is recreated only when it must be, and a recreated holder gets a random incarnation (DECISIONS §B)', () => {
+    assert.match(up, /^new_incarnation\(\) \{ echo "\$1-\$\(openssl rand -hex 8\)"; \}$/m);
+    assert.doesNotMatch(up, /date -u \+%Y%m%dT%H%M%SZ/, 'no incarnation from a clock reading');
+    const decide = up.slice(up.indexOf('decide_container() {'), up.indexOf('check_identity() {'));
+    for (const reason of ['asked (--recreate)', 'no container', 'container not running', 'another image or run specification', 'its incarnation is not the one recorded']) {
+      assert.ok(decide.includes(reason), reason);
+    }
+    assert.match(up, /--label "org\.shaper\.run-spec=\$\{SPEC_OF\[\$slug\]\}"/);
+    assert.match(up, /SPEC_OF\[\$slug\]="\$\(printf '%s\\0' "\$\{IMAGE_ID_OF\[\$slug\]\}" "\$\{FIXED_ARGS\[@\]\}" "\$\{RUN_ARGS\[@\]\}"/);
+    // The incarnation is outside the specification: a kept unit keeps it.
+    const spec = up.slice(up.indexOf('spec_args() {'), up.indexOf('declare -A SPEC_OF'));
+    assert.doesNotMatch(spec, /SHAPER_UNIT_INCARNATION/);
+    assert.match(up, /if \(\( PREFLIGHT \)\); then[\s\S]*?say "preflight done: nothing was changed"\n {2}exit 0\nfi/);
   });
 
   test('every podman argument is one array element: no path is split on whitespace', () => {
@@ -244,8 +261,9 @@ describe('univ-minimal births the units in the order their identities need', () 
 
   test('the parent derives the pin and registers through pkg-vault/unit-registration.js, from the Vault image', () => {
     assert.match(up, /REG_TOOL=\/apps\/vault\/app\/packages\/pkg-vault\/unit-registration\.js/);
-    assert.match(up, /"\$REG_TOOL" public-key > "\$PIN\.next"/);
+    assert.match(up, /"\$REG_TOOL" public-key > "\$derived"/);
     assert.match(up, /"\$REG_TOOL" register \\\n\s+--unit "\$unit" --incarnation "\$inc" "\$\{grants\[@\]\}" --bootstrap-file/);
+    assert.match(up, /registration --user "\$VAULT_UID:\$VAULT_UID" -e SHAPER_UNIVERSE_ID \\\n/);
     assert.match(up, /registration\(\) \{ podman run --rm --network none --cap-drop=all --security-opt=no-new-privileges --entrypoint node "\$@"; \}/);
   });
 

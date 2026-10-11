@@ -33,9 +33,9 @@ fs.mkdirSync(STATE, { recursive: true });
 fs.appendFileSync(path.join(STATE, 'argv.log'), `${JSON.stringify(argv)}\n`);
 
 function parseRun(args) {
-  const o = { env: {}, mounts: [], rm: false, detach: false, name: null, entrypoint: null, replace: false };
+  const o = { env: {}, mounts: [], labels: {}, rm: false, detach: false, name: null, entrypoint: null, replace: false };
   let i = 0;
-  const withValue = new Set(['--name', '--network', '--restart', '--stop-timeout', '--cap-add', '--security-opt', '--health-cmd', '--health-interval', '--health-retries', '--health-start-period', '--user', '--entrypoint']);
+  const withValue = new Set(['--name', '--network', '--restart', '--stop-timeout', '--cap-add', '--security-opt', '--health-cmd', '--health-interval', '--health-retries', '--health-start-period', '--user', '--entrypoint', '--label']);
   for (; i < args.length; i++) {
     const a = args[i];
     if (a === '--rm') o.rm = true;
@@ -44,7 +44,12 @@ function parseRun(args) {
     else if (a === '-e') { const kv = args[++i]; const eq = kv.indexOf('='); if (eq < 0) { if (process.env[kv] !== undefined) o.env[kv] = process.env[kv]; } else o.env[kv.slice(0, eq)] = kv.slice(eq + 1); }
     else if (a === '-v') { const [src, dst] = args[++i].split(':'); o.mounts.push([dst, src]); }
     else if (a.startsWith('--cap-drop') || a.startsWith('--security-opt=') || a.startsWith('--cap-add=') || a.startsWith('--health-')) { /* hardening is the container's; nothing to emulate */ }
-    else if (withValue.has(a)) { const v = args[++i]; if (a === '--name') o.name = v; if (a === '--entrypoint') o.entrypoint = v; }
+    else if (withValue.has(a)) {
+      const v = args[++i];
+      if (a === '--name') o.name = v;
+      if (a === '--entrypoint') o.entrypoint = v;
+      if (a === '--label') { const eq = v.indexOf('='); o.labels[v.slice(0, eq)] = v.slice(eq + 1); }
+    }
     else if (/^--[a-z-]+=/.test(a)) { /* --restart=always and the like: the container's, nothing to emulate */ }
     else if (a.startsWith('-')) die(`run option ${a} not emulated`);
     else break;
@@ -78,7 +83,7 @@ function startService(o) {
     cwd: path.join(SOFTWARE, 'packages', `pkg-${slug}`), env, detached: true, stdio: ['ignore', log, log],
   });
   child.unref();
-  fs.writeFileSync(stateFile(o.name), JSON.stringify({ name: o.name, pid: child.pid, slug, image: o.image, env: { ...o.env }, health: o.env.UNIT_HEALTH_URL, spec: o, started: Date.now() }));
+  fs.writeFileSync(stateFile(o.name), JSON.stringify({ name: o.name, pid: child.pid, slug, image: o.image, env: { ...o.env }, labels: { ...o.labels }, health: o.env.UNIT_HEALTH_URL, spec: o, started: Date.now() }));
 }
 
 function health(url) {
@@ -98,6 +103,11 @@ async function main() {
       if (sub === 'exists') process.exit(slugOfImage(r.at(-1)) ? 0 : 1);
       if (sub === 'inspect') {
         const slug = slugOfImage(r.at(-1));
+        // The image id: stable for one image reference, as a real id is for one build.
+        if (r[r.indexOf('-f') + 1] === '{{.Id}}') {
+          process.stdout.write(`sha256:${(await import('node:crypto')).createHash('sha256').update(r.at(-1)).digest('hex')}\n`);
+          process.exit(0);
+        }
         const { unit } = JSON.parse(fs.readFileSync(path.join(SOFTWARE, 'bricks', `brick-${slug}`, 'brick.json'), 'utf8'));
         process.stdout.write(`${unit.slug}:${unit.uid}:${unit.engineUid}:${unit.schemaVersion}\n`);
         process.exit(0);
@@ -155,6 +165,7 @@ async function main() {
       else if (f === '{{.State.Running}}') process.stdout.write(`${alive(st.pid)}\n`);
       else if (f === '{{.Id}}') process.stdout.write(`${st.name}-${st.pid}\n`);
       else if (f === '{{.Image}}') process.stdout.write(`${st.image}\n`);
+      else if (/^\{\{index \.Config\.Labels "([^"]+)"\}\}$/.test(f)) process.stdout.write(`${(st.labels || {})[/"([^"]+)"/.exec(f)[1]] ?? ''}\n`);
       else if (f === '{{range .Config.Env}}{{println .}}{{end}}') process.stdout.write(Object.entries(st.env).map(([k, v]) => `${k}=${v}\n`).join(''));
       else die(`inspect format ${f}`);
       process.exit(0);

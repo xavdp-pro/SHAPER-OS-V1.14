@@ -51,7 +51,10 @@ delete env.VAULT_TOKEN;
 const sql = (db, q) => execFileSync(mariadb, ['--no-defaults', '-S', socket, '-uroot', '-N', '-B', ...(db ? [db] : []), '-e', q], { encoding: 'utf8' }).trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(fn, ms = 60000) { const t = Date.now() + ms; for (;;) { const v = fn(); if (v) return v; if (Date.now() > t) return v; await sleep(500); } }
-const up = () => spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh')], { env, encoding: 'utf8', timeout: 600000 });
+const up = (...args) => spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh'), ...args], { env, encoding: 'utf8', timeout: 600000 });
+const identities = () => sql('vault', "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities");
+const pids = () => Object.fromEntries(['vault', 'logger', 'queue', 'maestro'].map((s) => [s, JSON.parse(read(path.join(fakeState, `univ-minimal-ctr-${s}.json`))).pid]));
+const incarnationOf = (s) => JSON.parse(read(path.join(fakeState, `univ-minimal-ctr-${s}.json`))).env.SHAPER_UNIT_INCARNATION;
 // The proof's helpers, sourced exactly as proof.sh sources them.
 const probe = (script) => spawnSync('bash', ['-c', `set -uo pipefail; UNIVERSE=univ-minimal; APPS_ROOT='${appsRoot}'; MANIFEST='${UNIV}/manifest.json'; source '${UNIV}/deploy/unit-probes.sh'; ${script}`], { env, encoding: 'utf8', timeout: 180000 });
 const read = (p) => fs.readFileSync(p, 'utf8');
@@ -122,7 +125,8 @@ test('Vault holds the four registrations by digest; the statements carry no boot
   };
   for (const r of rows) {
     const [unit, incarnation, epoch, granted] = r.split(' ');
-    assert.match(incarnation, new RegExp(`^${unit}-\\d{8}T\\d{6}Z$`));
+    // A random incarnation per recreated unit, never a clock reading (DECISIONS §B).
+    assert.match(incarnation, new RegExp(`^${unit}-[0-9a-f]{16}$`));
     assert.equal(epoch, '1');
     assert.equal(granted, grants[unit], `${unit}'s grants, explicit and separate`);
   }
@@ -200,17 +204,61 @@ test("the proof's helpers: Logger refuses anonymity, the proof writes and reads 
   for (const secret of secretsSeen()) assert.ok(!out.includes(secret) && !r.stderr.includes(secret));
 });
 
+test('a re-run that recreates nothing keeps every container, incarnation and epoch (DECISIONS §B)', () => {
+  const before = { rows: identities(), pids: pids(), records: fs.readdirSync(path.join(appsRoot, 'vault/etc/vault/registration/records')).sort() };
+  assert.deepEqual(before.records, ['maestro.json', 'proof.json', 'queue.json', 'vault.json']);
+  const again = up();
+  assert.equal(again.status, 0, `${again.stdout}\n${again.stderr}`);
+  for (const s of ['vault', 'logger', 'queue', 'maestro']) assert.match(again.stdout, new RegExp(`KEEP ${s} — runs as declared`));
+  assert.match(again.stdout, /identities — nothing to register/);
+  assert.equal(identities(), before.rows, 'no epoch moved, no incarnation changed');
+  assert.deepEqual(pids(), before.pids, 'no container was replaced');
+});
+
+test('--preflight says what a run would do and changes nothing', () => {
+  const regDir = path.join(appsRoot, 'vault/etc/vault/registration');
+  const snapshot = () => ({ rows: identities(), pids: pids(),
+    files: fs.readdirSync(regDir, { recursive: true }).sort().map((f) => [f, fs.statSync(path.join(regDir, f)).mtimeMs]) });
+  const before = snapshot();
+  const pre = up('--preflight');
+  assert.equal(pre.status, 0, `${pre.stdout}\n${pre.stderr}`);
+  assert.match(pre.stdout, /preflight — nothing is written, registered or started/);
+  for (const s of ['vault', 'queue', 'maestro']) assert.match(pre.stdout, new RegExp(`${s}\\s+keep\\s+runs as declared — incarnation ${s}-[0-9a-f]{16} kept`));
+  assert.match(pre.stdout, /logger\s+keep/);
+  assert.match(pre.stdout, /proof\s+keep\s+its identity is live in Vault/);
+  const forced = up('--preflight', '--recreate', 'queue');
+  assert.match(forced.stdout, /queue\s+recreate\s+asked \(--recreate\)/);
+  assert.deepEqual(snapshot(), before, 'nothing written, registered or started');
+});
+
+test('--recreate <slug> recreates that unit alone, under a new incarnation; the others keep theirs', () => {
+  const before = { vault: incarnationOf('vault'), maestro: incarnationOf('maestro'), queue: incarnationOf('queue'), pids: pids() };
+  const r = up('--recreate', 'queue');
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /NEW {2}queue — asked \(--recreate\)/);
+  assert.notEqual(incarnationOf('queue'), before.queue);
+  assert.match(incarnationOf('queue'), /^queue-[0-9a-f]{16}$/);
+  assert.deepEqual([incarnationOf('vault'), incarnationOf('maestro')], [before.vault, before.maestro]);
+  const now = pids();
+  assert.notEqual(now.queue, before.pids.queue);
+  assert.deepEqual([now.vault, now.logger, now.maestro], [before.pids.vault, before.pids.logger, before.pids.maestro]);
+  assert.match(r.stdout, /bootstraps delivered: queue$/m, 'only queue registered');
+});
+
 test('a recreation is a new incarnation: epochs move, the old credential stops being current, the new one works', async () => {
   // A credential issued to the proof's current incarnation, kept aside.
   const keep = probe(`issue_proof_credential "$PROOF_DIR/old.header" && echo kept`);
   assert.match(keep.stdout, /kept/);
   const before = sql('vault', "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities");
-  await sleep(1100); // a new UTC stamp
-  const again = up();
+  const again = up('--recreate', 'all');
   assert.equal(again.status, 0, `${again.stdout}\n${again.stderr}`);
   const afterRows = sql('vault', "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities");
   assert.notEqual(afterRows, before);
-  for (const row of afterRows.split(',')) assert.match(row, /:2$/, `epoch moved: ${row}`);
+  const epochBefore = Object.fromEntries(before.split(',').map((row) => [row.split(':')[0], Number(row.split(':')[2])]));
+  for (const row of afterRows.split(',')) {
+    const [unit, , epoch] = row.split(':');
+    assert.equal(Number(epoch), epochBefore[unit] + 1, `epoch moved: ${row}`);
+  }
   const old = probe(`curl -s -o /dev/null -w '%{http_code}' -H @"$PROOF_DIR/old.header" "http://127.0.0.1:8620/api/events/last?event=NONE"`);
   assert.equal(old.stdout.trim(), '403', 'the previous incarnation\'s credential is refused');
   const fresh = probe(`logger_curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8620/api/events/last?event=NONE"`);
@@ -257,7 +305,7 @@ test('a re-run that stops before Vault holds the new registrations leaves the ru
   const before = { files: staged.map(sha), proof: sha(path.join(proofDir, 'identity/bootstrap')), inc: read(path.join(proofDir, 'identity/incarnation')),
     rows: sql('vault', "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities WHERE unit_id <> 'vault'") };
   await sleep(1100);
-  const failed = spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh')], { env: { ...env, FAKE_FAIL_APPLY: '1' }, encoding: 'utf8', timeout: 600000 });
+  const failed = spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh'), '--recreate', 'all'], { env: { ...env, FAKE_FAIL_APPLY: '1' }, encoding: 'utf8', timeout: 600000 });
   assert.notEqual(failed.status, 0);
   assert.match(failed.stderr, /root could not apply the unit registrations/);
   assert.deepEqual(staged.map(sha), before.files, 'Queue and Maestro keep the bootstrap Vault holds');
@@ -267,8 +315,7 @@ test('a re-run that stops before Vault holds the new registrations leaves the ru
   const still = probe(`logger_curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8620/api/events/last?event=NONE"`);
   assert.equal(still.stdout.trim(), '200', 'the proof still obtains and uses a credential');
   // A complete run puts everything in order again.
-  await sleep(1100);
-  const again = up();
+  const again = up('--recreate', 'all');
   assert.equal(again.status, 0, `${again.stdout}\n${again.stderr}`);
 });
 

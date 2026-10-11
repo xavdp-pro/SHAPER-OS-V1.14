@@ -11,11 +11,15 @@
 #      the unit's log shows the application stopped before MariaDB, MariaDB
 #      ready before the application started, no crash recovery, the password
 #      kept and the schema retained, not re-applied;
-#   3. recreation of the universe (deploy/podman-up.sh replaces every
+#   3. a re-run of deploy/podman-up.sh, and its --preflight, recreate
+#      nothing: the same containers, the same incarnations, no epoch moved
+#      (DECISIONS-20261011 §B);
+#   4. recreation of the universe (podman-up.sh --recreate all replaces every
 #      container): new containers, same markers, counts and password; each
-#      unit that holds a credential runs a new incarnation, the one Vault now
-#      holds for it, and Vault has issued it a credential; a credential issued
-#      before the recreation is refused by Logger.
+#      unit that holds a credential runs a new random incarnation, the one
+#      Vault now holds for it, and Vault has issued it a credential once it
+#      owed evidence; a credential issued before the recreation is refused by
+#      Logger.
 #
 # The Vault and Logger markers are written under credentials (the Vault's API
 # token, the proof's Vault-signed identity), never on a command line.
@@ -154,7 +158,29 @@ credential_current() {  # <slug>
   return 1
 }
 
-# ── 3. Recreation: new containers over the same volumes ─────────────────────
+# ── 3. A re-run keeps what runs as declared ────────────────────────────────
+printf '\n── re-run\n'
+declare -A ID_KEPT INC_KEPT
+for s in "${UNITS[@]}"; do
+  ID_KEPT[$s]="$(podman inspect -f '{{.Id}}' "${UNIVERSE}-ctr-$s")"
+  INC_KEPT[$s]="$(unit_env "${UNIVERSE}-ctr-$s" SHAPER_UNIT_INCARNATION)"
+done
+EPOCHS_KEPT="$(rootsql vault vault -e "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities WHERE universe_id='$UNIVERSE_ID'" 2>/dev/null)"
+preflight_out="$(bash "$UNIV/deploy/podman-up.sh" --preflight 2>&1)" \
+  && ok preflight "deploy/podman-up.sh --preflight ran: nothing written, registered or started" \
+  || fail preflight "deploy/podman-up.sh --preflight failed: $(tail -n 3 <<<"$preflight_out" | tr '\n' ' ')"
+check preflight-keeps "the preflight would keep every unit and the proof's identity" \
+  bash -c '! grep -qE "^  [a-z]+ +(recreate|register) " <<<"$1"' _ "$preflight_out"
+if bash "$UNIV/deploy/podman-up.sh" >/dev/null; then ok rerun "deploy/podman-up.sh ran again with nothing to recreate"
+else fail rerun "deploy/podman-up.sh failed on a re-run"; fi
+for s in "${UNITS[@]}"; do
+  check "rerun-$s-kept" "$s: the same container, the same incarnation ${INC_KEPT[$s]:-(none: it holds no credential)}" \
+    test "$(podman inspect -f '{{.Id}}' "${UNIVERSE}-ctr-$s" 2>/dev/null)|$(unit_env "${UNIVERSE}-ctr-$s" SHAPER_UNIT_INCARNATION)" = "${ID_KEPT[$s]}|${INC_KEPT[$s]}"
+done
+check rerun-epochs "no incarnation changed and no epoch moved in Vault (root path)" \
+  test "$(rootsql vault vault -e "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities WHERE universe_id='$UNIVERSE_ID'" 2>/dev/null)" = "$EPOCHS_KEPT"
+
+# ── 4. Recreation: new containers over the same volumes ─────────────────────
 printf '\n── recreation\n'
 declare -A ID_BEFORE INC_BEFORE
 for s in "${UNITS[@]}"; do
@@ -166,8 +192,8 @@ OLD_CREDENTIAL="$PROOF_DIR/identity/before-recreation.header"
 issue_proof_credential "$OLD_CREDENTIAL" \
   && ok old-credential "a logger credential issued to the proof's current incarnation, kept for after the recreation" \
   || fail old-credential "Vault issued no credential to the proof before the recreation"
-if bash "$UNIV/deploy/podman-up.sh" >/dev/null; then ok recreate "deploy/podman-up.sh replaced every unit container"
-else fail recreate "deploy/podman-up.sh failed"; fi
+if bash "$UNIV/deploy/podman-up.sh" --recreate all >/dev/null; then ok recreate "deploy/podman-up.sh --recreate all replaced every unit container"
+else fail recreate "deploy/podman-up.sh --recreate all failed"; fi
 owe_evidence recreate
 for s in "${UNITS[@]}"; do
   ctr="${UNIVERSE}-ctr-$s"
@@ -175,8 +201,8 @@ for s in "${UNITS[@]}"; do
   check "recreate-$s-kept" "the new $ctr kept the password and the schema" \
     log_in_order "$ctr" "1970-01-01T00:00:00Z" "password: /apps/$s/etc/mysql/localhost/passwd kept" "schema: retained" "application: node server.js started"
   if [[ " $HOLDS_CREDENTIAL " == *" $s "* ]]; then
-    check "recreate-$s-incarnation" "$s runs a new incarnation (not ${INC_BEFORE[$s]:-?})" \
-      bash -c '[[ -n "$1" && "$1" != "$2" ]]' _ "$(unit_env "$ctr" SHAPER_UNIT_INCARNATION)" "${INC_BEFORE[$s]}"
+    check "recreate-$s-incarnation" "$s runs a new random incarnation <slug>-<16 hex> (not ${INC_BEFORE[$s]:-?})" \
+      bash -c '[[ "$1" =~ ^$3-[0-9a-f]{16}$ && "$1" != "$2" ]]' _ "$(unit_env "$ctr" SHAPER_UNIT_INCARNATION)" "${INC_BEFORE[$s]}" "$s"
     check "recreate-$s-credential" "Vault holds that incarnation for $s and issued it a logger credential" credential_current "$s"
   fi
 done

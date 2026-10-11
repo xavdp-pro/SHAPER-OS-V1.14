@@ -99,17 +99,34 @@ recorded one is refused.
 
 `deploy/podman-up.sh` is the parent of
 [`pkg-vault/unit-registration.js`](../../packages/pkg-vault/INTENT.md#parent-registration),
-which it runs from the Vault image itself (no network, no capability). At every
-run, before any unit starts:
+which it runs from the Vault image itself (no network, no capability).
+
+**Kept or recreated** (DECISIONS-20261011 §B). A unit is recreated only when it
+must be: no container, a container not running, another image or run
+specification — the digest of its image id, the fixed options and its
+arguments, all but its incarnation, carried by the container as
+`org.shaper.run-spec` — an incarnation that is not the one the parent
+recorded, an identity Vault no longer holds live, or an explicit
+`--recreate <slug>`. Anything else is kept, with its incarnation.
+`--preflight` checks everything and says, unit by unit, what a run would keep
+or recreate, writing, registering and starting nothing. `--recreate all`
+recreates every unit and renews the proof's identity; `--recreate proof`
+renews the proof's identity alone.
+
+At every run:
 
 1. **The pin.** Vault's public key, derived from the master key and the
    universe UUID — never read from a running Vault — written root-owned `0644`
    to `/apps/<slug>/etc/identity/vault-signing.pub` for Logger, Queue and
    Maestro (`UNIT_AUTH_PUBLIC_KEY_FILE`).
-2. **The registrations.** A new incarnation `<slug>-<UTC stamp>` for each unit
-   that owes evidence to Logger — `vault`, `queue`, `maestro`, each with
-   `--grant logger=logger:ingest` — and one for the proof's reader `proof`
-   (`logger:ingest`, `logger:read:own`). Each bootstrap is a new file owned by
+2. **The registrations.** A new random incarnation `<slug>-<16 hex>` for each
+   *recreated* unit that owes evidence to Logger — `vault`, `queue`, `maestro`
+   — with its declared grants (`grants_of`: `logger=logger:ingest` for each,
+   and Maestro's `queue=queue:enqueue`, `queue=queue:read`), and one for the
+   proof's identity `proof` when it holds none live (`PROOF_GRANTS`:
+   `logger:ingest`, `logger:read:own`, `queue:enqueue`, `queue:read`,
+   `queue:claim`, `queue:attempt`, `maestro:read`, `maestro:admin` — each right
+   explicit, no Vault administration). Each bootstrap is a new file owned by
    its unit's account, `0600`, at `/apps/<slug>/etc/identity/bootstrap`
    (`UNIT_BOOTSTRAP_TOKEN_FILE`); the proof's is root-only under
    `PROOF_STATE_DIR` (`/var/lib/univ-proof/<universe>/identity/`). The
@@ -122,22 +139,28 @@ run, before any unit starts:
    The holders, the pinned units and the grants are declared once, in
    `deploy/unit-probes.sh`, for `podman-up.sh` and the proofs alike.
 
-Then the units start in `bootOrder` — Vault alone first. As soon as Vault is
-ready, root applies the registrations to Vault's database through its socket
-(`mariadb -uroot vault < registration.sql`), reads them back and delivers the
-staged bootstraps; only then do
+Then the units start (or are kept) in `bootOrder` — Vault alone first. As soon
+as Vault is ready, the kept holders' and the proof's identities are checked
+live in Vault (recorded incarnation, epoch, grants and bootstrap digest, not
+revoked, unexpired; the bootstrap file in place the one recorded) — a holder
+that fails is recreated — and root applies the registrations to Vault's
+database through its socket (`mariadb -uroot vault < registration.sql`), reads
+them back, delivers the staged bootstraps and records each identity root-only
+in `/apps/vault/etc/vault/registration/records/<unit>.json` (unit,
+incarnation, epoch, grants, bootstrap digest — never the bootstrap); only then do
 Logger, Queue and Maestro start, each in its own layer. Every unit receives
 `SHAPER_UNIVERSE_ID` and its `etc/identity/` read-only; a unit that holds a
 credential also receives `SHAPER_UNIT_INCARNATION` and
 `UNIT_BOOTSTRAP_TOKEN_FILE`, one that verifies receives `VAULT_URL` and the
 pin. Vault and the units that owe evidence receive `LOGGER_URL`.
 
-A recreation is a new incarnation: the epoch of each identity moves, and the
-credentials of the containers it replaces stop being current at once. A
-bootstrap expires after 30 days (pkg-vault's default): a universe that has not
-been recreated within that time must run `podman-up.sh` again — it re-delivers
-every bootstrap — or its units stop obtaining credentials and their evidence
-waits in their outboxes (never lost, reported once).
+A recreation is a new incarnation: the epoch of the recreated unit's identity
+moves, and the credentials of the container it replaces stop being current at
+once. A re-run that recreates nothing registers nothing: incarnations and
+epochs stay. A bootstrap expires after 30 days (pkg-vault's default): a
+universe whose units are kept that long must have their bootstraps renewed, or
+its units stop obtaining credentials and their evidence waits in their
+outboxes (never lost, reported once).
 
 <a id="host"></a>
 ## What the universe container must provide
@@ -199,15 +222,17 @@ up, never that work happened.
 
 `deploy/lifecycle-drill.sh` writes a marker through the Vault, Logger and Queue
 APIs, records every table's row count and each password file's digest, then
-restarts every unit and recreates the universe (`podman-up.sh` replaces every
-container). After each: the markers are unchanged in the databases, no table
+restarts every unit, checks that `podman-up.sh --preflight` and a plain re-run
+keep every container, incarnation and epoch, and recreates the universe
+(`podman-up.sh --recreate all` replaces every container). After each: the markers are unchanged in the databases, no table
 lost a row, every password file is the same; each unit's log shows the
 application stopped before MariaDB and MariaDB shut down cleanly, no crash
 recovery, then MariaDB ready, the password kept and the schema retained before
 the application started. After the recreation, each unit that holds a
-credential runs a new incarnation — the one Vault now holds for it — and Vault
-has issued it a credential; a credential issued before the recreation is
-refused by Logger, one issued after is accepted.
+credential runs a new random incarnation — the one Vault now holds for it —
+and Vault has issued it a credential once it owed evidence; a credential
+issued before the recreation is refused by Logger, one issued after is
+accepted.
 
 <a id="restore"></a>
 ## Restore into a fresh volume
