@@ -201,10 +201,15 @@ library and a command:
   re-registration of a revoked one, bumps the epoch, so credentials issued
   before stop being current. The bootstrap
   expiry (default 30 days, 60 s to 366 days) bounds how long a unit can renew:
-  the parent redelivers before it passes.
+  the parent renews it before it passes ([bootstrap renewal](#bootstrap-renewal)).
+* `renew --record <file>…` — see below.
 
-A base composition registers `vault`, `queue` and `maestro` with
-`--grant logger=logger:ingest` after Vault's identity is born; a reader of
-Logger's events needs its own grant (`logger:read:own`, or `logger:observe` for
-pods and vitals). The file must be owned by the unit's account when the unit
-starts.
+A base composition registers each *recreated* unit of `vault`, `queue` and
+`maestro` under a new random incarnation `<slug>-<16 hex>`, after Vault's
+identity is born, with its declared grants — `logger=logger:ingest` for each,
+and Maestro's `queue=queue:enqueue`, `queue=queue:read`; a kept unit keeps its
+incarnation (DECISIONS-20261011 §B). A reader of Logger's events needs its own
+grant (`logger:read:own`, or `logger:observe` for pods and vitals). The file
+must be owned by the unit's account when the unit starts. Unit names and
+audiences follow one grammar that accepts hyphens (`brick-voice`), with no
+alias.

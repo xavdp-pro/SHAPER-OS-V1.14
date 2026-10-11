@@ -16,8 +16,11 @@ Maestro is present and idle: with no declared schedule it submits nothing.
 
 Every state change of Vault, Queue and Maestro commits its evidence to the
 unit's own outbox in the same transaction, and each unit delivers it to Logger
-under a short-lived credential Vault signs for it ([identity](#identity)).
-Logger accepts and serves nothing without such a credential.
+under a short-lived credential Vault signs for it ([identity](#identity)) —
+asked for only when its outbox owes a row. Logger, Queue and Maestro accept
+and serve nothing but a minimal health without such a credential, each route
+under its own scope. Vault leaves evidence of every secret read before the
+value leaves, and of every refusal, bounded.
 
 ## Exact runtime — four units, four containers, eight processes
 
@@ -230,15 +233,26 @@ effect read back from its database through the root path.
 Each unit's identity is in the same inventory: `etc/identity/` mounted
 read-only, the universe UUID in its environment, the pin root-owned and equal
 to the parent's derivation, the bootstrap a `0600` file of the unit's account
-and never a value in its environment, a credential Vault issued to the unit's
-current incarnation (read from `vault.unit_credentials` by the root path), and
-no evidence owed to Logger for more than 15 minutes. Among the effects: an
-anonymous ingest refused by Logger (401); the proof writing as `proof` and
-refused another unit's events (403); and the evidence of the proof's own Vault
+and never a value in its environment, exactly its declared grants in Vault,
+its current incarnation live in Vault (read from `vault.unit_identities` by the
+root path), and no evidence owed to Logger for more than 15 minutes. After the
+effects, each holder holds a credential Vault issued to its current
+incarnation once it owed evidence (an idle unit asks for none). Among the
+effects: an anonymous ingest refused by Logger (401); anonymous enqueue, read
+and claim refused by Queue and anonymous reads and registrations by Maestro
+(401), their open health minimal; the proof writing as `proof` and refused
+another unit's events (403); each Queue job claimed, run under one attempt
+that ends with its receipt, a late `FAILED` under that attempt refused (409
+`STALE_ATTEMPT`) and the identical completion answered the same receipt;
+Maestro reaching Queue under its own `queue` credential; the read-back of the
+proof's secret leaving `SECRET_READ` evidence with an opaque resource (never
+the path or the value) and the anonymous read counted in a
+`VAULT_REFUSALS_AGGREGATED` row; and the evidence of the proof's own Vault
 write, Queue jobs and Maestro occurrence found receipted in each unit's outbox
 and held by Logger under that unit's name — both read from the databases,
-never from either unit's answer. The proof calls Logger under a credential
-Vault issues to its own identity for each call, and the Vault API with the
+never from either unit's answer. The proof calls Logger, Queue and Maestro
+under credentials Vault issues to its own identity for each call (one root-only
+header file per call, removed after it), and the Vault API with the
 construction path's token; no credential is ever on a command line.
 
 A green health endpoint is not in that list as a proof: it shows a process is
@@ -277,9 +291,18 @@ ones; then the same volumes served by the unit's own application on a drill
 port, which reads a control record back through its API (the Vault decrypts a
 controlled secret with the universe's key, and refuses another key). A
 throwaway unit gets the live pin and a random bootstrap no Vault registered;
-its evidence relay and Queue address an unused port, so nothing it does writes
-to the live universe. The restored Logger checks the proof's credential at the
-live Vault — a read.
+its evidence relay's Logger and Maestro's Queue address an unused port, so
+nothing it does writes to the live universe. The restored Logger, Queue and
+Maestro check the proof's credential at the live Vault — reads of the
+authority; a restored unit with evidence owed asks the live Vault for a
+credential its unregistered bootstrap never obtains (refused, counted, retried
+after a backoff).
+
+When every step of a unit passed, its kept dump is a verified recovery point:
+root records it in the live unit's `recovery_points` (the instant taken before
+the dump, its SHA-256). Only then may that unit's hourly cleanup remove
+delivered, receipted evidence older than 30 days that the point holds
+(DECISIONS-20261011 §C; the manifest's `dataLifecycle` declares every class).
 
 The same mechanism restores a unit for real: stop its container, move its
 `sav/` aside (kept), put the dump at `sav/restore/<slug>.sql` (root, `0600`) in
@@ -295,10 +318,14 @@ effects section of `deploy/proof.sh` on a workstation without podman: a fake
 podman (`test/rehearsal/bin/podman`) starts each unit's real `server.js` as a
 process, its container paths redirected, its database on one throwaway MariaDB
 that pkg-db's live runner provisions. It checks the birth order, the
-registrations Vault holds by digest, the pin and the bootstraps, that no secret
-reaches a command line or the output, each unit's credential and evidence, a
-recreation's new incarnations (the old credential refused), the refusal of a
-changed universe identity, and the effects section green twice. It proves
+registrations Vault holds by digest with each unit's exact grants, the pin and
+the bootstraps, that no secret reaches a command line or the output, that an
+idle unit asks Vault for no credential, each unit's credential and evidence, a
+re-run and `--preflight` keeping every container, incarnation and epoch,
+`--recreate <slug>` recreating that unit alone, the bootstrap renewal (+30 days,
+nothing restarted; a tampered record halts it), a recreation's new
+incarnations (the old credential refused), the refusal of a changed universe
+identity, and the effects section green twice. It proves
 nothing about the container shape — one process per unit, one uid for all, no
 supervisor, no Rule 26 inventory — and never qualifies the universe: the proof
 above, on a real podman, does.
