@@ -501,7 +501,7 @@ export function createVaultServer({
         catch (err) { if (err instanceof CredentialError) throw err; throw new CredentialError('IDENTITY_REQUEST_INVALID', 400); }
         if (!body || typeof body !== 'object' || Array.isArray(body)) throw new CredentialError('IDENTITY_REQUEST_INVALID', 400);
         if (pathname === '/api/identity/issue') {
-          if (Object.keys(body).some((k) => !['unit', 'incarnation', 'audience'].includes(k))) throw new CredentialError('IDENTITY_REQUEST_INVALID', 400);
+          if (Object.keys(body).some((k) => !['unit', 'incarnation', 'audience', 'profile'].includes(k))) throw new CredentialError('IDENTITY_REQUEST_INVALID', 400);
           const result = await identityService.issue({ ...body, bootstrapToken: token });
           return sendJson(200, { token: result.token, expiresAt: result.claims.expiresAt });
         }

@@ -648,3 +648,104 @@ test("proof.sh's effects section runs green twice: each unit's effect, its evide
     assert.deepEqual(fs.readdirSync(path.join(proofDir, 'identity')).filter((f) => f.endsWith('.header')), [], 'no credential header is left on disk');
   }
 });
+
+test('decision N: the parent registers an installing universe\'s extra identities with rights profiles; renewal, new incarnation and revocation follow', async () => {
+  const { runtimeAuthorizer, runtimeCredentialClient } = await import('../../../../packages/pkg-auth/runtime-identity.js');
+  const EXTRA = 'brick-ipbx brick-voice brick-tools';
+  const extra = (...args) => spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/extra-identity.sh'), ...args],
+    { env: { ...env, RENEWAL_EXTRA_IDENTITIES: EXTRA }, encoding: 'utf8', timeout: 120000 });
+  // The kit's identity directory for the voice unit, root's (the namespace's root), 0755.
+  const kit = path.join(universeDir, '.state/kit-voice-identity');
+  fs.mkdirSync(kit, { mode: 0o755 });
+  fs.chmodSync(kit, 0o755);
+  const pin = path.join(kit, 'vault-signing.pub'), bootstrap = path.join(kit, 'bootstrap');
+  const VOICE = ['--profile', 'brick-ipbx/callctx=ipbx:callctx:claim',
+    '--profile', 'brick-tools/planning-faq=tools:planning:read', '--profile', 'brick-tools/planning-faq=tools:planning:write',
+    '--profile', 'brick-tools/planning-faq=tools:faq:read'];
+  const universe = read(path.join(appsRoot, 'vault/etc/vault/universe-id')).trim();
+  const outputs = [];
+  const run = (...args) => { const r = extra(...args); outputs.push(r.stdout, r.stderr); return r; };
+
+  // The pin: the parent's derivation, as podman-up.sh pinned it.
+  const pinned = run('pin', '--to', pin);
+  assert.equal(pinned.status, 0, pinned.stderr);
+  assert.equal(read(pin), read(path.join(appsRoot, 'vault/etc/vault/vault-signing.pub')));
+  assert.equal(fs.statSync(pin).mode & 0o777, 0o644);
+
+  // Refusals change nothing: undeclared, a base unit, a bad profile, an unprotected directory.
+  const rowsBefore = identities();
+  assert.match(extra('register', '--unit', 'brick-other', '--bootstrap', bootstrap, '--owner', '2001', ...VOICE).stderr, /not declared in RENEWAL_EXTRA_IDENTITIES/);
+  assert.match(extra('register', '--unit', 'queue', '--bootstrap', bootstrap, '--owner', '2001', ...VOICE).stderr, /belongs to the base/);
+  const badProfile = extra('register', '--unit', 'brick-voice', '--bootstrap', bootstrap, '--owner', '2001', '--profile', 'brick-ipbx=ipbx:read');
+  assert.notEqual(badProfile.status, 0);
+  assert.match(badProfile.stderr, /audience\/profile=scope/);
+  assert.match(extra('register', '--unit', 'brick-voice', '--bootstrap', bootstrap, '--owner', '0', ...VOICE).stderr, /numeric uid \(not root\)/);
+  const open = path.join(universeDir, '.state/kit-open');
+  fs.mkdirSync(open, { mode: 0o777 }); fs.chmodSync(open, 0o777);
+  assert.match(extra('register', '--unit', 'brick-voice', '--bootstrap', path.join(open, 'bootstrap'), '--owner', '2001', ...VOICE).stderr, /not protected/);
+  assert.equal(identities(), rowsBefore);
+  assert.ok(!fs.existsSync(bootstrap));
+
+  // The registration: the incarnation alone on stdout, the bootstrap delivered owner-only, the record root-only.
+  const reg = run('register', '--unit', 'brick-voice', '--bootstrap', bootstrap, '--owner', '2001', ...VOICE);
+  assert.equal(reg.status, 0, reg.stderr);
+  const inc = reg.stdout.trim();
+  assert.match(inc, /^brick-voice-[0-9a-f]{16}$/);
+  assert.equal(fs.statSync(bootstrap).mode & 0o777, 0o600);
+  const record = JSON.parse(read(path.join(recordsDir, 'brick-voice.json')));
+  const grants = { 'brick-ipbx': { callctx: ['ipbx:callctx:claim'] }, 'brick-tools': { 'planning-faq': ['tools:planning:read', 'tools:planning:write', 'tools:faq:read'] } };
+  assert.deepEqual([record.incarnation, record.epoch, record.grants], [inc, 1, grants]);
+  assert.equal(record.bootstrapDigest, createHash('sha256').update(read(bootstrap)).digest('hex'));
+  assert.equal(fs.statSync(path.join(recordsDir, 'brick-voice.json')).mode & 0o777, 0o600);
+  assert.deepEqual(JSON.parse(sql('vault', "SELECT grants FROM unit_identities WHERE unit_id = 'brick-voice'")), grants);
+  assert.deepEqual(fs.readdirSync(path.join(appsRoot, 'vault/etc/vault/registration/extra')), [], 'nothing staged is left');
+  const live = run('live', '--unit', 'brick-voice', '--bootstrap', bootstrap);
+  assert.deepEqual([live.status, live.stdout.trim()], [0, inc]);
+  assert.equal(run('live', '--unit', 'brick-voice', '--bootstrap', pin).status, 1, 'another file is not the recorded bootstrap');
+
+  // The unit, as it will run: one credential per profile, only that profile's scopes, current in Vault.
+  const unitEnv = (incarnation) => ({ VAULT_URL: 'http://127.0.0.1:8610', SHAPER_UNIVERSE_ID: universe, SHAPER_UNIT_SLUG: 'brick-voice',
+    SHAPER_UNIT_INCARNATION: incarnation, UNIT_BOOTSTRAP_TOKEN_FILE: bootstrap, UNIT_AUTH_PUBLIC_KEY_FILE: pin });
+  const callctx = await runtimeCredentialClient(unitEnv(inc)).headers('brick-ipbx', 'callctx');
+  const ipbx = runtimeAuthorizer({ VAULT_URL: 'http://127.0.0.1:8610', SHAPER_UNIVERSE_ID: universe, SHAPER_UNIT_SLUG: 'brick-ipbx', UNIT_AUTH_PUBLIC_KEY_FILE: pin });
+  const asked = { headers: { authorization: callctx.Authorization } };
+  assert.equal((await ipbx(asked, 'ipbx:callctx:claim')).profile, 'callctx');
+  await assert.rejects(ipbx(asked, 'ipbx:write'), { status: 403, code: 'CREDENTIAL_SCOPE_DENIED' });
+
+  // The daily renewal inventories it like the base's units.
+  const renewed = renew({ RENEWAL_EXTRA_IDENTITIES: EXTRA });
+  assert.equal(renewed.status, 2, renewed.stderr);
+  assert.match(renewed.stdout, /^  brick-voice +current /m);
+  assert.match(renewed.stderr, /brick-ipbx missing \(no-record\), brick-tools missing \(no-record\)/);
+  assert.equal(renew({ RENEWAL_EXTRA_IDENTITIES: 'brick-voice' }).status, 0, 'declared and registered: complete');
+
+  // A new incarnation: the old credential stops, the old incarnation can no longer be issued one.
+  const reg2 = run('register', '--unit', 'brick-voice', '--bootstrap', bootstrap, '--owner', '2001', ...VOICE);
+  assert.equal(reg2.status, 0, reg2.stderr);
+  const inc2 = reg2.stdout.trim();
+  assert.notEqual(inc2, inc);
+  assert.equal(JSON.parse(read(path.join(recordsDir, 'brick-voice.json'))).epoch, 2);
+  await assert.rejects(ipbx(asked, 'ipbx:callctx:claim'), { status: 403, code: 'CREDENTIAL_REVOKED' });
+  await assert.rejects(runtimeCredentialClient(unitEnv(inc)).headers('brick-ipbx', 'callctx'), { status: 403, code: 'IDENTITY_ISSUE_DENIED' });
+  const fresh = await runtimeCredentialClient(unitEnv(inc2)).headers('brick-ipbx', 'callctx');
+  assert.equal((await ipbx({ headers: { authorization: fresh.Authorization } }, 'ipbx:callctx:claim')).incarnation, inc2);
+
+  // A revocation: evidence committed, credentials stop, the renewal reports it, a register brings it back.
+  const revoked = run('revoke', '--unit', 'brick-voice');
+  assert.equal(revoked.status, 0, revoked.stderr);
+  await assert.rejects(ipbx({ headers: { authorization: fresh.Authorization } }, 'ipbx:callctx:claim'), { status: 403, code: 'CREDENTIAL_REVOKED' });
+  assert.equal(sql('vault', "SELECT COUNT(*) FROM event_outbox WHERE JSON_VALUE(body, '$.event') = 'UNIT_IDENTITY_REVOKED' AND JSON_VALUE(body, '$.data.unit') = 'brick-voice'"), '1');
+  assert.match(extra('revoke', '--unit', 'brick-voice').stderr, /did not complete \(nothing changed\).*no live identity of brick-voice/);
+  assert.equal(run('live', '--unit', 'brick-voice', '--bootstrap', bootstrap).status, 1);
+  const afterRevoke = renew({ RENEWAL_EXTRA_IDENTITIES: 'brick-voice' });
+  assert.equal(afterRevoke.status, 2);
+  assert.match(afterRevoke.stdout, /^  brick-voice +revoked /m);
+  const back = run('register', '--unit', 'brick-voice', '--bootstrap', bootstrap, '--owner', '2001', ...VOICE);
+  assert.equal(back.status, 0, back.stderr);
+  assert.equal(JSON.parse(read(path.join(recordsDir, 'brick-voice.json'))).epoch, 3);
+  assert.equal(renew({ RENEWAL_EXTRA_IDENTITIES: 'brick-voice' }).status, 0);
+
+  // No bootstrap or credential ever reached the output.
+  const secrets = [read(bootstrap).trim(), callctx.Authorization.slice(7), fresh.Authorization.slice(7)];
+  for (const out of outputs) for (const secret of secrets) assert.ok(!out.includes(secret), 'a secret in extra-identity.sh output');
+});

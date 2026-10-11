@@ -380,6 +380,34 @@ the file the service will read. The renewal itself consumes no secret file: it r
 Vault's database as root through the socket inside the unit, and its tool
 runs from Vault's image with no secret in its environment.
 
+<a id="extra-identities"></a>
+## Identities an installing universe adds (SOL decision N)
+
+A universe that installs this base and runs units of its own (the Clinic kit:
+`brick-ipbx`, `brick-voice`, `brick-tools`) has them hold Vault-signed
+credentials through the same parent, with `deploy/extra-identity.sh` — the
+shared interface is [pkg-auth PROFILES.md](../../packages/pkg-auth/PROFILES.md):
+
+| Command | Does |
+| :--- | :--- |
+| `pin --to <file>` | installs the key `podman-up.sh` pinned (the parent's derivation), root's, 0644: the unit's `UNIT_AUTH_PUBLIC_KEY_FILE` |
+| `register --unit <slug> --bootstrap <file> --owner <uid> (--profile <aud>/<profile>=<scope> \| --grant <aud>=<scope>)…` | a new incarnation `<slug>-<16 hex>` with exactly these rights; the bootstrap is delivered only once root has applied the registration through Vault's socket and read it back, then recorded in `registration/records/` like the base's. Standard output: the incarnation alone |
+| `live --unit <slug> --bootstrap <file>` | exit 0 and the incarnation when Vault holds the identity exactly as recorded and the file is the recorded bootstrap |
+| `revoke --unit <slug>` | revokes it in one transaction with `UNIT_IDENTITY_REVOKED`; only a new `register` brings it back |
+
+The unit must be declared in `RENEWAL_EXTRA_IDENTITIES` — what the daily
+renewal inventories is exactly what may be registered — and never be a base
+unit or `proof`. The bootstrap's directory must exist and be changeable by
+root alone. It holds the parent lock like `podman-up.sh` and the renewal, runs
+the registration tool from the running Vault's image with no network and no
+capability, and prints no bootstrap, token or key. A new `register` bumps the
+epoch: the previous incarnation's credentials stop at once, so the installing
+universe registers right before it recreates the unit's container with
+`SHAPER_UNIT_INCARNATION` set to the printed incarnation. A revoked identity is
+reported `revoked` by the renewal until it is registered again. Proof: the
+rehearsal's decision N test (registration, refusals, per-profile credentials,
+renewal, new incarnation, revocation, no secret in the output).
+
 <a id="host"></a>
 ## What the universe container must provide
 

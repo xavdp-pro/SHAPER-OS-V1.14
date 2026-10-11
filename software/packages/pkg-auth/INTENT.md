@@ -75,6 +75,18 @@ is bounded by the parent's registered expiry, incarnation and grants; it is
 not accepted at application data APIs. Parent replacement/revocation invalidates
 the incarnation. These runtime files are excluded from backups.
 
+<a id="rights-profiles"></a>
+**Rights profiles** (SOL decision N): the parent may register an audience as
+named profiles, each with its exact scopes, instead of a whole audience. A
+credential then carries one profile's name and only its scopes; the caller's
+`runtimeCredentialClient(...).headers(audience, profile)` caches one credential
+per (audience, profile) and verifies the profile it receives;
+`runtimeAuthorizer(...).session(req, scope, { onEnd })` holds a long session
+(an audio stream) under a credential, re-confirming it with Vault until its
+expiry. `python/shaper_unit_auth.py` is the same client and verifier for a
+Python unit, standard library only. The interface, the Clinic profile table
+and the receivers' 401/403/503 rules: [`PROFILES.md`](./PROFILES.md).
+
 Each request to Vault is bounded to three seconds. Missing Vault verification
 refuses current-authority validation; no permanent bypass is introduced. The
 parent controls registration and bounded bootstrap redelivery. No service can

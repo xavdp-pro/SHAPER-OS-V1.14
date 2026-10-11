@@ -288,7 +288,7 @@ describe('every command the script runs receives an environment built explicitly
 });
 
 describe('every base script reads its settings with the one reader, before it changes anything', () => {
-  const SCRIPTS = ['podman-up.sh', 'proof.sh', 'lifecycle-drill.sh', 'restore-drill.sh', 'renew-bootstraps.sh', 'install-renewal-timer.sh'];
+  const SCRIPTS = ['podman-up.sh', 'proof.sh', 'lifecycle-drill.sh', 'restore-drill.sh', 'renew-bootstraps.sh', 'install-renewal-timer.sh', 'extra-identity.sh'];
   for (const name of SCRIPTS) {
     test(`${name}: settings.sh and shaper_settings_load come first; no settings file is sourced`, () => {
       const text = fs.readFileSync(path.join(DEPLOY, name), 'utf8');

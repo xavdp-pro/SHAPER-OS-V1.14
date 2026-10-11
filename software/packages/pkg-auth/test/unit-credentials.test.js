@@ -64,3 +64,44 @@ test('pkg-auth, pkg-db and the unit runtime hold one functional-slug grammar', a
   assert.equal(db.flags, UNIT_NAME_PATTERN.flags);
   assert.equal(runtime.flags, UNIT_NAME_PATTERN.flags);
 });
+
+test('rights profiles: the grants a parent may register, and what one profile receives (PROFILES.md)', async () => {
+  const { grantedScopes, isValidGrants, PROFILE_NAME_PATTERN, MAX_PROFILES, MAX_SCOPES } = await import('../unit-credentials.js');
+  assert.equal(PROFILE_NAME_PATTERN.source, UNIT_NAME_PATTERN.source);
+  const grants = { logger: ['logger:ingest'], 'brick-voice': { read: ['voice:read'], write: ['voice:read', 'voice:write', 'voice:actor'] } };
+  assert.equal(isValidGrants(grants), true);
+  assert.deepEqual(grantedScopes(grants, 'brick-voice', 'read'), { scopes: ['voice:read'] });
+  assert.deepEqual(grantedScopes(grants, 'brick-voice', 'write'), { scopes: ['voice:read', 'voice:write', 'voice:actor'] });
+  assert.deepEqual(grantedScopes(grants, 'logger', null), { scopes: ['logger:ingest'] });
+  assert.deepEqual(grantedScopes(grants, 'logger'), { scopes: ['logger:ingest'] });
+  assert.deepEqual(grantedScopes(grants, 'brick-voice'), { denied: 'PROFILE_REQUIRED' }, 'a profiled audience is never issued whole');
+  assert.deepEqual(grantedScopes(grants, 'brick-voice', 'admin'), { denied: 'PROFILE_NOT_GRANTED' });
+  assert.deepEqual(grantedScopes(grants, 'brick-voice', 'toString'), { denied: 'PROFILE_NOT_GRANTED' }, 'own keys only');
+  assert.deepEqual(grantedScopes(grants, 'logger', 'read'), { denied: 'PROFILE_ON_WHOLE_AUDIENCE' });
+  assert.deepEqual(grantedScopes(grants, 'brick-ipbx', 'read'), { denied: 'AUDIENCE_NOT_GRANTED' });
+  assert.deepEqual(grantedScopes({ logger: [] }, 'logger'), { denied: 'AUDIENCE_NOT_GRANTED' });
+  const many = (n, f) => Object.fromEntries(Array.from({ length: n }, (_, i) => f(i)));
+  for (const bad of [{}, [], null, { logger: [] }, { logger: ['*'] }, { logger: ['a', 'a'] }, { Logger: ['a'] },
+    { 'brick-voice': {} }, { 'brick-voice': { Read: ['a'] } }, { 'brick-voice': { read: [] } }, { 'brick-voice': { read: 'voice:read' } },
+    { 'brick-voice': many(MAX_PROFILES + 1, (i) => [`p${i}`, ['a']]) }, { logger: Array.from({ length: MAX_SCOPES + 1 }, (_, i) => `s${i}`) }]) {
+    assert.equal(isValidGrants(bad), false, JSON.stringify(bad));
+  }
+  assert.equal(isValidGrants({ 'brick-voice': many(MAX_PROFILES, (i) => [`p${i}`, ['a']]) }), true);
+});
+
+test('a profiled credential names its profile and carries only its scopes; the profile is in the signed claims', () => {
+  const read = { ...identity, unit: 'brick-tools', audience: 'brick-voice', profile: 'read', scopes: ['voice:read'], revocationRef: 'brick-tools:1' };
+  const { token, claims } = issueCredential(read, privateKey, { now });
+  assert.equal(claims.profile, 'read');
+  assert.deepEqual(verifyCredential(token, publicKey, { universe, audience: 'brick-voice', scope: 'voice:read', now }), claims);
+  assert.throws(() => verifyCredential(token, publicKey, { universe, audience: 'brick-voice', scope: 'voice:write', now }), { code: 'CREDENTIAL_SCOPE_DENIED', status: 403 });
+  // The profile cannot be rewritten without breaking the signature.
+  const [payload, signature] = token.split('.');
+  const forged = Buffer.from(JSON.stringify({ ...claims, profile: 'write', scopes: ['voice:read', 'voice:write'] })).toString('base64url');
+  assert.throws(() => verifyCredential(`${forged}.${signature}`, publicKey, { universe, audience: 'brick-voice', now }), { code: 'CREDENTIAL_SIGNATURE_INVALID' });
+  for (const profile of ['Read', '', '-read', null, 7]) {
+    assert.throws(() => issueCredential({ ...read, profile }, privateKey, { now }), { code: 'CREDENTIAL_INVALID' }, String(profile));
+  }
+  assert.equal('profile' in issueCredential(identity, privateKey, { now }).claims, false, 'a whole-audience credential has none');
+  assert.ok(payload);
+});

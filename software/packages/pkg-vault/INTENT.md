@@ -33,7 +33,7 @@ Sovereign AES-256-GCM secret engine — encrypt, persist, and inject credentials
 13. **A storage failure is an unavailable Vault** (HTTP 503 with a typed code), never a malformed request and never an empty answer.
 
 What this storage does not yet provide, against the Vault target contract: scoped secret delivery, evidence of secret reads and of refused requests,
-journalled parent registration/revocation and key rotation. Secret mutations
+journalled parent registration and key rotation (a parent revocation commits its evidence, [parent registration](#parent-registration)). Secret mutations
 and credential issuance commit their evidence with the change, and the relay
 delivers it to Logger ([§ evidence relay](#evidence-relay)); that is not full
 reference qualification. The gaps are recorded, not implied.
@@ -64,8 +64,9 @@ and universe identity; Ed25519 key encoding follows RFC 8410. Restoring the same
 key and universe preserves the signing identity; a different key or universe
 produces another public key. Parent provisioning pins that public key in consumers.
 
-`POST /api/identity/issue` accepts only unit, incarnation and audience; the
-Bearer bootstrap grants no secret access. `POST /api/identity/check` verifies a
+`POST /api/identity/issue` accepts only unit, incarnation, audience and, for
+an audience registered with rights profiles, one profile; the Bearer
+bootstrap grants no secret access. `POST /api/identity/check` verifies a
 credential's signature, expiry, current incarnation, epoch, grant and revocation
 state. Registered credential metadata lives in the same private Vault database.
 MariaDB or identity verification failures cannot acknowledge issuance.
@@ -230,7 +231,32 @@ library and a command:
   before stop being current. The bootstrap
   expiry (default 30 days, 60 s to 366 days) bounds how long a unit can renew:
   the parent renews it before it passes ([bootstrap renewal](#bootstrap-renewal)).
+* `register … --profile <audience>/<profile>=<scope>…` registers **rights
+  profiles** instead of a whole audience (SOL decision N,
+  [pkg-auth PROFILES.md](../pkg-auth/PROFILES.md)): the grants then map that
+  audience to named profiles, each with its exact scopes, and Vault issues the
+  audience one profile at a time — `POST /api/identity/issue` takes
+  `{unit, incarnation, audience, profile}` and signs only that profile's scopes
+  and its name, so a read credential cannot mutate. A profile not registered,
+  a profile asked of a whole audience, or none asked of a profiled one is
+  `403 IDENTITY_PROFILE_DENIED`; `/api/identity/check` refuses a credential
+  whose scopes are no longer all registered for its profile. One audience takes
+  one form; the base's audiences stay whole.
+* `revoke --unit <slug> [--revocation-id <uuid>]` prints one transaction that
+  locks the live row, marks it revoked and commits `UNIT_IDENTITY_REVOKED`
+  (level `WARN`) with it, or fails with nothing changed when no live identity
+  is there. Issuance and every current-authority check then refuse the unit
+  (`403`); only a new registration, under a new epoch, brings it back.
 * `renew --expect <slug>… --record <file>…` and `readback --renewal-id <uuid>` — see [bootstrap renewal](#bootstrap-renewal).
+
+An installing universe registers identities of its own (the Clinic kit:
+`brick-ipbx`, `brick-voice`, `brick-tools`) through univ-minimal's
+[`deploy/extra-identity.sh`](../../universes/univ-minimal/INTENT.md#extra-identities),
+which applies these statements by the same root path and keeps the same
+records. Proof: `test/profiled-identity.live.mjs` (the Clinic profiles through
+the real Vault and MariaDB, from Node and Python: per-profile issuance, a read
+credential refused a write, wrong audience, new incarnation, revocation, Vault
+down).
 
 A base composition registers each *recreated* unit of `vault`, `queue` and
 `maestro` under a new random incarnation `<slug>-<16 hex>`, after Vault's

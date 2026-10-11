@@ -7,7 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { registrationStatement, renewalReadbackStatement, renewalStatement, signingPublicKeyPem, validateRecord } from '../unit-registration.js';
+import { registrationStatement, renewalReadbackStatement, renewalStatement, revocationStatement, signingPublicKeyPem, validateRecord } from '../unit-registration.js';
 import { VaultUnitIdentity } from '../unit-identity.js';
 import { normalizeMasterKey } from '../index.js';
 
@@ -177,5 +177,73 @@ describe('the parent renews each consistent bootstrap from its records, never fr
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('rights profiles are registered by the parent (decision N, pkg-auth PROFILES.md)', () => {
+  const run = (args, env = {}) => spawnSync(process.execPath, [CLI, ...args], { env: { SHAPER_UNIVERSE_ID: universe, ...env }, encoding: 'utf8' });
+
+  it('--profile builds audience → profile → exact scopes; --grant keeps the whole-audience form', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-reg-profiles-'));
+    try {
+      const r = run(['register', '--unit', 'brick-tools', '--incarnation', 'brick-tools-0123456789abcdef',
+        '--profile', 'brick-voice/read=voice:read',
+        '--profile', 'brick-voice/write=voice:read', '--profile', 'brick-voice/write=voice:write', '--profile', 'brick-voice/write=voice:actor',
+        '--grant', 'logger=logger:ingest', '--bootstrap-file', path.join(dir, 'bootstrap')]);
+      assert.equal(r.status, 0, r.stderr);
+      const grants = JSON.parse(/'(\{.*\})'/.exec(r.stdout)[1]);
+      assert.deepEqual(grants, { 'brick-voice': { read: ['voice:read'], write: ['voice:read', 'voice:write', 'voice:actor'] }, logger: ['logger:ingest'] });
+      assert.doesNotMatch(r.stdout, new RegExp(fs.readFileSync(path.join(dir, 'bootstrap'), 'utf8')));
+      for (const [bad, why] of [
+        [['--grant', 'brick-voice=voice:read', '--profile', 'brick-voice/read=voice:read'], /both whole/],
+        [['--profile', 'brick-voice/read=voice:read', '--grant', 'brick-voice=voice:read'], /both whole/],
+        [['--profile', 'brick-voice=voice:read'], /audience\/profile=scope/],
+        [['--profile', 'brick-voice/Read=voice:read'], /audience\/profile=scope/],
+        [['--profile', 'brick-voice/read/x=voice:read'], /audience\/profile=scope/],
+        [['--profile', 'brick-voice/read=voice:read', '--profile', 'brick-voice/read=voice:read'], /distinct/],
+        [['--profile', 'brick-voice/read=*'], /non-wildcard/],
+        [['--grant', 'brick-voice/read=voice:read'], /--grant takes audience=scope/],
+      ]) {
+        const refused = run(['register', '--unit', 'brick-tools', '--incarnation', 'i-1', ...bad, '--bootstrap-file', path.join(dir, 'never')]);
+        assert.equal(refused.status, 1, bad.join(' '));
+        assert.match(refused.stderr, why, bad.join(' '));
+        assert.equal(fs.existsSync(path.join(dir, 'never')), false, 'nothing is written before the grants are valid');
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the renewal and its records take profiled grants exactly as Vault stores them', () => {
+    const grants = { 'brick-ipbx': { callctx: ['ipbx:callctx:claim'] }, 'brick-tools': { 'planning-faq': ['tools:planning:read', 'tools:faq:read'] } };
+    const record = { unit: 'brick-voice', incarnation: 'brick-voice-0123456789abcdef', epoch: 2, grants, bootstrapDigest: 'b'.repeat(64) };
+    assert.deepEqual(validateRecord(record).grants, grants);
+    const text = renewalStatement({ universe, records: [record], renewalId: '6ba7b810-9dad-41d1-80b4-00c04fd430c8' });
+    assert.ok(text.includes(`grants <> '${JSON.stringify(grants)}'`), 'compared as the registration wrote it');
+    const { params } = registrationStatement({ universe, unit: 'brick-voice', incarnation: record.incarnation, grants, bootstrapToken: 'c'.repeat(64) });
+    assert.equal(params[3], JSON.stringify(grants));
+    for (const bad of [{ 'brick-ipbx': { callctx: [] } }, { 'brick-ipbx': {} }, { 'brick-ipbx': { Callctx: ['a'] } }]) {
+      assert.throws(() => validateRecord({ ...record, grants: bad }), { code: 'RECORD_INVALID' }, JSON.stringify(bad));
+    }
+  });
+
+  it('revocation is one transaction with its evidence, refused when nothing live is there', () => {
+    const revocationId = '6ba7b810-9dad-41d1-80b4-00c04fd430c8';
+    const text = revocationStatement({ universe, unit: 'brick-voice', revocationId });
+    assert.match(text, /DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;\n  START TRANSACTION;/);
+    assert.match(text, /SELECT incarnation, epoch INTO inc, ep FROM unit_identities WHERE universe_id = '550e8400-e29b-41d4-a716-446655440000' AND unit_id = 'brick-voice' AND NOT revoked FOR UPDATE;/);
+    assert.match(text, /IF inc IS NULL THEN SIGNAL SQLSTATE '45000'/);
+    assert.match(text, /UPDATE unit_identities SET revoked = TRUE WHERE .* AND NOT revoked;\n  IF ROW_COUNT\(\) <> 1 THEN SIGNAL/);
+    assert.match(text, /'event', 'UNIT_IDENTITY_REVOKED', 'level', 'WARN'/);
+    assert.match(text, new RegExp(`INSERT INTO event_outbox \\(event_id, body, body_digest\\) VALUES \\('${revocationId}'`));
+    assert.match(text, /COMMIT;\n  SELECT 'brick-voice', 'revoked', ep;/);
+    assert.doesNotMatch(text, /INSERT INTO unit_identities|SET (incarnation|epoch|grants)\b/, 'it revokes, nothing else');
+    for (const bad of [{ unit: "x'y" }, { universe: 'nope' }, { revocationId: 'r1' }]) {
+      assert.throws(() => revocationStatement({ universe, unit: 'brick-voice', revocationId, ...bad }), { code: 'REVOCATION_INVALID' });
+    }
+    const cli = run(['revoke', '--unit', 'brick-voice', '--revocation-id', revocationId]);
+    assert.equal(cli.status, 0, cli.stderr);
+    assert.equal(cli.stdout, text);
+    assert.equal(run(['revoke', '--unit', 'Brick']).status, 1);
   });
 });

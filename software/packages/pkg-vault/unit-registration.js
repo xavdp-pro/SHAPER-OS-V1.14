@@ -21,6 +21,18 @@
  *     --unit queue --incarnation queue-1 --grant logger=logger:ingest \
  *     --bootstrap-file /apps/queue/etc/identity/bootstrap [--ttl-seconds 2592000]
  *
+ *                --grant <audience>=<scope> grants a whole audience (the base's
+ *                form); --profile <audience>/<profile>=<scope> registers a
+ *                rights profile (pkg-auth PROFILES.md): Vault then issues that
+ *                audience one profile at a time, each credential carrying only
+ *                its profile's scopes. One audience takes one form.
+ *
+ *   revoke       prints the one transaction root applies to revoke a unit's
+ *                identity, with its UNIT_IDENTITY_REVOKED evidence; it fails
+ *                when no live identity of that unit is there to revoke.
+ *
+ *   SHAPER_UNIVERSE_ID=<uuid> node unit-registration.js revoke --unit brick-voice [--revocation-id <uuid>]
+ *
  *   renew        prints the one transaction root applies to Vault's database
  *                for the parent's daily renewal (SOL decision L, which replaces
  *                the all-or-nothing halt of DECISIONS-20261011 §D). Each
@@ -55,7 +67,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeMasterKey } from './index.js';
 import { deriveSigningKey } from './unit-identity.js';
-import { UNIT_NAME_PATTERN } from '../pkg-auth/unit-credentials.js';
+import { isValidGrants, PROFILE_NAME_PATTERN, UNIT_NAME_PATTERN } from '../pkg-auth/unit-credentials.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NAME = UNIT_NAME_PATTERN;
@@ -95,11 +107,8 @@ export function registrationStatement({ universe, unit, incarnation, grants, boo
   if (!grants || typeof grants !== 'object' || Array.isArray(grants) || !Object.keys(grants).length) {
     fail('REGISTRATION_INVALID', 'at least one audience grant is required');
   }
-  for (const [audience, scopes] of Object.entries(grants)) {
-    if (!NAME.test(audience) || !Array.isArray(scopes) || !scopes.length
-        || !scopes.every((s) => typeof s === 'string' && ID.test(s) && !s.includes('*'))) {
-      fail('REGISTRATION_INVALID', 'grants map an audience slug to exact, non-wildcard scopes');
-    }
+  if (!isValidGrants(grants)) {
+    fail('REGISTRATION_INVALID', 'grants map an audience slug to exact, distinct, non-wildcard scopes (at most 32), or to rights profiles (at most 16) each holding such scopes');
   }
   if (typeof bootstrapToken !== 'string' || !/^[0-9a-f]{64}$/.test(bootstrapToken)) fail('REGISTRATION_INVALID', 'bootstrap token must be 64 hex characters');
   if (!Number.isInteger(ttlSeconds) || ttlSeconds < 60 || ttlSeconds > 366 * 24 * 3600) fail('REGISTRATION_INVALID', 'ttl must be 60 s to 366 days');
@@ -134,11 +143,7 @@ export function validateRecord(record) {
   if (typeof incarnation !== 'string' || !ID.test(incarnation)) bad('incarnation is outside its grammar');
   if (!Number.isSafeInteger(epoch) || epoch < 1) bad('epoch is not a positive integer');
   if (typeof bootstrapDigest !== 'string' || !/^[0-9a-f]{64}$/.test(bootstrapDigest)) bad('bootstrapDigest is not a SHA-256');
-  if (!grants || typeof grants !== 'object' || Array.isArray(grants) || !Object.keys(grants).length
-      || !Object.entries(grants).every(([a, scopes]) => NAME.test(a) && Array.isArray(scopes) && scopes.length
-        && scopes.every((s) => typeof s === 'string' && ID.test(s) && !s.includes('*')))) {
-    bad('grants are not audience → exact scopes');
-  }
+  if (!isValidGrants(grants)) bad('grants are not audience → exact scopes, or audience → profile → exact scopes');
   return { unit, incarnation, epoch, grants, bootstrapDigest };
 }
 
@@ -320,6 +325,47 @@ SELECT '#', 'read', '-', '-';
 `;
 }
 
+/**
+ * The parent's revocation of one unit's identity, as one transaction root
+ * applies through the mariadb client. The live row (not already revoked) is
+ * locked and marked revoked, and UNIT_IDENTITY_REVOKED (WARN, event id =
+ * revocationId) is committed with it; anything else — no live row, an outbox
+ * row refused — rolls the whole transaction back and fails the client. From
+ * then on Vault issues nothing to the unit and every credential it holds
+ * fails its current-authority check (403); only a new registration, under a
+ * new epoch, brings it back. Its answer is one row: `unit <TAB> revoked <TAB>
+ * epoch`. No secret is involved.
+ * @param {{ universe: string, unit: string, revocationId: string }} options
+ * @returns {string}
+ */
+export function revocationStatement({ universe, unit, revocationId }) {
+  if (typeof universe !== 'string' || !UUID.test(universe)) fail('REVOCATION_INVALID', 'universe must be a UUID');
+  if (typeof unit !== 'string' || !NAME.test(unit)) fail('REVOCATION_INVALID', 'unit must be a functional slug');
+  if (typeof revocationId !== 'string' || !UUID.test(revocationId)) fail('REVOCATION_INVALID', 'revocationId must be a UUID');
+  const q = sqlString;
+  const where = `universe_id = ${q(universe)} AND unit_id = ${q(unit)}`;
+  return `-- The parent's revocation ${revocationId} of ${unit} (pkg-vault unit-registration.js revoke).
+DELIMITER //
+BEGIN NOT ATOMIC
+  DECLARE inc VARCHAR(190) DEFAULT NULL;
+  DECLARE ep BIGINT UNSIGNED DEFAULT NULL;
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
+  START TRANSACTION;
+  SELECT incarnation, epoch INTO inc, ep FROM unit_identities WHERE ${where} AND NOT revoked FOR UPDATE;
+  IF inc IS NULL THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'revocation: no live identity of ${unit} in this universe'; END IF;
+  UPDATE unit_identities SET revoked = TRUE WHERE ${where} AND NOT revoked;
+  IF ROW_COUNT() <> 1 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'revocation: the locked identity ${unit} did not take it'; END IF;
+  SET @shaper_revocation := JSON_OBJECT('pod', 'vault', 'event', 'UNIT_IDENTITY_REVOKED', 'level', 'WARN', 'executionId', ${q(revocationId)},
+    'correlationId', ${q(revocationId)}, 'data', JSON_OBJECT('revocationId', ${q(revocationId)}, 'universe', ${q(universe)}, 'unit', ${q(unit)},
+    'incarnation', inc, 'epoch', ep + 0), 'sourceEventId', ${q(revocationId)});
+  INSERT INTO event_outbox (event_id, body, body_digest) VALUES (${q(revocationId)}, @shaper_revocation, SHA2(@shaper_revocation, 256));
+  COMMIT;
+  SELECT ${q(unit)}, 'revoked', ep;
+END //
+DELIMITER ;
+`;
+}
+
 /** A fresh bootstrap token, written owner-only; refuses to overwrite one. */
 export function writeBootstrapToken(file) {
   const token = randomBytes(32).toString('hex');
@@ -328,12 +374,30 @@ export function writeBootstrapToken(file) {
   return token;
 }
 
-function parseGrants(values) {
+/**
+ * The command line's grants, in the order given: `--grant audience=scope`
+ * (a whole audience) and `--profile audience/profile=scope` (one scope of a
+ * rights profile). One audience takes one form; the result is validated by
+ * registrationStatement.
+ * @param {{ kind: 'grant'|'profile', value: string }[]} items
+ */
+function parseGrants(items) {
   const grants = {};
-  for (const value of values) {
-    const [audience, scope] = value.split('=');
-    if (!audience || !scope) fail('REGISTRATION_INVALID', `--grant takes audience=scope; got ${value}`);
-    (grants[audience] ||= []).push(scope);
+  for (const { kind, value } of items) {
+    const eq = value.indexOf('=');
+    const left = eq < 0 ? '' : value.slice(0, eq), scope = eq < 0 ? '' : value.slice(eq + 1);
+    if (kind === 'grant') {
+      if (!left || !scope || left.includes('/')) fail('REGISTRATION_INVALID', `--grant takes audience=scope; got ${value}`);
+      if (grants[left] !== undefined && !Array.isArray(grants[left])) fail('REGISTRATION_INVALID', `audience ${left} is given both whole (--grant) and by profile (--profile)`);
+      (grants[left] ||= []).push(scope);
+    } else {
+      const [audience, profile, extra] = left.split('/');
+      if (!audience || !profile || extra !== undefined || !scope || !PROFILE_NAME_PATTERN.test(profile)) {
+        fail('REGISTRATION_INVALID', `--profile takes audience/profile=scope; got ${value}`);
+      }
+      if (Array.isArray(grants[audience])) fail('REGISTRATION_INVALID', `audience ${audience} is given both whole (--grant) and by profile (--profile)`);
+      ((grants[audience] ||= {})[profile] ||= []).push(scope);
+    }
   }
   return grants;
 }
@@ -355,7 +419,8 @@ function cli(argv, env) {
       if (value === undefined) fail('REGISTRATION_INVALID', `${flag} needs a value`);
       if (flag === '--unit') options.unit = value;
       else if (flag === '--incarnation') options.incarnation = value;
-      else if (flag === '--grant') options.grants.push(value);
+      else if (flag === '--grant') options.grants.push({ kind: 'grant', value });
+      else if (flag === '--profile') options.grants.push({ kind: 'profile', value });
       else if (flag === '--bootstrap-file') options.bootstrapFile = value;
       else if (flag === '--ttl-seconds') options.ttlSeconds = Number(value);
       else fail('REGISTRATION_INVALID', `unknown option ${flag}`);
@@ -397,12 +462,24 @@ function cli(argv, env) {
       renewalId, withinSeconds, extendSeconds }));
     return;
   }
+  if (command === 'revoke') {
+    let unit, revocationId = randomUUID();
+    for (let i = 0; i < rest.length; i += 2) {
+      const [flag, value] = [rest[i], rest[i + 1]];
+      if (value === undefined) fail('REVOCATION_INVALID', `${flag} needs a value`);
+      if (flag === '--unit') unit = value;
+      else if (flag === '--revocation-id') revocationId = value;
+      else fail('REVOCATION_INVALID', `unknown option ${flag}`);
+    }
+    process.stdout.write(revocationStatement({ universe: env.SHAPER_UNIVERSE_ID, unit, revocationId }));
+    return;
+  }
   if (command === 'readback') {
     if (rest[0] !== '--renewal-id' || rest.length !== 2) fail('RENEWAL_INVALID', 'readback takes --renewal-id <uuid>');
     process.stdout.write(renewalReadbackStatement({ renewalId: rest[1] }));
     return;
   }
-  fail('USAGE', 'usage: unit-registration.js public-key | register --unit <slug> --incarnation <id> --grant <audience>=<scope> --bootstrap-file <path> [--ttl-seconds <n>] | renew --expect <slug>… --record <file>… [--renewal-id <uuid>] [--within-seconds <n>] [--extend-seconds <n>] | readback --renewal-id <uuid>');
+  fail('USAGE', 'usage: unit-registration.js public-key | register --unit <slug> --incarnation <id> (--grant <audience>=<scope> | --profile <audience>/<profile>=<scope>)… --bootstrap-file <path> [--ttl-seconds <n>] | revoke --unit <slug> [--revocation-id <uuid>] | renew --expect <slug>… --record <file>… [--renewal-id <uuid>] [--within-seconds <n>] [--extend-seconds <n>] | readback --renewal-id <uuid>');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

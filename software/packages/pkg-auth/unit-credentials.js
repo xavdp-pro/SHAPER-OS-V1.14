@@ -13,9 +13,59 @@ export const UNIT_NAME_PATTERN = /^[a-z](?:[a-z0-9_-]{0,30}[a-z0-9_])?$/;
 const NAME = UNIT_NAME_PATTERN;
 /** @param {unknown} value */
 export const isUnitName = (value) => typeof value === 'string' && UNIT_NAME_PATTERN.test(value);
+/**
+ * A rights profile's name (PROFILES.md): the same grammar as a unit, unique
+ * within its audience — `read` on brick-voice and `read` on brick-ipbx are two
+ * profiles.
+ */
+export const PROFILE_NAME_PATTERN = UNIT_NAME_PATTERN;
+/** At most this many scopes in one credential, one profile or one whole audience. */
+export const MAX_SCOPES = 32;
+/** At most this many profiles registered for one audience of one identity. */
+export const MAX_PROFILES = 16;
 const ID = /^[A-Za-z0-9._:-]{1,190}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const text = (value, pattern) => typeof value === 'string' && pattern.test(value);
+
+const isScopeList = (scopes) => Array.isArray(scopes) && scopes.length >= 1 && scopes.length <= MAX_SCOPES
+  && scopes.every((s) => typeof s === 'string' && ID.test(s) && !s.includes('*')) && new Set(scopes).size === scopes.length;
+const isPlainObject = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * The grants the parent registers for one identity (PROFILES.md §2): each
+ * audience maps either to its exact scopes (a whole audience, the base's
+ * form) or to named rights profiles, each with its exact scopes — never both.
+ * @param {unknown} grants
+ * @returns {boolean}
+ */
+export function isValidGrants(grants) {
+  if (!isPlainObject(grants) || !Object.keys(grants).length) return false;
+  return Object.entries(grants).every(([audience, value]) => isUnitName(audience) && (isScopeList(value)
+    || (isPlainObject(value) && Object.keys(value).length >= 1 && Object.keys(value).length <= MAX_PROFILES
+      && Object.entries(value).every(([profile, scopes]) => PROFILE_NAME_PATTERN.test(profile) && isScopeList(scopes)))));
+}
+
+/**
+ * What one identity may receive for one audience and, when that audience is
+ * profiled, one profile: its exact scopes, or why nothing is granted. A
+ * profiled audience is never issued whole, and a whole audience has no
+ * profile to ask for.
+ * @param {Record<string, string[]|Record<string, string[]>>} grants
+ * @param {string} audience
+ * @param {string|null|undefined} profile
+ * @returns {{ scopes: string[] } | { denied: 'AUDIENCE_NOT_GRANTED'|'PROFILE_REQUIRED'|'PROFILE_NOT_GRANTED'|'PROFILE_ON_WHOLE_AUDIENCE' }}
+ */
+export function grantedScopes(grants, audience, profile = null) {
+  const value = isPlainObject(grants) && Object.hasOwn(grants, audience) ? grants[audience] : null;
+  if (Array.isArray(value)) {
+    if (profile !== null && profile !== undefined) return { denied: 'PROFILE_ON_WHOLE_AUDIENCE' };
+    return isScopeList(value) ? { scopes: value } : { denied: 'AUDIENCE_NOT_GRANTED' };
+  }
+  if (!isPlainObject(value)) return { denied: 'AUDIENCE_NOT_GRANTED' };
+  if (profile === null || profile === undefined) return { denied: 'PROFILE_REQUIRED' };
+  const scopes = typeof profile === 'string' && Object.hasOwn(value, profile) ? value[profile] : null;
+  return isScopeList(scopes) ? { scopes } : { denied: 'PROFILE_NOT_GRANTED' };
+}
 
 export function assertIdentityBoundary({ universe, audience }) {
   if (!text(universe, UUID) || !text(audience, NAME)) throw new CredentialError('IDENTITY_POLICY_MISSING', 503);
@@ -34,13 +84,12 @@ export function publicKeyId(publicKey) {
 function validateClaims(c) {
   if (!c || c.kind !== 'shaper.unit.credential' || c.version !== 1 || !text(c.universe, UUID)
       || !text(c.unit, NAME) || !text(c.incarnation, ID) || !text(c.audience, NAME)
+      || (c.profile !== undefined && !text(c.profile, PROFILE_NAME_PATTERN))
       || !text(c.credentialId, ID) || !text(c.revocationRef, ID) || !text(c.keyId, /^[0-9a-f]{64}$/)
       || !Number.isSafeInteger(c.epoch) || c.epoch < 1
       || !Number.isSafeInteger(c.issuedAt) || !Number.isSafeInteger(c.expiresAt)
       || c.expiresAt <= c.issuedAt || c.expiresAt - c.issuedAt > MAX_CREDENTIAL_SECONDS
-      || !Array.isArray(c.scopes) || !c.scopes.length || c.scopes.length > 32
-      || !c.scopes.every((s) => typeof s === 'string' && ID.test(s) && !s.includes('*'))
-      || new Set(c.scopes).size !== c.scopes.length) {
+      || !isScopeList(c.scopes)) {
     throw new CredentialError('CREDENTIAL_INVALID');
   }
 }

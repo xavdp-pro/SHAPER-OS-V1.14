@@ -252,10 +252,10 @@ A unit vendors it at a pinned base revision and checks its SHA-256 at build.
 | Situation | Status, code |
 | :--- | :--- |
 | issued | `200 {token, expiresAt}` |
-| unknown unit, wrong bootstrap, revoked identity, old incarnation, expired bootstrap | `403 IDENTITY_ISSUE_DENIED` (the typed reason is in Vault's own evidence, never in the answer) |
+| unknown unit, wrong bootstrap, revoked identity, old incarnation, expired bootstrap, a unit, audience or profile name outside its grammar | `403 IDENTITY_ISSUE_DENIED` (the typed reason is in Vault's own evidence, never in the answer) |
 | audience not granted | `403 IDENTITY_AUDIENCE_DENIED` |
 | profile not registered for that audience, profile asked on a whole audience, or no profile asked on a profiled one | `403 IDENTITY_PROFILE_DENIED` |
-| malformed request (unknown field, bad grammar) | `400 IDENTITY_REQUEST_INVALID` |
+| a field other than `unit`, `incarnation`, `audience`, `profile` (a caller naming its scopes), or a body that is not a JSON object | `400 IDENTITY_REQUEST_INVALID` |
 | Vault's database unavailable | `503` |
 
 The client turns any other answer, a timeout or a refused connection into

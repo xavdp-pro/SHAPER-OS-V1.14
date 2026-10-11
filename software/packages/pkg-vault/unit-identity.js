@@ -1,6 +1,6 @@
 /** Vault-owned unit control state, backed by Vault's private MariaDB. */
 import { createPrivateKey, createPublicKey, createHash, hkdfSync, timingSafeEqual } from 'node:crypto';
-import { issueCredential, isUnitName, verifyCredential, CredentialError } from '../pkg-auth/unit-credentials.js';
+import { grantedScopes, issueCredential, isUnitName, PROFILE_NAME_PATTERN, verifyCredential, CredentialError } from '../pkg-auth/unit-credentials.js';
 import { appendOutbox } from '../pkg-db/outbox.js';
 import { withTransaction } from '../pkg-db/pool.js';
 
@@ -48,10 +48,19 @@ export class VaultUnitIdentity {
     this.publicKey = createPublicKey(this.privateKey);
   }
 
-  async issue({ unit, incarnation, audience, bootstrapToken }) {
+  /**
+   * Issues one credential for one audience and, when the parent registered
+   * that audience with rights profiles, one profile (pkg-auth PROFILES.md): the
+   * credential carries exactly that profile's scopes and its name, never the
+   * other profiles' — a read credential cannot mutate. A whole audience (the
+   * base's form) is issued without a profile, as before. `profile: null` is no
+   * profile.
+   */
+  async issue({ unit, incarnation, audience, profile = null, bootstrapToken }) {
     if (!isUnitName(unit)
         || typeof incarnation !== 'string' || !/^[A-Za-z0-9._:-]{1,190}$/.test(incarnation)
         || !isUnitName(audience)
+        || (profile !== null && (typeof profile !== 'string' || !PROFILE_NAME_PATTERN.test(profile)))
         || typeof bootstrapToken !== 'string' || !/^[0-9a-f]{64}$/.test(bootstrapToken)) {
       throw new CredentialError('IDENTITY_ISSUE_DENIED', 403);
     }
@@ -73,9 +82,11 @@ export class VaultUnitIdentity {
       if (row.incarnation !== incarnation) throw deny('IDENTITY_ISSUE_DENIED', 'INCARNATION_NOT_CURRENT', true);
       if (Number(row.bootstrap_expiry) <= this.now() / 1000) throw deny('IDENTITY_ISSUE_DENIED', 'BOOTSTRAP_EXPIRED', true);
       const grants = typeof row.grants === 'string' ? JSON.parse(row.grants) : row.grants;
-      const scopes = Object.hasOwn(grants, audience) ? grants[audience] : null;
-      if (!Array.isArray(scopes) || !scopes.length) throw deny('IDENTITY_AUDIENCE_DENIED', 'AUDIENCE_NOT_GRANTED', true);
-      const result = issueCredential({ universe: this.universe, unit, incarnation, audience, scopes,
+      const granted = grantedScopes(grants, audience, profile);
+      if (granted.denied === 'AUDIENCE_NOT_GRANTED') throw deny('IDENTITY_AUDIENCE_DENIED', granted.denied, true);
+      if (granted.denied) throw deny('IDENTITY_PROFILE_DENIED', granted.denied, true);
+      const result = issueCredential({ universe: this.universe, unit, incarnation, audience,
+        ...(profile !== null ? { profile } : {}), scopes: granted.scopes,
         epoch: Number(row.epoch), revocationRef: `${unit}:${row.epoch}` }, this.privateKey, { now: this.now(), ttl: this.ttl });
       const c = result.claims;
       await conn.execute(`INSERT INTO unit_credentials
@@ -83,7 +94,7 @@ export class VaultUnitIdentity {
         VALUES (?, ?, ?, ?, ?, ?, FROM_UNIXTIME(?))`,
       [c.credentialId, this.universe, unit, incarnation, c.epoch, audience, c.expiresAt]);
       await appendOutbox(conn, { pod: 'vault', event: 'UNIT_CREDENTIAL_ISSUED', executionId: c.credentialId,
-        correlationId: c.credentialId, data: { unit, incarnation, audience, epoch: c.epoch } });
+        correlationId: c.credentialId, data: { unit, incarnation, audience, ...(profile !== null ? { profile } : {}), epoch: c.epoch } });
       return result;
     });
   }
@@ -106,11 +117,12 @@ export class VaultUnitIdentity {
     const row = rows[0];
     if (!row || row.identity_revoked || row.credential_revoked || row.incarnation !== claims.incarnation
         || Number(row.epoch) !== claims.epoch) throw revoked();
+    // Every scope the credential carries must still be registered for its
+    // profile (or its whole audience): a profile narrowed, removed or turned
+    // into another form by the parent ends the credentials issued under it.
     const grants = typeof row.grants === 'string' ? JSON.parse(row.grants) : row.grants;
-    if (!Object.hasOwn(grants, audience) || !Array.isArray(grants[audience])
-        || !claims.scopes.every((scope) => grants[audience].includes(scope))) {
-      throw revoked();
-    }
+    const granted = grantedScopes(grants, audience, claims.profile ?? null);
+    if (granted.denied || !claims.scopes.every((scope) => granted.scopes.includes(scope))) throw revoked();
     return claims;
   }
 }
