@@ -96,6 +96,9 @@ test('the detectors recognise the three defects', () => {
 const PROVISIONERS = [
   'software/scripts/provision-lxc-univ.sh',
   'software/scripts/quick-bootstrap-lxc.sh',
+  // The one-click bootstrap installs inside the universe container too; until
+  // lot BASE-DOCS (11 October 2026) its install line had no nftables.
+  'software/scripts/shaper-lxc-bootstrap.sh',
 ];
 
 test('every LXC provisioner installs nftables inside the container', () => {

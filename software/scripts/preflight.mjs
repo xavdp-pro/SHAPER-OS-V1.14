@@ -10,9 +10,12 @@
 //   node scripts/preflight.mjs [--root /path/to/software] [--universe /path/to/<slug>-dev]
 //   SHAPER_HUMAN_OVERRIDE=1 node scripts/preflight.mjs   # human present only
 //
-// --universe (or SHAPER_UNIVERSE_DIR) names the universe whose manifest
-// declares the ports about to be claimed; it exists only from runbook Step
-// 4.3 on, so the port check is skipped, loudly, when no universe is named.
+// --universe (or SHAPER_UNIVERSE_DIR) names a universe of the earlier shape
+// whose manifest declares the ports about to be claimed. A universe derived
+// from the current template checks its ports with its own
+// `deploy/podman-up.sh --preflight` (runbook Step 4), which knows its
+// `<universe>-ctr-<slug>` containers; the start line (Step 0c) names no
+// universe, so the port check is skipped, loudly, when none is named.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -72,9 +75,11 @@ if (!REG) {
 if (process.env.SHAPER_IMAGE_TAG) ok('SHAPER_IMAGE_TAG', process.env.SHAPER_IMAGE_TAG);
 else fail('SHAPER_IMAGE_TAG', 'not exported — the build and the deploy must name the same release');
 
-// 4 — software/.env: created later (Step 4.1), so absence is fine at the
-// start line — but an existing file with placeholder keys is worse than
-// none: the vault would be encrypted with documentation.
+// 4 — software/.env: a universe of the current template reads none (its
+// settings are its own cfg-universe.env, and its Vault generates its key at
+// birth), so absence is fine — but an existing file with placeholder keys is
+// worse than none: a package run or an earlier-shape stack would encrypt its
+// vault with documentation.
 //
 // And the file is read LINE BY LINE, because the deploy script will `source`
 // it: every line that is not blank, a comment, or KEY=value is a command bash
@@ -84,7 +89,7 @@ else fail('SHAPER_IMAGE_TAG', 'not exported — the build and the deploy must na
 // note, and every honest key with a digit in its name (R2_BUCKET_NAME).
 const envPath = path.join(ROOT, '.env');
 if (!fs.existsSync(envPath)) {
-  ok('software/.env', 'absent — created at Step 4.1; its minimum is listed in docs/PREREQUISITES.md §4');
+  ok('software/.env', 'absent — a template universe reads none; where a package run needs one, its minimum is listed in docs/PREREQUISITES.md §4');
 } else {
   const { entries: env, errors } = parseEnvFile(fs.readFileSync(envPath, 'utf8'));
   for (const e of errors) {
@@ -114,7 +119,7 @@ if (!fs.existsSync(envPath)) {
 // halted there and told the human to disable a service installed before
 // Rule 11 — a false red on a documented path.
 if (!UNIVERSE) {
-  say('SKIP', 'ports', 'no universe named — re-run with --universe <slug>-dev before deploying (runbook Step 4.4); a declared port must be free on this machine');
+  say('SKIP', 'ports', 'no universe named — a template universe checks its ports with deploy/podman-up.sh --preflight (runbook Step 4); an earlier-shape one: re-run with --universe <dir> before deploying. A declared port must be free on this machine');
 } else {
   const manifestPath = path.join(UNIVERSE, 'manifest.json');
   let declared = null;

@@ -37,8 +37,11 @@ export const ENV_KEY = /^[A-Z][A-Z0-9_]*$/;
  * first grammar admitted every `KEY=value` line and so let a value that is
  * itself a command through both guards — the reviewer of the first fix
  * proved it with `KEY=1; echo INJECTED`. The bash side of this grammar is
- * the grep in universes/_template/deploy/podman-up.sh; the two are kept
- * identical by the test that feeds both the same lines.
+ * the grep of `shaper_env_file_is_variables_only`, verbatim in
+ * universes/_template/deploy/lib.sh (shared by the template's podman-up.sh,
+ * proof.sh and base.sh), in univ-minimal's podman-up.sh and in univ-base's;
+ * test/preflight-env-and-ports.test.js feeds the template's and univ-base's
+ * copies and this pattern the same lines and keeps them identical.
  */
 export const ENV_VALUE = /^("([^"`$]|\$[^(])*\$?"|'[^']*'|[^ \t;&|()<>`'"]*)$/;
 
@@ -175,9 +178,14 @@ export function collisions(declared, inUse) {
 }
 
 /**
- * The container the template runs a brick in: `<slug>-<brick minus "brick-">`
- * — `univ-x-dev/manifest.json` declaring `brick-vault` runs as
- * `univ-x-dev-vault` (podman-up.sh: `podman run --name "${SLUG}-vault"`).
+ * The container the EARLIER template ran a brick in: `<slug>-<brick minus
+ * "brick-">` — `univ-x-dev/manifest.json` declaring `brick-vault` ran as
+ * `univ-x-dev-vault` (its podman-up.sh: `podman run --name "${SLUG}-vault"`).
+ * A universe of the current template runs each base unit as
+ * `<universe>-ctr-<slug>` and keeps it across runs rather than replacing it;
+ * its ports are checked by its own `deploy/podman-up.sh --preflight`, which
+ * recognises those names (univ-minimal INTENT.md#identity). This name, and
+ * the gate's `--universe` port check built on it, serve the earlier shape.
  */
 export function ownContainerName(slug, brick) {
   return `${slug}-${brick.replace(/^brick-/, '')}`;
