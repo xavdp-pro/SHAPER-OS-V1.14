@@ -128,8 +128,8 @@ resolve_image() {
 # ── 3. The declared ports are free, or held by this universe's own units ────
 while read -r brick port; do
   slug="$(jq -r --arg b "$brick" '.bricks[$b].database.slug' "$MANIFEST")"
-  if ss -ltnH "sport = :$port" | grep -q .; then
-    if ! podman ps --format '{{.Names}}' | grep -qx "${UNIVERSE}-ctr-${slug}"; then
+  if [[ -n "$(ss -ltnH "sport = :$port")" ]]; then
+    if ! grep -qx "${UNIVERSE}-ctr-${slug}" <<<"$(podman ps --format '{{.Names}}')"; then
       echo "[podman-up] port $port declared by $brick is held by something that is not ${UNIVERSE}-ctr-${slug} — stop and disable it; no second port is invented" >&2
       ss -ltnpH "sport = :$port" >&2 || true
       exit 1

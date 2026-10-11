@@ -206,7 +206,7 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
     fail "$s-identical" "restored tables differ from live"; diff <(echo "$livefp") <(echo "$restoredfp") | sed 's/^/           /'
   fi
   if [[ "$(drillsql "$s" -e "SELECT CONCAT(user,'@',host) FROM mysql.user WHERE user='$s'")" == "$s@localhost" ]] \
-     && podman logs "$(drill_ctr "$s")" 2>&1 | grep -q "password: /apps/$s/etc/mysql/localhost/passwd generated once"; then
+     && [[ "$(podman logs "$(drill_ctr "$s")" 2>&1)" == *"password: generated once into /apps/$s/etc/mysql/localhost/passwd"* ]]; then
     ok "$s-own-account" "the restored unit has its own account and a password generated for this volume"
   else
     fail "$s-own-account" "the restored unit's account or password birth was not observed"
@@ -231,8 +231,8 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
       start_drill "$s" "$work" serve "$dport" "$work/wrong.key"
       for _ in $(seq 1 60); do [[ "$(podman inspect -f '{{.State.Status}}' "$(drill_ctr "$s")" 2>/dev/null)" == exited ]] && break; sleep 1; done
       if [[ "$(podman inspect -f '{{.State.Status}}' "$(drill_ctr "$s")" 2>/dev/null)" == exited ]] \
-         && podman logs "$(drill_ctr "$s")" 2>&1 | grep -q VAULT_KEY_MISMATCH \
-         && podman logs "$(drill_ctr "$s")" 2>&1 | grep -q 'then MariaDB shut down cleanly'; then
+         && drill_log="$(podman logs "$(drill_ctr "$s")" 2>&1)" \
+         && [[ "$drill_log" == *VAULT_KEY_MISMATCH* && "$drill_log" == *'then MariaDB shut down cleanly'* ]]; then
         ok vault-wrong-key-refused "a Vault started with another key refuses to serve (VAULT_KEY_MISMATCH), then its MariaDB stops cleanly"
       else
         fail vault-wrong-key-refused "state $(podman inspect -f '{{.State.Status}} {{.State.ExitCode}}' "$(drill_ctr "$s")" 2>/dev/null)"

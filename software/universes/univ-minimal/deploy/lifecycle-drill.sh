@@ -187,12 +187,13 @@ check rerun-epochs "no incarnation changed and no epoch moved in Vault (root pat
 
 # ── 4. The parent's bootstrap renewal ─────────────────────────────────────
 printf '\n── bootstrap renewal\n'
+# count_state (unit-probes.sh) counts renew-bootstraps.sh's per-identity lines.
 expiries() { rootsql vault vault -e "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', TIMESTAMPDIFF(SECOND, '1970-01-01', bootstrap_expires_at)) ORDER BY unit_id) FROM unit_identities WHERE universe_id='$UNIVERSE_ID'" 2>/dev/null; }
 shifted() { tr ',' '\n' <<<"$1" | awk -F: -v d="$2" '{ split($2, t, "."); printf "%s%s:%d", (NR > 1 ? "," : ""), $1, t[1] + d }'; }
 EXP_BEFORE="$(expiries)"
 renew_since="$(rootsql vault -e 'SELECT UTC_TIMESTAMP(3)')"
 renew_out="$(RENEW_WITHIN_SECONDS=$((40 * 86400)) bash "$UNIV/deploy/renew-bootstraps.sh" 2>&1)" \
-  && ok renewal "renew-bootstraps.sh (40-day drill window) ran: $(grep -c ' renewed ' <<<"$renew_out") identities renewed" \
+  && ok renewal "renew-bootstraps.sh (40-day drill window) ran: $(count_state "$renew_out" renewed) identities renewed" \
   || fail renewal "renew-bootstraps.sh failed: $(tail -n 2 <<<"$renew_out" | tr '\n' ' ')"
 check renewal-extended "every recorded bootstrap extended by exactly 30 days (vault.unit_identities, root path)" \
   test -n "$EXP_BEFORE" -a "$(shifted "$(expiries)" 0)" = "$(shifted "$EXP_BEFORE" 2592000)"
@@ -207,9 +208,10 @@ check renewal-evidence "each renewal's proof (UNIT_BOOTSTRAP_RENEWED) committed 
 check renewal-no-token "the renewal's output carries no bootstrap value" \
   bash -c '! grep -qE "[0-9a-f]{64}" <<<"$1"' _ "$renew_out"
 daily_out="$(bash "$UNIV/deploy/renew-bootstraps.sh" 2>&1)" \
-  && ok renewal-daily "the daily run right after: nothing due ($(grep -c ' current ' <<<"$daily_out") current)" \
+  && ok renewal-daily "the daily run right after: nothing due ($(count_state "$daily_out" current) current)" \
   || fail renewal-daily "the daily run failed: $(tail -n 2 <<<"$daily_out" | tr '\n' ' ')"
-check renewal-daily-nothing "the daily run renewed nothing" bash -c '! grep -q " renewed " <<<"$1"' _ "$daily_out"
+check renewal-daily-nothing "the daily run renewed nothing, and found every identity current" \
+  test "$(count_state "$daily_out" renewed)|$(count_state "$daily_out" current)" = "0|$(count_state "$renew_out" renewed)"
 
 # ── 5. Recreation: new containers over the same volumes ─────────────────────
 printf '\n── recreation\n'

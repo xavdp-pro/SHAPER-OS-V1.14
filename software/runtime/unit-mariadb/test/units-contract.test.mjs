@@ -198,6 +198,94 @@ test('univ-minimal has no separate database container and no recursive ownership
   }
 });
 
+describe("univ-minimal's probes read a real unit as it is (CT121 run of c4d9559)", () => {
+  const deploy = path.join(SOFTWARE, 'universes/univ-minimal/deploy');
+  const shim = path.join(SOFTWARE, 'universes/univ-minimal/test/rehearsal/jq-shim');
+  const probes = (script, ...args) => spawnSync('bash', ['-c', `UNIVERSE=univ-minimal; APPS_ROOT=/apps; MANIFEST=/dev/null; source '${deploy}/unit-probes.sh'; ${script}`, '_', ...args], {
+    env: { PATH: `${shim}:${process.env.PATH}` }, encoding: 'utf8' });
+  const js = probes('printf %s "$UNIT_PROCESSES_JS"').stdout;
+  const proc = (layout) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fake-proc-'));
+    for (const [pid, ppid, uid, comm, argv] of layout) {
+      fs.mkdirSync(path.join(dir, String(pid)));
+      fs.writeFileSync(path.join(dir, String(pid), 'status'), `Name:\t${comm}\nPPid:\t${ppid}\nUid:\t${uid}\t${uid}\t${uid}\t${uid}\n`);
+      fs.writeFileSync(path.join(dir, String(pid), 'comm'), `${comm}\n`);
+      fs.writeFileSync(path.join(dir, String(pid), 'cmdline'), `${argv.join('\0')}\0`);
+    }
+    return dir;
+  };
+  const SUP = '/usr/local/lib/shaper/unit-mariadb/supervisor.mjs';
+  const SOCK = '/run/vault/mysqld.sock';
+  // What `podman top univ-minimal-ctr-vault` showed on CT121.
+  const ct121 = [
+    [1, 0, 0, 'tini', ['/sbin/tini', '--', 'node', SUP, 'node', 'server.js']],
+    [2, 1, 0, 'node', ['node', SUP, 'node', 'server.js']],
+    [13, 2, 10611, 'mariadbd', ['mariadbd', '--no-defaults', '--datadir=/apps/vault/sav/mariadb', `--socket=${SOCK}`, '--pid-file=/run/vault/mysqld.pid', '--skip-networking']],
+    [58, 2, 10610, 'node', ['node', 'server.js']],
+  ];
+  const facts = (layout) => {
+    const dir = proc(layout);
+    try {
+      const r = spawnSync(process.execPath, ['-e', js, dir, SOCK], { encoding: 'utf8' });
+      assert.equal(r.status, 0, r.stderr);
+      return r.stdout;
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  };
+  const verdicts = (json) => probes(`v() { if "$@"; then echo "$1=yes"; else echo "$1=no"; fi; }
+    v probe_supervisor_root "$1"; v probe_two_processes "$1" 10611 10610; v probe_no_root_application "$1"; v probe_engine_args "$1"
+    echo "engine=$(engine_pid_of "$1")"`, json).stdout;
+
+  test('tini, whose command line names the supervisor, is not taken for it', () => {
+    const json = facts(ct121);
+    const f = JSON.parse(json);
+    assert.deepEqual([f.supervisorCount, f.supervisor, f.pid1, f.children, f.rootUnderSupervisor, f.enginePid, f.engineArgs],
+      [1, '0:1', 'tini:0', 'mariadbd:10611,node:10610', 0, '13', true]);
+    assert.equal(verdicts(json), 'probe_supervisor_root=yes\nprobe_two_processes=yes\nprobe_no_root_application=yes\nprobe_engine_args=yes\nengine=13\n');
+  });
+
+  test('the predicates still fail what they must', () => {
+    const rootApp = ct121.map((p) => (p[0] === 58 ? [58, 2, 0, 'node', ['node', 'server.js']] : p));
+    assert.match(verdicts(facts(rootApp)), /probe_two_processes=no\nprobe_no_root_application=no/);
+    const noTini = ct121.map((p) => (p[0] === 1 ? [1, 0, 0, 'sh', ['sh']] : p));
+    assert.match(verdicts(facts(noTini)), /probe_supervisor_root=no/);
+    const networked = ct121.map((p) => (p[0] === 13 ? [13, 2, 10611, 'mariadbd', ['mariadbd', '--no-defaults', `--socket=${SOCK}`]] : p));
+    assert.match(verdicts(facts(networked)), /probe_engine_args=no/);
+    const twoSupervisors = [...ct121, [70, 1, 0, 'node', ['node', SUP]]];
+    assert.match(verdicts(facts(twoSupervisors)), /probe_supervisor_root=no\nprobe_two_processes=no\nprobe_no_root_application=no/);
+    assert.match(verdicts('{}'), /probe_supervisor_root=no\nprobe_two_processes=no\nprobe_no_root_application=no\nprobe_engine_args=no\nengine=\n/);
+  });
+
+  test('a renewal is counted from its per-identity lines, not its summary line', () => {
+    const daily = '  maestro    current   bootstrap expires 2026-12-10T05:00:00.000000Z\n  vault      current   bootstrap expires 2026-12-10T05:00:00.000000Z\n'
+      + '[renew-bootstraps] univ-minimal (uuid): 2 identities checked; renewed what expired within 7 day(s)\n';
+    assert.equal(probes('echo "$(count_state "$1" renewed)|$(count_state "$1" current)"', daily).stdout, '0|2\n');
+  });
+
+  test('a refusal is read whole, never through a pipe that pipefail turns into a failure', () => {
+    for (const name of fs.readdirSync(deploy).filter((n) => n.endsWith('.sh'))) {
+      const text = fs.readFileSync(path.join(deploy, name), 'utf8');
+      if (!/set -[a-z]*o pipefail/.test(text)) continue;
+      for (const line of text.split('\n')) {
+        if (/^\s*#/.test(line) || /bash -c/.test(line)) continue;
+        assert.doesNotMatch(line, /\|\s*grep -(q|c|qx)\b/, `${name}: ${line.trim()}`);
+      }
+    }
+    const proof = fs.readFileSync(path.join(deploy, 'proof.sh'), 'utf8');
+    assert.match(proof, /\[\[ "\$\(foreign_sql [^\n]*\)" == \*'Access denied'\* \]\]/);
+  });
+
+  test('the drills look for the log lines the supervisor writes', () => {
+    const supervisor = read('runtime/unit-mariadb/supervisor.mjs');
+    assert.ok(supervisor.includes('password: generated once into ${file}'));
+    assert.ok(fs.readFileSync(path.join(deploy, 'restore-drill.sh'), 'utf8').includes('"password: generated once into /apps/$s/etc/mysql/localhost/passwd"'));
+    assert.ok(supervisor.includes('password: ${file} kept'));
+  });
+
+  test('skip_networking is compared by its truth: CONCAT spells it ON', () => {
+    assert.match(fs.readFileSync(path.join(deploy, 'proof.sh'), 'utf8'), /SELECT CONCAT\(IF\(@@skip_networking, 1, 0\), '\|', @@socket\)/);
+  });
+});
+
 describe('univ-minimal births the units in the order their identities need', () => {
   const deploy = path.join(SOFTWARE, 'universes/univ-minimal/deploy');
   const up = fs.readFileSync(path.join(deploy, 'podman-up.sh'), 'utf8');

@@ -64,15 +64,16 @@ gate_unit() {
     bash -c "! podman container exists '${ctr}-mariadb'"
 
   local procs
-  procs="$(unit_processes "$ctr")"
+  procs="$(unit_processes "$ctr" "$sock")"
   check "$s-supervisor-root" "pid 1 is tini; one supervisor, as root, its child" probe_supervisor_root "$procs"
   check "$s-two-processes" "the supervisor's children: mariadbd as mysql ($engine) and the application as $s ($uid)" \
     probe_two_processes "$procs" "$engine" "$uid"
   check "$s-app-not-root" "nothing the supervisor started runs as root" probe_no_root_application "$procs"
-  check "$s-engine-args" "mariadbd runs --no-defaults --skip-networking --socket=$sock" probe_engine_args "$procs" "$sock"
+  check "$s-engine-args" "mariadbd runs --no-defaults --skip-networking --socket=$sock" probe_engine_args "$procs"
 
-  check "$s-skip-networking" "@@skip_networking = 1, @@socket = $sock" \
-    test "$(rootsql "$s" -e 'SELECT CONCAT(@@skip_networking, "|", @@socket)' 2>/dev/null)" = "1|$sock"
+  # CONCAT renders a boolean variable as ON/OFF: compare its truth, not its spelling.
+  check "$s-skip-networking" "@@skip_networking is on, @@socket = $sock" \
+    test "$(rootsql "$s" -e "SELECT CONCAT(IF(@@skip_networking, 1, 0), '|', @@socket)" 2>/dev/null)" = "1|$sock"
   check "$s-no-tcp-listener" "mariadbd holds no listening TCP socket (its own fds, read as mysql)" \
     test "$(engine_tcp_listeners "$ctr" "$engine")" = 0
   check "$s-socket-not-mounted" "nothing is mounted on /run or /run/$s: the socket stays in the container" \
@@ -147,7 +148,9 @@ gate_unit() {
   for other in "${UNITS[@]}"; do
     [[ "$other" == "$s" ]] && continue
     tried=$((tried + 1))
-    foreign_sql "$ctr" "$s" "$uid" "$other" "$APPS_ROOT/$other/etc/mysql/localhost/passwd" | grep -q 'Access denied' && refused=$((refused + 1))
+    # The answer is read whole: the client's refusal exits non-zero, which
+    # under pipefail would fail a `| grep` even when the refusal is there.
+    [[ "$(foreign_sql "$ctr" "$s" "$uid" "$other" "$APPS_ROOT/$other/etc/mysql/localhost/passwd")" == *'Access denied'* ]] && refused=$((refused + 1))
   done
   check "$s-foreign-refused" "$refused/$tried other units' credentials refused" test "$refused" -eq "$tried"
 

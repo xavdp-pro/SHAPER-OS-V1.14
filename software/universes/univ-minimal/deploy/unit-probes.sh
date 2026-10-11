@@ -11,33 +11,57 @@
 #   rootsql <slug> [database] -e <sql>
 rootsql() { local s="$1"; shift; podman exec "${UNIVERSE}-ctr-$s" mariadb --no-defaults -S "/run/$s/mysqld.sock" -uroot -N -B "$@"; }
 
-# The container's processes, read from /proc inside it: pid, ppid, uid, comm,
-# args, and whether the process descends from the unit supervisor.
+# The container's processes, read from /proc inside it, and the facts the
+# inventory checks, computed there from what was read: pid 1, the unit
+# supervisor, its children, any root process under it, the engine.
+# The supervisor is the node process whose script is the runtime's
+# supervisor.mjs — not tini, pid 1, whose own command line carries the same
+# words (`tini -- node …/supervisor.mjs node server.js`; CT121, 11 Oct 2026).
+#   node -e "$UNIT_PROCESSES_JS" [<proc root, /proc>] [<engine socket>]
 UNIT_PROCESSES_JS='
 const fs = require("fs");
+const root = process.argv[1] || "/proc", socket = process.argv[2] || "";
 const procs = new Map();
-for (const d of fs.readdirSync("/proc")) {
-  if (!/^\d+$/.test(d) || Number(d) === process.pid) continue;
+for (const d of fs.readdirSync(root)) {
+  if (!/^\d+$/.test(d) || (root === "/proc" && Number(d) === process.pid)) continue;
   try {
-    const status = fs.readFileSync(`/proc/${d}/status`, "utf8");
+    const status = fs.readFileSync(`${root}/${d}/status`, "utf8");
+    const argv = fs.readFileSync(`${root}/${d}/cmdline`, "utf8").split("\0").filter(Boolean);
+    const comm = fs.readFileSync(`${root}/${d}/comm`, "utf8").trim();
     procs.set(Number(d), {
       pid: Number(d),
       ppid: Number(/^PPid:\s+(\d+)/m.exec(status)[1]),
       uid: Number(/^Uid:\s+(\d+)/m.exec(status)[1]),
-      comm: fs.readFileSync(`/proc/${d}/comm`, "utf8").trim(),
-      args: fs.readFileSync(`/proc/${d}/cmdline`, "utf8").split("\0").filter(Boolean).join(" "),
+      comm,
+      args: argv.join(" "),
+      isSupervisor: comm === "node" && /(^|\/)unit-mariadb\/supervisor\.mjs$/.test(argv[1] || ""),
     });
   } catch {}
 }
-const supervisor = [...procs.values()].find((p) => p.args.includes("unit-mariadb/supervisor.mjs"));
-for (const p of procs.values()) {
+const list = [...procs.values()];
+const supervisors = list.filter((p) => p.isSupervisor);
+const supervisor = supervisors.length === 1 ? supervisors[0] : null;
+for (const p of list) {
   let q = procs.get(p.ppid), under = false;
   for (let hops = 0; q && hops < 64; hops += 1, q = procs.get(q.ppid)) if (supervisor && q.pid === supervisor.pid) { under = true; break; }
   p.underSupervisor = under;
 }
-process.stdout.write(JSON.stringify([...procs.values()]));
+const engines = list.filter((p) => p.comm === "mariadbd");
+const one = procs.get(1);
+process.stdout.write(JSON.stringify({
+  supervisorCount: supervisors.length,
+  supervisor: supervisor ? `${supervisor.uid}:${supervisor.ppid}` : "",
+  pid1: one ? `${one.comm}:${one.uid}` : "",
+  children: supervisor ? list.filter((p) => p.ppid === supervisor.pid).map((p) => `${p.comm}:${p.uid}`).sort().join(",") : "",
+  rootUnderSupervisor: list.filter((p) => p.underSupervisor && p.uid === 0).length,
+  enginePid: engines.length === 1 ? String(engines[0].pid) : "",
+  engineArgs: engines.length === 1 && /(^|\/)mariadbd --no-defaults /.test(engines[0].args)
+    && engines[0].args.split(" ").includes("--skip-networking") && Boolean(socket) && engines[0].args.split(" ").includes(`--socket=${socket}`),
+  processes: list,
+}));
 '
-unit_processes() { podman exec "$1" node -e "$UNIT_PROCESSES_JS" 2>/dev/null || echo '[]'; }
+#   unit_processes <ctr> <engine socket>
+unit_processes() { podman exec "$1" node -e "$UNIT_PROCESSES_JS" /proc "$2" 2>/dev/null || echo '{}'; }
 
 # Listening TCP sockets held by mariadbd, matched by inode against its own file
 # descriptors — read as the engine uid, which may read them; an unreadable fd
@@ -89,26 +113,22 @@ app_writable() {
   podman exec --user "$uid" "$ctr" sh -c 'for p; do [ -e "$p" ] || { echo "$p(absent)"; continue; }; [ -w "$p" ] && echo "$p"; done; true' _ "$@" 2>&1 | paste -sd' '
 }
 
-# Predicates over unit_processes' JSON.
+# Predicates over unit_processes' JSON: plain fields, computed inside the
+# container from /proc; what cannot be read is empty and fails.
 probe_supervisor_root() {  # <procs-json>
-  [[ "$(jq -r '[.[] | select(.args | contains("unit-mariadb/supervisor.mjs")) | "\(.uid):\(.ppid)"] | join(",")' <<<"$1")" == "0:1" ]] \
-    && [[ "$(jq -r '.[] | select(.pid == 1) | "\(.comm):\(.uid)"' <<<"$1")" == "tini:0" ]]
+  [[ "$(jq -r '.supervisorCount' <<<"$1")" == 1 && "$(jq -r '.supervisor' <<<"$1")" == "0:1" && "$(jq -r '.pid1' <<<"$1")" == "tini:0" ]]
 }
 probe_two_processes() {  # <procs-json> <engine-uid> <unit-uid>
-  local sup
-  sup="$(jq -r '.[] | select(.args | contains("unit-mariadb/supervisor.mjs")) | .pid' <<<"$1")"
-  [[ "$sup" =~ ^[0-9]+$ ]] || return 1
-  [[ "$(jq -r --argjson p "$sup" '[.[] | select(.ppid == $p) | "\(.comm):\(.uid)"] | sort | join(",")' <<<"$1")" \
-     == "$(printf '%s\n' "mariadbd:$2" "node:$3" | sort | paste -sd,)" ]]
+  [[ "$(jq -r '.supervisorCount' <<<"$1")" == 1 ]] \
+    && [[ "$(jq -r '.children' <<<"$1")" == "$(printf '%s\n' "mariadbd:$2" "node:$3" | sort | paste -sd,)" ]]
 }
 probe_no_root_application() {  # <procs-json>
-  [[ "$(jq -r '.[] | select(.args | contains("unit-mariadb/supervisor.mjs")) | .pid' <<<"$1")" =~ ^[0-9]+$ ]] \
-    && [[ "$(jq -r '[.[] | select(.underSupervisor and .uid == 0)] | length' <<<"$1")" == 0 ]]
+  [[ "$(jq -r '.supervisorCount' <<<"$1")" == 1 && "$(jq -r '.rootUnderSupervisor' <<<"$1")" == 0 ]]
 }
-probe_engine_args() {  # <procs-json> <socket>
-  [[ "$(jq -r --arg s "$2" '[.[] | select(.comm == "mariadbd") | (.args | test("(^|/)mariadbd --no-defaults ")) and (.args | contains("--skip-networking")) and (.args | contains("--socket=" + $s))] | map(tostring) | join(",")' <<<"$1")" == true ]]
+probe_engine_args() {  # <procs-json>  (the socket was given to unit_processes)
+  [[ "$(jq -r '.engineArgs' <<<"$1")" == true ]]
 }
-engine_pid_of() { jq -r '[.[] | select(.comm == "mariadbd") | .pid] | if length == 1 then .[0] else "" end' <<<"$1"; }
+engine_pid_of() { jq -r '.enginePid // empty' <<<"$1"; }
 
 # ── Identity and authenticated calls ────────────────────────────────────────
 # Who holds a Vault-signed credential — every unit that owes evidence to
@@ -260,6 +280,13 @@ queue_complete() {
   queue_curl -s -o /dev/null -w '%{http_code}' -X PATCH "$base/api/jobs/$job" -H 'Content-Type: application/json' \
     -d "{\"attempt\":\"$attempt\",\"status\":\"COMPLETED\",\"progress\":100,\"step\":1,\"result\":$result}"
 }
+
+# renew-bootstraps.sh prints one line per identity, "  <unit> <state> bootstrap
+# expires …"; its summary line also holds the word "renewed" (CT121: a daily
+# run that renewed nothing was counted as renewing), so only the per-identity
+# lines are counted.
+#   count_state <renewal-output> <state>
+count_state() { grep -cE "^  [a-z][a-z0-9_-]* +$2 " <<<"$1" || true; }
 
 # One variable of a unit container's environment, as podman created it.
 #   unit_env <ctr> <NAME>

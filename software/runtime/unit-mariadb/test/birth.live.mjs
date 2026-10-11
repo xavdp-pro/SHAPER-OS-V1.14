@@ -104,6 +104,11 @@ async function bornTwice(slug, schemaFile, version) {
   assert.equal(dml.code, 0, dml.stderr);
   fs.rmSync(file);
   assert.deepEqual(fs.readdirSync(stateDir), [], 'no option file left behind');
+  // The universe proof's own query of the engine, as proof.sh sends it.
+  const proofSql = /rootsql "\$s" -e "(SELECT CONCAT\(IF\(@@skip_networking[^"]+)"/.exec(fs.readFileSync(path.join(SOFTWARE, 'universes/univ-minimal/deploy/proof.sh'), 'utf8'))[1];
+  assert.equal((await ops.rootSql(proofSql)).trim(), `1|${config.paths.socket}`);
+  // What the previous query answered on CT121: MariaDB spells the boolean ON.
+  assert.equal((await ops.rootSql('SELECT CONCAT(@@skip_networking, "|", @@socket)')).trim(), `ON|${config.paths.socket}`);
   await stopEngine(engine);
   return { config, ops, lines };
 }
