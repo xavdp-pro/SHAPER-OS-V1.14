@@ -56,10 +56,13 @@ test('PREREQUISITES §4 lists every bridge\'s model variable, measured at deploy
   assert.match(minimum, PHRASE, 'the table must say the value is measured at deploy, never written here');
 });
 
-test('the runbook\'s measurement step names every bridge\'s variable in the same shape', () => {
-  const measure = section(read('docs/agent/RUNBOOK-EXPLICIT.md'), '# 4.2b', '# 4.3');
+// Since lot BASE-DOCS (11 October 2026) the measurement lives in univ-base's
+// AGENT-DEPLOY (step 2b): the runbook walks the template's base units, which
+// run no engine, and univ-base is the universe that still runs a bridge.
+test('the measurement step (univ-base 2b) names every bridge\'s variable in the same shape', () => {
+  const measure = section(read('software/universes/univ-base/AGENT-DEPLOY.md'), '# 2b', '### 3.');
   const absent = VARIABLES.map(({ name }) => name).filter((name) => !measure.includes(name));
-  assert.deepEqual(absent, [], `runbook Step 4.2b does not name:\n  ${absent.join('\n  ')}`);
+  assert.deepEqual(absent, [], `univ-base step 2b does not name:\n  ${absent.join('\n  ')}`);
   assert.match(measure, PHRASE);
 });
 
@@ -79,7 +82,7 @@ test('software/.env.example declares every model variable, and none with a value
 
 test('no document in the deploy path writes a model into a model variable', () => {
   const shipped = [];
-  for (const rel of ['docs/PREREQUISITES.md', 'docs/agent/RUNBOOK-EXPLICIT.md', 'docs/human/KEYS-AND-ACCOUNTS.md', 'software/.env.example', 'examples/universe.env.example']) {
+  for (const rel of ['docs/PREREQUISITES.md', 'docs/agent/RUNBOOK-EXPLICIT.md', 'software/universes/univ-base/AGENT-DEPLOY.md', 'docs/human/KEYS-AND-ACCOUNTS.md', 'software/.env.example', 'examples/universe.env.example']) {
     read(rel).split('\n').forEach((line, i) => {
       const m = ANY_MODEL_VAR.exec(line);
       if (m) shipped.push(`${rel}:${i + 1}  ${m[0]}`);

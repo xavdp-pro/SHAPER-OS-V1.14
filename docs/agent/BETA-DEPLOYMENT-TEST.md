@@ -38,11 +38,16 @@ and rebuilding it only re-downloads the world.
 repository, with no hidden dependency? A skipped build answers nothing, and a
 green run that skipped it is a false green (Rule 0G).
 
-So, before Step 4.2:
+So, before the build (runbook Step 4.1), under a tag the registry has never
+served:
 
 ```bash
 export SHAPER_FORCE_REBUILD=1     # a beta run builds every image from source
 ```
+
+`build-all-bricks.sh` asks the registry for every image before it builds any:
+under `SHAPER_FORCE_REBUILD=1` it halts when the tag is already served, and it
+halts on any answer but 200 or 404 — a published tag is never moved.
 
 **The proof is factual, never a stopwatch** (Rule 10 forbids promised
 durations — and the figure this section once carried was wrong by 45x on the

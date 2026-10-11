@@ -138,6 +138,6 @@ export SHAPER_UNIVERSE_DIR="$UNIV"
 bash "$HERE/podman-up.sh"
 sleep 20
 bash "$HERE/proof.sh"
-echo "[gbs-v114] partial proof done. For runbook step 6 (artefact + live model):"
+echo "[gbs-v114] partial proof done. For AGENT-DEPLOY step 4 (artefact + live model):"
 echo "  SHAPER_UNIVERSE_DIR=$UNIV bash $HERE/gbs-test-measure-opencode.sh && SHAPER_UNIVERSE_DIR=$UNIV bash $HERE/podman-up.sh"
 echo "  SHAPER_UNIVERSE_DIR=$UNIV bash $HERE/gbs-test-run-full-proof.sh"

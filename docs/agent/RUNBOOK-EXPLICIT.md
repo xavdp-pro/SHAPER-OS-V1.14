@@ -36,8 +36,13 @@ directly on a host that carries production. Create the container first:
 # piped SSH session lxc launch waits on stdin forever without it.
 lxc launch images:debian/13 <univ_slug> --profile podman-univ < /dev/null
 lxc exec <univ_slug> -- apt-get update
-lxc exec <univ_slug> -- apt-get install -y podman nftables iproute2 git curl jq nodejs npm openssl
+lxc exec <univ_slug> -- apt-get install -y podman nftables iproute2 git curl jq nodejs npm openssl python3
+lxc exec <univ_slug> -- systemctl enable podman-restart.service
 ```
+
+`podman-restart.service` brings the units (`--restart=always`) back when the
+universe container restarts; without it a reboot leaves the universe down and
+every health check silent.
 
 On a **Proxmox** host it is `pct create` with `features: nesting=1,keyctl=1`
 instead — the `lxc`-shape families, with the full package list and the profile
@@ -45,6 +50,13 @@ definition, are in
 [`../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md`](../../software/LXC-CLEAN-SHEET-DEPLOYMENT-STEPS.md).
 Nesting is mandatory; without it podman fails on the first image with a
 `Permission denied` that says nothing about nesting.
+
+- **Trap — on a Proxmox UNPRIVILEGED container, pass `/dev/net/tun` too.**
+  `pct set <id> --dev0 /dev/net/tun,mode=0666`, then `pct reboot <id>`. Without
+  it every `RUN` step of a `podman build` fails inside the container (`pasta …
+  /dev/net/tun: No such file or directory`), while `podman run` of a prebuilt
+  image works — a container that only runs images looks fit and is not
+  ([univ-minimal — what the universe container must provide](../../software/universes/univ-minimal/INTENT.md#host)).
 
 - **The host has neither Proxmox nor LXD → STOP and ask.** Installing a
   hypervisor is an architecture decision, not a package install (Rule 11).
@@ -124,7 +136,9 @@ Terrain is a step, not an assumption.)*
    cd software && npm run preflight     # or: node scripts/preflight.mjs
    ```
 
-   - **Exit 0 → start.**
+   - **Exit 0 → start.** It prints `SKIP ports` at this point, and that is
+     right: no universe exists yet; the universe's own preflight checks its
+     ports at Step 4.4.
    - **Exit 1 → DO NOT START.** The failures it prints are your measured
      result: report them. The only path past a red gate is the word of the
      human working with you — they, never you, run it as
@@ -145,12 +159,16 @@ Terrain is a step, not an assumption.)*
    and no other explanation — if that happens, memory is the first suspect.
    (No figure is given: none has been measured. Rule 10's spirit applies.)
 
-## Step 1 — Read these four files, in this order
+## Step 1 — Read these five files, in this order
 
 1. [`LAW.md`](../../LAW.md)
 2. [`./BOOT-CONTRACT.md`](./BOOT-CONTRACT.md)
 3. [`docs/human/START-HERE.md`](../human/START-HERE.md)
 4. [`docs/human/KEYS-AND-ACCOUNTS.md`](../human/KEYS-AND-ACCOUNTS.md)
+5. [`software/universes/_template/INTENT.md`](../../software/universes/_template/INTENT.md),
+   then its [`AGENT-DEPLOY.md`](../../software/universes/_template/AGENT-DEPLOY.md):
+   the shape every new universe starts from, and the four base units of
+   [`univ-minimal`](../../software/universes/univ-minimal/INTENT.md) it stands on
 
 Then `software/RULES.md` in full. Do not summarise it for yourself and do not
 skip sections because they look unrelated.
@@ -161,245 +179,206 @@ you read it. Say this to the human, in these terms: *"I cannot hold
 anything it does not cover."* Then do exactly that. An agent that declares its
 limit is safe; an agent that hides it will break a rule it never read.
 
-## Step 2 — Generate the local secrets
+## Step 2 — The universe's secrets: the base generates them, you never do
 
-```bash
-openssl rand -hex 32   # VAULT_MASTER_KEY
-openssl rand -hex 24   # VAULT_TOKEN
-```
+A universe derived from the template needs **no secret from you**. Its base
+units generate their own, at birth, inside the universe container:
 
-These are the two secrets the universe runs on. Do **not** hand-edit them into
-a file now — `software/.env` does not exist yet, and Step 4.1 injects them with
-exact commands. Never write a secret into a chat message, a commit, a shell
-script, or a log line.
+- Vault's master key, `/apps/vault/etc/vault/master.key` (`0400`), and the
+  universe identity beside it — generated once, when Vault is born, never again;
+- the Vault API token beside them, root-only;
+- each unit's MariaDB password, `/apps/<slug>/etc/mysql/localhost/passwd`
+  (`0600`, owned by the unit's account), generated once with its database.
 
-## Step 3 — Verify every required secret BEFORE building anything
+Do **not** run `openssl rand` for any of them, do not copy one in from another
+machine, and never write a secret into a chat message, a commit, a shell script
+or a log line. `software/.env` and `software/resources/vault-resources.local.json`
+are not read by a template universe: they serve package runs on a workstation
+(`npm run vault:bootstrap`) and the earlier shape
+([`univ-base`](../../software/universes/univ-base/AGENT-DEPLOY.md)), not this
+path.
 
-Check `.env` at the repository root, `software/.env`, and the universe folder.
-For the target tier, every required key must be present, non-empty, and not a
-placeholder such as `changeme`, `xxx`, or `your-key-here`.
+*(Until the base release, 11 October 2026, this step generated
+`VAULT_MASTER_KEY` and `VAULT_TOKEN` by hand for a vault that stored its secrets
+in a file. That vault is gone from the template; so is the step.)*
+
+## Step 3 — Verify every vendor key BEFORE building anything
+
+The four base units call no vendor: for the base alone, there is nothing to
+verify — go to Step 4. A unit the universe adds may need a vendor key (tier-b:
+voice, a public URL — Step 5). For that unit, every key its `INTENT.md` names
+must be present, non-empty, and not a placeholder such as `changeme`, `xxx`, or
+`your-key-here`.
 
 - **A key is missing or is a placeholder → STOP.** Name the exact key, give the
   vendor console URL from [`docs/human/KEYS-AND-ACCOUNTS.md`](../human/KEYS-AND-ACCOUNTS.md),
   and wait for the human. Do not build. Do not launch. Do not "start without it
   and add it later".
-- **All keys present:** copy the validated values into `software/.env` and into
-  every universe `deploy/*.env` so each container boots with valid credentials.
 
 ## Step 4 — The DEV pipeline, in this exact order
 
 Do not reorder. Do not skip. Each command must succeed before the next one runs.
+Every command below runs **inside the universe container** (Step 0a), as root.
 
 **First, get the universe slug from the human.** Do not invent it, and **do not
 derive it from something else you were given**: a container name, a host name or
 a ticket number is not a slug, and a tester who assumed the two were the same
 said afterwards that he should have asked. It is lowercase, letters, digits and
-hyphens only (Rule 1).
+hyphens only, and it begins with `univ-` (Rule 1) — `univ-shop-dev`, not
+`shop`: the base's scripts refuse any other shape before they start anything.
 
-**Where the universe directory goes.** `<univ_slug>-dev/` at the repository
-top level (a sibling of `software/`, inside the clone) is the default — one
-concrete example: repo at `/root/SHAPER-OS-V1.14`, universe at
-`/root/SHAPER-OS-V1.14/<univ_slug>-dev/`. The repo's own test suite only
-checks manifests the repo ships (tracked files), so your workspace inside the
-clone does not break `npm test` (fixed in V1.13.1 — beta finding F12). A
-universe carrying real work belongs **outside** the repository — this one is
-generic and publishes what it contains — and then the deploy script needs
-`SHAPER_ROOT` pointing at the `software/` tree, since it can no longer find
-it by walking up.
+**Where the universe directory goes.** Outside the repository, at
+`/apps/<univ_slug>/` — one concrete example: repository at
+`/root/SHAPER-OS-V1.14`, universe at `/apps/univ-shop-dev/`. This repository is
+generic and publishes what it contains; a universe carries its own settings,
+its own image lock and, under `base/`, the base units installed from one
+revision of this repository. The template refuses to run in place
+(`software/universes/_template/` itself is a mold, never a universe).
 
-**Write the universe's INTENT before you create anything.** Principle 1 is
+**One universe per universe container.** Each base unit's Turbinobash layout is
+`/apps/<slug>/` of the container — `/apps/vault/`, `/apps/logger/`,
+`/apps/queue/`, `/apps/maestro/` — so a second universe in the same container
+would meet the first one's databases. A second universe gets its own container
+(Step 0a).
+
+**Write the universe's INTENT before you build anything.** Principle 1 is
 *intent precedes form*, and it is broken by habit: a tester created the container
-first and used the human's request as an implicit intention. Copy
-`software/universes/_template/INTENT.md`, state in it what this universe is for
-and its four to six invariants, and only then run the commands below.
+first and used the human's request as an implicit intention. Copy the template,
+state in its `INTENT.md` what this universe is for and its invariants, and only
+then run the build.
 
-**Inventory the functional Podmans before building.** For every functional
-Podman declared by the manifest, write down one `<functional-slug>` and verify
-that the build and deployment materialise all four equal identities:
-
-1. function identity: `<functional-slug>`;
-2. Linux system account: `<functional-slug>`;
-3. MariaDB account: `<functional-slug>`;
-4. MariaDB database: `<functional-slug>`.
-
-The generated password must be read from
-`/apps/<functional-slug>/etc/mysql/localhost/passwd`, owned by that system
-account and mode `0600`. Every functional Podman owns a different MariaDB and
-volume. A missing identity, a mismatched `MYSQL_USER` or `MYSQL_DATABASE`, a
-shared database, or a SQLite/CSV/JSONL substitute means **STOP**: the universe
-has not been born under Rules 4 and 26. A disposable DEV scaffold must say so
-explicitly and cannot proceed to test, demo or production qualification.
+**The functional Podmans are the four base units, and their identities are
+born with them.** Vault, Logger, Queue and Maestro: each one container holding
+its application and its own MariaDB server (Rules 4 and 26, the Turbinobash
+method). For each, one `<functional-slug>` is the function, the Linux account
+(fixed uid, home `/apps/<slug>`), the MariaDB account and the database —
+`vault`, `logger`, `queue`, `maestro`. Their password files, grants, schema and
+sockets are made by the unit image itself at every start; you write none of
+them, and `deploy/proof.sh` (Step 6) checks every one of them from outside.
+The template declares these four and nothing else: a manifest that declares a
+fifth unit is refused until that unit's start and proof are added to the
+universe's `deploy/podman-up.sh` and `deploy/proof.sh`
+([why](../../software/universes/_template/INTENT.md#materialise)). A unit
+without its own MariaDB inside its own container, a shared database, or a
+SQLite/CSV/JSONL store means **STOP**: it has not been born under Rules 4 and 26.
 
 **Do not administer MariaDB as the application.** The application process runs
-as `<functional-slug>` and connects only to the database of the same name. For
-creation, migrations, grants, inspection and repair, the authorised agent uses
-the local MariaDB `root` command-line path. Do not log in with the application's
-user and password to perform administrative work, and never expose the MariaDB
-root credential to the application. Root database privileges remain bounded by
-the operation and universe mandate.
-
-**The human-agent shaping order is fixed.** The human supplies the intention,
-boundaries and expected durable facts. The agent then derives the slug and
-materialises the system account, MariaDB instance, schema, application grants,
-volume, backup and proofs. Root is a technical execution path, not permission
-to change the intention. Schema operations must be idempotent and correlated;
-an operation against existing data takes the declared backup first. Before
-qualification, prove all four outcomes: the confined application succeeds, a
-different function's credential is refused, the local root CLI can inspect and
-repair under mandate, and restore reproduces the durable facts.
+as `<functional-slug>` and connects only to the database of the same name,
+through its private socket. For inspection and repair, the authorised agent
+uses the local MariaDB `root` command-line path inside the unit's container
+(`podman exec <univ_slug>-ctr-<slug> mariadb --no-defaults -S /run/<slug>/mysqld.sock -uroot <slug>`
+— root authenticates by `unix_socket` only). Do not log in with the application's
+user and password to perform administrative work, and never expose root to the
+application. Root database privileges remain bounded by the operation and
+universe mandate.
 
 - **Trap — a behaviour that differs by environment is a declared value.**
-  Write it in the manifest or the env file (`environment`, an explicit flag),
-  never as an inference from another variable such as `NODE_ENV`: the day dev
-  and prod converged on the same artefact, a guard inferred from `NODE_ENV`
-  shut on dev too ([proof, lesson 6](../proof/proof-rule-11-in-production.md#environment-differences-are-declared-not-inferred)).
+  Write it in the manifest or the settings file (`environment`, an explicit
+  flag), never as an inference from another variable such as `NODE_ENV`: the
+  day dev and prod converged on the same artefact, a guard inferred from
+  `NODE_ENV` shut on dev too ([proof, lesson 6](../proof/proof-rule-11-in-production.md#environment-differences-are-declared-not-inferred)).
 
 ```bash
-# 4.0 — the intention, first
-mkdir -p <univ_slug>-dev/context
-cp software/universes/_template/INTENT.md          <univ_slug>-dev/INTENT.md
-cp software/universes/_template/context/ctx-universe.md <univ_slug>-dev/context/ctx-universe.md
-# then edit both: a template left with its placeholders is an unfinished universe
+# 4.0 — the intention, first: the universe is a copy of the template, outside the repository
+cp -r software/universes/_template /apps/<univ_slug>
+# then edit, in /apps/<univ_slug>/:
+#   INTENT.md            what this universe is for, its invariants — no placeholder left
+#   manifest.json        "universe": "<univ_slug>", "environment" (Step 4b), each "role";
+#                        the four units' image, port and database stay exactly as they are
+#   context/ctx-universe.md
+# A template left with its placeholders is an unfinished universe.
 
-# 4.1 — from the repository root
-cp .env.example software/.env
-cp software/resources/vault-resources.dev.example.json \
-   software/resources/vault-resources.local.json
-# The copies carry EMPTY vault keys. Inject fresh secrets into software/.env
-# FIRST — with these exact commands, because "write them into .env" left every
-# literal tester stalled on empty keys and deriving this sed alone:
-sed -i "s|^VAULT_MASTER_KEY=.*|VAULT_MASTER_KEY=$(openssl rand -hex 32)|" software/.env
-sed -i "s|^VAULT_TOKEN=.*|VAULT_TOKEN=$(openssl rand -hex 24)|" software/.env
-# THEN mirror them into vault-resources.local.json — with this exact command,
-# because "fill them in" left a tester shipping the placeholder token:
-python3 - <<'FILL'
-import json, re
-env = dict(re.findall(r'^([A-Z][A-Z0-9_]*)=(.*)$', open('software/.env').read(), re.M))
-p = 'software/resources/vault-resources.local.json'
-d = json.load(open(p))
-d.setdefault('vault', {})['masterKey'] = env['VAULT_MASTER_KEY']
-d['vault']['token'] = env.get('VAULT_TOKEN', '')
-json.dump(d, open(p, 'w'), indent=2)
-print('vault-resources.local.json filled from software/.env')
-FILL
-# Trap — a variables file holds ONLY variables: blank lines, # comments and
-# KEY=value (keys may carry digits; the value quoted, or a bare word with no
-# whitespace and no shell operator). podman-up.sh `source`s the file, so any
-# other line is EXECUTED by bash: a human note (`BACKOFFICE_ADMIN = email /
-# password`) killed a deploy before it could print its own halt, and a value
-# such as `KEY=1; echo INJECTED` runs its tail. preflight and podman-up.sh
-# stop on such a line and quote it; a note goes behind #.
-# (docs/proof/proof-rule-11-in-production.md#a-variables-file-holds-only-variables)
-
-# 4.2 — build and verify the software
+# 4.1 — build and verify the software (from the repository root)
 cd software
 npm test                              # packages only — MUST be green
 
 # The registry and tag from Step 0b MUST be exported here — the build
 # publishes to <SHAPER_REGISTRY>/shaper/brick-*:<SHAPER_IMAGE_TAG>, and the
-# deploy step resolves exactly those names (one ladder, V1.13.1).
-export SHAPER_IMAGE_TAG=<the tag you are deploying>
+# universe resolves exactly those names. The tag is NEW: a published tag is
+# never moved (a lock somewhere names its digests).
+export SHAPER_IMAGE_TAG=<a tag this registry has never served>
 bash scripts/build-all-bricks.sh
 cd ..
 
 # Images already published at this tag are REUSED, not rebuilt — the script
-# asks the registry and skips them — Rule 10's fast clock, chosen for you.
+# asks the registry first and skips them — Rule 10's fast clock, chosen for you.
 #
 # EXCEPT when you are PROVING rather than operating. A clean-sheet TEST
 # (Rule 10) or a beta run exists to show the edifice builds from nothing
 # (Pillar 1, creation ex nihilo) — and a skipped build shows nothing. There:
 #   export SHAPER_FORCE_REBUILD=1
-# on a tag the registry has NEVER served. The proof is factual, not a
-# stopwatch: tag absent before, present after, digests servable back.
+# on a tag the registry has NEVER served. The script halts, before building
+# anything, when the registry already serves the tag, or when it cannot tell
+# (any answer but 200 or 404): it never pushes over a published tag. The proof
+# is factual, not a stopwatch: tag absent before, present after, digests
+# servable back.
+#
+# On a Proxmox UNPRIVILEGED container, the build needs /dev/net/tun passed to
+# the container (Step 0a): without it every RUN step fails with
+# `pasta … /dev/net/tun: No such file or directory`.
 
-# 4.2b — measure the engine, ONLY possible now: the opencode CLI ships inside
-# the bridge image you just built (until V1.13.1 this ordering was written
-# nowhere and the .env asked for a measurement no blank machine could make).
-podman run --rm --entrypoint opencode \
-  "$SHAPER_REGISTRY/shaper/brick-bridge-opencode:$SHAPER_IMAGE_TAG" models
-# THE PROBE IS THE CONTRACT (added after the v1.13.17 sealing run: an engine
-# passed the echo ping, then hung on Step 6's real write-then-reply job and
-# answered generic text once stopped). Probe each candidate on the SHAPE OF
-# THE WORK this universe will ask, not on an echo. For the base, that shape
-# is write-a-file-then-reply — measurable before the stack exists:
-# The path is RELATIVE and the workdir is the mount: the CLI's sandbox
-# auto-rejects any absolute path outside its working directory
-# (external_directory) — with an absolute /probe/... EVERY engine fails the
-# probe and none can be selected (v1.13.18 sealing run, incident 1).
-PROBE_DIR=$(mktemp -d)
-timeout 90 podman run --rm -v "$PROBE_DIR:/probe" -w /probe --entrypoint opencode \
-  "$SHAPER_REGISTRY/shaper/brick-bridge-opencode:$SHAPER_IMAGE_TAG" \
-  run --pure --model <candidate> \
-  "Write the exact text PROBE-OK, with no trailing newline, into marker.txt. Then reply with exactly PROBE-OK and nothing else."
-printf '%s' PROBE-OK | cmp -s - "$PROBE_DIR/marker.txt" && echo "<candidate>: contract OK" || echo "<candidate>: FAILED the contract — out at any price"
-# Record each candidate's verdict and its wall time; they are your measurement.
-# Rule 7, two cursors: engines failing the probe are OUT at any price;
-# dominated engines (more expensive AND slower) are OUT by measurement; the
-# manifest's enginePolicy declares the cursor among what remains —
-# frugal (default: cheapest, ties resolve to measured speed), swift (most
-# performant — voice/real-time), or {budgetPerTask: N} (best under a ceiling
-# the operator declares).
-export OPENCODE_MODEL=<the engine your measurements and the declared enginePolicy select — Rule 7>
-# The same measurement, the same shape, for every other bridge this universe
-# enables: CURSOR_MODEL (bridge-cursor), AGY_MODEL or ANTIGRAVITY_MODEL
-# (bridge-agy), OLLAMA_MODEL or DEEPSEEK_MODEL (bridge-deepseek) — each
-# measured at deploy, never written here. No bridge names a default: each
-# halts without its variable; podman-up.sh halts before starting bridge-cursor
-# or bridge-agy, and bridge-deepseek (not started by the template) halts in
-# its own process.
-# Exports live only in YOUR shell. If your harness opens a fresh shell per
-# command (lxc exec does), re-export SHAPER_REGISTRY, SHAPER_IMAGE_TAG and
-# OPENCODE_MODEL before any step that uses them — podman-up.sh halts on a
-# missing model by design, and the halt names the variable, not this cause.
+# 4.2 — install the base units: univ-minimal at one revision of this repository
+bash /apps/<univ_slug>/deploy/install-base.sh \
+  --shaper-repo "$PWD" --shaper-commit "$(git rev-parse HEAD)"
+# It refuses a revision that does not contain the qualified base release, and
+# a universe directory of the earlier template's shape. It starts nothing.
 
-# 4.3 — create the universe from the templates (never by copying packages)
-mkdir -p <univ_slug>-dev/deploy <univ_slug>-dev/tasks
-cp manifest.tier-a.json          <univ_slug>-dev/manifest.json
-cp examples/universe-AGENT-DEPLOY.md <univ_slug>-dev/AGENT-DEPLOY.md
-cp software/universes/_template/deploy/podman-up.sh  <univ_slug>-dev/deploy/podman-up.sh
-cp software/universes/univ-base/deploy/proof.sh          <univ_slug>-dev/deploy/proof.sh
-cp software/universes/univ-base/deploy/check-image-lock.py <univ_slug>-dev/deploy/check-image-lock.py
-cp examples/tasks/task-schedule.json <univ_slug>-dev/tasks/task-schedule.json
-cp software/universes/_template/cfg-image-lock.json <univ_slug>-dev/cfg-image-lock.json
+# 4.3 — the universe's one settings file (variables only; never committed)
+cp /apps/<univ_slug>/cfg-universe.env.example /apps/<univ_slug>/cfg-universe.env
+# edit it: SHAPER_UNIVERSE=<univ_slug> (the manifest's "universe", the same name);
+# for DEV, SHAPER_REGISTRY and SHAPER_IMAGE_TAG = what 4.1 published.
+# Trap — a variables file holds ONLY variables: blank lines, # comments and
+# KEY=value (keys may carry digits; the value quoted, or a bare word with no
+# whitespace and no shell operator). The deploy scripts `source` it, so any
+# other line would be EXECUTED by bash: a human note (`BACKOFFICE_ADMIN = email /
+# password`) killed a deploy before it could print its own halt, and a value
+# such as `KEY=1; echo INJECTED` runs its tail. deploy/podman-up.sh reads the
+# file first, stops on such a line and quotes it; a note goes behind #.
+# (docs/proof/proof-rule-11-in-production.md#a-variables-file-holds-only-variables)
 
 # 4.3b — pin what the registry serves (the lock is what TEST and PROD start
-# from; a DEV run may skip this and proof.sh will say SKIP, not FAIL):
-python3 software/scripts/record-image-lock.py <univ_slug>-dev \
+# from; a DEV universe may run from the tag named in cfg-universe.env):
+python3 software/scripts/record-image-lock.py /apps/<univ_slug> \
   --registry="$SHAPER_REGISTRY"        # add --insecure if Step 0b said so
 
-# 4.4 — start it, then prove the stack is up. SHAPER_REGISTRY, SHAPER_IMAGE_TAG
-# (and SHAPER_TLS_VERIFY if set) must still be exported: the deploy pulls the
-# images the build published, with the same TLS posture.
-#
-# Trap — the ports the manifest declares must be FREE in this LXC. Bricks run
-# with --network host; a service the container already runs (an apt-installed
-# MariaDB on 3306 in a CT born before Rule 11) holds the port first, and the
-# brick crash-loops with the cause visible only in its own journal. The gate
-# names the port and its holder; stop and disable the holder, never pick a
-# second port (software/RULES.md#rule-11-declared-ports-are-free). A port held
-# by this universe's OWN container from a previous run (<univ_slug>-dev-vault,
-# …) is reported OK, not FAIL: podman-up.sh replaces it — so this line is
-# also right on a retry after a red health or on an update.
-node software/scripts/preflight.mjs --universe <univ_slug>-dev   # exit 0, or STOP
-bash <univ_slug>-dev/deploy/podman-up.sh     # health must exit 0
-# Trap — a wait loop must test a condition that CAN become true. A readiness
-# probe that pings the database with a root password nobody holds waits its
-# whole budget and then proceeds as if ready; probe with the credentials the
-# brick will actually use (docs/proof/proof-rule-11-in-production.md#a-wait-loop-tests-a-condition-that-can-become-true).
+# 4.4 — preflight: what a run would keep or recreate. Changes nothing.
+bash /apps/<univ_slug>/deploy/podman-up.sh --preflight
+# Trap — the ports the manifest declares must be FREE in this container. Units
+# run on the host network of the universe container; a service it already runs
+# (an apt-installed MariaDB in a CT born before Rule 11) holds the port first.
+# The preflight names the port and its holder; stop and disable the holder,
+# never pick a second port (software/RULES.md#rule-11-declared-ports-are-free).
+# A port held by this universe's OWN unit (<univ_slug>-ctr-vault, …) from a
+# previous run is not a collision: the run keeps that unit.
 
-# 4.5 — live tests, only now that the stack is running
-cd software && npm run test:live             # tier-a — MUST be green
+# 4.5 — the birth, in bootOrder: Vault alone first, then Logger, Queue, Maestro
+bash /apps/<univ_slug>/deploy/podman-up.sh
+# Re-running it keeps every unit that runs as declared, with its identity;
+# `--recreate <slug>|proof|all` is a decision, not a retry.
+
+# 4.6 — the parent's daily bootstrap renewal, once
+bash /apps/<univ_slug>/deploy/base.sh install-renewal-timer.sh
+
+# 4.7 — the smoke test, only now that the units are running
+node --test /apps/<univ_slug>/test/socle-live.test.js   # MUST be green — it is not the proof
 ```
 
 Replace `<univ_slug>` with the slug the human gave you, in every line above. Do
-not copy `software/packages/` or any `Containerfile` into the universe
-directory — the universe references the bricks, it never contains them.
+not copy `software/packages/`, any `Containerfile` or univ-minimal's scripts
+into the universe directory — the universe references the base, at one
+revision, under `base/`, and never edits it. Run the base's scripts through the
+universe's `deploy/podman-up.sh`, `deploy/proof.sh` and `deploy/base.sh`, never
+from `base/deploy/` directly: that path skips the settings check.
 
 - **`npm test` is red → STOP.** Show the failing test output unedited. Do not
   modify the test to make it pass. Do not add a stub, a mock, or a fallback.
-- **`podman-up.sh` does not exit 0 → STOP.** Show the container logs.
-- **`npm run test:live` is red → STOP.** Live tests run *after* the stack is up;
-  if you ran them before, that is your error, not a failure of the system.
+- **`build-all-bricks.sh` halts on a published tag → STOP** and ask the human for
+  a new tag. Never delete the tag from the registry, never move it.
+- **`install-base.sh`, the preflight or `podman-up.sh` does not exit 0 → STOP.**
+  Show its halt, unedited, and the logs of the unit it names
+  (`podman logs <univ_slug>-ctr-<slug>`).
+- **The smoke test is red → STOP.** It runs *after* the units are up; if you
+  ran it before, that is your error, not a failure of the system.
 
 ## Step 4b — Which lifecycle is this? Ask, do not deduce
 
@@ -412,103 +391,82 @@ still running days later.
 If the human has not said which, **ask in one sentence**: *"Is this DEV, which I
 keep, or TEST, which I destroy after the proof?"* Then write the answer into the
 universe's `INTENT.md` and its manifest `environment`, so that the next agent
-does not have to guess what you guessed.
+does not have to guess what you guessed. A TEST or PROD universe starts from
+the image lock (4.3b), never from a tag.
 
 ## Step 5 — Public tier (tier-b), only if the human asks for voice or a public URL
 
-1. Confirm tier-a is green first (`npm run test:live`).
+1. Confirm the base is proven first (Step 6).
 2. Open **one vendor site at a time** in the IDE browser:
    - Deepgram → https://console.deepgram.com/ → API Keys
    - Groq → https://console.groq.com/keys
    - Cloudflare tunnel → https://one.dash.cloudflare.com/ → Networks → Tunnels
-3. The human pastes the value into `.env`, `software/.env`, or
-   `sav/tunnel/token`. Never into the chat, never into Git.
-4. Deploy tier-b — the `agent +web +public` manifest from the
+3. The human pastes the value where the unit that needs it reads it — that
+   unit's own settings, or Vault through its administrative API. Never into the
+   chat, never into Git.
+4. Tier-b units come from the
    [`SHAPER-OS-BRICKS`](https://github.com/xavdp-pro/SHAPER-OS-BRICKS-V1.14) (a private repository)
    catalogue; this repository ships no tier-b manifest and no switch that
-   turns the cockpit on — then run the closed-loop tests of whatever bricks
-   this universe assembles. For catalogue bricks (`brick-helm` among them)
-   they live in the catalogue, beside the brick; `npm run test:live` here
-   proves the tier-a socle only.
+   turns the cockpit on. A catalogue unit joins this universe only once it is
+   one functional Podman holding its application and its own MariaDB server,
+   its start added to `deploy/podman-up.sh` after the base layers and its proof
+   to `deploy/proof.sh` (Rules 4 and 26) — then run the closed-loop tests of
+   whatever units this universe assembles. For catalogue bricks (`brick-helm`
+   among them) they live in the catalogue, beside the brick; the smoke test
+   here covers the base units only.
 
 - **Any key empty or invalid → STOP and ask.** Never launch tier-b with empty
   keys.
 
 ## Step 6 — Prove the work, not the uptime
 
-A green `/api/health` proves the stack is up. It does **not** prove a job ran.
+A green `/api/health` proves a process is up. It does **not** prove that work
+happened, that a unit's database is its own, or that it survives a restart.
 
-**Submitting the job.** The queue accepts one job type for agent work, and its
-shape is declared in [`../../software/packages/pkg-queue/INTENT.md`](../../software/packages/pkg-queue/INTENT.md).
-It is written here too, because a tester looked for it in the live tests, did not
-find it, and had to read `worker.js` to work it out.
-
-The job asks for **both** halves of the proof — a persisted answer and a file on
-disk — because proof 2 below compares an artefact, and a job that was never asked
-for one leaves nothing to compare:
+The proof is scripted, and it is three runs, in this order:
 
 ```bash
-curl -s -X POST "http://127.0.0.1:8640/api/jobs" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "type": "agent.inject",
-    "totalSteps": 2,
-    "payload": {
-      "message": "Write the exact text <a marker you choose>, with no trailing newline, into /data/opencode-ws/<the conversation>/marker.txt. Then reply with that same exact text.",
-      "conversation": "<a session name>",
-      "model": "<the engine you measured at deployment>"
-    }
-  }'
+bash /apps/<univ_slug>/deploy/proof.sh                       # exit 0 = proven, and it says why not when not
+bash /apps/<univ_slug>/deploy/base.sh lifecycle-drill.sh      # restart, re-run, recreation: nothing lost
+bash /apps/<univ_slug>/deploy/base.sh restore-drill.sh        # each unit's dump restored into fresh volumes
 ```
 
-The artefact path is **the bridge's view, never the host's**: the agent
-works inside the bridge container, where the universe's `sav/opencode-ws/`
-is mounted at `/data/opencode-ws/`. A host-side path in the message gets
-created NESTED inside the workspace and proof.sh fails on it (v1.13.18
-sealing run, incident 2). Host equivalence for your later `cmp`:
-`<univ_slug>-dev/sav/opencode-ws/<the conversation>/marker.txt`.
+`deploy/proof.sh` exits 0 only when every unit passes the Rule 26 inventory and
+proves one real effect read back from its own database
+([what it checks](../../software/universes/univ-minimal/INTENT.md#proof)):
 
-Then poll the job until it reaches a terminal state, and read `job.result.answer`
-— the persisted answer, not the streamed one:
+1. the unit's application and its MariaDB server run in the same container,
+   the application as its own uid, MariaDB as its engine uid, nothing the
+   supervisor started as root; MariaDB on its private socket, no TCP listener;
+2. exactly the unit's account with DML-only grants on its own database, root by
+   `unix_socket` alone, the exact schema version, the password file `0600`
+   owned by the unit's account; DDL, the system database and another unit's
+   credential refused; the data, socket, password and administrative paths not
+   writable by the unit's uid;
+3. the unit's identity: its current incarnation live in Vault, exactly its
+   declared grants, the pin equal to the parent's derivation, the bootstrap a
+   `0600` file and never a value in its environment;
+4. one real effect per unit — a secret written and read back with `SECRET_READ`
+   evidence; Queue jobs claimed, run under one attempt, receipted; a Maestro
+   occurrence reaching Queue under Maestro's own credential; anonymous calls
+   refused (401) — each read back **from the databases**, never from the
+   unit's own answer, and the evidence found held by Logger under the unit's
+   name.
 
-```bash
-# the POST reply carries {"job":{"id":"job-..."}} — poll that id:
-curl -s "http://127.0.0.1:8640/api/jobs/<the id>"   # until status is COMPLETED or FAILED
-```
+The drills add what one run cannot show: every marker, row count and password
+file unchanged after a restart, a re-run and a recreation, MariaDB stopped after
+the application and never in crash recovery; and each unit's dump restored into
+fresh volumes, compared with the live tables and served back by the unit's own
+application.
 
-For functional proof you need all four:
+Missing any of the three → the universe is **not** proven. Say so plainly, with
+the output. Paste the three outputs into your report, with the revision in
+`base/.shaper-revision` and the commit you built from.
 
-1. the queue job reached a terminal state and its answer is **persisted**
-   (not only streamed over a connection that has since closed);
-2. the artefact exists and its bytes are exactly what was asked;
-3. the byte comparison used `cmp`, **not** `test "$(cat file)" = value` —
-   command substitution removes trailing newlines and will report success on a
-   file that is wrong;
-4. an audit event in the log correlates with the same queue job id.
-
-Missing any of the four → the work is **not** proven. Say so plainly.
-
-All four are scripted — run them instead of improvising them. What the job was
-asked to produce is the one thing the script cannot guess, so you declare it and
-the script decides:
-
-```bash
-PROOF_ARTIFACT='<the absolute path you named in the job>' \
-PROOF_EXPECTED='<the marker you chose>' \
-PROOF_ANSWER='<the same marker>' \
-bash <univ_slug>-dev/deploy/proof.sh    # exit 0 = proven, and it says why not when not
-```
-
-- `PROOF_EXPECTED` is written out with `printf '%s'` and compared with `cmp`, so
-  it is byte-exact: a trailing newline is declared as `PROOF_EXPECTED=$'…\n'`.
-  For anything longer than a line, put the exact bytes in a file and declare
-  `PROOF_EXPECTED_FILE` instead.
-- `PROOF_JOB_ID` picks the job to read; without it the script reads the most
-  recent one.
-- Declaring no artefact is allowed and stays visible: the script prints
-  `SKIP artefact` and its closing verdict repeats that proofs 2 and 3 were not
-  performed. That run is not a full functional proof — either declare the
-  artefact, or do the `cmp` by hand and record its output.
+Where podman cannot run (a workstation), `software/universes/_template/test/rehearsal.live.mjs`
+rehearses the same scripts with each unit's server as a process: it proves
+nothing about the container shape and never qualifies a universe. Say which of
+the two you ran.
 
 ## Step 7 — Report every correction into the repository
 
@@ -539,7 +497,8 @@ Stop immediately and hand back to the human if any of these is true:
 
 | Condition | Why |
 | :--- | :--- |
-| A required secret is missing or a placeholder | Building on a missing key wastes an hour to save a question |
+| A required vendor key is missing or a placeholder | Building on a missing key wastes an hour to save a question |
+| The registry already serves the tag you were about to build | A published tag is never moved: a lock somewhere names its digests |
 | Any test is red | Green-by-stub is worse than red |
 | The action would touch a production universe | Not your perimeter |
 | The action would delete data or a volume you did not create | Irreversible |
@@ -551,10 +510,12 @@ Stop immediately and hand back to the human if any of these is true:
 
 ## Never do these
 
-- Skip `npm test`, `npm run test:live`, or the closed-loop scripts
-- Commit `.env`, vault files, tunnel tokens, or `*.enc`
+- Skip `npm test`, the smoke test, `deploy/proof.sh` or the two drills
+- Commit `.env`, `cfg-universe.env`, a master key, a password file, tunnel tokens, or `*.enc`
+- Generate, copy or print a secret the base units generate themselves
 - Put a default API key in a shell script
-- Copy `packages/` or a brick `Containerfile` into a universe folder
+- Copy `packages/`, a brick `Containerfile` or univ-minimal's scripts into a universe folder, or edit its `base/`
+- Push over a tag the registry already serves, or set `SHAPER_FORCE_REBUILD=1` on one
 - Use a production mailbox in DEV or TEST
 - Keep a TEST universe alive after it passed
 - Summarise or replace `software/RULES.md` with a pointer

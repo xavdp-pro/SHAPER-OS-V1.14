@@ -83,7 +83,8 @@ fi
 
 echo
 echo "── the deliverable is persisted and byte-exact (proofs #1-#3) ──────────"
-# Runbook step 6 names four functional proofs. Until V1.13.10 this script
+# AGENT-DEPLOY step 4 names four functional proofs (runbook step 6 until the
+# base release). Until V1.13.10 this script
 # performed half of #1 — a job exists — and #4, while the runbook told the
 # deployer that #2, the artefact exists, and #3, its byte-exact `cmp`, were
 # "yours to perform by hand today". A proof standard that is half-scripted is
@@ -196,7 +197,7 @@ echo
 echo "── the audit trail joins a real job (proof #4) ─────────────────────────"
 # Until V1.13.1 this section warned when the logger was empty and the script
 # still concluded "proven" — a green that Rule 0G forbids, found by all five
-# beta testers. The proof standard (runbook step 6, PROOF.md step 2) is: an
+# beta testers. The proof standard (AGENT-DEPLOY step 4, PROOF.md step 2) is: an
 # audit event correlated with a queue job id, read from outside the thing
 # that produced it. No job yet, or no correlated event → NOT proven.
 pairs="$(python3 - "http://127.0.0.1:$QUEUE_PORT" "http://127.0.0.1:$LOGGER_PORT" <<'PY' 2>/dev/null || echo ERR
@@ -237,6 +238,6 @@ if (( fail )); then
 elif (( artefact_proven )); then
   echo "$SLUG is proven: every declared brick answered, the declared task is held, the job persisted its answer, the declared artefact is byte-exact, and the audit trail joins a real job."
 else
-  echo "$SLUG is proven for what was declared: bricks, task, persisted answer, audit trail. No artefact was declared, so proofs #2 and #3 of runbook step 6 were not performed — declare PROOF_ARTIFACT to script them, or run the cmp by hand and record its output. Until then this is not the full functional proof."
+  echo "$SLUG is proven for what was declared: bricks, task, persisted answer, audit trail. No artefact was declared, so proofs #2 and #3 of AGENT-DEPLOY step 4 were not performed — declare PROOF_ARTIFACT to script them, or run the cmp by hand and record its output. Until then this is not the full functional proof."
 fi
 exit "$fail"

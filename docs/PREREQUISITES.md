@@ -37,13 +37,20 @@ without it the gate falls back to `/proc/net/tcp` and cannot name the holder).
 die with it. A harness that opens a fresh shell per command (`lxc exec`
 does) re-exports them before every step that builds, pushes or deploys.
 
-## 4. The minimum `software/.env` — created at Step 4.1, listed here once
+## 4. The minimum `software/.env` — package runs and the earlier shape, listed here once
+
+A universe derived from the template reads **no** `software/.env`: its Vault
+generates its master key and token at birth, and its four base units run no
+engine (runbook Step 2). The file below is the minimum for package runs on a
+workstation (`npm run vault:bootstrap`, `npm test`) and for the earlier shape —
+univ-base, whose `cfg-univ-base.env` carries the same keys
+([its AGENT-DEPLOY](../software/universes/univ-base/AGENT-DEPLOY.md)).
 
 | Variable | Minimum | Produced by |
 | :--- | :--- | :--- |
 | `VAULT_MASTER_KEY` | 64 hex chars, never a `<placeholder>` | `openssl rand -hex 32` |
 | `VAULT_TOKEN` | 48 hex chars, never a `<placeholder>` | `openssl rand -hex 24` |
-| `OPENCODE_MODEL` | the engine that passed the probe and the declared cursor (Rule 7) | **measured at Step 4.2b** — it cannot be known before the bridge image exists; `podman-up.sh` halts without it |
+| `OPENCODE_MODEL` | the engine that passed the probe and the declared cursor (Rule 7) | **measured at univ-base AGENT-DEPLOY step 2b** — it cannot be known before the bridge image exists; univ-base's `podman-up.sh` halts without it |
 | `CURSOR_MODEL` · `AGY_MODEL` (or `ANTIGRAVITY_MODEL`) · `OLLAMA_MODEL` (or `DEEPSEEK_MODEL`) | only when this universe enables `bridge-cursor`, `bridge-agy` or `bridge-deepseek` — then the same standard as `OPENCODE_MODEL` | **measured at deploy, never written here** — the same probe, from the same host; each bridge halts without its variable — `podman-up.sh` halts before starting `bridge-cursor` or `bridge-agy`, and `bridge-deepseek`, which the template does not start, halts in its own process (`ModelUnsetError`). No bridge names a default |
 
 Everything else in `.env.example` is either a port with a sane default or a
@@ -73,22 +80,28 @@ quote it. A note for a human goes behind `#`
 1. **`npm run preflight`** — at the start, right after the registry answer
    (runbook Step 0c): tools present, registry named and reachable, image tag
    named, and — if `software/.env` already exists — every line a variable and
-   its vault keys real, not placeholders. Exit 1 = do not start. Run it
-   **again** once the universe exists, as
-   `node scripts/preflight.mjs --universe <path to <slug>-dev>` (runbook Step
-   4.4): the ports its manifest declares must be free in this LXC — bricks run
-   with `--network host`, and a service the container already runs holds the
-   port first ([Rule 11](../software/RULES.md#rule-11-declared-ports-are-free)).
-   A port held by this universe's **own** container from a previous run
-   (`<slug>-dev-vault`, …, as `podman ps` names it) is reported OK, because
-   `podman-up.sh` replaces it — the check is right on a first deploy and on a
-   retry alike. Without `--universe` the port check is skipped out loud,
-   never silently.
-2. **`podman-up.sh`** — at deploy: refuses to run without `OPENCODE_MODEL`
-   (and without `CURSOR_MODEL` or `AGY_MODEL` when it is asked to start those
-   bridges), without real vault material, and on an env file carrying a line
-   that is not a variable. Its halts are by design; they name the variable, or quote
-   the line.
+   its vault keys real, not placeholders. Exit 1 = do not start. Without
+   `--universe` the port check is skipped out loud, never silently: no
+   universe exists yet.
+2. **`deploy/podman-up.sh --preflight`** — once the universe exists (runbook
+   Step 4.4), the universe's own preflight: its settings file is variables
+   only and names the manifest's universe, its `base/` is installed and
+   linked, the manifest declares the base units exactly, every image is
+   pinned or explicitly published, and the ports the manifest declares are
+   free in this container — units run on its host network, and a service the
+   container already runs holds the port first
+   ([Rule 11](../software/RULES.md#rule-11-declared-ports-are-free)). A port
+   held by this universe's **own** unit from a previous run
+   (`<universe>-ctr-vault`, …) is not a collision: the run keeps that unit.
+   It writes, registers and starts nothing; `deploy/podman-up.sh` without the
+   flag runs the same checks before it births anything, and its halts name
+   the variable, or quote the line.
+
+An earlier-shape universe (univ-base) checks its ports with
+`node scripts/preflight.mjs --universe <its directory>`, which recognises its
+`<slug>-vault`-style containers, and its `podman-up.sh` refuses to run without
+`OPENCODE_MODEL` (and without `CURSOR_MODEL` or `AGY_MODEL` when asked to start
+those bridges) or without real vault material.
 
 A failed gate is a **measured result**: report it, do not work around it.
 The only path past a red gate is the human's explicit override, and the

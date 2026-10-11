@@ -1,18 +1,25 @@
-# 📋 Official Step List: Blank LXC Deployment & Agent Takeover
+# 📋 Official Step List: Blank LXC Deployment of a Universe's Base Units
 
-> **Perimeter law**: Deployed stack = **P1 socle + P2 agentic** (Helm). P3 client tools are out of scope here.  
+> **Perimeter law**: Deployed stack = **the base units** — Vault, Logger, Queue (P1) and Maestro (P2).
+> Helm (P2) and P3 client tools are catalogue units, out of scope here.  
 > See [`docs/PERIMETERS.md`](./docs/PERIMETERS.md).
 
 > **The slug belongs to the operator.** This procedure is generic: wherever you
 > read `<univ_slug>`, substitute the name of your universe. No concrete
 > universe ships with this repository — see [`universes/README.md`](./universes/README.md).
 
-This document details the exact, chronological sequence that brings up a complete Shaper OS universe with its Helm on a **blank LXC** container (Debian 13, as Rule 11 states; Debian 12 and Ubuntu 24.04 remain usable), up to the **autonomous takeover by the AI agent**.
+This document details the exact, chronological sequence that brings up a Shaper OS universe derived from [`universes/_template/`](./universes/_template/INTENT.md) on a **blank LXC** container (Debian 13, as Rule 11 states; Debian 12 and Ubuntu 24.04 remain usable), up to its **proof**: the four base units of [`univ-minimal`](./universes/univ-minimal/INTENT.md), each one functional Podman holding its application and its own MariaDB server (Rules 4 and 26).
+
+> **Until the base release (11 October 2026)** this guide brought up nine
+> containers around an OpenCode bridge and ended on the bridge "taking command"
+> of the LXC's podman over SSH. The base units run no engine and no bridge, and
+> no container is given the universe's podman: the steps that wired it (2 and 5)
+> now say what replaces them, and the success criterion is the proof.
 
 ---
 
 ## 🎯 Definition of Success (Criterion of Total Accomplishment)
-> **The system is deemed successful when, on a blank LXC container, an automated sequence deploys the ecosystem and the AI agent (`<univ_slug>-bridge-opencode`) takes command, discovers its environment, manipulates the Podman bricks and answers the operator.**
+> **The system is deemed successful when, on a blank LXC container, an automated sequence births the four base units and `deploy/proof.sh` exits 0 — the Rule 26 inventory of every unit and one real effect each, read back from its own database — followed by a green lifecycle drill and a green restore drill.** A health endpoint that answers is not in that list: it proves a process is up, never that work happened.
 >
 > **Three restoration clocks (never say "&lt; 120 s" without them):**
 > 1. **Images already in our registry / Podman cache** — **fast** deployment.
@@ -26,13 +33,13 @@ This document details the exact, chronological sequence that brings up a complet
 ```mermaid
 flowchart TD
     S0["Step 0: LXC creation (Proxmox / Linux)"] --> S1["Step 1: System packages & dependencies"]
-    S1 --> S2["Step 2: Local SSH key pair"]
-    S2 --> S3["Step 3: State under the universe (no /data/ on the host)"]
-    S3 --> S4["Step 4: Podman bricks deployment"]
-    S4 --> S5["Step 5: Wiring the transparent Podman bridge"]
-    S5 --> S6["Step 6: Persistent memory & CONTEXT.md"]
-    S6 --> S7["Step 7: Self-check & agent discovery"]
-    S7 --> S8["🏆 Step 8: Total takeover by the agent"]
+    S1 --> S2["Step 2: No key for any container"]
+    S2 --> S3["Step 3: State under each unit's /apps/slug (no /data/ on the host)"]
+    S3 --> S4["Step 4: The four base units"]
+    S4 --> S5["Step 5: No container drives the universe's podman"]
+    S5 --> S6["Step 6: The logbook belongs to the universe"]
+    S6 --> S7["Step 7: The proof"]
+    S7 --> S8["🏆 Step 8: The drills"]
 ```
 
 ---
@@ -46,7 +53,14 @@ So that Podman can run without restriction inside the LXC container:
    ```text
    features: nesting=1,keyctl=1
    ```
-3. Start the LXC: `pct start <ID>` then `pct enter <ID>`.
+3. On an **unprivileged** container, pass `/dev/net/tun` as well:
+   `pct set <ID> --dev0 /dev/net/tun,mode=0666`. Without it every `RUN` step
+   of a `podman build` fails inside the container (`pasta … /dev/net/tun: No
+   such file or directory`), while `podman run` of a prebuilt image works — a
+   container that only runs images looks fit and is not
+   ([univ-minimal — host](./universes/univ-minimal/INTENT.md#host)).
+4. Start the LXC: `pct start <ID>` then `pct enter <ID>` (a setting changed on
+   a running container applies only after `pct reboot <ID>`).
 
 ---
 
@@ -60,22 +74,26 @@ So that Podman can run without restriction inside the LXC container:
 ### Step 1 — OS Provisioning & Engineering Tools
 Run on the blank Debian 13 system:
 ```bash
-apt-get update && apt-get install -y   podman   nftables   git   curl   wget   jq   ripgrep   openssh-server   openssh-client   python3   python3-pip   rsync   unzip   ca-certificates   nodejs   npm
+apt-get update && apt-get install -y   podman   nftables   iproute2   git   curl   jq   openssl   python3   ca-certificates   nodejs   npm
+systemctl enable podman-restart.service
 ```
+
+`podman`, `nftables`, `jq`, `openssl`, `curl` and `iproute2` (`ss`) are what
+the base's `podman-up.sh` needs; `git` and `python3` serve `install-base.sh`
+and the image lock; `nodejs` runs `npm test` and the smoke test.
+`podman-restart.service` brings the units (`--restart=always`) back after the
+universe container restarts.
 
 ---
 
-### Step 2 — Generating the Secured Local SSH Key
-Lets the containerised agent reach the host Podman daemon without a password:
-```bash
-if [ ! -f /root/.ssh/id_ed25519 ]; then
-  ssh-keygen -t ed25519 -N '' -f /root/.ssh/id_ed25519
-  cat /root/.ssh/id_ed25519.pub >> /root/.ssh/authorized_keys
-  chmod 700 /root/.ssh
-  chmod 600 /root/.ssh/authorized_keys
-fi
-systemctl enable --now ssh
-```
+### Step 2 — No key pair for any container
+
+**Nothing to do here.** This step used to make an SSH key pair on the LXC and
+add it to root's `authorized_keys`, so that the agent's container could reach
+the LXC's podman without a password (Step 5). The base units run no agent, and
+no container is given a path to the universe's podman: there is no key to
+make. A universe that needs remote administration gets it from its operator's
+own access, declared in its `INTENT.md` — never from a unit.
 
 ---
 
@@ -87,18 +105,23 @@ to be created on the host. That was a reading error, and it cost a tester a
 hesitation: **`/data/…` are the paths seen *from inside* the containers**,
 never directories of the host.
 
-The real mount is this one:
+Each base unit keeps its Turbinobash layout under `/apps/<slug>/` of the
+universe container — `vault`, `logger`, `queue`, `maestro` — and mounts the
+same paths inside its own container:
 
-| On the host (what really exists) | Seen in the container |
+| In the universe container (what really exists) | What it holds |
 | :--- | :--- |
-| `$UNIV/sav/<brick>/` | `/data/<brick>` or `/sav/<brick>` |
-| `$UNIV/log/` | `/data/logger` |
-| `$UNIV/sav/vault/` | `/data/vault` — per-universe since V1.13.1 (beta F9) |
+| `/apps/<slug>/etc/mysql/localhost/passwd` | the unit's MariaDB password, `0600`, owned by the unit's account, generated once |
+| `/apps/<slug>/sav/mariadb`, `/apps/<slug>/sav/dumps` | the unit's datadir (owned by its engine uid, `0700`) and its dumps |
+| `/apps/<slug>/log` | the unit's log (Vault, Logger, Queue) |
+| `/apps/<slug>/etc/identity` | the unit's bootstrap and the pin of Vault's key |
+| `/apps/vault/etc/vault/` | the master key, the universe identity, the registration records (root-only) |
 
-A universe's persistent state therefore lives **under that universe's
-folder**, which is what makes a universe movable, backupable and destroyable
-in a single gesture. The deploy script creates these directories itself,
-before mounting them — a test now checks it for every mount point.
+A universe's persistent state therefore lives **in its own universe
+container**, unit by unit, which is what makes a universe movable, backupable
+and destroyable in a single gesture. univ-minimal's `podman-up.sh` creates each
+unit's declared volumes itself, single directories, before mounting them —
+ownership is never changed recursively.
 
 There is consequently **no `chmod 777` to run**: the line that stood here
 opened world-writable directories that nobody used.
@@ -116,86 +139,67 @@ opened world-writable directories that nobody used.
 
 ---
 
-### Step 4 — Deploying the Full Stack (9 containers)
+### Step 4 — The four base units
 
-> **This is not "the base".** The runnable socle is **five** bricks —
-> vault, logger, bridge, queue, maestro — and that is what
-> `manifest.tier-a.json` declares. The nine containers below are this guide's
-> full stack: the socle, plus the cockpit, the GED, the vector store and the
-> tunnel. A tester hesitated between the two counts; the three possible
-> readings of "the base" are reconciled in
+> **This is "the base".** A universe derived from the template runs exactly
+> four units, and `manifest.json` declares exactly these four: the template
+> refuses a fifth until its start and proof are added. The cockpit, the GED,
+> the vector store, the tunnel and any engine are catalogue units; each joins
+> a universe only as one functional Podman holding its application and its own
+> MariaDB server (Rules 4 and 26). The readings of "the base" across this
+> tree's history are reconciled in
 > [`../docs/architecture/BRICKS.md`](../docs/architecture/BRICKS.md).
-Coordinated launch of the cluster with `universes/<univ_slug>/deploy/podman-up.sh`:
-* 🔐 **`<univ_slug>-vault`** (:8610) — AES-256-GCM encrypted vault
-* 📜 **`<univ_slug>-logger`** (:8620) — JSONL audit collector and SSE bus
-* 📬 **`<univ_slug>-queue`** (:8640) — Asynchronous job queue
-* 🎼 **`<univ_slug>-maestro`** (:8630) — Orchestrator and state supervision
-* 📂 **`<univ_slug>-ged`** (:8660) — Sovereign document hub and OCR
-* 🧠 **`<univ_slug>-qdrant`** (:6333) — Semantic vector database
-* 🎛️ **`<univ_slug>-helm`** (:8650) — Helm, the conversational interface (Rule 0F)
-* 🌐 **`<univ_slug>-tunnel`** — Secured remote access gateway
-* 🤖 **`<univ_slug>-bridge-opencode`** (:4440) — AI agent runtime
+
+From the universe's directory (a copy of `universes/_template/`, outside this
+repository — [`universes/_template/AGENT-DEPLOY.md`](./universes/_template/AGENT-DEPLOY.md)),
+in `bootOrder`, Vault alone first:
+
+* 🔐 **`<univ_slug>-ctr-vault`** (:8610) — secrets, the universe identity, the units' credentials
+* 📜 **`<univ_slug>-ctr-logger`** (:8620) — the evidence each unit delivers, under its own name
+* 📬 **`<univ_slug>-ctr-queue`** (:8640) — durable jobs, each run under one attempt
+* 🎼 **`<univ_slug>-ctr-maestro`** (:8630) — the declared schedule, submitted to Queue
+
+Each container runs `tini`, the unit supervisor, `mariadbd` as its engine uid
+on a private socket with no TCP, and the application as the unit's own uid,
+bound to `127.0.0.1`.
+
+```bash
+bash deploy/install-base.sh --shaper-repo /root/SHAPER-OS-V1.14 --shaper-commit <revision>
+cp cfg-universe.env.example cfg-universe.env      # SHAPER_UNIVERSE, the registry and tag, or the lock
+bash deploy/podman-up.sh --preflight
+bash deploy/podman-up.sh
+bash deploy/base.sh install-renewal-timer.sh
+```
 
 ---
 
-### Step 5 — Wiring the Transparent Podman Bridge into the Agent
+### Step 5 — No container drives the universe's podman
 
-> **What goes down is a public key. Never a private key.**
->
-> This step used to copy `/root/.ssh/id_ed25519` — the LXC's **private** key —
-> into the agent's container. Since the matching public key already sits in
-> the LXC's `authorized_keys` (step 2), that amounted to **handing the agent
-> the key that opens its own host**. A compromised container would not have
-> had to escape: it held the access.
->
-> Rule 36 says it without condition — *"the private key never leaves the
-> Parent"* — and the question of who the Parent is here changes nothing: a
-> private key does not move, at any level.
->
-> The correct direction of flow is the reverse: **whoever must initiate the
-> connection makes its own pair and sends only its public key** to whoever it
-> wants to reach. Revoking an access then becomes the removal of one line,
-> instead of a key rotation on everything that trusted it.
+**Nothing to do here, and nothing to undo on a new universe.** This step used
+to wire the OpenCode bridge to the LXC's podman: a key pair made in the agent's
+container, its public key added to root's `authorized_keys`, and a `podman`
+wrapper copied into the container that ran `ssh root@localhost podman …`. That
+gave an AI container root's podman over the universe container that runs it —
+every unit, every volume, every database.
 
-The agent container must reach the LXC to drive Podman. It therefore
-generates its own pair, and only its **public** key goes up:
+Two lessons stay:
 
-```bash
-# 1. The agent makes its own identity — the private key is born and stays with it
-podman exec <univ_slug>-bridge-opencode mkdir -p /root/.ssh
-podman exec <univ_slug>-bridge-opencode chmod 700 /root/.ssh
-podman exec <univ_slug>-bridge-opencode \
-  ssh-keygen -t ed25519 -N '' -q -f /root/.ssh/id_ed25519
+> **What goes down is a public key. Never a private key.** The first version of
+> this step copied the LXC's **private** key into the agent's container: since
+> the matching public key already sat in the LXC's `authorized_keys`, that
+> handed the agent the key that opens its own host. Rule 36 says it without
+> condition — *"the private key never leaves the Parent"* — and a private key
+> does not move, at any level.
 
-# 2. Only the public key goes up to the LXC host, and it is identifiable
-AGENT_PUB="$(podman exec <univ_slug>-bridge-opencode cat /root/.ssh/id_ed25519.pub)"
-grep -qF "$AGENT_PUB" /root/.ssh/authorized_keys 2>/dev/null || \
-  echo "$AGENT_PUB # agent:<univ_slug>-bridge-opencode added $(date -I)" \
-    >> /root/.ssh/authorized_keys
-chmod 600 /root/.ssh/authorized_keys
+> **What holds the power has no door in.** The base units run no engine and no
+> bridge. A cognition adapter joins a universe only as a unit meeting Rules 4
+> and 26, through Queue, under its own credential — and nothing grants a unit
+> the universe's podman.
 
-# Revoking this agent, later, is removing this single line:
-#   sed -i '/agent:<univ_slug>-bridge-opencode/d' /root/.ssh/authorized_keys
-```
-
-```bash
-# Deploying the /usr/local/bin/podman wrapper
-cat << 'EOF_WRAPPER' > /tmp/podman-wrapper.sh
-#!/bin/bash
-if [ $# -eq 0 ]; then
-  exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes root@localhost podman
-fi
-CMD=""
-for arg in "$@"; do
-  CMD="$CMD $(printf '%q' "$arg")"
-done
-exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes root@localhost podman $CMD
-EOF_WRAPPER
-chmod +x /tmp/podman-wrapper.sh
-podman cp /tmp/podman-wrapper.sh <univ_slug>-bridge-opencode:/usr/local/bin/podman
-podman cp /tmp/podman-wrapper.sh <univ_slug>-bridge-opencode:/usr/local/bin/docker
-rm -f /tmp/podman-wrapper.sh
-```
+A universe of the earlier shape that still carries such a wiring keeps it until
+its own migration; revoking it is the removal of one tagged line from root's
+`authorized_keys` (`agent:<univ_slug>-bridge-opencode`) and of the wrapper
+inside that container.
 
 ---
 
@@ -217,50 +221,68 @@ This guide names no path for it and no author.
 
 ---
 
-### Step 7 — Self-Check & Autonomous Discovery by the Agent
-The agent automatically runs its verification cycle:
-1. Test of its Podman access: `podman ps -a`
-2. Test of the MCP APIs: `curl http://127.0.0.1:8610/api/health`, `curl http://127.0.0.1:8660/api/health`
-3. Persistent memory: the logbook the universe's `INTENT.md` declares, read from the universe's own volume — nothing on the host (Step 6).
+### Step 7 — The proof
+
+```bash
+bash deploy/proof.sh
+```
+
+It exits 0 only when every unit passes the Rule 26 inventory — application and
+MariaDB in the same container, private socket, no TCP listener, DML-only
+grants, the password file `0600`, the administrative paths not writable by the
+unit — holds its own identity in Vault, and proves one real effect read back
+from its own database ([what it checks](./universes/univ-minimal/INTENT.md#proof)).
+`node --test test/socle-live.test.js` is a smoke test after the start, never
+the proof.
 
 ---
 
-### 🏆 Step 8 — Total Takeover & Operational Confirmation
-The agent is operational on port 8650 (Helm cockpit) and by voice/chat. It is able:
-* To manipulate the Vault (e.g. configure the email credentials without a leak).
-* To analyse the documents in the GED.
-* To launch ephemeral sandboxes (`podman run --rm`).
-* To record each of its steps in its journal.
+### 🏆 Step 8 — The drills
+
+```bash
+bash deploy/base.sh lifecycle-drill.sh    # restart, re-run, recreation: nothing lost
+bash deploy/base.sh restore-drill.sh      # each unit's dump into fresh volumes, served back
+```
+
+Only after both is the universe proven: the proof shows it works now, the
+drills show it survives a restart, a recreation and the loss of a volume.
 
 ---
 
 ## ⚡ 1-Click Bootstrap Script (`scripts/shaper-lxc-bootstrap.sh`)
 
-Steps 1, 2, 4, 5 and 7 are condensed in the executable script
-`software/scripts/shaper-lxc-bootstrap.sh`. Step 3 creates nothing, and step 6
-is no longer a host gesture: the script seeds no journal, because a logbook is
-the universe's own (see Step 6 above). The script needs two things the
-command names: the universe slug, and a universe already derived from
-`software/universes/_template/` under `software/universes/<univ_slug>/`.
-On a fresh LXC container:
+Steps 1, 4 and 7 are condensed in the executable script
+`software/scripts/shaper-lxc-bootstrap.sh`. Steps 2, 3 and 5 create nothing,
+and step 6 is no longer a host gesture: the script makes no key, wires no
+bridge and seeds no journal. The script needs the universe slug, and a
+universe already derived from `software/universes/_template/` at `UNIV_DIR`
+(default `/apps/<univ_slug>`), with its manifest and `cfg-universe.env`
+written: the registry and tag, or the image lock, are the operator's, and the
+images must be published (Step 4.1 of the
+[runbook](../docs/agent/RUNBOOK-EXPLICIT.md)). When the universe has no `base/`
+yet, the script installs it from its own checkout at `HEAD`; then it runs the
+preflight, the birth, the renewal timer and the proof, and stops on the first
+red. On a fresh LXC container:
 
 ```bash
 git clone https://github.com/xavdp-pro/SHAPER-OS-V1.14.git /root/SHAPER-OS-V1.14
 cd /root/SHAPER-OS-V1.14
+cp -r software/universes/_template /apps/<univ_slug>   # then its manifest and cfg-universe.env
 UNIV_SLUG=<univ_slug> bash software/scripts/shaper-lxc-bootstrap.sh
 ```
 
 > Until the 2 September audit this block read `cd /root/SHAPER-OS` then
 > `bash scripts/shaper-lxc-bootstrap.sh`: there is no `scripts/` at the
 > repository root (it is `software/scripts/`), and the script halts without
-> `UNIV_SLUG`, which no line here named. The script now resolves `software/`
-> from its own location, so it runs from any directory; the universe it starts
-> is `software/universes/$UNIV_SLUG`, and a slug that names no universe is a
-> halt that says so, not a warning that scrolls by.
+> `UNIV_SLUG`, which no line here named. The script resolves `software/`
+> from its own location, so it runs from any directory; a universe it cannot
+> find is a halt that says so, not a warning that scrolls by. Until the base
+> release it started `software/universes/$UNIV_SLUG` — a universe inside the
+> repository, with the earlier template's copied script.
 
 **Execution time observed in this precise context**: images already present in the local cache, empty universe with no data to restore, LXC provisioning and `apt` **not included**.
 This value is an observed measurement, **not a commitment**: it holds only for this exact context. See Rule 10 (three clocks) before quoting it anywhere.  
-**Result**: Universe operational, agent ready for service.
+**Result**: Universe born and proven (`deploy/proof.sh` exit 0); the two drills follow.
 
 ---
 
@@ -303,7 +325,10 @@ cd universes/univ-<slug>-test && ENV_FILE=deploy/env ./deploy/podman-up.sh
 > *(Dated record — 23 August 2026. The `localhost/shaper-$b:$TAG` names above
 > predate the unified image ladder of V1.13.1: today the build publishes
 > `<registry>/shaper/brick-*:<tag>` and the deploy resolves the same — see
-> `scripts/deploy-image-resolve.sh`.)*
+> `scripts/deploy-image-resolve.sh`. The five bricks, `deploy/env` and the
+> template's own `podman-up.sh` predate the base release of 11 October 2026:
+> today the template installs univ-minimal's four units under `base/` and runs
+> them — Steps 4 to 8 above.)*
 
 Result: **five containers healthy**, a job injected into the queue reaching
 `COMPLETED`, and `/api/vitals` answering with evidence.

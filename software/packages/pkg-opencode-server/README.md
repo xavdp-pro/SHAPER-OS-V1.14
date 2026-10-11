@@ -100,7 +100,7 @@ nothing and need no credentials.
 
 The bridge names **no default model**. The model comes from `OPENCODE_MODEL`,
 measured at deployment from the target host — enumerate, probe on the shape of
-the work, keep what passed (Rule 7, runbook Step 4.2b). Empty means "not
+the work, keep what passed (Rule 7, univ-base AGENT-DEPLOY step 2b). Empty means "not
 chosen": a run says so instead of guessing, and `podman-up.sh` halts before
 starting the brick. A model named in this file would be a default, and the
 last one named here had been withdrawn from its catalogue while still

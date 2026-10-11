@@ -152,12 +152,16 @@ describe('what was not proven is said out loud', () => {
 // For a literal agent the runbook IS the code, so Rule 29 binds it too. The
 // tester's root cause named the document first: the runbook requires an artefact
 // and a byte comparison, and its canonical job asks for no artefact at all.
-describe('the runbook asks for what it demands as proof', () => {
-  const runbook = fs.readFileSync(path.join(REPO, 'docs/agent/RUNBOOK-EXPLICIT.md'), 'utf8');
+// Since lot BASE-DOCS (11 October 2026) the canonical job is univ-base's — the
+// one universe that still runs an engine bridge — and lives in its AGENT-DEPLOY,
+// step 4; the runbook walks the template's base units, whose proof is
+// deploy/proof.sh and the two drills.
+describe('the earlier shape\'s literal path asks for what it demands as proof', () => {
+  const runbook = fs.readFileSync(path.join(REPO, 'software/universes/univ-base/AGENT-DEPLOY.md'), 'utf8');
 
   it('asks the canonical job for the artefact proof 2 compares', () => {
     const start = runbook.indexOf('"type": "agent.inject"');
-    assert.notEqual(start, -1, 'step 6 no longer carries the canonical job');
+    assert.notEqual(start, -1, 'univ-base step 4 no longer carries the canonical job');
     const example = runbook.slice(start, runbook.indexOf('```', start));
 
     assert.match(
@@ -175,6 +179,18 @@ describe('the runbook asks for what it demands as proof', () => {
     );
     assert.match(runbook, /PROOF_ARTIFACT/, 'the declaration the script needs must be shown, not guessed');
     assert.match(runbook, /PROOF_EXPECTED/, 'the expected bytes are declared, not inferred');
+  });
+});
+
+describe('the runbook proves a template universe by its scripts, never by a health', () => {
+  const runbook = fs.readFileSync(path.join(REPO, 'docs/agent/RUNBOOK-EXPLICIT.md'), 'utf8');
+
+  it('step 6 runs the proof and both drills, in that order', () => {
+    const step = runbook.slice(runbook.indexOf('## Step 6'), runbook.indexOf('## Step 7'));
+    const order = ['deploy/proof.sh', 'lifecycle-drill.sh', 'restore-drill.sh'].map((n) => step.indexOf(n));
+    assert.ok(order.every((i) => i !== -1), 'the proof step names deploy/proof.sh and the two drills');
+    assert.deepEqual([...order].sort((a, b) => a - b), order);
+    assert.match(step, /does \*\*not\*\* prove that work\s+happened/, 'a green health is named as what it is');
   });
 });
 

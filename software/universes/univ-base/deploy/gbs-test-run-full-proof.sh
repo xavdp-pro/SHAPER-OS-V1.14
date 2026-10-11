@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Intent: software/universes/univ-base/INTENT.md#proof
-# Runbook step 6 on gbs-test: real bridge job, declared artefact, deploy/proof.sh exit 0.
+# AGENT-DEPLOY step 4 (univ-base) on gbs-test: real bridge job, declared artefact, deploy/proof.sh exit 0.
 set -euo pipefail
 
 UNIV="$(cd "${SHAPER_UNIVERSE_DIR:-$(dirname "$0")/..}" && pwd)"   # SHAPER_UNIVERSE_DIR: see podman-up.sh
