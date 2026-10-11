@@ -4,9 +4,11 @@
 
 ## What you are deploying
 
-The canonical base cell: five bricks, no catalogue brick, no domain, no account.
-If this universe does not come up, nothing built on top of it will either — which
-is the only reason it exists.
+The earlier base cell: five bricks with file stores, no catalogue brick, no
+domain, no account. It runs only from the earlier images pinned where they were
+published, and it is not the shape a new universe starts from — read
+[`INTENT.md#earlier-shape`](./INTENT.md#earlier-shape) first. A new universe is
+derived from [`../_template/`](../_template/AGENT-DEPLOY.md).
 
 ## Before you start
 
@@ -40,6 +42,11 @@ with its number. Put a note behind `#`. The grammar and its reason are in
 [`INTENT.md`](./INTENT.md#variables-file).
 
 ### 2. Build and pin the images
+
+Only from a checkout at or before `958e0b7` (V1.14 main), whose bricks are the
+earlier file-store images; never under a tag the registry already serves. From
+the base release on, the bricks are one-container units with MariaDB inside, and
+`podman-up.sh` refuses them before it stops anything.
 
 ```bash
 cd ../../                       # software/

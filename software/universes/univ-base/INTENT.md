@@ -1,13 +1,52 @@
 # univ-base
 
 > **Intent Classification**: SPECIFIC INTENT (Universe: `univ-base`)
+>
+> **Status**: earlier shape, kept on its older images ([why](#earlier-shape)).
 
 ## Objective
 
-The canonical V1.13 reference universe. It proves the generic SHAPER base, and
-it contains no catalogue product, no client workflow and no public name. If this
-universe does not come up, nothing built on top of it will — which is its whole
-job.
+The V1.13 reference universe, kept in its earlier shape. It proved the generic
+SHAPER base of V1.13 and V1.14 main — five bricks, file stores, one AI bridge —
+and it contains no catalogue product, no client workflow and no public name. It
+is no longer the shape a new universe starts from: that is
+[`_template`](../_template/INTENT.md), whose base units are
+[`univ-minimal`](../univ-minimal/INTENT.md)'s
+([below](#earlier-shape)).
+
+<a id="earlier-shape"></a>
+## The earlier shape, kept on its older images
+
+The base units of this tree (Vault, Logger, Queue, Maestro) are now functional
+Podmans of the one-container shape: each image carries its own MariaDB server,
+an `/apps/<slug>/` layout, a Vault-signed unit identity, credentials on every
+route but a minimal health, and durable Queue attempts (Rules 4 and 26;
+`univ-minimal`). univ-base was not converted with them, because converting it
+needs its fifth brick: `brick-bridge-opencode` keeps workspace files and a token
+on disk, runs as root and has no MariaDB of its own, so a univ-base of the new
+units would be a new artefact inheriting a legacy gap, which Rule 26 forbids.
+The bridge's conversion is a brick lot of its own.
+
+Until then, univ-base stays what it was — the legacy transition of Rule 26 —
+and serves only where it already runs:
+
+- **Images.** Only the earlier file-store images, built from V1.14 main at or
+  before `958e0b7` and pinned by digest in the lock of the host that published
+  them (on `gbs-test`, tag `v114-gbs`,
+  [proof record](../../../docs/proof/proof-gbs-univ-os-v114-dev.md)). Those
+  digests are never re-tagged and this tree never rebuilds them:
+  `deploy/podman-up.sh` reads every image before it touches a container and
+  refuses a unit image of the one-container shape (`org.shaper.unit.*`
+  labels), and `deploy/gbs-test-bootstrap-v114.sh` refuses a checkout whose
+  bricks are those units, never replaces the registry container (its images
+  live in it) and halts on a tag the registry already serves.
+- **Stores.** Its Vault, Logger and Queue keep their file stores
+  (`.state/vol-univ-base-*`); its proof reads Queue and Logger without a
+  credential, as those images allow. This is technical debt, recorded as such,
+  not compliance (Rule 26: an empty MariaDB beside file state, or none, never
+  satisfies the gate).
+- **Not for a new universe.** Copying this folder copies the debt. A universe
+  of the current shape is derived from `_template`.
 
 ## Exact runtime — five bricks
 

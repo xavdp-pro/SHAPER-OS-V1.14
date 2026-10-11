@@ -102,6 +102,40 @@ IMG_QUEUE="$(resolve_image img-queue)"
 IMG_MAESTRO="$(resolve_image img-maestro)"
 IMG_BRIDGE="$(resolve_image img-bridge-opencode)"
 
+# ── 2b. Only images of the earlier shape ────────────────────────────────────
+# univ-base is kept on the file-store bricks it was proven with: images built
+# from V1.14 main at or before 958e0b7, pinned by digest where they were
+# published (INTENT.md#earlier-shape). A unit image of the one-container shape
+# (labels org.shaper.unit.*: MariaDB inside, an /apps/<slug> layout, a
+# Vault-signed identity) cannot serve this script: it would remove the running
+# containers below, then start units that refuse to start. Every image is
+# therefore present — pulled when it is not — and read before any container of
+# this universe is touched. A tag is never moved here, and nothing is rebuilt.
+earlier_shape_only() {
+  local key="$1" ref="$2" labels
+  if ! podman image exists "$ref" 2>/dev/null; then
+    podman pull -q "$ref" >/dev/null || {
+      echo "[podman-up] $key: $ref is neither present nor pullable — nothing was stopped" >&2
+      exit 1
+    }
+  fi
+  labels="$(podman image inspect -f '{{json .Labels}}' "$ref")" || {
+    echo "[podman-up] $key: $ref cannot be inspected — nothing was stopped" >&2
+    exit 1
+  }
+  if [[ "$labels" == *'"org.shaper.unit.'* ]]; then
+    echo "[podman-up] $key: $ref is a unit image of the one-container shape (org.shaper.unit.* labels: MariaDB inside, unit identities)." >&2
+    echo "[podman-up] univ-base runs only the earlier file-store images, pinned by digest (INTENT.md#earlier-shape)." >&2
+    echo "[podman-up] A universe of the current shape starts from universes/_template (the base units of univ-minimal). Nothing was stopped. Halt." >&2
+    exit 1
+  fi
+}
+earlier_shape_only img-vault "$IMG_VAULT"
+earlier_shape_only img-logger "$IMG_LOGGER"
+earlier_shape_only img-queue "$IMG_QUEUE"
+earlier_shape_only img-maestro "$IMG_MAESTRO"
+earlier_shape_only img-bridge-opencode "$IMG_BRIDGE"
+
 # ── 3. Volumes the universe owns ────────────────────────────────────────────
 VOL="$UNIV/.state"
 mkdir -p "$VOL/vol-univ-base-vault" "$VOL/vol-univ-base-log" "$VOL/vol-univ-base-opencode-ws" \
