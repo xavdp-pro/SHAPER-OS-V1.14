@@ -5,6 +5,13 @@
 # then enabled. Run once, as root, after deploy/podman-up.sh.
 #
 #   SYSTEMD_DIR (default /etc/systemd/system)   where the units are written
+#   RENEWAL_ALERT_UNIT (e.g. <universe>-watch.service)
+#                                               the unit that carries a failed
+#                                               renewal to the universe's human
+#                                               channel, started at once by
+#                                               OnFailure= (decision L); unset,
+#                                               the failed unit waits for the
+#                                               watcher's next run
 #   NO_SYSTEMCTL=1                              render only (tests)
 set -euo pipefail
 
@@ -26,8 +33,14 @@ if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
   [[ "$ENV_FILE" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "[install-renewal-timer] $ENV_FILE holds characters a unit file would misread" >&2; exit 1; }
   ENV_LINE="Environment=ENV_FILE=$ENV_FILE"
 fi
+ALERT_LINE="# OnFailure: none declared (RENEWAL_ALERT_UNIT); the watcher reads the failed unit at its next run"
+if [[ -n "${RENEWAL_ALERT_UNIT:-}" ]]; then
+  [[ "$RENEWAL_ALERT_UNIT" =~ ^[A-Za-z0-9@._:-]+\.service$ ]] || { echo "[install-renewal-timer] RENEWAL_ALERT_UNIT must name one systemd service, got $RENEWAL_ALERT_UNIT" >&2; exit 1; }
+  ALERT_LINE="OnFailure=$RENEWAL_ALERT_UNIT"
+fi
 for kind in service timer; do
-  sed -e "s|@UNIVERSE@|$UNIVERSE|g" -e "s|@UNIV@|$UNIV|g" -e "s|@ENV_LINE@|$ENV_LINE|g" "$UNIV/systemd/bootstrap-renewal.$kind.in" > "$DIR/$NAME.$kind.next"
+  sed -e "s|@UNIVERSE@|$UNIVERSE|g" -e "s|@UNIV@|$UNIV|g" -e "s|@ENV_LINE@|$ENV_LINE|g" -e "s|@ALERT_LINE@|$ALERT_LINE|g" \
+    "$UNIV/systemd/bootstrap-renewal.$kind.in" > "$DIR/$NAME.$kind.next"
   chmod 0644 "$DIR/$NAME.$kind.next"
   mv -f "$DIR/$NAME.$kind.next" "$DIR/$NAME.$kind"
 done

@@ -58,6 +58,12 @@ const incarnationOf = (s) => JSON.parse(read(path.join(fakeState, `univ-minimal-
 // The proof's helpers, sourced exactly as proof.sh sources them.
 const probe = (script) => spawnSync('bash', ['-c', `set -uo pipefail; UNIVERSE=univ-minimal; APPS_ROOT='${appsRoot}'; MANIFEST='${UNIV}/manifest.json'; source '${UNIV}/deploy/unit-probes.sh'; ${script}`], { env, encoding: 'utf8', timeout: 180000 });
 const read = (p) => fs.readFileSync(p, 'utf8');
+const recordsDir = path.join(appsRoot, 'vault/etc/vault/registration/records');
+const renewalDir = path.join(appsRoot, 'vault/etc/vault/registration/renewal');
+const renew = (extra = {}) => spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/renew-bootstraps.sh')], { env: { ...env, ...extra }, encoding: 'utf8', timeout: 120000 });
+const expiries = () => Object.fromEntries(sql('vault', "SELECT CONCAT(unit_id, ' ', TIMESTAMPDIFF(SECOND, '1970-01-01', bootstrap_expires_at)) FROM unit_identities ORDER BY unit_id")
+  .split('\n').map((l) => l.split(' ')).map(([u, t]) => [u, Number(t)]));
+const lastRun = () => JSON.parse(read(path.join(renewalDir, 'last.json')));
 const secretsSeen = () => {
   const out = [];
   for (const p of [path.join(appsRoot, 'vault/etc/vault/api-token'), path.join(appsRoot, 'vault/etc/vault/master.key'),
@@ -263,9 +269,6 @@ test('--recreate <slug> recreates that unit alone, under a new incarnation; the 
 });
 
 test('the parent\'s renewal extends every live bootstrap by 30 days, keeping incarnations, epochs and containers (DECISIONS §D)', () => {
-  const renew = (extra = {}) => spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/renew-bootstraps.sh')], { env: { ...env, ...extra }, encoding: 'utf8', timeout: 120000 });
-  const expiries = () => Object.fromEntries(sql('vault', "SELECT CONCAT(unit_id, ' ', TIMESTAMPDIFF(SECOND, '1970-01-01', bootstrap_expires_at)) FROM unit_identities ORDER BY unit_id")
-    .split('\n').map((l) => l.split(' ')).map(([u, t]) => [u, Number(t)]));
   const before = { expiries: expiries(), rows: identities(), pids: pids() };
   // Every identity is due when the window is 40 days: a drill of the daily run.
   const forced = renew({ RENEW_WITHIN_SECONDS: String(40 * 86400) });
@@ -274,10 +277,15 @@ test('the parent\'s renewal extends every live bootstrap by 30 days, keeping inc
     assert.match(forced.stdout, new RegExp(`^  ${u} +renewed `, 'm'));
     assert.equal(expiries()[u] - before.expiries[u], 30 * 86400, `${u} extended by 30 days`);
   }
+  assert.match(forced.stdout, /4 identities checked, 4 renewed .* none blocked \(renewal [0-9a-f-]{36}\)/);
   assert.equal(identities(), before.rows, 'no incarnation, no epoch changed');
   assert.deepEqual(pids(), before.pids, 'nothing restarted');
   for (const secret of secretsSeen()) assert.ok(!forced.stdout.includes(secret) && !forced.stderr.includes(secret));
   assert.equal(Number(sql('vault', "SELECT COUNT(*) FROM event_outbox WHERE JSON_VALUE(body, '$.event') = 'UNIT_BOOTSTRAP_RENEWED'")), 4, 'one proof per renewal');
+  const last = lastRun();
+  assert.deepEqual([last.outcome, last.exit, last.renewed, last.blocked, last.units.length], ['complete', 0, 4, 0, 4]);
+  assert.equal(fs.statSync(path.join(renewalDir, 'last.json')).mode & 0o777, 0o600);
+  assert.ok(!fs.existsSync(path.join(renewalDir, 'unsettled')), 'the run is settled');
   // The daily run, the same day: nothing is due.
   const daily = renew();
   assert.equal(daily.status, 0, daily.stderr);
@@ -288,35 +296,142 @@ test('the parent\'s renewal extends every live bootstrap by 30 days, keeping inc
     spawnSync('sleep', ['0.3']);
     const locked = renew({ PARENT_LOCK_WAIT_SECONDS: '1' });
     assert.equal(locked.status, 1);
-    assert.match(locked.stderr, /another parent run holds/);
+    assert.match(locked.stderr, /HALTED: another parent run holds/);
   } finally {
     holder.kill();
   }
-  // Records gone under an existing Vault database: a halt, not a quiet success.
-  const recordsDir = path.join(appsRoot, 'vault/etc/vault/registration/records');
+});
+
+test('decision L: a mixed run renews the consistent identities, leaves the blocked ones unchanged, and fails visibly while Logger is down', async () => {
+  const record = (u) => path.join(recordsDir, `${u}.json`);
+  const kept = { queue: read(record('queue')), maestro: read(record('maestro')) };
+  // queue: its record no longer matches Vault (inconsistent); maestro: its record is gone (missing).
+  fs.writeFileSync(record('queue'), kept.queue.replace(/"bootstrapDigest":"[0-9a-f]{64}"/, `"bootstrapDigest":"${'0'.repeat(64)}"`));
+  fs.renameSync(record('maestro'), `${record('maestro')}.aside`);
+  // Vault's relay cannot reach Logger: the alert must not depend on it.
+  spawnSync(path.join(HERE, 'bin/podman'), ['stop', 'univ-minimal-ctr-logger'], { env });
+  try {
+    const now = expiries();
+    const rows = identities();
+    const mixed = renew({ RENEW_WITHIN_SECONDS: String(80 * 86400) });
+    assert.equal(mixed.status, 2, `partial exits 2, which fails the timer's unit:\n${mixed.stdout}\n${mixed.stderr}`);
+    assert.match(mixed.stdout, /^  vault +renewed /m);
+    assert.match(mixed.stdout, /^  proof +renewed /m);
+    assert.match(mixed.stdout, /^  queue +inconsistent +bootstrap expires \S+ \(digest\)$/m);
+    assert.match(mixed.stdout, /^  maestro +missing +bootstrap expires \S+ \(no-record\)$/m);
+    assert.match(mixed.stderr, /PARTIAL: univ-minimal \(\S+\): 2 renewed, 2 blocked and left unchanged — queue inconsistent \(digest\), maestro missing \(no-record\)\. The renewed ones are committed/);
+    assert.doesNotMatch(mixed.stderr + mixed.stdout, /nothing (was )?renewed/i, 'never claims nothing was renewed');
+    const after = expiries();
+    assert.equal(after.vault - now.vault, 30 * 86400);
+    assert.equal(after.proof - now.proof, 30 * 86400);
+    assert.deepEqual([after.queue, after.maestro], [now.queue, now.maestro], 'the blocked identities are unchanged');
+    assert.equal(identities(), rows, 'no incarnation, no epoch changed');
+    const last = lastRun();
+    assert.deepEqual([last.outcome, last.exit, last.renewed, last.blocked], ['partial', 2, 2, 2]);
+    assert.deepEqual(last.units.map((u) => `${u.unit}:${u.state}:${u.detail}`).sort(),
+      ['maestro:missing:no-record', 'proof:renewed:-', 'queue:inconsistent:digest', 'vault:renewed:-']);
+    const id = last.renewalId;
+    assert.equal(sql('vault', `SELECT CONCAT(JSON_VALUE(body, '$.level'), ' ', IF(receipt IS NULL, 'owed', 'receipted')) FROM event_outbox WHERE event_id = '${id}' AND JSON_VALUE(body, '$.event') = 'UNIT_BOOTSTRAP_RENEWAL_PARTIAL'`),
+      'ERROR owed', 'the partial alert is committed in Vault, owed to Logger');
+    assert.equal(sql('vault', `SELECT COUNT(*) FROM event_outbox WHERE JSON_VALUE(body, '$.correlationId') = '${id}' AND JSON_VALUE(body, '$.event') = 'UNIT_BOOTSTRAP_RENEWED'`), '2', 'correlated proofs');
+    // The second run: nothing more is extended, the blocked ones still unchanged.
+    const second = renew();
+    assert.equal(second.status, 2, second.stderr);
+    assert.match(second.stderr, /PARTIAL: \S+ \(\S+\): 0 renewed, 2 blocked/);
+    assert.deepEqual(expiries(), after, 'a second run extends nothing');
+  } finally {
+    fs.writeFileSync(record('queue'), kept.queue, { mode: 0o600 });
+    fs.renameSync(`${record('maestro')}.aside`, record('maestro'));
+    spawnSync(path.join(HERE, 'bin/podman'), ['restart', 'univ-minimal-ctr-logger'], { env });
+  }
+  // Logger back: Vault's relay delivers the alert, with Logger's verified receipt.
+  // (the relay's per-row backoff is capped at 256 s)
+  const receipted = await until(() => sql('vault', "SELECT COUNT(*) FROM event_outbox WHERE JSON_VALUE(body, '$.event') LIKE 'UNIT_BOOTSTRAP_RENEW%' AND receipt IS NULL") === '0', 300000);
+  assert.ok(receipted, 'both partial alerts and the proofs reach Logger once it is back');
+  assert.equal(sql('logger', `SELECT COUNT(*) FROM events WHERE pod = 'vault' AND event = 'UNIT_BOOTSTRAP_RENEWAL_PARTIAL'`), '2');
+  // Records restored: a full renewal again.
+  assert.equal(renew().status, 0);
+});
+
+test('decision L: a failed transaction rolls back, a lost acknowledgement is settled from the proofs before anything is repeated, records gone are missing', () => {
+  // An outbox row refused: the transaction rolls back, the script re-reads the proofs and halts.
+  sql('vault', "CREATE TRIGGER rehearsal_outbox_fault BEFORE INSERT ON event_outbox FOR EACH ROW SET NEW.body = IF(JSON_VALUE(NEW.body, '$.event') LIKE 'UNIT_BOOTSTRAP_RENEW%', NULL, NEW.body)");
+  let failed;
+  const now = expiries();
+  try {
+    failed = renew({ RENEW_WITHIN_SECONDS: String(80 * 86400) });
+  } finally {
+    sql('vault', 'DROP TRIGGER rehearsal_outbox_fault');
+  }
+  assert.equal(failed.status, 1, `${failed.stdout}\n${failed.stderr}`);
+  assert.match(failed.stderr, /HALTED: root's transaction did not complete \(ERROR 1048 .*\); the proofs of renewal \S+ show nothing committed: the transaction rolled back, nothing was renewed by this run/);
+  assert.deepEqual(expiries(), now, 'nothing extended');
+  assert.deepEqual([lastRun().outcome, lastRun().exit], ['halted', 1]);
+  assert.ok(!fs.existsSync(path.join(renewalDir, 'unsettled')));
+
+  // A run whose acknowledgement was lost: the next run settles it from its proofs first.
+  const committed = renew({ RENEW_WITHIN_SECONDS: String(80 * 86400) });
+  assert.equal(committed.status, 0, committed.stderr);
+  const lost = lastRun().renewalId;
+  fs.writeFileSync(path.join(renewalDir, 'unsettled'), `${lost}\n`, { mode: 0o600 });
+  const next = renew();
+  assert.equal(next.status, 0, next.stderr);
+  const n = (committed.stdout.match(/^  \S+ +renewed /gm) || []).length;
+  assert.ok(n >= 1, 'the drill window makes some identity due');
+  assert.match(next.stdout, new RegExp(`the earlier renewal ${lost}, settled from its proofs: ${n} renewed\\n(  \\S+ +renewed .*\\n){${n}}  \\S+ +current `), 'exactly what its proofs show');
+  assert.equal((next.stdout.match(/ current /g) || []).length, 4, 'and the repeat extends nothing');
+  assert.ok(!fs.existsSync(path.join(renewalDir, 'unsettled')));
+  // An unsettled marker that names no run: nothing is repeated.
+  fs.writeFileSync(path.join(renewalDir, 'unsettled'), 'garbage\n', { mode: 0o600 });
+  const garbled = renew();
+  assert.equal(garbled.status, 1);
+  assert.match(garbled.stderr, /HALTED: .*unsettled does not name a renewal/);
+  fs.rmSync(path.join(renewalDir, 'unsettled'));
+
+  // Records gone under an existing Vault database: every identity missing, nothing renewed blind.
   fs.renameSync(recordsDir, `${recordsDir}.aside`);
   try {
-    const none = renew();
-    assert.equal(none.status, 1);
-    assert.match(none.stderr, /a Vault was born here but .* records no identity: run deploy\/podman-up\.sh/);
+    const none = renew({ RENEW_WITHIN_SECONDS: String(80 * 86400) });
+    assert.equal(none.status, 2, none.stderr);
+    assert.match(none.stderr, /PARTIAL: \S+ \(\S+\): 0 renewed, 4 blocked/);
+    assert.equal((none.stdout.match(/ missing +bootstrap expires \S+ \(no-record\)/g) || []).length, 4);
+    assert.ok(!fs.existsSync(recordsDir), 'the parent\'s records path is never created by the renewal');
   } finally {
     fs.renameSync(`${recordsDir}.aside`, recordsDir);
   }
-  // A record that no longer matches Vault halts the run: nothing renewed, an alert.
-  const record = path.join(appsRoot, 'vault/etc/vault/registration/records/queue.json');
-  const kept = read(record);
-  fs.writeFileSync(record, kept.replace(/"bootstrapDigest":"[0-9a-f]{64}"/, `"bootstrapDigest":"${'0'.repeat(64)}"`));
+  // A record that cannot be trusted is an unverifiable input: everything halts.
+  const record = path.join(recordsDir, 'queue.json');
+  fs.chmodSync(record, 0o644);
   try {
-    const now = expiries();
-    const halted = renew({ RENEW_WITHIN_SECONDS: String(80 * 86400) });
-    assert.equal(halted.status, 1);
-    assert.match(halted.stderr, /HALTED: 1 identity record\(s\) do not match/);
-    assert.match(halted.stdout, /^  queue +mismatch /m);
-    assert.match(halted.stdout, /^  vault +held /m);
-    assert.deepEqual(expiries(), now, 'nothing renewed');
-    assert.equal(Number(sql('vault', "SELECT COUNT(*) FROM event_outbox WHERE JSON_VALUE(body, '$.event') = 'UNIT_BOOTSTRAP_RENEWAL_HALTED' AND JSON_VALUE(body, '$.level') = 'ERROR'")), 1);
+    const untrusted = renew({ RENEW_WITHIN_SECONDS: String(80 * 86400) });
+    assert.equal(untrusted.status, 1);
+    assert.match(untrusted.stderr, /HALTED: the Vault image did not build the renewal: an input cannot be verified \(.*RECORD_UNTRUSTED.*\); nothing renewed/);
   } finally {
-    fs.writeFileSync(record, kept, { mode: 0o600 });
+    fs.chmodSync(record, 0o600);
+  }
+  // Identities the installing universe declares beyond the base's are part of the inventory.
+  const extra = renew({ RENEWAL_EXTRA_IDENTITIES: 'brick-voice' });
+  assert.equal(extra.status, 2, extra.stderr);
+  assert.match(extra.stdout, /^  brick-voice +missing +bootstrap expires - \(no-record\)$/m);
+  assert.match(extra.stderr, /0 renewed, 1 blocked and left unchanged — brick-voice missing \(no-record\)/);
+  const badExtra = renew({ RENEWAL_EXTRA_IDENTITIES: "x'y" });
+  assert.equal(badExtra.status, 1);
+  assert.match(badExtra.stderr, /HALTED: RENEWAL_EXTRA_IDENTITIES holds/);
+  assert.equal(renew().status, 0, 'the base alone: complete');
+  // A universe identity Vault holds nothing of: everything halts, an alert committed in Vault.
+  const idFile = path.join(appsRoot, 'vault/etc/vault/universe-id');
+  const realId = read(idFile);
+  const before = expiries();
+  fs.writeFileSync(idFile, '6ba7b810-9dad-41d1-80b4-00c04fd430c8\n');
+  try {
+    const unknown = renew({ RENEW_WITHIN_SECONDS: String(80 * 86400) });
+    assert.equal(unknown.status, 1, unknown.stderr);
+    assert.match(unknown.stderr, /HALTED: Vault holds no identity of universe 6ba7b810-9dad-41d1-80b4-00c04fd430c8: .*nothing was checked or renewed; UNIT_BOOTSTRAP_RENEWAL_HALTED committed/);
+    assert.deepEqual([lastRun().outcome, lastRun().exit, lastRun().blocked], ['halted', 1, 0], 'last.json stays valid JSON');
+    assert.deepEqual(expiries(), before);
+    assert.equal(sql('vault', `SELECT JSON_VALUE(body, '$.data.reason') FROM event_outbox WHERE event_id = '${lastRun().renewalId}'`), 'universe-unknown');
+  } finally {
+    fs.writeFileSync(idFile, realId);
   }
 });
 

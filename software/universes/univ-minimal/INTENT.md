@@ -167,24 +167,62 @@ expires, without restarting anything ([renewal](#renewal)).
 <a id="renewal"></a>
 ## The parent's daily bootstrap renewal
 
-DECISIONS-20261011 §D. `deploy/install-renewal-timer.sh` (once, as root, after
-`podman-up.sh`) installs `<universe>-bootstrap-renewal.timer` and its service
-in the universe container, rendered from `systemd/`: daily, and at the next
-boot after a missed day. Each run is `deploy/renew-bootstraps.sh`, the parent
-acting through Vault's local administrative path — not a Maestro task, not a
-unit's own act:
+DECISIONS-20261011 §D, made selective by SOL decision L (11 October 2026),
+which replaces its all-or-nothing halt. `deploy/install-renewal-timer.sh`
+(once, as root, after `podman-up.sh`) installs
+`<universe>-bootstrap-renewal.timer` and its service in the universe
+container, rendered from `systemd/`: daily, and at the next boot after a
+missed day. Each run is `deploy/renew-bootstraps.sh`, the parent acting
+through Vault's local administrative path — not a Maestro task, not a unit's
+own act:
 
-1. `pkg-vault/unit-registration.js renew`, from the running Vault's image (no
-   network, no capability), turns the parent's records
+1. the identities are inventoried from the composition: every credential
+   holder the manifest declares (`HOLDS_CREDENTIAL`) and the proof's identity,
+   the identities an installing universe declares in
+   `RENEWAL_EXTRA_IDENTITIES` (space-separated slugs, its variables file: the
+   units it registers beyond the base's), then any record of a unit outside
+   them (`unexpected`) — so a record file that disappeared is reported
+   `missing`, never skipped;
+2. `pkg-vault/unit-registration.js renew`, from the running Vault's image (no
+   network, no capability), turns them and the parent's records
    (`registration/records/*.json`, mounted read-only) into one transaction;
-2. root applies it through Vault's socket. Every record is checked against
-   Vault — universe, unit, incarnation, epoch, grants, recorded bootstrap
-   digest, not revoked, not expired. When all hold, each bootstrap expiring
-   within 7 days is extended by 30 days with its `UNIT_BOOTSTRAP_RENEWED`
-   proof in the same transaction. When one does not, nothing changes,
-   `UNIT_BOOTSTRAP_RENEWAL_HALTED` (level `ERROR`, each unit's state) is
-   committed for Logger, and the run exits 1 — the timer's service fails,
-   visible in `systemctl --failed`.
+3. root applies it through Vault's socket. Each identity's row is locked and
+   checked — universe, unit, incarnation, epoch, grants, recorded bootstrap
+   digest, not revoked, not expired. Each consistent one expiring within 7
+   days gets 30 days more **from its current expiry**, with its
+   `UNIT_BOOTSTRAP_RENEWED` proof in the same transaction. A missing,
+   expired, revoked, inconsistent or unexpected one stays exactly as it is,
+   and `UNIT_BOOTSTRAP_RENEWAL_PARTIAL` (level `ERROR`, every identity's
+   state, the same run id as the proofs) is committed with them. Any SQL or
+   proof failure rolls the whole transaction back.
+
+The run prints one line per identity (`renewed`, `current`, `missing`,
+`expired`, `revoked`, `inconsistent` with the differing fields, `unexpected`)
+and its outcome, also written root-only and without a secret to
+`registration/renewal/last.json`. Its exit status is what the timer's unit
+shows:
+
+| Exit | Outcome | Meaning |
+| :--- | :--- | :--- |
+| 0 | `complete` | every identity renewed or current |
+| 1 | `halted` | nothing renewed by this run: the universe identity (no UUID, or no identity of it in Vault — then `UNIT_BOOTSTRAP_RENEWAL_HALTED` is committed), an input (a record that is not a private, well-formed file of its unit) or root's authority over Vault (Vault not running, the statement refused) could not be verified, or the transaction failed and rolled back |
+| 2 | `partial` | the consistent identities are renewed and listed; the blocked ones are unchanged and expire unless the operator acts |
+| 3 | `unknown` | root's acknowledgement was lost: the proofs of the run were re-read and say what was committed, or could not be read |
+
+Before root applies a run, its id is kept in `registration/renewal/unsettled`.
+An acknowledgement that does not come back — a client failure, an incomplete
+answer — is settled from Vault's outbox (`unit-registration.js readback`: the
+run's `UNIT_BOOTSTRAP_RENEWED` rows and its alert) before anything else; when
+the proofs cannot be read, the marker stays and the next run settles it
+first, or halts without repeating anything. A repeat is safe in any case: a
+renewed identity is 30 days away from expiring, so no longer due.
+
+Every non-zero exit fails the service. The alert reaches a human through the
+universe's watcher, which reports a failed renewal unit on its declared human
+channel (Rule 27); with `RENEWAL_ALERT_UNIT=<the watcher's service>` at
+install time, the unit's `OnFailure=` starts the watcher at once. That path
+depends neither on Vault's relay nor on Logger: Logger receives the same
+events through the relay as evidence, never as the alert.
 
 It creates no identity, changes no incarnation, epoch or grant, never revives
 a revoked identity, restarts nothing, and prints no token: records and
@@ -192,10 +230,8 @@ statements carry digests only. `RENEW_WITHIN_SECONDS` and
 `RENEW_EXTEND_SECONDS` exist to drill it (`lifecycle-drill.sh` uses a 40-day
 window), never in the timer. One parent at a time: `podman-up.sh` and the
 renewal hold `/apps/vault/etc/vault/parent.lock` (`flock`, closed to every
-podman child) while they read or change identities and records. A Vault born
-here with no record is a halt, never a quiet success; an answer that does not
-cover every record is a halt too. A universe configured by `ENV_FILE` gets a
-service that names the same file.
+podman child) while they read or change identities and records. A universe
+configured by `ENV_FILE` gets a service that names the same file.
 
 <a id="host"></a>
 ## What the universe container must provide
@@ -391,11 +427,12 @@ Recorded so nobody reads the floor as the full target contract of the units
   step after `podman-up.sh`;
 - refusal counts not yet committed (at most one minute) are lost with Vault's
   process;
-- the renewal halts as a whole on any inconsistency, as decided ("inconsistency
-  stops and alerts"): one revoked, expired or missing identity among the
-  records also holds the consistent ones, so the alert must be acted on within
-  7 days or every held bootstrap expires — whether to renew the consistent ones
-  and alert on the rest is a decision to take;
+- a blocked identity is never repaired by the renewal: it expires unless the
+  operator re-registers it (`podman-up.sh --recreate <slug>`); the renewal
+  only renews the consistent ones and alerts (decision L);
+- the watcher that carries the renewal's alert to a human belongs to the
+  universe that installs this base (the Clinic kit's `watch.py`, `ALERT_TO`);
+  univ-minimal alone declares no alerting channel, so it stays DEV (Rule 27);
 - `recovery_points` is written by the administrative path by convention only:
   the application account's grants (`SELECT, INSERT, UPDATE, DELETE` on its
   database) cover it, so a faulty application could record a point that no

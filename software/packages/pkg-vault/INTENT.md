@@ -162,22 +162,50 @@ missing, and the drain to the real Logger under the self-issued credential.
   process (at most one minute). A successful identity check is not recorded.
 
 <a id="bootstrap-renewal"></a>
-## Bootstrap renewal (DECISIONS-20261011 §D)
+## Bootstrap renewal (DECISIONS-20261011 §D, SOL decision L)
 
-`unit-registration.js renew --record <file>…` turns the parent's identity
-records (owner-only JSON: unit, incarnation, epoch, grants, bootstrap digest)
-into one compound statement root applies through the mariadb client. In one
-transaction each recorded row is locked and classified — `due` (consistent,
-expiring within 7 days), `current`, `mismatch` (incarnation, epoch, grants or
-digest differ), `revoked`, `expired`, `missing`. When every record is `due` or
-`current`, each `due` bootstrap is extended by 30 days from its present expiry
-with its `UNIT_BOOTSTRAP_RENEWED` outbox row in the same transaction;
-otherwise nothing changes and `UNIT_BOOTSTRAP_RENEWAL_HALTED` (level `ERROR`)
-is committed. The answer is one row per record (`renewed`, `current`, `held`,
-or the inconsistency). It never inserts an identity, never writes
-`incarnation`, `epoch`, `grants` or `revoked`, and never sees a bootstrap.
-Proof: `test/bootstrap-renewal.live.mjs` (applied by the real client as root,
-the evidence receipted by the real Logger).
+`unit-registration.js renew --expect <slug>… --record <file>… [--renewal-id
+<uuid>]` turns the composition's identities (`--expect`, so an identity whose
+record disappeared is still checked) and the parent's records (owner-only
+JSON named after their unit: unit, incarnation, epoch, grants, bootstrap
+digest) into one compound statement root applies through the mariadb client.
+A record that is not a private regular file, not JSON, or not of the unit its
+name says is an input that cannot be verified: the command fails and nothing
+is built.
+
+In one transaction, with an exit handler that rolls everything back on any
+SQL error:
+
+* the universe must be known to this Vault (at least one identity row);
+  otherwise nothing is checked, `UNIT_BOOTSTRAP_RENEWAL_HALTED` (level
+  `ERROR`, reason `universe-unknown`) is committed and the answer is `halted`;
+* each recorded identity's row is locked (`FOR UPDATE`) and classified —
+  `due` (consistent, expiring within 7 days), `current`, `inconsistent`
+  (incarnation, epoch, grants or digest differ; the detail names which),
+  `revoked`, `expired`, `missing` (`no-record`: expected, no record;
+  `no-row`: no row for this unit in this universe), `unexpected` (a record of
+  a unit outside the composition);
+* each `due` bootstrap is extended by 30 days **from its current expiry**,
+  guarded on every recorded field and on the expiry just read (an extension
+  that does not touch exactly its row signals and rolls back), with its
+  `UNIT_BOOTSTRAP_RENEWED` outbox row (event id `<run>:<n>`, correlationId the
+  run id);
+* when any identity is blocked, `UNIT_BOOTSTRAP_RENEWAL_PARTIAL` (level
+  `ERROR`, event id the run id, every identity's state, detail and expiry) is
+  committed with the extensions. A blocked identity is left exactly as it is
+  and never holds back a consistent one.
+
+The answer is one row per identity, `unit state expiry detail` (`renewed`,
+`current` or the blocked state), then `* complete|partial|halted renewed
+blocked`. `readback --renewal-id <uuid>` prints the query that re-reads what
+one run committed from the outbox — its `UNIT_BOOTSTRAP_RENEWED` rows and its
+alert, then a `# read` row proving the query ran — for the parent to settle a
+lost acknowledgement before anything is repeated. Neither ever inserts an
+identity, writes `incarnation`, `epoch`, `grants` or `revoked`, or sees a
+bootstrap. Proof: `test/bootstrap-renewal.live.mjs` (applied by the real
+client as root against a throwaway MariaDB; mixed run, second run, outbox
+failures, readback, unknown universe; the events receipted by the real
+Logger).
 
 <a id="parent-registration"></a>
 ## Parent registration
@@ -202,7 +230,7 @@ library and a command:
   before stop being current. The bootstrap
   expiry (default 30 days, 60 s to 366 days) bounds how long a unit can renew:
   the parent renews it before it passes ([bootstrap renewal](#bootstrap-renewal)).
-* `renew --record <file>…` — see below.
+* `renew --expect <slug>… --record <file>…` and `readback --renewal-id <uuid>` — see [bootstrap renewal](#bootstrap-renewal).
 
 A base composition registers each *recreated* unit of `vault`, `queue` and
 `maestro` under a new random incarnation `<slug>-<16 hex>`, after Vault's

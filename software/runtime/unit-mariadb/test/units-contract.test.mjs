@@ -376,7 +376,7 @@ describe('univ-minimal births the units in the order their identities need', () 
     }
   });
 
-  test('the parent renews bootstraps daily from the universe container\'s timer, never through Maestro (DECISIONS §D)', () => {
+  test('the parent renews bootstraps daily from the universe container\'s timer, never through Maestro (DECISIONS §D, decision L)', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'renewal-units-'));
     try {
       const r = spawnSync('bash', [path.join(deploy, 'install-renewal-timer.sh')], {
@@ -397,6 +397,16 @@ describe('univ-minimal births the units in the order their identities need', () 
         env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', ENV_FILE: envFile }, encoding: 'utf8' });
       assert.equal(other.status, 0, other.stderr);
       assert.match(fs.readFileSync(path.join(dir, 'univ-other-bootstrap-renewal.service'), 'utf8'), new RegExp(`^Environment=ENV_FILE=${envFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
+      // Decision L: a failed renewal starts the unit that carries it to the human channel, when declared.
+      assert.doesNotMatch(service, /^OnFailure=/m, 'none declared, none rendered');
+      const alerting = spawnSync('bash', [path.join(deploy, 'install-renewal-timer.sh')], {
+        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', SHAPER_UNIVERSE: 'univ-minimal', ENV_FILE: '/nonexistent', RENEWAL_ALERT_UNIT: 'univ-minimal-watch.service' }, encoding: 'utf8' });
+      assert.equal(alerting.status, 0, alerting.stderr);
+      assert.match(fs.readFileSync(path.join(dir, 'univ-minimal-bootstrap-renewal.service'), 'utf8'), /^\[Unit\][^[]*^OnFailure=univ-minimal-watch\.service$/m);
+      const refused = spawnSync('bash', [path.join(deploy, 'install-renewal-timer.sh')], {
+        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', ENV_FILE: '/nonexistent', RENEWAL_ALERT_UNIT: 'x.service\nExecStartPre=/bin/sh' }, encoding: 'utf8' });
+      assert.equal(refused.status, 1);
+      assert.match(refused.stderr, /RENEWAL_ALERT_UNIT must name one systemd service/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -404,8 +414,12 @@ describe('univ-minimal births the units in the order their identities need', () 
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(SOFTWARE, 'universes/univ-minimal/task-schedule.json'), 'utf8')).tasks, [], 'not a Maestro task');
     const renew = fs.readFileSync(path.join(deploy, 'renew-bootstraps.sh'), 'utf8');
     assert.match(renew, /podman run --rm --network none --cap-drop=all --security-opt=no-new-privileges --entrypoint node/);
-    assert.match(renew, /pkg-vault\/unit-registration\.js renew "\$\{RECORD_ARGS\[@\]\}"/);
-    assert.match(renew, /podman exec -i "\$CTR" mariadb --no-defaults -S \/run\/vault\/mysqld\.sock -uroot -N -B vault < "\$statement"/);
+    assert.match(renew, /pkg-vault\/unit-registration\.js "\$@"; \}/);
+    assert.match(renew, /tool renew "\$\{ARGS\[@\]\}" --renewal-id "\$RENEWAL_ID"/);
+    assert.match(renew, /for unit in "\$\{EXPECTED\[@\]\}"; do ARGS\+=\(--expect "\$unit"\); done/, 'the identities come from the composition');
+    assert.match(renew, /podman exec -i "\$CTR" mariadb --no-defaults -S \/run\/vault\/mysqld\.sock -uroot -N -B vault < "\$1"/);
+    // The run id is kept before root applies it; a lost acknowledgement is settled from the proofs.
+    assert.match(renew, /> "\$RENEWAL_DIR\/unsettled" \)\nif ! answer="\$\(rootapply "\$work\/renewal\.sql"\)"; then\n\s+settle /);
     assert.doesNotMatch(renew, /podman (restart|run -d|stop)|--recreate/, 'the renewal restarts nothing');
   });
 

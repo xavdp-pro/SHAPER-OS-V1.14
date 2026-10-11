@@ -1,12 +1,16 @@
 # Intent: software/universes/univ-minimal/INTENT.md#renewal
-# Rendered by deploy/install-renewal-timer.sh. The parent's daily bootstrap
-# renewal (DECISIONS-20261011 §D): one run of deploy/renew-bootstraps.sh. Any
-# inconsistency between the parent's records and Vault halts it (exit 1): this
-# unit fails, visible in `systemctl --failed`, and Vault's outbox carries the
-# alert (UNIT_BOOTSTRAP_RENEWAL_HALTED) to Logger.
+# Rendered by deploy/install-renewal-timer.sh. The parent's daily selective
+# bootstrap renewal (SOL decision L): one run of deploy/renew-bootstraps.sh.
+# Every consistent identity due within 7 days is renewed; a missing, expired,
+# revoked or inconsistent one is left unchanged and the run exits 2 (partial);
+# an unverifiable universe, input or authority exits 1 (halted); a lost
+# acknowledgement exits 3. Any of them fails this unit: the universe's watcher
+# reports the failed unit on its declared human channel (OnFailure= starts it
+# at once when declared), whether or not Vault's relay reaches Logger.
 [Unit]
 Description=SHAPER @UNIVERSE@: renew unit bootstraps before they expire
 After=podman-restart.service
+@ALERT_LINE@
 
 [Service]
 Type=oneshot
