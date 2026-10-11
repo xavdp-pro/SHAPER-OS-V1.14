@@ -10,56 +10,66 @@ import { fileURLToPath } from 'node:url';
 //
 // Non-regression (Rule 29): the universe template used to hand the cursor
 // container `CURSOR_MODEL="${CURSOR_MODEL:-composer-2.5}"` — a pinned version
-// the bridge did not even read. The no-model guard now refuses a versioned
-// name in that file, but a guard on names says nothing about behaviour: a
-// future `${CURSOR_MODEL:-}` in place of the halt would pass it and start a
-// bridge that crash-loops in its container. This test runs the template's
-// own bridge-cursor block and checks that it refuses, and speaks, when the
-// bridge is enabled and no model was measured — and that the simulated
-// bridge, which spawns no CLI, is let through.
+// the bridge did not even read. The template then learnt to halt, and spoke,
+// when the bridge was enabled and no model was measured.
+//
+// Since the base release (wave 3, 11 October 2026) the template starts no
+// bridge at all: its units are univ-minimal's, and a cognition adapter joins a
+// universe only as a unit of the one-container shape. The lesson stays where
+// a bridge is still started: every universe deploy script of this tree that
+// hands the cursor bridge a model halts without one, before podman, and names
+// no default.
 
-const TEMPLATE = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../../universes/_template/deploy/podman-up.sh',
-);
+const SOFTWARE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const UNIVERSES = path.join(SOFTWARE, 'universes');
 
-const MEASURED = 'engine/measured-at-deploy';
-
-/** The template's `if WITH_BRIDGE_CURSOR` block, verbatim, run with podman faked. */
-function runBlock(env) {
-  const script = fs.readFileSync(TEMPLATE, 'utf8');
-  const block = script.match(/^if \[\[ "\$WITH_BRIDGE_CURSOR" == "1" \]\]; then\n[\s\S]*?\nfi\n/m);
-  assert.ok(block, 'the template must carry a bridge-cursor block guarded by WITH_BRIDGE_CURSOR');
-  const probe = `
-set -euo pipefail
-podman() { echo "podman $*"; }
-shaper_image_ref() { echo "img:$1"; }
-SLUG=probe; NET=probe-net; WORK_ROOT=/tmp/probe-work; CURSOR_BRIDGE_PORT=4510
-${block[0]}
-`;
-  const r = spawnSync('bash', ['-c', probe], {
-    encoding: 'utf8',
-    env: { PATH: process.env.PATH, WITH_BRIDGE_CURSOR: '1', ...env },
-  });
-  return { status: r.status, output: `${r.stdout}${r.stderr}` };
+function deployScripts() {
+  const found = [];
+  for (const universe of fs.readdirSync(UNIVERSES)) {
+    const deploy = path.join(UNIVERSES, universe, 'deploy');
+    if (!fs.existsSync(deploy)) continue;
+    for (const name of fs.readdirSync(deploy).filter((n) => n.endsWith('.sh'))) {
+      found.push([`${universe}/deploy/${name}`, path.join(deploy, name)]);
+    }
+  }
+  return found;
 }
 
-test('bridge-cursor - the template refuses to start the bridge without a model, and names the variable', () => {
-  const r = runBlock({ BRIDGE_CURSOR_STUB: '0' });
-  assert.notEqual(r.status, 0, `the block ran to completion on a default:\n${r.output}`);
-  assert.match(r.output, /CURSOR_MODEL/, `the halt does not name the variable to provide:\n${r.output}`);
-  assert.match(r.output, /Rule 7/, `the halt does not say why:\n${r.output}`);
-  assert.doesNotMatch(r.output, /podman run/, 'podman must not be reached when the halt fires');
+const handsTheModel = (text) => /CURSOR_MODEL/.test(text) && /podman run/.test(text);
+
+test('bridge-cursor - the template starts no bridge', () => {
+  for (const name of ['podman-up.sh', 'lib.sh', 'install-base.sh', 'proof.sh']) {
+    const text = fs.readFileSync(path.join(UNIVERSES, '_template/deploy', name), 'utf8');
+    // The template starts nothing itself (the base's own script starts the base
+    // units), and wires no engine.
+    assert.doesNotMatch(text, /podman run|CURSOR_MODEL|AGY_MODEL|OPENCODE_MODEL|WITH_BRIDGE/, `_template/deploy/${name} starts a container or wires a bridge`);
+  }
 });
 
-test('bridge-cursor - the template lets the simulated bridge through without a model', () => {
-  const r = runBlock({ BRIDGE_CURSOR_STUB: '1' });
-  assert.equal(r.status, 0, r.output);
-  assert.match(r.output, /podman run .*CURSOR_MODEL= /, `the container did not receive an empty model:\n${r.output}`);
+test('bridge-cursor - every deploy script that hands the bridge a model names no default', () => {
+  const offenders = [];
+  for (const [name, file] of deployScripts()) {
+    const text = fs.readFileSync(file, 'utf8');
+    if (!handsTheModel(text)) continue;
+    for (const line of text.split('\n')) {
+      if (/CURSOR_MODEL:-[^}"\s]/.test(line) || /CURSOR_MODEL=["']?[A-Za-z0-9]/.test(line)) offenders.push(`${name}: ${line.trim()}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `a cursor model nobody measured (Rule 7):\n  ${offenders.join('\n  ')}`);
 });
 
-test('bridge-cursor - the template passes the measured model through untouched', () => {
-  const r = runBlock({ BRIDGE_CURSOR_STUB: '0', CURSOR_MODEL: MEASURED });
-  assert.equal(r.status, 0, r.output);
-  assert.match(r.output, new RegExp(`podman run .*CURSOR_MODEL=${MEASURED} `), r.output);
+test('bridge-cursor - every deploy script that hands the bridge a model halts without one, before podman, and says why', () => {
+  const scripts = deployScripts().filter(([, file]) => handsTheModel(fs.readFileSync(file, 'utf8')));
+  assert.ok(scripts.length > 0, 'no deploy script starts the cursor bridge: retire this test with the last one');
+  for (const [name, file] of scripts) {
+    const text = fs.readFileSync(file, 'utf8');
+    const halt = text.split('\n').find((l) => /\$\{CURSOR_MODEL:\?/.test(l));
+    assert.ok(halt, `${name} passes CURSOR_MODEL without halting on its absence`);
+    assert.ok(text.indexOf(halt) < text.indexOf('podman run'), `${name} reaches podman before the model halt`);
+    // The halt line, run on its own without a model: it refuses, and names the variable and the rule.
+    const r = spawnSync('bash', ['-c', `set -euo pipefail\n${halt}\necho passed`], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+    assert.notEqual(r.status, 0, `${name}: the halt let an unmeasured engine through`);
+    assert.match(r.stderr, /CURSOR_MODEL/);
+    assert.match(r.stderr, /Rule 7/);
+  }
 });

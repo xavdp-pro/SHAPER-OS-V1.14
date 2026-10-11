@@ -44,7 +44,8 @@ const execFileP = promisify(execFile);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOFTWARE = path.resolve(HERE, '../../..');
 const PREFLIGHT = path.join(SOFTWARE, 'scripts/preflight.mjs');
-const TEMPLATE = path.join(SOFTWARE, 'universes/_template/deploy/podman-up.sh');
+// The template's deploy scripts share one guard, in deploy/lib.sh (wave 3).
+const TEMPLATE = path.join(SOFTWARE, 'universes/_template/deploy/lib.sh');
 // univ-base is the reference script an agent copies; it sourced its cfg file
 // unread while the template and the gate held the file to the grammar, so a
 // note in cfg-univ-base.env was still a command on the canonical cell.

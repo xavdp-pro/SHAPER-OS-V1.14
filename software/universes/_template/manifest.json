@@ -3,17 +3,34 @@
   "universe": "univ-example",
   "parent": null,
   "environment": "dev",
+  "profile": "minimal",
+  "shape": "lxc",
   "dataLifecycle": {
     "personalData": false,
-    "retention": "unlimited — evidence and configuration only",
-    "onTermination": "destroy all volumes and the vault; nothing is exported"
+    "retention": {
+      "summary": "<what this universe keeps, and for how long>; the classes below are the four base units' (univ-minimal), each a row family of one unit's private MariaDB — a unit the universe adds declares its own",
+      "vault.secrets": "unlimited — until deleted through Vault's administrative API",
+      "vault.unit_identities": "unlimited — a unit's current identity, incarnation, epoch and revocation are never removed automatically",
+      "vault.unit_credentials (expired)": "cleanup class: a credential row expired for more than 24 hours is removed by Vault (pruneExpiredCredentials); a row marked revoked is kept",
+      "<unit>.event_outbox (delivered)": "cleanup class: for vault, queue and maestro, a row delivered more than 30 days ago is removed only when it carries Logger's verified receipt and a recovery point recorded after a verified restore holds it (pruneDeliveredOutbox)",
+      "<unit>.event_outbox (owed, invalid or failed)": "unlimited — a row without a receipt, set aside as OUTBOX_ROW_INVALID or still retrying is never removed automatically",
+      "<unit>.recovery_points": "unlimited — written by the administrative path after a verified restore",
+      "logger.events (audit chain)": "unlimited for this wave",
+      "logger.ingest_keys (deduplication)": "unlimited for this wave",
+      "queue.jobs, queue.job_transitions, queue.job_attempts": "unlimited",
+      "maestro.schedules, maestro.schedule_revisions, maestro.occurrences": "unlimited",
+      "sav/dumps (logical dumps)": "kept with the unit's sav volume; removed with it",
+      "proof state": "unlimited until the universe is terminated"
+    },
+    "onTermination": "destroy every unit's declared volumes (etc/mysql, sav, and log where declared) and its etc/identity, the Vault master key, the universe identity, and the proof's state and reader identity; nothing is exported"
   },
-  "profile": "agent",
-  "description": "Template — copy to universes/<slug>/manifest.json and replace every value. Validated on every test run, so a copy that drifts fails immediately.",
+  "description": "Template — copy to <universe>/manifest.json and replace every value. The four base units are univ-minimal's, each one functional Podman holding its application and its own MariaDB server (Rules 4 and 26), born by univ-minimal's scripts at the revision deploy/install-base.sh installs. A unit the universe adds comes after them, of the same shape. Validated on every test run, so a copy that drifts fails immediately.",
   "intent": "./INTENT.md",
   "agentDeploy": "./AGENT-DEPLOY.md",
   "context": "./context/ctx-universe.md",
   "tasks": "./tasks/task-schedule.json",
+  "configuration": "./cfg-universe.env.example",
+  "imageLock": "./cfg-image-lock.json",
   "bricks": {
     "brick-vault": {
       "source": "base",
@@ -21,12 +38,28 @@
       "package": "@shaper/pkg-vault",
       "image": "img-vault",
       "intent": "../../bricks/brick-vault/INTENT.md",
-      "role": "<WHY this brick in THIS universe>",
+      "role": "<WHY this unit in THIS universe>",
       "port": 8610,
-      "specialize": {
-        "how": "Bootstrap from resources/vault-resources.local.json",
-        "file": "../../resources/vault-resources.local.json",
-        "bootstrap": "npm run vault:bootstrap"
+      "database": {
+        "engine": "mariadb",
+        "placement": "in-unit",
+        "slug": "vault",
+        "uid": 10610,
+        "engineUid": 10611,
+        "schema": "/apps/vault/app/packages/pkg-vault/sql/schema.sql",
+        "schemaVersion": 3,
+        "volumes": [
+          "etc/mysql",
+          "sav",
+          "log"
+        ]
+      },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Deterministic secret storage and decryption. No model, ever."
       }
     },
     "brick-logger": {
@@ -35,8 +68,29 @@
       "package": "@shaper/pkg-logger",
       "image": "img-logger",
       "intent": "../../bricks/brick-logger/INTENT.md",
-      "role": "<WHY this brick in THIS universe>",
-      "port": 8620
+      "role": "<WHY this unit in THIS universe>",
+      "port": 8620,
+      "database": {
+        "engine": "mariadb",
+        "placement": "in-unit",
+        "slug": "logger",
+        "uid": 10620,
+        "engineUid": 10621,
+        "schema": "/apps/logger/app/packages/pkg-logger/sql/schema.sql",
+        "schemaVersion": 1,
+        "volumes": [
+          "etc/mysql",
+          "sav",
+          "log"
+        ]
+      },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Append-only structured evidence. No model, ever."
+      }
     },
     "brick-queue": {
       "source": "base",
@@ -44,8 +98,29 @@
       "package": "@shaper/pkg-queue",
       "image": "img-queue",
       "intent": "../../bricks/brick-queue/INTENT.md",
-      "role": "<WHY this brick in THIS universe>",
-      "port": 8640
+      "role": "<WHY this unit in THIS universe>",
+      "port": 8640,
+      "database": {
+        "engine": "mariadb",
+        "placement": "in-unit",
+        "slug": "queue",
+        "uid": 10640,
+        "engineUid": 10641,
+        "schema": "/apps/queue/app/packages/pkg-queue/sql/schema.sql",
+        "schemaVersion": 4,
+        "volumes": [
+          "etc/mysql",
+          "sav",
+          "log"
+        ]
+      },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Delivery is mechanical. Each job carries its own requirement, not the queue."
+      }
     },
     "brick-maestro": {
       "source": "base",
@@ -53,41 +128,43 @@
       "package": "@shaper/pkg-maestro",
       "image": "img-maestro",
       "intent": "../../bricks/brick-maestro/INTENT.md",
-      "role": "<WHY this brick in THIS universe>",
+      "role": "<WHY this unit in THIS universe>",
       "port": 8630,
+      "database": {
+        "engine": "mariadb",
+        "placement": "in-unit",
+        "slug": "maestro",
+        "uid": 10630,
+        "engineUid": 10631,
+        "schema": "/apps/maestro/app/packages/pkg-maestro/sql/schema.sql",
+        "schemaVersion": 3,
+        "volumes": [
+          "etc/mysql",
+          "sav"
+        ]
+      },
       "specialize": {
-        "how": "MAESTRO_TASKS_FILE → ./tasks/task-schedule.json",
+        "how": "MAESTRO_TASKS_FILE points at this universe's tasks/task-schedule.json (base/task-schedule.json links to it), mounted read-only at /apps/maestro/etc/task-schedule.json",
         "file": "./tasks/task-schedule.json"
-      }
-    },
-    "brick-bridge-opencode": {
-      "source": "base",
-      "perimeter": "P2",
-      "package": "@shaper/pkg-bridge-opencode",
-      "image": "img-bridge-opencode",
-      "intent": "../../bricks/brick-bridge-opencode/INTENT.md",
-      "role": "<WHY this brick in THIS universe>",
-      "port": 4440,
-      "specialize": {
-        "how": "Measure the model from the target host at deployment (Rule 7)"
+      },
+      "cognition": {
+        "role": "neutral",
+        "depth": "D0",
+        "throughput": "T3",
+        "degraded": "refuse",
+        "rationale": "Time, not orchestration: it computes due instants and submits typed jobs. It never executes work."
       }
     }
   },
-  "resources": {
-    "vaultBootstrap": "../../resources/vault-resources.local.json",
-    "maestroTasks": "./tasks/task-schedule.json",
-    "agentContext": "./context/ctx-universe.md"
-  },
   "bootOrder": [
     [
-      "brick-vault",
+      "brick-vault"
+    ],
+    [
       "brick-logger"
     ],
     [
       "brick-queue"
-    ],
-    [
-      "brick-bridge-opencode"
     ],
     [
       "brick-maestro"

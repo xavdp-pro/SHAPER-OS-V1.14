@@ -1,11 +1,10 @@
 {
-  "status": null,
-  "rule": null,
+  "status": "release-required",
+  "rule": "A TEST or PROD deployment replaces every null with an immutable img-* OCI digest, filled from the registry's answer to podman push --digestfile. latest is forbidden, and a published tag is never moved.",
   "images": {
     "img-vault": null,
     "img-logger": null,
     "img-queue": null,
-    "img-maestro": null,
-    "img-bridge-opencode": null
+    "img-maestro": null
   }
 }

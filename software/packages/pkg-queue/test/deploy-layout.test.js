@@ -19,45 +19,41 @@ import test from 'node:test';
  * what survives. A correction that stays in an instance is not a correction.
  */
 
+const UNIVERSES = new URL('../../../universes/', import.meta.url);
+
+/**
+ * Since the base release (wave 3) the template mounts nothing itself: its
+ * base units are started by univ-minimal's own podman-up.sh, installed in the
+ * universe's base/. The class of defect is guarded where the mounts now are.
+ */
 const SCRIPTS = [
   '../../../universes/_template/deploy/podman-up.sh',
 ];
 
-/** Mount sources under $UNIV, in the order podman is asked for them. */
-function mountedPaths(script) {
-  return [...script.matchAll(/-v "\$UNIV\/([A-Za-z0-9_./-]+?):/g)].map((m) => ({
-    path: m[1],
-    at: m.index,
-  }));
-}
+test('the template binds nothing itself: its units are mounted by the base', async () => {
+  for (const name of ['podman-up.sh', 'proof.sh', 'install-base.sh', 'lib.sh']) {
+    const script = await readFile(new URL(`_template/deploy/${name}`, UNIVERSES), 'utf8');
+    assert.doesNotMatch(script, /podman (run|create)|--volume|--mount/, `_template/deploy/${name} starts or mounts something`);
+  }
+});
 
-for (const rel of SCRIPTS) {
-  test(`${rel.split('/').slice(-3).join('/')} creates every directory it mounts`, async () => {
-    let script;
-    try {
-      script = await readFile(new URL(rel, import.meta.url), 'utf8');
-    } catch (error) {
-      if (error.code === 'ENOENT') return; // script optional in this layout
-      throw error;
+test('univ-minimal creates every volume a unit declares before any unit starts', async () => {
+  const script = await readFile(new URL('univ-minimal/deploy/podman-up.sh', UNIVERSES), 'utf8');
+  const manifest = JSON.parse(await readFile(new URL('univ-minimal/manifest.json', UNIVERSES), 'utf8'));
+  const prepare = script.match(/^prepare_volumes\(\) \{[\s\S]*?^\}$/m);
+  assert.ok(prepare, 'univ-minimal prepares each unit\'s volumes in one function');
+  for (const unit of Object.values(manifest.bricks)) {
+    for (const volume of unit.database.volumes) {
+      assert.ok(prepare[0].includes(`$APPS_ROOT/$slug/${volume}"`), `${unit.database.slug}: ${volume} is mounted but never created`);
     }
-
-    const mounts = mountedPaths(script);
-    assert.ok(mounts.length > 0, 'expected at least one $UNIV mount to check');
-
-    for (const { path, at } of mounts) {
-      const created = script.indexOf(`"$UNIV/${path}"`);
-      assert.notEqual(
-        created,
-        -1,
-        `${path} is mounted but never created: podman would make it root-owned`,
-      );
-      assert.ok(
-        created < at,
-        `${path} is created after it is mounted; the deployment fails on a clean sheet`,
-      );
-    }
-  });
-}
+  }
+  assert.ok(prepare[0].includes('"$APPS_ROOT/$slug/etc/identity"'), 'etc/identity is created before it is mounted');
+  // Every unit is prepared in the image pass, which ends before the first unit starts.
+  const prepared = script.indexOf('prepare_volumes "$slug"');
+  const started = script.indexOf('      start_unit "$slug"');
+  assert.ok(prepared > 0 && started > prepared, 'volumes are prepared before any unit starts');
+  assert.match(script, /add -v "\$APPS_ROOT\/\$slug\/\$v:\/apps\/\$slug\/\$v:Z"/, 'a unit mounts exactly its declared volumes');
+});
 
 /**
  * The universe declares its posture; the image must not decide it.
