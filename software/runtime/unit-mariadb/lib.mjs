@@ -166,7 +166,9 @@ export function parseGroup(text) {
 /**
  * The application account and the engine account, exactly as declared.
  * One name for the application (slug), one for the engine (mysql); fixed
- * numeric ids; distinct; neither is root; nobody else shares their groups.
+ * numeric ids; distinct; neither is root; nobody else shares their groups
+ * (the account itself may be listed in its own primary group, as Alpine's
+ * adduser writes it).
  */
 export function resolveAccounts(config, passwdText, groupText) {
   const users = parsePasswd(passwdText);
@@ -181,8 +183,12 @@ export function resolveAccounts(config, passwdText, groupText) {
     if (!group || group.gid !== wantedId) {
       throw new UnitError('ACCOUNT_MISMATCH', `group "${name}" must exist with gid ${wantedId}`, EXIT.LAYOUT);
     }
-    if (group.members.length) {
-      throw new UnitError('ACCOUNT_MISMATCH', `group "${name}" must have no supplementary members; it lists ${group.members.join(',')}`, EXIT.LAYOUT);
+    // Alpine's adduser -G lists the account in its own primary group's member
+    // field (vault:x:10610:vault); that grants nothing the primary gid does not.
+    // Any other member would share the group's rights over the unit's paths.
+    const others = group.members.filter((member) => member !== name);
+    if (others.length) {
+      throw new UnitError('ACCOUNT_MISMATCH', `group "${name}" must have no member but "${name}" itself; it lists ${others.join(',')}`, EXIT.LAYOUT);
     }
     if (home && user.home !== home) {
       throw new UnitError('ACCOUNT_MISMATCH', `account "${name}" has home ${user.home}; Rule 4 declares ${home}`, EXIT.LAYOUT);

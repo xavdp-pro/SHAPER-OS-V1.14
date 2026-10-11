@@ -87,6 +87,17 @@ describe('resolveAccounts', () => {
     refuses(() => resolveAccounts(config, passwd.replace('mysql:x:10611:10611', 'mysql:x:100:101'), group), 'ACCOUNT_MISMATCH');
   });
 
+  test('accepts the account listed in its own primary group, as Alpine\'s adduser -G writes it', () => {
+    // node:20-alpine: `adduser -S -G vault vault` leaves vault:x:10610:vault in
+    // /etc/group; the CT121 build of 85eb694 stopped at image-check on it.
+    const alpine = ['root:x:0:root', 'node:x:1000:node', 'mysql:x:10611:mysql', 'vault:x:10610:vault'].join('\n');
+    const accounts = resolveAccounts(config, passwd, alpine);
+    assert.deepEqual(accounts.app, { name: 'vault', uid: 10610, gid: 10610 });
+    assert.deepEqual(accounts.engine, { name: 'mysql', uid: 10611, gid: 10611 });
+    refuses(() => resolveAccounts(config, passwd, alpine.replace('vault:x:10610:vault', 'vault:x:10610:vault,node')), 'ACCOUNT_MISMATCH');
+    refuses(() => resolveAccounts(config, passwd, alpine.replace('mysql:x:10611:mysql', 'mysql:x:10611:mysql,vault')), 'ACCOUNT_MISMATCH');
+  });
+
   test('refuses an application account with another home, or a group with members', () => {
     refuses(() => resolveAccounts(config, passwd.replace(':/apps/vault:', ':/home/vault:'), group), 'ACCOUNT_MISMATCH');
     refuses(() => resolveAccounts(config, passwd, group.replace('vault:x:10610:', 'vault:x:10610:node')), 'ACCOUNT_MISMATCH');
