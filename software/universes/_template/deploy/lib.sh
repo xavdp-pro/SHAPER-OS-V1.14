@@ -4,8 +4,8 @@
 #
 #   UNIV      the universe directory          MANIFEST  its manifest.json
 #   BASE      UNIV/base: univ-minimal at one revision (deploy/install-base.sh)
-#   ENV_FILE  the universe's variables file (default UNIV/cfg-universe.env),
-#             exported so the base's scripts read the same file
+#   ENV_FILE  the universe's settings file (default UNIV/cfg-universe.env),
+#             handed to the base's scripts so they read the same file
 UNIV="${UNIV:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 MANIFEST="$UNIV/manifest.json"
 BASE="$UNIV/base"
@@ -19,56 +19,17 @@ refuse_the_mold() {
     || halt "$UNIV is the template itself: copy it to the universe's own directory (outside this repository) and run it there. Halt."
 }
 
-# ── A variables file is read, never executed ──────────────────────────────────
+# ── The settings are read, never executed ─────────────────────────────────────
 # `source` EXECUTES every line that is not blank, a comment, or KEY=value: on the
 # first night Rule 11 ran in production a human note in a variables file was run
-# as a command (docs/proof/proof-rule-11-in-production.md, lesson 7). The two
-# functions below are univ-minimal's and univ-base's, verbatim; a test holds
-# them and scripts/lib/preflight-checks.mjs to the same grammar.
-shaper_env_file_is_variables_only() {
-  local file="$1" bad status=0
-  # grep -v selects the lines that are NOT admitted. Its exit code is read
-  # explicitly rather than hidden behind `|| true`: 1 means no line was
-  # selected — the file is clean, the good outcome — and 2 means grep could
-  # not read the file, which is a halt of its own, never a pass.
-  bad="$(grep -nvE '^[[:space:]]*(#|$)|^[A-Z][A-Z0-9_]*=("([^"`$]|\$[^(])*\$?"|'"'"'[^'"'"']*'"'"'|[^[:blank:];&|()<>`'"'"'"]*)$' "$file")" || status=$?
-  if (( status == 1 )); then
-    return 0
-  elif (( status == 2 )); then
-    echo "[podman-up] cannot read $file — a file that cannot be checked is not sourced" >&2
-    return 1
-  fi
-  echo "[podman-up] $file is not a variables file — these lines would be EXECUTED by source, not exported:" >&2
-  echo "$bad" | sed 's/^/[podman-up]   line /' >&2
-  echo "[podman-up] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
-  return 1
-}
-# The settings file carries parameters and *_FILE references only
-# (SOL-DECISIONS-2 §M): univ-minimal's podman-up.sh refuses a secret value in
-# it, and so does every script here before it sources the file — deploy/base.sh
-# included, whose renewal and drills would otherwise inherit the value.
-SECRET_NAME_RE='(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASSPHRASE|API_KEY|MASTER_KEY|PRIVATE_KEY|ENCRYPTION_KEY|SECRET_KEY|ACCESS_KEY)$'
-shaper_env_file_carries_no_secret() {
-  local file="$1" line name value found=()
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ "$line" =~ ^[[:space:]]*([A-Z][A-Z0-9_]*)=(.*)$ ]] || continue
-    name="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
-    [[ "$name" == PWD || "$name" == OLDPWD ]] && continue
-    [[ "$name" =~ $SECRET_NAME_RE ]] || continue
-    [[ -z "$value" || "$value" == '""' || "$value" == "''" ]] && continue
-    found+=("$name")
-  done < "$file"
-  (( ${#found[@]} == 0 )) && return 0
-  echo "[podman-up] $file gives a secret a value: ${found[*]} — a settings file carries parameters and *_FILE references only." >&2
-  echo "[podman-up] Put the secret in its root-only source file (the secrets store, deploy/unit-probes.sh secrets_of) and leave its line empty or remove it. Halt." >&2
-  return 1
-}
-shaper_source_env() {
-  shaper_env_file_is_variables_only "$1" || exit 1
-  shaper_env_file_carries_no_secret "$1" || exit 1
-  set -a; source "$1"; set +a
-}
-
+# as a command (docs/proof/proof-rule-11-in-production.md, lesson 7). The
+# universe's settings file is the base's (base/cfg-univ-minimal.env links to it),
+# so the base's own declarative reader reads it here too — base/deploy/settings.sh
+# at the revision installed (univ-minimal INTENT.md#settings): only the base's
+# parameters, no secret, no executable syntax, no key twice, the inherited
+# environment held to the same catalogue. Nothing is sourced or exported; the
+# base's scripts receive an environment built explicitly (base_script).
+#
 # The universe's one settings file: no shared default file (software/.env, a
 # repository .env) is read — a universe is configured by its own file only.
 # SHAPER_UNIVERSE must be the manifest's "universe": one name for the
@@ -77,8 +38,14 @@ load_universe_env() {
   ENV_FILE="${ENV_FILE:-$UNIV/cfg-universe.env}"
   [[ -f "$ENV_FILE" ]] \
     || halt "no settings file $ENV_FILE: copy $UNIV/cfg-universe.env.example to it and set SHAPER_UNIVERSE. Halt."
-  shaper_source_env "$ENV_FILE"
-  export ENV_FILE
+  [[ -f "$BASE/deploy/settings.sh" ]] \
+    || halt "no base units in $BASE with a settings reader (base/deploy/settings.sh): run deploy/install-base.sh --shaper-repo <SHAPER-OS checkout> --shaper-commit <base release> first. Halt."
+  # shellcheck source=/dev/null
+  source "$BASE/deploy/settings.sh"
+  shaper_settings_load "$TAG" || exit 1
+  # What a base script receives: the settings, ENV_FILE, and the run knobs the
+  # operator gave this run (PODMAN_UP_RECREATE, RESTORE_DUMP_<slug>, …).
+  shaper_settings_child_env --with-run
   local declared
   declared="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["universe"])' "$MANIFEST")" \
     || halt "$MANIFEST cannot be read as a manifest. Halt."
@@ -86,6 +53,11 @@ load_universe_env() {
   [[ "$SHAPER_UNIVERSE" == "$declared" ]] \
     || halt "SHAPER_UNIVERSE is $SHAPER_UNIVERSE in $ENV_FILE but the manifest declares $declared: one universe, one name. Halt."
 }
+
+# base_script <script> [argument]...: one of the base's scripts, in an
+# environment built explicitly (load_universe_env): nothing else this shell
+# inherited reaches it.
+base_script() { env -i "${SHAPER_CHILD_ENV[@]}" bash "$BASE/deploy/$1" "${@:2}"; }
 
 # ── The earlier template is not adopted ───────────────────────────────────────
 # Until the base release the template materialised file stores and an AI bridge

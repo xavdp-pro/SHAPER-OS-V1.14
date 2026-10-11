@@ -44,22 +44,19 @@ const execFileP = promisify(execFile);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOFTWARE = path.resolve(HERE, '../../..');
 const PREFLIGHT = path.join(SOFTWARE, 'scripts/preflight.mjs');
-// The template's deploy scripts share one guard, in deploy/lib.sh (wave 3).
-const TEMPLATE = path.join(SOFTWARE, 'universes/_template/deploy/lib.sh');
 // univ-base is the reference script an agent copies; it sourced its cfg file
 // unread while the template and the gate held the file to the grammar, so a
 // note in cfg-univ-base.env was still a command on the canonical cell.
 const UNIV_BASE = path.join(SOFTWARE, 'universes/univ-base/deploy/podman-up.sh');
-/** Every deploy script that sources a variables file, with the file paths it must source through the guard. */
+/**
+ * Every deploy script that still sources a variables file after a grammar
+ * guard, with the file paths it must source through the guard. univ-minimal
+ * and the template no longer source any: they read their settings with the
+ * base's declarative reader (univ-minimal deploy/settings.sh, SOL-DECISIONS-4
+ * §5), held to the same refusals by univ-minimal-settings-reader.test.js.
+ */
 const SOURCING_SCRIPTS = [
-  { name: 'the template', file: TEMPLATE, sources: ['"$ENV_FILE"'] },
   { name: 'univ-base', file: UNIV_BASE, sources: ['"$ENV_FILE"', '"$UNIV/cfg-univ-base.env"'] },
-  // The renewal's two scripts: the timer's service runs renew-bootstraps.sh
-  // directly, never through a guarded wrapper (decisions L and M, wave 5).
-  ...['renew-bootstraps.sh', 'install-renewal-timer.sh'].map((name) => ({
-    name: `univ-minimal ${name}`, file: path.join(SOFTWARE, 'universes/univ-minimal/deploy', name),
-    sources: ['"$ENV_FILE"', '"$UNIV/cfg-univ-minimal.env"'],
-  })),
 ];
 
 // ---------------------------------------------------------------------------
@@ -99,9 +96,11 @@ test('the note that killed the deploy is reported with its line number and its t
   assert.match(errors[2].reason, /not a KEY/);
 });
 
-// The lines below are fed to BOTH the JS grammar and the template's bash
+// The lines below are fed to BOTH the JS grammar and univ-base's bash
 // grammar (see the end of this file): the two must give the same verdict on
 // every one of them, or a file the gate admits is one the deploy runs.
+// univ-minimal's reader refuses every executed line too
+// (univ-minimal-settings-reader.test.js).
 const VALUE_LINES = {
   admitted: [
     'PLAIN=abc',
@@ -364,8 +363,8 @@ test('preflight refuses a --universe whose manifest cannot be read', async () =>
 });
 
 // ---------------------------------------------------------------------------
-// The template that sources the file at deploy time runs the same grammar,
-// in bash, before `source` gets a chance to execute anything.
+// univ-base, which sources the file at deploy time, runs the same grammar, in
+// bash, before `source` gets a chance to execute anything.
 
 function guardOf({ name, file, sources }) {
   const script = fs.readFileSync(file, 'utf8');
@@ -382,15 +381,15 @@ function guardOf({ name, file, sources }) {
   return fn[0];
 }
 
-function templateGuard() {
+function baseGuard() {
   return guardOf(SOURCING_SCRIPTS[0]);
 }
 
-function runGuard(lines, guard = templateGuard()) {
+function runGuard(lines, guard = baseGuard()) {
   const tmp = scratch();
   const file = path.join(tmp, 'env');
   fs.writeFileSync(file, lines.join('\n') + '\n');
-  // The same shell options as the template's own first line: the function
+  // The same shell options as the deploy script's own first line: the function
   // must survive -e, where a grep that selects nothing (exit 1) would end
   // the script if its status were not read explicitly.
   const probe = `set -euo pipefail\n${guard}\nshaper_env_file_is_variables_only "${file}"`;
@@ -402,20 +401,20 @@ function runGuard(lines, guard = templateGuard()) {
   }
 }
 
-test('the template stops before sourcing a file that carries a line bash would execute', () => {
+test('univ-base stops before sourcing a file that carries a line bash would execute', () => {
   const r = runGuard(['VAULT_MASTER_KEY=abc', 'BACKOFFICE_ADMIN = someone@example.test / a-password']);
   assert.equal(r.code, 1, 'the note must stop the deploy before source runs it');
   assert.match(r.stderr, /line 2:BACKOFFICE_ADMIN = someone@example\.test/);
   assert.match(r.stderr, /would be EXECUTED by source/);
 });
 
-test('the template accepts a file of comments, blanks and variables — digits included', () => {
+test('univ-base accepts a file of comments, blanks and variables — digits included', () => {
   const r = runGuard(['# demo', '', 'VAULT_MASTER_KEY=abc', 'R2_BUCKET_NAME=x', 'OPENCODE_MODEL=']);
   assert.equal(r.code, 0, r.stderr);
 });
 
-// univ-base is held to the same lines as the template: it is the script an
-// agent copies, and until this guard reached it, it sourced cfg-univ-base.env
+// univ-base is held to the same lines as the gate: it is the script an agent
+// copies, and until this guard reached it, it sourced cfg-univ-base.env
 // unread — a note there was a command on the canonical cell while the
 // template and the gate refused it.
 for (const script of SOURCING_SCRIPTS) {

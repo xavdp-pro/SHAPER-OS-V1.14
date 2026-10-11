@@ -64,12 +64,17 @@ never re-implements:
   unit and one real effect each), run by `deploy/proof.sh`;
   `lifecycle-drill.sh` and `restore-drill.sh`, run by `deploy/base.sh`.
 
-The base's scripts source their settings file without the variables-only
-guard, so the universe runs each of them through `deploy/podman-up.sh`,
-`deploy/proof.sh` or `deploy/base.sh`, which check the file first and hand it
-over in `ENV_FILE`; `base/cfg-univ-minimal.env` links to `cfg-universe.env` only
-so that a base script run on its own still reads this universe, never
-univ-minimal's defaults.
+The settings file is read by the base's own declarative reader,
+`base/deploy/settings.sh` at the installed revision
+([univ-minimal settings](../univ-minimal/INTENT.md#settings)): only the base's
+parameters, no secret, nothing executed. The universe runs each base script
+through `deploy/podman-up.sh`, `deploy/proof.sh` or `deploy/base.sh`, which
+read and check the file first, against what only the universe knows, and hand
+the script an environment built explicitly (`env -i`: `ENV_FILE`, the
+settings, the run knobs the operator gave, nothing else inherited);
+`base/cfg-univ-minimal.env` links to `cfg-universe.env` only so that a base
+script run on its own still reads this universe, never univ-minimal's
+defaults.
 
 The manifest declares the four units exactly as the installed base births them
 (image, port, database), in the base's boot order, and nothing else;
@@ -80,7 +85,7 @@ that disagrees with `base/`.
 ## 4. Materialise
 
 `deploy/podman-up.sh`, inside the universe container: it reads
-`cfg-universe.env` (variables only; `SHAPER_UNIVERSE` is the manifest's
+`cfg-universe.env` (the base's parameters only; `SHAPER_UNIVERSE` is the manifest's
 `universe`), refuses the earlier template's shape and a `base/` that is missing
 or not linked to the universe's own schedule and lock, then runs
 `base/deploy/podman-up.sh` with the same arguments (`--preflight`,

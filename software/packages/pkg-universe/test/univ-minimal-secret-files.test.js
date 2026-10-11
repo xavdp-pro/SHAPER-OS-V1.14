@@ -48,24 +48,29 @@ describe('the parent refuses a secret value in the settings file, by name', () =
     test(`${name}=<value> halts before anything runs, without printing the value`, () => {
       const r = run(['SHAPER_UNIVERSE=univ-minimal', `${name}=${SECRET}`]);
       assert.equal(r.status, 1);
-      assert.match(r.stderr, new RegExp(`gives a secret a value: ${name} — a settings file carries parameters and \\*_FILE references only`));
+      assert.match(r.stderr, new RegExp(`line 2: ${name} gives a secret a value — a settings file carries parameters only`));
       assert.ok(!r.stderr.includes(SECRET) && !r.stdout.includes(SECRET));
     });
   }
 
-  test('an empty secret line, a *_FILE reference and the shell\'s PWD pass the check', () => {
-    const r = run(['SHAPER_UNIVERSE=univ-minimal', 'VAULT_TOKEN=', "BRIDGE_AUTH_TOKEN=''", 'X_TOKEN_FILE=/run/secrets/X_TOKEN', 'PWD=/apps']);
-    assert.doesNotMatch(r.stderr, /gives a secret a value/);
+  test('an emptied line of one of the base\'s secrets and Vault\'s own reference pass; any other secret-shaped or *_FILE line is unknown', () => {
+    const ok = run(['SHAPER_UNIVERSE=univ-minimal', 'VAULT_TOKEN=', "VAULT_MASTER_KEY=''", 'VAULT_TOKEN_FILE=/run/secrets/VAULT_TOKEN']);
+    assert.doesNotMatch(ok.stderr, /settings .* are refused/);
+    const unknown = run(['SHAPER_UNIVERSE=univ-minimal', "BRIDGE_AUTH_TOKEN=''", 'X_TOKEN_FILE=/run/secrets/X_TOKEN', 'PWD=/apps']);
+    assert.equal(unknown.status, 1);
+    for (const [line, key] of [[2, 'BRIDGE_AUTH_TOKEN'], [3, 'X_TOKEN_FILE'], [4, 'PWD']]) {
+      assert.match(unknown.stderr, new RegExp(`line ${line}: ${key} is not a parameter of the base`));
+    }
   });
 });
 
-// Wave 5 (decisions L and M together): the renewal's timer runs
-// renew-bootstraps.sh directly with the universe's ENV_FILE, and
-// install-renewal-timer.sh renders that file's name into the service. Both
-// refuse a secret value before they source anything, as podman-up.sh does,
-// and template universes' deploy/lib.sh too (deploy/base.sh runs the renewal
-// and the drills with its settings exported).
-describe('the renewal and the template refuse a secret value in the settings file before sourcing it', () => {
+// Wave 5 (decisions L and M together) and wave 7 (SOL-DECISIONS-4 §5): the
+// renewal's timer runs renew-bootstraps.sh directly with the universe's
+// ENV_FILE, install-renewal-timer.sh renders that file's name into the
+// service, and a template universe's deploy/lib.sh reads the same file. All
+// read it with the base's one reader (deploy/settings.sh), which refuses a
+// secret value before anything is read into the run.
+describe('the renewal and the template refuse a secret value in the settings file before reading it', () => {
   const UNIVERSES = path.resolve(DEPLOY, '../..');
   const scripts = {
     'renew-bootstraps.sh': (envFile) => spawnSync('bash', [path.join(DEPLOY, 'renew-bootstraps.sh')], {
@@ -74,9 +79,16 @@ describe('the renewal and the template refuse a secret value in the settings fil
     'install-renewal-timer.sh': (envFile, dir) => spawnSync('bash', [path.join(DEPLOY, 'install-renewal-timer.sh')], {
       env: { PATH: '/usr/bin:/bin', ENV_FILE: envFile, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1' }, encoding: 'utf8',
     }),
-    '_template deploy/lib.sh': (envFile) => spawnSync('bash', ['-c', `set -euo pipefail; UNIV=/nonexistent; source '${path.join(UNIVERSES, '_template/deploy/lib.sh')}'; shaper_source_env "$1"; echo sourced`, 'probe', envFile], {
-      env: { PATH: '/usr/bin:/bin' }, encoding: 'utf8',
-    }),
+    '_template deploy/lib.sh': (envFile, dir) => {
+      // A template universe with its base/ holding this revision's reader.
+      const univ = path.join(dir, 'univ-minimal');
+      fs.mkdirSync(path.join(univ, 'base/deploy'), { recursive: true });
+      fs.copyFileSync(path.join(DEPLOY, 'settings.sh'), path.join(univ, 'base/deploy/settings.sh'));
+      fs.writeFileSync(path.join(univ, 'manifest.json'), '{"universe":"univ-minimal"}');
+      return spawnSync('bash', ['-c', `set -euo pipefail; UNIV='${univ}'; TAG='[t]'; source '${path.join(UNIVERSES, '_template/deploy/lib.sh')}'; ENV_FILE="$1" load_universe_env; echo loaded`, 'probe', envFile], {
+        env: { PATH: '/usr/bin:/bin' }, encoding: 'utf8',
+      });
+    },
   };
   for (const [name, run] of Object.entries(scripts)) {
     test(`${name}: VAULT_TOKEN=<value> halts by name, nothing rendered, the value never printed`, () => {
@@ -86,36 +98,22 @@ describe('the renewal and the template refuse a secret value in the settings fil
         fs.writeFileSync(envFile, `SHAPER_UNIVERSE=univ-minimal\nSHAPER_APPS_ROOT=${dir}/apps\nVAULT_TOKEN=${SECRET}\n`);
         const r = run(envFile, dir);
         assert.equal(r.status, 1, r.stderr);
-        assert.match(r.stderr, /gives a secret a value: VAULT_TOKEN — a settings file carries parameters and \*_FILE references only/);
+        assert.match(r.stderr, /line 3: VAULT_TOKEN gives a secret a value — a settings file carries parameters only/);
         assert.ok(!r.stderr.includes(SECRET) && !r.stdout.includes(SECRET));
-        assert.doesNotMatch(r.stdout, /sourced/);
-        assert.deepEqual(fs.readdirSync(dir).sort(), ['cfg.env'], 'nothing written: no unit, no renewal state');
+        assert.doesNotMatch(r.stdout, /loaded/);
+        assert.deepEqual(fs.readdirSync(dir).filter((f) => f !== 'univ-minimal').sort(), ['cfg.env'], 'nothing written: no unit, no renewal state');
       } finally { fs.rmSync(dir, { recursive: true, force: true }); }
     });
-    test(`${name}: an empty secret line and a *_FILE reference pass the check`, () => {
+    test(`${name}: an emptied secret line and Vault's own reference pass the reader`, () => {
       const dir = tmp();
       try {
         const envFile = path.join(dir, 'cfg.env');
-        fs.writeFileSync(envFile, `SHAPER_UNIVERSE=univ-minimal\nSHAPER_APPS_ROOT=${dir}/apps\nVAULT_TOKEN=\nX_TOKEN_FILE=/run/secrets/X_TOKEN\n`);
+        fs.writeFileSync(envFile, `SHAPER_UNIVERSE=univ-minimal\nSHAPER_APPS_ROOT=${dir}/apps\nVAULT_TOKEN=\nVAULT_TOKEN_FILE=/run/secrets/VAULT_TOKEN\n`);
         const r = run(envFile, dir);
-        assert.doesNotMatch(r.stderr, /gives a secret a value|not a variables file/);
+        assert.doesNotMatch(r.stderr, /are refused/);
       } finally { fs.rmSync(dir, { recursive: true, force: true }); }
     });
   }
-
-  test('the renewal\'s two scripts and the template hold podman-up.sh\'s two checks verbatim, but for the tag and comments', () => {
-    const fns = (file, tag) => {
-      const text = fs.readFileSync(file, 'utf8');
-      return ['shaper_env_file_is_variables_only', 'shaper_env_file_carries_no_secret']
-        .map((fn) => text.match(new RegExp(`^${fn}\\(\\) \\{[\\s\\S]*?^\\}$`, 'm'))?.[0].replaceAll(tag, '[TAG]').replace(/^\s*#.*\n/gm, ''))
-        .concat(text.match(/^SECRET_NAME_RE=.*$/m)?.[0]);
-    };
-    const want = fns(path.join(DEPLOY, 'podman-up.sh'), '[podman-up]');
-    assert.ok(want.every(Boolean));
-    assert.deepEqual(fns(path.join(DEPLOY, 'renew-bootstraps.sh'), '[renew-bootstraps]'), want);
-    assert.deepEqual(fns(path.join(DEPLOY, 'install-renewal-timer.sh'), '[install-renewal-timer]'), want);
-    assert.deepEqual(fns(path.join(UNIVERSES, '_template/deploy/lib.sh'), '[podman-up]'), want);
-  });
 });
 
 describe('path_protected: a store no account but root can replace', () => {

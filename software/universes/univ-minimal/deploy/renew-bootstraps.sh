@@ -51,51 +51,13 @@ set -uo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$UNIV/manifest.json"
-# The settings file is read, never executed, and carries no secret
-# (SOL-DECISIONS-2 §M): the timer's service runs this script directly, so the
-# checks podman-up.sh makes are made here too, before anything is sourced. A
-# refusal halts the run (exit 1), and the failed unit reaches the watcher.
-# The same two functions as podman-up.sh, verbatim but for the tag.
-shaper_env_file_is_variables_only() {
-  local file="$1" bad status=0
-  bad="$(grep -nvE '^[[:space:]]*(#|$)|^[A-Z][A-Z0-9_]*=("([^"`$]|\$[^(])*\$?"|'"'"'[^'"'"']*'"'"'|[^[:blank:];&|()<>`'"'"'"]*)$' "$file")" || status=$?
-  if (( status == 1 )); then
-    return 0
-  elif (( status == 2 )); then
-    echo "[renew-bootstraps] cannot read $file — a file that cannot be checked is not sourced" >&2
-    return 1
-  fi
-  echo "[renew-bootstraps] $file is not a variables file — these lines would be EXECUTED by source, not exported:" >&2
-  echo "$bad" | sed 's/^/[renew-bootstraps]   line /' >&2
-  echo "[renew-bootstraps] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
-  return 1
-}
-SECRET_NAME_RE='(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASSPHRASE|API_KEY|MASTER_KEY|PRIVATE_KEY|ENCRYPTION_KEY|SECRET_KEY|ACCESS_KEY)$'
-shaper_env_file_carries_no_secret() {
-  local file="$1" line name value found=()
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ "$line" =~ ^[[:space:]]*([A-Z][A-Z0-9_]*)=(.*)$ ]] || continue
-    name="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
-    [[ "$name" == PWD || "$name" == OLDPWD ]] && continue
-    [[ "$name" =~ $SECRET_NAME_RE ]] || continue
-    [[ -z "$value" || "$value" == '""' || "$value" == "''" ]] && continue
-    found+=("$name")
-  done < "$file"
-  (( ${#found[@]} == 0 )) && return 0
-  echo "[renew-bootstraps] $file gives a secret a value: ${found[*]} — a settings file carries parameters and *_FILE references only." >&2
-  echo "[renew-bootstraps] Put the secret in its root-only source file (the secrets store, deploy/unit-probes.sh secrets_of) and leave its line empty or remove it. Halt." >&2
-  return 1
-}
-shaper_source_env() {
-  shaper_env_file_is_variables_only "$1" || exit 1
-  shaper_env_file_carries_no_secret "$1" || exit 1
-  set -a; source "$1"; set +a
-}
-if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
-  shaper_source_env "$ENV_FILE"
-elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then
-  shaper_source_env "$UNIV/cfg-univ-minimal.env"
-fi
+# The settings are read, never executed (deploy/settings.sh,
+# INTENT.md#settings): the timer's service runs this script directly, so the
+# reader podman-up.sh uses runs here too, before anything is read or changed.
+# A refusal halts the run (exit 1), and the failed unit reaches the watcher.
+# shellcheck source=/dev/null
+source "$UNIV/deploy/settings.sh"
+shaper_settings_load "[renew-bootstraps]" || exit 1
 UNIVERSE="${SHAPER_UNIVERSE:-univ-minimal}"
 APPS_ROOT="${SHAPER_APPS_ROOT:-/apps}"
 # shellcheck source=/dev/null
@@ -138,7 +100,7 @@ EXTEND="${RENEW_EXTEND_SECONDS:-2592000}"
 [[ "$WITHIN" =~ ^[0-9]+$ && "$EXTEND" =~ ^[0-9]+$ ]] || halt "RENEW_WITHIN_SECONDS and RENEW_EXTEND_SECONDS are whole seconds"
 UNIVERSE_ID="$(universe_uuid)"
 [[ "$UNIVERSE_ID" =~ $UUID_RE ]] || halt "no universe identity in $VAULT_ETC_DIR/universe-id: nothing can be verified, nothing renewed"
-export SHAPER_UNIVERSE_ID="$UNIVERSE_ID"
+SHAPER_UNIVERSE_ID="$UNIVERSE_ID"
 
 # One parent at a time (podman-up.sh holds the same lock).
 [[ -d "$VAULT_ETC_DIR" ]] || halt "$VAULT_ETC_DIR is absent: no universe to renew"
@@ -181,7 +143,7 @@ trap 'rm -rf -- "$work"' EXIT
 RECORDS_MOUNT="$RECORDS_DIR"
 [[ -d "$RECORDS_DIR" ]] || { RECORDS_MOUNT="$work/no-records"; install -d -m 0700 "$RECORDS_MOUNT"; }
 tool() { podman run --rm --network none --cap-drop=all --security-opt=no-new-privileges --entrypoint node \
-  -e SHAPER_UNIVERSE_ID -v "$RECORDS_MOUNT:/records:ro,Z" "$IMAGE" /apps/vault/app/packages/pkg-vault/unit-registration.js "$@"; }
+  -e "SHAPER_UNIVERSE_ID=$UNIVERSE_ID" -v "$RECORDS_MOUNT:/records:ro,Z" "$IMAGE" /apps/vault/app/packages/pkg-vault/unit-registration.js "$@"; }
 # Root's path into Vault's database, its answer on stdout, its error in $work/sql.err.
 rootapply() { podman exec -i "$CTR" mariadb --no-defaults -S /run/vault/mysqld.sock -uroot -N -B vault < "$1" 2> "$work/sql.err"; }
 

@@ -42,9 +42,10 @@ set -uo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$UNIV/manifest.json"
-if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then set -a; source "$ENV_FILE"; set +a
-elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then set -a; source "$UNIV/cfg-univ-minimal.env"; set +a
-fi
+# The settings are read, never executed (deploy/settings.sh, INTENT.md#settings).
+# shellcheck source=/dev/null
+source "$UNIV/deploy/settings.sh"
+shaper_settings_load "[restore-drill]" || exit 1
 UNIVERSE="${SHAPER_UNIVERSE:-univ-minimal}"
 APPS_ROOT="${SHAPER_APPS_ROOT:-/apps}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"

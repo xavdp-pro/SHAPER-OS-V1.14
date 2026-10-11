@@ -24,7 +24,7 @@ describe('Maestro reaches work through the universe\'s Queue, always', () => {
   const base = fs.readFileSync(path.join(UNIVERSES, 'univ-minimal/deploy/podman-up.sh'), 'utf8');
 
   it('the template starts its base units with the base\'s own script', () => {
-    assert.match(template, /^bash "\$BASE\/deploy\/podman-up\.sh" "\$@"$/m);
+    assert.match(template, /^base_script podman-up\.sh "\$@"$/m);
     assert.doesNotMatch(template, /MAESTRO_QUEUE_URL|MAESTRO_BRIDGE_URL/, 'the template wires no unit itself');
   });
 

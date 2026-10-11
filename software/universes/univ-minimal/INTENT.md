@@ -125,9 +125,26 @@ descriptor hand-over fixes the children, not the first two. So:
   a secret-shaped variable (`*_TOKEN`, `*_SECRET`, `*_PASSWORD`, `*_PWD`,
   `*_API_KEY`, `*_MASTER_KEY`, …) a value: exit 13, by name, never by value
   (runtime/unit-mariadb). A plain `unset` would not qualify.
-- **The settings file** (`cfg-univ-minimal.env`) carries parameters and
-  `*_FILE` references only: `podman-up.sh` refuses one that gives a
-  secret-shaped variable a value, before it sources anything.
+- **The settings file** (`cfg-univ-minimal.env`) carries parameters only,
+  read by the base's declarative reader ([settings](#settings)): a secret
+  given a value there, or inherited from the caller, is refused by name before
+  anything runs.
+- **A universe-wide store.** A universe that holds more units than the base
+  (the seven-unit Clinic kit) names one store for all of them,
+  `SHAPER_SECRETS_ROOT=<universe>/.state/secrets`, while `SHAPER_APPS_ROOT`
+  keeps the base units' volumes where they are. Its other consumers' directories
+  follow the same layout — root `0700` directories, root `0600` sources,
+  `<consumer>/mount/<NAME>` the consumer's `0400` copy — because the base's
+  proof holds the whole store to it (`secrets-store`) and looks for every
+  source's value in the base units' processes. The base writes only under its
+  own units' directories (`vault/` today) and creates the store's root when it
+  is absent; a store inside a unit's own directory is refused, since that
+  directory's volumes are mounted into the unit. A universe that names the
+  store after its birth keeps its values: `podman-up.sh` moves each base
+  unit's source from the earlier default store (`<apps root>/.state/secrets`)
+  into the named one, atomically and under the parent lock, removes an earlier
+  copy of the same value, refuses two different values (a human's decision),
+  and recreates the unit, whose mount changed.
 
 Unchanged, by decision: the Vault master key keeps its own file
 (`etc/vault/master.key`), the bootstraps theirs (`etc/identity/bootstrap`),
@@ -138,6 +155,78 @@ store, the same value, so the running Vault and the proof keep agreeing. Root
 keeps its declared administrative access to every file; that limit is
 explicit, not closed. A later realization with podman secrets uses
 `type=mount` with an explicit uid and mode, never `type=env`.
+
+<a id="settings"></a>
+## Settings: read, never executed
+
+SOL-DECISIONS-4 §5 (Rules 0B, 0J and 29; Boot contract §7). Every script of
+`deploy/` that reads its settings — `podman-up.sh`, `proof.sh`,
+`lifecycle-drill.sh`, `restore-drill.sh`, `renew-bootstraps.sh`,
+`install-renewal-timer.sh`, and a template universe's `deploy/lib.sh` from
+`base/deploy/` — reads them with one declarative reader,
+[`deploy/settings.sh`](deploy/settings.sh), before it changes anything. No
+settings file is `source`d, evaluated or expanded.
+
+- **Which file.** `ENV_FILE` when named: a regular file, or `/dev/null` for
+  none; a named file that does not exist is a halt, never a fall back to
+  another one. Otherwise `cfg-univ-minimal.env` beside `deploy/` when it
+  exists.
+- **A line** is a blank, a `#` comment, or `KEY=value` (an optional `export`
+  before it). The value is a bare word, `'…'` or `"…"` (with `\$`, `` \` ``,
+  `\"`, `\\` escapes), followed by nothing or by whitespace and a comment —
+  the forms an earlier file used and `source` read, now read without being run.
+- **Refused, by key and line number, never by value or text:** a key outside
+  the catalogue; a secret given a value (one of the base's secrets —
+  `VAULT_TOKEN`, `VAULT_MASTER_KEY`, `UNIT_BOOTSTRAP_TOKEN` — or any
+  secret-shaped name); `$`, backquotes, `;`, `|`, `&`, `<`, `>`, parentheses,
+  a backslash or a second word outside quotes, an expansion or a backquote
+  inside double quotes; a key given twice; a run knob in the file; a value not
+  of its parameter's form. An empty line of one of the base's secrets, and
+  `VAULT_TOKEN_FILE=/run/secrets/VAULT_TOKEN`, are what an earlier file kept
+  and are accepted, with no effect.
+- **The inherited environment** is held to the same catalogue: a parameter
+  inherited from the caller must have its form and may not contradict the
+  file; one of the base's secrets, or a secret-shaped name in the base's
+  namespaces (`SHAPER_`, `VAULT_`, `UNIT_`, `MARIADB_`, `MYSQL_`, …), holding a
+  value is refused; so is an unknown `SHAPER_*` or `RESTORE_DUMP_*` name, a
+  variable that changes how a shell or loader behaves (`BASH_ENV`,
+  `SHELLOPTS`, `LD_PRELOAD`, …), an exported shell function and an entry whose
+  name no shell can hold.
+- **The explicit environment.** The values become variables of the script,
+  none exported, and its exported environment is reduced to `PATH`, `HOME`,
+  the locale, `TZ`, `TERM`, `TMPDIR`, `USER`, `LOGNAME`, `XDG_RUNTIME_DIR` and
+  podman's `CONTAINERS_*CONF`: podman, conmon and every other command receive
+  that and their arguments, nothing else. A base script run by another
+  (`lifecycle-drill.sh` → `podman-up.sh`, `renew-bootstraps.sh`; a template's
+  `deploy/base.sh`) receives an environment built explicitly (`env -i`):
+  `ENV_FILE`, the settings that hold a value, and the run knobs it is meant to
+  have.
+
+The catalogue (`SHAPER_SETTINGS_CATALOGUE`; every form accepts the empty
+value, which leaves the default):
+
+| Parameter | Where | Form |
+| :--- | :--- | :--- |
+| `SHAPER_UNIVERSE` | file or inherited | instance slug `univ-…` |
+| `SHAPER_APPS_ROOT` | file or inherited | absolute path |
+| `SHAPER_SECRETS_ROOT` | file or inherited | absolute path |
+| `SHAPER_REGISTRY` | file or inherited | registry `host[:port][/path]` |
+| `SHAPER_IMAGE_TAG` | file or inherited | image tag |
+| `SHAPER_UNIVERSE_ID` | file or inherited | lowercase UUID |
+| `PROOF_STATE_DIR` | file or inherited | absolute path |
+| `RENEWAL_EXTRA_IDENTITIES` | file or inherited | slugs separated by spaces |
+| `RENEWAL_ALERT_UNIT` | file or inherited | one `….service` |
+| `PARENT_LOCK_WAIT_SECONDS` | file or inherited | whole number |
+| `PODMAN_UP_RECREATE` | inherited only (one run) | slugs separated by spaces |
+| `RENEW_WITHIN_SECONDS`, `RENEW_EXTEND_SECONDS` | inherited only | whole number |
+| `DRILL_PORT_SHIFT` | inherited only | whole number |
+| `SYSTEMD_DIR` | inherited only | absolute path |
+| `NO_SYSTEMCTL` | inherited only | `0` or `1` |
+| `RESTORE_DUMP_<slug>` | inherited only | `/apps/<slug>/sav/restore/<file>.sql`, a declared unit |
+
+A universe that adds units of its own (the Clinic kit) keeps the base's file
+to this catalogue and reads its own parameters with its own catalogue; the
+grammar and the refusals above are the ones the kit's reader aligns with.
 
 <a id="identity"></a>
 ## Unit identities: the parent's registration and the birth order
@@ -282,11 +371,12 @@ window), never in the timer. One parent at a time: `podman-up.sh` and the
 renewal hold `/apps/vault/etc/vault/parent.lock` (`flock`, closed to every
 podman child) while they read or change identities and records. A universe
 configured by `ENV_FILE` gets a service that names the same file. Both
-renewal scripts check that file as `podman-up.sh` does — read, never
-executed, and no secret-shaped variable with a value ([secret
-files](#secret-files)) — before they source it: the timer runs the renewal
-directly, through no guarded wrapper, and a refusal is a halt (exit 1) the
-watcher reports. The renewal itself consumes no secret file: it reaches
+renewal scripts read that file with the reader `podman-up.sh` uses
+([settings](#settings)) — never executed, only the base's parameters, no
+secret: the timer runs the renewal directly, through no guarded wrapper, and a
+refusal is a halt (exit 1) the watcher reports. `install-renewal-timer.sh`
+also refuses a setting its own run took from the environment rather than from
+the file the service will read. The renewal itself consumes no secret file: it reaches
 Vault's database as root through the socket inside the unit, and its tool
 runs from Vault's image with no secret in its environment.
 
@@ -499,11 +589,6 @@ Recorded so nobody reads the floor as the full target contract of the units
 - root reads every secret file and every process's environment: the files
   close the secrets to the other accounts and to podman's records, not to an
   authorized administrator;
-- `proof.sh`, `lifecycle-drill.sh` and `restore-drill.sh` source the
-  settings file without the variables-only and no-secret checks that
-  `podman-up.sh` and the renewal make: an operator runs them by hand after
-  `podman-up.sh` has checked the same file (a template universe runs them
-  through `deploy/base.sh`, which checks it first);
 - the bootstrap renewal is installed by `install-renewal-timer.sh`, a separate
   step after `podman-up.sh`;
 - refusal counts not yet committed (at most one minute) are lost with Vault's

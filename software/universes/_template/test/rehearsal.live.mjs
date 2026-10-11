@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { rehearsalEnv } from '../../univ-minimal/test/rehearsal/harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE = path.resolve(HERE, '..');
@@ -36,17 +37,13 @@ const socket = process.env.SHAPER_LIVE_SOCKET;
 const appsRoot = process.env.SHAPER_LIVE_APPS_ROOT;
 const workDir = process.env.SHAPER_LIVE_WORKDIR;
 const UNIV = path.join(workDir, 'univ-example');
-const fakeState = path.join(workDir, 'fake');
 const proofDir = path.join(workDir, 'proof');
 const mariadb = path.join(process.env.MARIADB_BASEDIR || '', 'usr/bin/mariadb');
-const hasJq = spawnSync('sh', ['-c', 'command -v jq'], { encoding: 'utf8' }).status === 0;
 
-const env = {
-  ...process.env,
-  PATH: [path.join(HARNESS, 'bin'), ...(hasJq ? [] : [path.join(HARNESS, 'jq-shim')]), process.env.PATH].join(':'),
-  FAKE_STATE: fakeState, FAKE_SOCKET: socket, FAKE_SOFTWARE: SOFTWARE, FAKE_MARIADB: mariadb, REHEARSAL_SOFTWARE: SOFTWARE,
-};
-for (const k of ['VAULT_TOKEN', 'ENV_FILE', 'SHAPER_UNIVERSE', 'SHAPER_APPS_ROOT', 'SHAPER_REGISTRY', 'SHAPER_IMAGE_TAG', 'PROOF_STATE_DIR']) delete env[k];
+// univ-minimal's rehearsal environment: its fake podman reached through a
+// wrapper that carries its own paths (the base hands podman nothing it
+// inherited), and no SHAPER_* or unnamable entry inherited.
+const { env, fakeState } = rehearsalEnv({ workDir, socket, software: SOFTWARE, mariadb });
 const sql = (db, q) => execFileSync(mariadb, ['--no-defaults', '-S', socket, '-uroot', '-N', '-B', ...(db ? [db] : []), '-e', q], { encoding: 'utf8' }).trim();
 const up = (...args) => spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh'), ...args], { env, encoding: 'utf8', timeout: 600000 });
 const state = (slug) => JSON.parse(fs.readFileSync(path.join(fakeState, `univ-example-ctr-${slug}.json`), 'utf8'));

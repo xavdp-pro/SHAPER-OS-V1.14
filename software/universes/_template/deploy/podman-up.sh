@@ -17,11 +17,13 @@
 # Queue and Maestro) — never by a copy of it here.
 #
 # Before the base runs, this script checks what only the universe knows: its
-# settings file is variables only and names the manifest's universe; the
+# settings file passes the base's reader (base/deploy/settings.sh: the base's
+# parameters only, nothing executed) and names the manifest's universe; the
 # universe is not of the earlier template's shape (file stores, an AI bridge);
 # base/ is installed, linked to the universe's own schedule, lock and settings;
 # and the manifest declares the four base units, and only them, exactly as
-# that base births them.
+# that base births them. The base's script then runs in an environment built
+# explicitly (base_script, deploy/lib.sh).
 set -euo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,7 +38,7 @@ check_base_layout
 check_base_units_agree
 
 echo "$TAG $SHAPER_UNIVERSE — layers 0-3, vault, logger, queue, maestro: univ-minimal at $(base_revision)"
-bash "$BASE/deploy/podman-up.sh" "$@"
+base_script podman-up.sh "$@"
 
 # The template starts no unit of its own, and check_base_units_agree refuses a
 # manifest that declares one (INTENT.md#materialise): a universe that adds

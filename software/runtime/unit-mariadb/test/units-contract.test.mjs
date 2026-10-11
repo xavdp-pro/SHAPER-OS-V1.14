@@ -369,7 +369,11 @@ describe('univ-minimal births the units in the order their identities need', () 
     assert.match(up, /REG_TOOL=\/apps\/vault\/app\/packages\/pkg-vault\/unit-registration\.js/);
     assert.match(up, /"\$REG_TOOL" public-key > "\$derived"/);
     assert.match(up, /"\$REG_TOOL" register \\\n\s+--unit "\$unit" --incarnation "\$inc" "\$\{grants\[@\]\}" --bootstrap-file/);
-    assert.match(up, /registration --user "\$VAULT_UID:\$VAULT_UID" -e SHAPER_UNIVERSE_ID \\\n/);
+    // The universe id is given by value: no parameter reaches podman through the
+    // script's environment (SOL-DECISIONS-4 §5, deploy/settings.sh).
+    assert.match(up, /registration --user "\$VAULT_UID:\$VAULT_UID" -e "SHAPER_UNIVERSE_ID=\$UNIVERSE_ID" \\\n/);
+    assert.match(up, /registration -e "SHAPER_UNIVERSE_ID=\$UNIVERSE_ID" -v "\$STAGE:\/identity:Z"/);
+    assert.doesNotMatch(up, /-e SHAPER_UNIVERSE_ID\b|export SHAPER_UNIVERSE_ID/);
     assert.match(up, /registration\(\) \{ podman run --rm --network none --cap-drop=all --security-opt=no-new-privileges --entrypoint node "\$@"; \}/);
   });
 
@@ -399,7 +403,7 @@ describe('univ-minimal births the units in the order their identities need', () 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'renewal-units-'));
     try {
       const r = spawnSync('bash', [path.join(deploy, 'install-renewal-timer.sh')], {
-        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', SHAPER_UNIVERSE: 'univ-minimal', ENV_FILE: '/nonexistent' }, encoding: 'utf8' });
+        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1' }, encoding: 'utf8' });
       assert.equal(r.status, 0, r.stderr);
       const service = fs.readFileSync(path.join(dir, 'univ-minimal-bootstrap-renewal.service'), 'utf8');
       const timer = fs.readFileSync(path.join(dir, 'univ-minimal-bootstrap-renewal.timer'), 'utf8');
@@ -419,13 +423,15 @@ describe('univ-minimal births the units in the order their identities need', () 
       // Decision L: a failed renewal starts the unit that carries it to the human channel, when declared.
       assert.doesNotMatch(service, /^OnFailure=/m, 'none declared, none rendered');
       const alerting = spawnSync('bash', [path.join(deploy, 'install-renewal-timer.sh')], {
-        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', SHAPER_UNIVERSE: 'univ-minimal', ENV_FILE: '/nonexistent', RENEWAL_ALERT_UNIT: 'univ-minimal-watch.service' }, encoding: 'utf8' });
+        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', RENEWAL_ALERT_UNIT: 'univ-minimal-watch.service' }, encoding: 'utf8' });
       assert.equal(alerting.status, 0, alerting.stderr);
       assert.match(fs.readFileSync(path.join(dir, 'univ-minimal-bootstrap-renewal.service'), 'utf8'), /^\[Unit\][^[]*^OnFailure=univ-minimal-watch\.service$/m);
       const refused = spawnSync('bash', [path.join(deploy, 'install-renewal-timer.sh')], {
-        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', ENV_FILE: '/nonexistent', RENEWAL_ALERT_UNIT: 'x.service\nExecStartPre=/bin/sh' }, encoding: 'utf8' });
+        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', RENEWAL_ALERT_UNIT: 'x.service\nExecStartPre=/bin/sh' }, encoding: 'utf8' });
       assert.equal(refused.status, 1);
-      assert.match(refused.stderr, /RENEWAL_ALERT_UNIT must name one systemd service/);
+      // The settings reader refuses it first (deploy/settings.sh, form "service").
+      assert.match(refused.stderr, /RENEWAL_ALERT_UNIT must be one systemd service name/);
+      assert.ok(!fs.readdirSync(dir).some((f) => f.endsWith('.next')), 'nothing half-rendered');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

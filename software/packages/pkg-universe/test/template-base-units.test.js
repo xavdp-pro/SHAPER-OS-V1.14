@@ -32,8 +32,9 @@ import { fileURLToPath } from 'node:url';
 //  * V1.13.5: `source software/.env` clobbered what the operator had
 //    exported (the measured engine). The template now reads no shared
 //    default file at all — the universe's own settings file is the only one,
-//    and the base reads that same file; an export the file does not set
-//    (RESTORE_DUMP_<slug>, PODMAN_UP_RECREATE) still reaches the base.
+//    and the base reads that same file; a run knob of the base's catalogue
+//    the operator exports (RESTORE_DUMP_<slug>, PODMAN_UP_RECREATE) still
+//    reaches the base, and nothing else it inherited does (SOL-DECISIONS-4 §5).
 //  * v1.13.14: a halt crashed on its own message ("ENV_FILE: unbound
 //    variable") instead of naming what was missing. Every refusal below
 //    names the file, the variable or the step to take, and none crashes.
@@ -47,16 +48,20 @@ const QUALIFIED = 'e83f73188a804b3144cfe987ccb5e57133be9fab';
 
 const CFG = ['# the universe settings', 'SHAPER_UNIVERSE=univ-example', 'SHAPER_APPS_ROOT=/apps', 'SHAPER_REGISTRY=', 'SHAPER_IMAGE_TAG=', ''].join('\n');
 
-// A recorder standing in for base/deploy/<script>: its arguments, the
-// settings file it was handed, and what that file named.
+// A recorder standing in for base/deploy/<script>: it reads its settings with
+// the base's own reader, as every base script does, then records its
+// arguments, the settings file it was handed, what that file named, the run
+// knobs it received and anything else that leaked into its environment. The
+// template hands a base script an environment built with env -i, so the
+// recorder finds its record and its exit status beside the universe, never in
+// its environment.
 const RECORDER = `#!/usr/bin/env bash
 set -euo pipefail
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
-if [[ -n "\${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then set -a; source "$ENV_FILE"; set +a
-elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then set -a; source "$UNIV/cfg-univ-minimal.env"; set +a
-fi
-printf '%s\\n' "$(basename "$0") args=[$*] env_file=\${ENV_FILE:-} universe=\${SHAPER_UNIVERSE:-} leak=\${LEAK:-}" >> "$RECORD"
-exit "\${BASE_EXIT:-0}"
+source "$UNIV/deploy/settings.sh"
+shaper_settings_load "[recorder]" || exit 1
+printf '%s\\n' "$(basename "$0") args=[$*] env_file=\${ENV_FILE:-} universe=\${SHAPER_UNIVERSE:-} recreate=\${PODMAN_UP_RECREATE:-} restore=\${RESTORE_DUMP_vault:-} leak=\${LEAK:-}" >> "$UNIV/../../record.log"
+exit "$(cat "$UNIV/../../base-exit" 2>/dev/null || echo 0)"
 `;
 
 function universe(t, { cfg = CFG, base = true } = {}) {
@@ -70,21 +75,27 @@ function universe(t, { cfg = CFG, base = true } = {}) {
     fs.mkdirSync(path.join(b, 'deploy'), { recursive: true });
     fs.copyFileSync(path.join(MINIMAL, 'manifest.json'), path.join(b, 'manifest.json'));
     for (const s of ['podman-up.sh', 'proof.sh', 'lifecycle-drill.sh', 'restore-drill.sh', 'install-renewal-timer.sh', 'renew-bootstraps.sh']) fs.writeFileSync(path.join(b, 'deploy', s), RECORDER, { mode: 0o755 });
+    fs.copyFileSync(path.join(MINIMAL, 'deploy/settings.sh'), path.join(b, 'deploy/settings.sh'));
     fs.writeFileSync(path.join(b, '.shaper-revision'), `${QUALIFIED}\n`);
     fs.symlinkSync('../tasks/task-schedule.json', path.join(b, 'task-schedule.json'));
     fs.symlinkSync('../cfg-image-lock.json', path.join(b, 'cfg-image-lock.json'));
     fs.symlinkSync('../cfg-universe.env', path.join(b, 'cfg-univ-minimal.env'));
   }
   const record = path.join(root, 'record.log');
-  // No container runs here: a podman that knows of none (CONTAINERS lists the ones it does).
+  // No container runs here: a podman that knows of none (root/containers lists
+  // the ones it does — a file, since the template's commands inherit nothing).
   const bin = path.join(root, 'bin');
   fs.mkdirSync(bin);
-  fs.writeFileSync(path.join(bin, 'podman'), '#!/bin/sh\n[ "$1 $2" = "container exists" ] && case " $CONTAINERS " in *" $3 "*) exit 0 ;; esac\nexit 1\n', { mode: 0o755 });
-  const run = (script, args = [], env = {}) => {
+  fs.writeFileSync(path.join(bin, 'podman'), `#!/bin/sh\n[ "$1 $2" = "container exists" ] && grep -qx -- "$3" '${root}/containers' 2>/dev/null && exit 0\nexit 1\n`, { mode: 0o755 });
+  const run = (script, args = [], { CONTAINERS, BASE_EXIT, ...env } = {}) => {
+    if (CONTAINERS !== undefined) fs.writeFileSync(path.join(root, 'containers'), `${CONTAINERS.split(' ').join('\n')}\n`);
+    if (BASE_EXIT !== undefined) fs.writeFileSync(path.join(root, 'base-exit'), BASE_EXIT);
     const r = spawnSync('bash', [path.join(univ, 'deploy', script), ...args], {
       encoding: 'utf8',
-      env: { PATH: `${bin}:${process.env.PATH}`, HOME: root, RECORD: record, ...env },
+      env: { PATH: `${bin}:${process.env.PATH}`, HOME: root, ...env },
     });
+    fs.rmSync(path.join(root, 'containers'), { force: true });
+    fs.rmSync(path.join(root, 'base-exit'), { force: true });
     return { status: r.status, output: `${r.stdout}${r.stderr}`, record: fs.existsSync(record) ? fs.readFileSync(record, 'utf8').trim().split('\n') : [] };
   };
   return { root, univ, run };
@@ -119,7 +130,7 @@ test('podman-up.sh hands the base its own arguments and the universe\'s settings
   const r = u.run('podman-up.sh', ['--recreate', 'queue']);
   assert.equal(r.status, 0, r.output);
   assert.match(r.output, /univ-example — layers 0-3, vault, logger, queue, maestro: univ-minimal at e83f73188a80/);
-  assert.deepEqual(r.record, [`podman-up.sh args=[--recreate queue] env_file=${path.join(u.univ, 'cfg-universe.env')} universe=univ-example leak=`]);
+  assert.deepEqual(r.record, [`podman-up.sh args=[--recreate queue] env_file=${path.join(u.univ, 'cfg-universe.env')} universe=univ-example recreate= restore= leak=`]);
 });
 
 test('podman-up.sh reads no shared default file: the universe\'s own file is the only one', (t) => {
@@ -128,14 +139,14 @@ test('podman-up.sh reads no shared default file: the universe\'s own file is the
   for (const shared of ['software/.env', '.env']) fs.writeFileSync(path.join(u.root, shared), 'SHAPER_UNIVERSE=univ-other\nLEAK=shared-default\n');
   const r = u.run('podman-up.sh');
   assert.equal(r.status, 0, r.output);
-  assert.match(r.record[0], /universe=univ-example leak=$/);
+  assert.match(r.record[0], /universe=univ-example recreate= restore= leak=$/);
 });
 
-test('an operator export the settings file does not set still reaches the base', (t) => {
+test('a run knob the operator exports reaches the base; nothing else the template inherited does', (t) => {
   const u = universe(t);
-  const r = u.run('podman-up.sh', [], { LEAK: 'exported-by-the-operator' });
+  const r = u.run('podman-up.sh', [], { LEAK: 'exported-by-the-operator', PODMAN_UP_RECREATE: 'queue', RESTORE_DUMP_vault: '/apps/vault/sav/restore/vault.sql' });
   assert.equal(r.status, 0, r.output);
-  assert.match(r.record[0], /leak=exported-by-the-operator$/);
+  assert.match(r.record[0], / recreate=queue restore=\/apps\/vault\/sav\/restore\/vault\.sql leak=$/);
 });
 
 test('an explicit ENV_FILE is the file both the template and the base read', (t) => {
@@ -144,7 +155,7 @@ test('an explicit ENV_FILE is the file both the template and the base read', (t)
   fs.writeFileSync(other, CFG);
   const r = u.run('podman-up.sh', ['--preflight'], { ENV_FILE: other });
   assert.equal(r.status, 0, r.output);
-  assert.deepEqual(r.record, [`podman-up.sh args=[--preflight] env_file=${other} universe=univ-example leak=`]);
+  assert.deepEqual(r.record, [`podman-up.sh args=[--preflight] env_file=${other} universe=univ-example recreate= restore= leak=`]);
 });
 
 test('proof.sh runs the base\'s proof and keeps its verdict', (t) => {
@@ -169,11 +180,11 @@ test('no settings file: the halt names the file to create from the example', (t)
   refused(u.run('podman-up.sh'), /no settings file .*cfg-universe\.env: copy .*cfg-universe\.env\.example/);
 });
 
-test('a settings file with a line source would execute is refused before anything sources it', (t) => {
-  const u = universe(t, { cfg: `${CFG}SHAPER_IMAGE_TAG=1; touch INJECTED\n` });
+test('a settings file with a line source would execute is refused before anything reads it', (t) => {
+  const u = universe(t, { cfg: `${CFG.replace('SHAPER_IMAGE_TAG=\n', '')}SHAPER_IMAGE_TAG=1; touch INJECTED\n` });
   const r = u.run('podman-up.sh');
   assert.notEqual(r.status, 0);
-  assert.match(r.output, /would be EXECUTED by source/);
+  assert.match(r.output, /line 5: SHAPER_IMAGE_TAG — its value holds a character a shell would interpret/);
   assert.ok(!fs.existsSync(path.join(u.univ, 'deploy/INJECTED')) && !fs.existsSync(path.join(u.root, 'INJECTED')));
   assert.deepEqual(r.record, []);
 });
@@ -238,7 +249,7 @@ test('deploy/base.sh runs the base\'s drills and renewal after the same checks, 
   for (const [script, args] of [['lifecycle-drill.sh', []], ['restore-drill.sh', ['--unit', 'vault']], ['install-renewal-timer.sh', []], ['renew-bootstraps.sh', []]]) {
     const r = u.run('base.sh', [script, ...args]);
     assert.equal(r.status, 0, r.output);
-    assert.equal(r.record.at(-1), `${script} args=[${args.join(' ')}] env_file=${path.join(u.univ, 'cfg-universe.env')} universe=univ-example leak=`);
+    assert.equal(r.record.at(-1), `${script} args=[${args.join(' ')}] env_file=${path.join(u.univ, 'cfg-universe.env')} universe=univ-example recreate= restore= leak=`);
   }
   const unknown = u.run('base.sh', ['podman-up.sh']);
   assert.notEqual(unknown.status, 0);
@@ -246,8 +257,8 @@ test('deploy/base.sh runs the base\'s drills and renewal after the same checks, 
   const v = universe(t, { cfg: `${CFG}KEY=1; touch INJECTED\n` });
   const bad = v.run('base.sh', ['restore-drill.sh']);
   assert.notEqual(bad.status, 0);
-  assert.match(bad.output, /would be EXECUTED by source/);
-  assert.deepEqual(bad.record, [], 'the base never sources a file that failed the guard');
+  assert.match(bad.output, /line 6: KEY — its value holds a character a shell would interpret/);
+  assert.deepEqual(bad.record, [], 'the base never runs on a file the reader refused');
 });
 
 test('base/cfg-univ-minimal.env must link to the universe\'s own settings file', (t) => {
@@ -334,7 +345,8 @@ test('the earlier shape is also found under the directory\'s own name and univ-b
   const renamed = universe(t);
   const dir = path.join(renamed.root, 'univ-earlier');
   fs.renameSync(renamed.univ, dir);
-  const r = spawnSync('bash', [path.join(dir, 'deploy/podman-up.sh')], { encoding: 'utf8', env: { PATH: `${path.join(renamed.root, 'bin')}:${process.env.PATH}`, RECORD: path.join(renamed.root, 'record.log'), CONTAINERS: 'univ-earlier-vault' } });
+  fs.writeFileSync(path.join(renamed.root, 'containers'), 'univ-earlier-vault\n');
+  const r = spawnSync('bash', [path.join(dir, 'deploy/podman-up.sh')], { encoding: 'utf8', env: { PATH: `${path.join(renamed.root, 'bin')}:${process.env.PATH}` } });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /container univ-earlier-vault/);
   const v = universe(t);

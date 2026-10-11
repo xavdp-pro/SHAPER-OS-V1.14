@@ -20,7 +20,7 @@ check_base_units_agree
 
 echo "$TAG $SHAPER_UNIVERSE — base units: univ-minimal at $(base_revision)"
 status=0
-bash "$BASE/deploy/proof.sh" "$@" || status=$?
+base_script proof.sh "$@" || status=$?
 
 # A universe that adds units proves them here, each with the same inventory
 # and one real effect read back from its own database, before it declares them.

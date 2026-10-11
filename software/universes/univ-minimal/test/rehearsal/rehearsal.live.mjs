@@ -27,6 +27,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { rehearsalEnv } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOFTWARE = path.resolve(HERE, '../../../..');
@@ -34,20 +35,22 @@ const UNIV = path.join(SOFTWARE, 'universes/univ-minimal');
 const socket = process.env.SHAPER_LIVE_SOCKET;
 const appsRoot = process.env.SHAPER_LIVE_APPS_ROOT;
 const workDir = process.env.SHAPER_LIVE_WORKDIR;
-const fakeState = path.join(workDir, 'fake');
 const proofDir = path.join(workDir, 'proof');
 const mariadb = path.join(process.env.MARIADB_BASEDIR || '', 'usr/bin/mariadb');
-const hasJq = spawnSync('sh', ['-c', 'command -v jq'], { encoding: 'utf8' }).status === 0;
+// The secrets store is universe-wide, outside the base units' apps root, and
+// shared with a unit the base does not own — the seven-unit kit's topology
+// (<universe>/.state/units for the base, <universe>/.state/secrets for all;
+// SOL-DECISIONS-4 §1).
+const universeDir = path.join(workDir, 'univ-minimal');
+const store = path.join(universeDir, '.state/secrets');
 
+const { env: harnessEnv, fakeState } = rehearsalEnv({ workDir, socket, software: SOFTWARE, mariadb });
 const env = {
-  ...process.env,
-  PATH: [path.join(HERE, 'bin'), ...(hasJq ? [] : [path.join(HERE, 'jq-shim')]), process.env.PATH].join(':'),
-  FAKE_STATE: fakeState, FAKE_SOCKET: socket, FAKE_SOFTWARE: SOFTWARE, FAKE_MARIADB: mariadb, REHEARSAL_SOFTWARE: SOFTWARE,
-  SHAPER_UNIVERSE: 'univ-minimal', SHAPER_APPS_ROOT: appsRoot,
+  ...harnessEnv,
+  SHAPER_UNIVERSE: 'univ-minimal', SHAPER_APPS_ROOT: appsRoot, SHAPER_SECRETS_ROOT: store,
   SHAPER_REGISTRY: 'localhost', SHAPER_IMAGE_TAG: 'rehearsal',
-  PROOF_STATE_DIR: proofDir, ENV_FILE: '/nonexistent',
+  PROOF_STATE_DIR: proofDir, ENV_FILE: '/dev/null',
 };
-delete env.VAULT_TOKEN;
 const sql = (db, q) => execFileSync(mariadb, ['--no-defaults', '-S', socket, '-uroot', '-N', '-B', ...(db ? [db] : []), '-e', q], { encoding: 'utf8' }).trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(fn, ms = 60000) { const t = Date.now() + ms; for (;;) { const v = fn(); if (v) return v; if (Date.now() > t) return v; await sleep(500); } }
@@ -65,7 +68,6 @@ const expiries = () => Object.fromEntries(sql('vault', "SELECT CONCAT(unit_id, '
   .split('\n').map((l) => l.split(' ')).map(([u, t]) => [u, Number(t)]));
 const lastRun = () => JSON.parse(read(path.join(renewalDir, 'last.json')));
 // SOL-DECISIONS-2 §M: the secrets store, root-only, and Vault's own copy of its token.
-const store = path.join(appsRoot, '.state/secrets');
 const tokenSource = path.join(store, 'vault/VAULT_TOKEN');
 const tokenCopy = path.join(store, 'vault/mount/VAULT_TOKEN');
 const legacyToken = path.join(appsRoot, 'vault/etc/vault/api-token');
@@ -80,8 +82,23 @@ const secretsSeen = () => {
   return out;
 };
 
+// The kit's own consumer in the shared store, laid out as decision 4 §1 says:
+// a root 0600 source and the consumer's 0400 copy under mount/, in root 0700
+// directories. The base must leave it exactly as it found it.
+const kitSource = path.join(store, 'voice/DEEPGRAM_API_KEY');
+const kitCopy = path.join(store, 'voice/mount/DEEPGRAM_API_KEY');
+const KIT_VALUE = 'f3'.repeat(20);
+
 let first, birthPreflight;
-before(() => { birthPreflight = up('--preflight'); first = up(); });
+before(() => {
+  for (const d of [universeDir, path.join(universeDir, '.state')]) fs.mkdirSync(d, { mode: 0o755 });
+  fs.mkdirSync(path.join(store, 'voice/mount'), { recursive: true, mode: 0o700 });
+  for (const d of [store, path.join(store, 'voice'), path.join(store, 'voice/mount')]) fs.chmodSync(d, 0o700);
+  fs.writeFileSync(kitSource, KIT_VALUE, { mode: 0o600 });
+  fs.writeFileSync(kitCopy, KIT_VALUE, { mode: 0o400 });
+  birthPreflight = up('--preflight');
+  first = up();
+});
 after(() => {
   for (const f of fs.existsSync(fakeState) ? fs.readdirSync(fakeState).filter((x) => x.endsWith('.json')) : []) {
     spawnSync(path.join(HERE, 'bin/podman'), ['stop', f.slice(0, -5)], { env });
@@ -149,6 +166,25 @@ test('Vault holds the four registrations by digest; the statements carry no boot
     assert.equal(epoch, '1');
     assert.equal(granted, grants[unit], `${unit}'s grants, explicit and separate`);
   }
+});
+
+test('a universe-wide store shared with the kit: the base keeps to its own directory and leaves the kit\'s consumer as it found it (SOL-DECISIONS-4 §1)', () => {
+  assert.ok(!tokenSource.startsWith(`${appsRoot}/`), 'the store lies outside the base units\' apps root');
+  assert.equal(read(kitSource), KIT_VALUE);
+  assert.equal(read(kitCopy), KIT_VALUE);
+  assert.equal(fs.statSync(kitSource).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(kitCopy).mode & 0o777, 0o400);
+  assert.deepEqual(fs.readdirSync(store).sort(), ['vault', 'voice'], 'one directory per consumer, the base\'s and the kit\'s side by side');
+  for (const s of ['vault', 'logger', 'queue', 'maestro']) {
+    const st = JSON.parse(read(path.join(fakeState, `univ-minimal-ctr-${s}.json`)));
+    assert.ok(!st.spec.mounts.some(([, src]) => src.startsWith(path.join(store, 'voice'))), `${s} receives nothing of the kit's consumer`);
+    assert.ok(!JSON.stringify(st.env).includes(KIT_VALUE));
+  }
+  // The proof's gathering covers the whole store: the kit's value is looked for too.
+  const values = path.join(workDir, 'values-check');
+  const r = probe(`secret_values_file '${values}' vault logger queue maestro && grep -cxF '${KIT_VALUE}' '${values}'`);
+  assert.equal(r.stdout.trim(), '1', r.stderr);
+  fs.rmSync(values, { force: true });
 });
 
 test('no secret value reaches a podman command line or the deploy output', () => {
@@ -359,10 +395,10 @@ test('the parent\'s renewal extends every live bootstrap by 30 days, keeping inc
   // universe's settings in ENV_FILE — parameters and *_FILE references only —
   // and no secret in the renewal's environment; Vault's token stays a file.
   const settings = path.join(workDir, 'cfg-renewal.env');
-  const settingsLines = [`SHAPER_UNIVERSE=univ-minimal`, `SHAPER_APPS_ROOT=${appsRoot}`, `PROOF_STATE_DIR=${proofDir}`,
+  const settingsLines = [`SHAPER_UNIVERSE=univ-minimal`, `SHAPER_APPS_ROOT=${appsRoot}`, `SHAPER_SECRETS_ROOT=${store}`, `PROOF_STATE_DIR=${proofDir}`,
     'SHAPER_REGISTRY=localhost', 'SHAPER_IMAGE_TAG=rehearsal', 'VAULT_TOKEN=', 'VAULT_TOKEN_FILE=/run/secrets/VAULT_TOKEN'];
   fs.writeFileSync(settings, `${settingsLines.join('\n')}\n`, { mode: 0o600 });
-  const serviceEnv = { ENV_FILE: settings, SHAPER_UNIVERSE: '', SHAPER_APPS_ROOT: '', PROOF_STATE_DIR: '' };
+  const serviceEnv = { ENV_FILE: settings, SHAPER_UNIVERSE: '', SHAPER_APPS_ROOT: '', SHAPER_SECRETS_ROOT: '', PROOF_STATE_DIR: '', SHAPER_REGISTRY: '', SHAPER_IMAGE_TAG: '' };
   const asService = renew(serviceEnv);
   assert.equal(asService.status, 0, `${asService.stdout}\n${asService.stderr}`);
   assert.equal((asService.stdout.match(/ current /g) || []).length, 4, 'the same universe, read from its settings file');
@@ -373,7 +409,7 @@ test('the parent\'s renewal extends every live bootstrap by 30 days, keeping inc
   fs.writeFileSync(settings, `${settingsLines.join('\n').replace('VAULT_TOKEN=\n', `VAULT_TOKEN=${read(tokenSource).trim()}\n`)}\n`, { mode: 0o600 });
   const leaky = renew(serviceEnv);
   assert.equal(leaky.status, 1);
-  assert.match(leaky.stderr, /gives a secret a value: VAULT_TOKEN/);
+  assert.match(leaky.stderr, /line 7: VAULT_TOKEN gives a secret a value/);
   for (const secret of secretsSeen()) assert.ok(!leaky.stdout.includes(secret) && !leaky.stderr.includes(secret));
   assert.equal(read(path.join(renewalDir, 'last.json')), lastBefore, 'no run recorded');
   fs.rmSync(settings);
@@ -503,7 +539,8 @@ test('decision L: a failed transaction rolls back, a lost acknowledgement is set
   assert.match(extra.stderr, /0 renewed, 1 blocked and left unchanged — brick-voice missing \(no-record\)/);
   const badExtra = renew({ RENEWAL_EXTRA_IDENTITIES: "x'y" });
   assert.equal(badExtra.status, 1);
-  assert.match(badExtra.stderr, /HALTED: RENEWAL_EXTRA_IDENTITIES holds/);
+  // The settings reader refuses it before the renewal reads anything (deploy/settings.sh).
+  assert.match(badExtra.stderr, /inherited RENEWAL_EXTRA_IDENTITIES must be unit slugs separated by spaces/);
   assert.equal(renew().status, 0, 'the base alone: complete');
   // A universe identity Vault holds nothing of: everything halts, an alert committed in Vault.
   const idFile = path.join(appsRoot, 'vault/etc/vault/universe-id');
@@ -582,7 +619,11 @@ test('a re-run that stops before Vault holds the new registrations leaves the ru
   const before = { files: staged.map(sha), proof: sha(path.join(proofDir, 'identity/bootstrap')), inc: read(path.join(proofDir, 'identity/incarnation')),
     rows: sql('vault', "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities WHERE unit_id <> 'vault'") };
   await sleep(1100);
-  const failed = spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh'), '--recreate', 'all'], { env: { ...env, FAKE_FAIL_APPLY: '1' }, encoding: 'utf8', timeout: 600000 });
+  // The fake's root path refuses the statements while this file exists (the
+  // script hands podman no variable of its own caller's).
+  fs.writeFileSync(path.join(fakeState, 'fail-apply'), '');
+  const failed = spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh'), '--recreate', 'all'], { env, encoding: 'utf8', timeout: 600000 });
+  fs.rmSync(path.join(fakeState, 'fail-apply'));
   assert.notEqual(failed.status, 0);
   assert.match(failed.stderr, /root could not apply the unit registrations/);
   assert.deepEqual(staged.map(sha), before.files, 'Queue and Maestro keep the bootstrap Vault holds');

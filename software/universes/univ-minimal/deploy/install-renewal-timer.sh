@@ -16,50 +16,12 @@
 set -euo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
-# The settings file the service will name is checked as podman-up.sh checks
-# it — read, never executed, no secret in it (SOL-DECISIONS-2 §M) — before it
-# is sourced here or rendered into a unit. The same two functions, verbatim
-# but for the tag.
-shaper_env_file_is_variables_only() {
-  local file="$1" bad status=0
-  bad="$(grep -nvE '^[[:space:]]*(#|$)|^[A-Z][A-Z0-9_]*=("([^"`$]|\$[^(])*\$?"|'"'"'[^'"'"']*'"'"'|[^[:blank:];&|()<>`'"'"'"]*)$' "$file")" || status=$?
-  if (( status == 1 )); then
-    return 0
-  elif (( status == 2 )); then
-    echo "[install-renewal-timer] cannot read $file — a file that cannot be checked is not sourced" >&2
-    return 1
-  fi
-  echo "[install-renewal-timer] $file is not a variables file — these lines would be EXECUTED by source, not exported:" >&2
-  echo "$bad" | sed 's/^/[install-renewal-timer]   line /' >&2
-  echo "[install-renewal-timer] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
-  return 1
-}
-SECRET_NAME_RE='(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASSPHRASE|API_KEY|MASTER_KEY|PRIVATE_KEY|ENCRYPTION_KEY|SECRET_KEY|ACCESS_KEY)$'
-shaper_env_file_carries_no_secret() {
-  local file="$1" line name value found=()
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ "$line" =~ ^[[:space:]]*([A-Z][A-Z0-9_]*)=(.*)$ ]] || continue
-    name="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
-    [[ "$name" == PWD || "$name" == OLDPWD ]] && continue
-    [[ "$name" =~ $SECRET_NAME_RE ]] || continue
-    [[ -z "$value" || "$value" == '""' || "$value" == "''" ]] && continue
-    found+=("$name")
-  done < "$file"
-  (( ${#found[@]} == 0 )) && return 0
-  echo "[install-renewal-timer] $file gives a secret a value: ${found[*]} — a settings file carries parameters and *_FILE references only." >&2
-  echo "[install-renewal-timer] Put the secret in its root-only source file (the secrets store, deploy/unit-probes.sh secrets_of) and leave its line empty or remove it. Halt." >&2
-  return 1
-}
-shaper_source_env() {
-  shaper_env_file_is_variables_only "$1" || exit 1
-  shaper_env_file_carries_no_secret "$1" || exit 1
-  set -a; source "$1"; set +a
-}
-if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
-  shaper_source_env "$ENV_FILE"
-elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then
-  shaper_source_env "$UNIV/cfg-univ-minimal.env"
-fi
+# The settings the service will read are checked as podman-up.sh checks them
+# — read, never executed, only the base's parameters, no secret
+# (deploy/settings.sh, INTENT.md#settings) — before anything is rendered.
+# shellcheck source=/dev/null
+source "$UNIV/deploy/settings.sh"
+shaper_settings_load "[install-renewal-timer]" || exit 1
 UNIVERSE="${SHAPER_UNIVERSE:-univ-minimal}"
 [[ "$UNIVERSE" =~ ^univ-[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "[install-renewal-timer] SHAPER_UNIVERSE must be an instance slug, got $UNIVERSE" >&2; exit 1; }
 [[ "$UNIV" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "[install-renewal-timer] the universe path $UNIV holds characters a unit file would misread" >&2; exit 1; }
@@ -68,9 +30,18 @@ NAME="${UNIVERSE}-bootstrap-renewal"
 # The service renews the universe this run was configured for: the same
 # variables file, named in its environment (none: the universe's own
 # cfg-univ-minimal.env, read by the script itself).
+# The service reads only its settings file: a setting this run took from its
+# own environment would not reach it, so it is named here and refused
+# (RENEWAL_ALERT_UNIT excepted: it is rendered into the unit, not read by it).
+for name in $(compgen -v); do
+  entry="$(shaper_settings_entry "$name")" || continue
+  [[ "$name" != RENEWAL_ALERT_UNIT && "${entry%% *}" == setting && -n "${!name:-}" && -z "${SHAPER_SETTINGS_FILE_LINE[$name]:-}" ]] || continue
+  echo "[install-renewal-timer] $name is set in this run's environment, not in the settings file the service will read: put it in ${SHAPER_SETTINGS_FILE:-the settings file (ENV_FILE)}. Halt." >&2
+  exit 1
+done
 ENV_LINE="# ENV_FILE: the universe's own cfg-univ-minimal.env"
-if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
-  ENV_FILE="$(cd "$(dirname "$ENV_FILE")" && pwd)/$(basename "$ENV_FILE")"
+if [[ -n "${ENV_FILE:-}" ]]; then
+  [[ "$ENV_FILE" == /dev/null ]] || ENV_FILE="$(cd "$(dirname "$ENV_FILE")" && pwd)/$(basename "$ENV_FILE")"
   [[ "$ENV_FILE" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "[install-renewal-timer] $ENV_FILE holds characters a unit file would misread" >&2; exit 1; }
   ENV_LINE="Environment=ENV_FILE=$ENV_FILE"
 fi

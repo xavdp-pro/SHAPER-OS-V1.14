@@ -60,7 +60,7 @@ git -C "$SHAPER_REPO" merge-base --is-ancestor "$QUALIFIED_BASE" "$REV" \
   || halt "${REV:0:12} does not contain the qualified base release ${QUALIFIED_BASE:0:12}: its base units are not the ones qualified. Halt."
 
 TREE=software/universes/univ-minimal
-for f in manifest.json deploy/podman-up.sh deploy/unit-probes.sh deploy/proof.sh deploy/proof-effects.sh \
+for f in manifest.json deploy/settings.sh deploy/podman-up.sh deploy/unit-probes.sh deploy/proof.sh deploy/proof-effects.sh \
          deploy/proof-effects-units.sh deploy/lifecycle-drill.sh deploy/restore-drill.sh \
          deploy/renew-bootstraps.sh deploy/install-renewal-timer.sh \
          systemd/bootstrap-renewal.service.in systemd/bootstrap-renewal.timer.in; do

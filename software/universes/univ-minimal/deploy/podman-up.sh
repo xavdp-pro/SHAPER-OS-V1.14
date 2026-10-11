@@ -56,7 +56,7 @@ LOCK="$UNIV/cfg-image-lock.json"
 
 # ── 0. What this run is asked to do ────────────────────────────────────────
 PREFLIGHT=0
-RECREATE=" ${PODMAN_UP_RECREATE:-} "
+RECREATE=" "   # and PODMAN_UP_RECREATE, once the settings are read (section 1)
 while (( $# )); do
   case "$1" in
     --preflight) PREFLIGHT=1 ;;
@@ -69,51 +69,16 @@ while (( $# )); do
 done
 asked_to_recreate() { [[ "$RECREATE" == *" $1 "* || "$RECREATE" == *" all "* ]]; }
 
-# ── 1. Configuration: a variables file is read, never executed ─────────────
-shaper_env_file_is_variables_only() {
-  local file="$1" bad status=0
-  bad="$(grep -nvE '^[[:space:]]*(#|$)|^[A-Z][A-Z0-9_]*=("([^"`$]|\$[^(])*\$?"|'"'"'[^'"'"']*'"'"'|[^[:blank:];&|()<>`'"'"'"]*)$' "$file")" || status=$?
-  if (( status == 1 )); then
-    return 0
-  elif (( status == 2 )); then
-    echo "[podman-up] cannot read $file — a file that cannot be checked is not sourced" >&2
-    return 1
-  fi
-  echo "[podman-up] $file is not a variables file — these lines would be EXECUTED by source, not exported:" >&2
-  echo "$bad" | sed 's/^/[podman-up]   line /' >&2
-  echo "[podman-up] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
-  return 1
-}
-# The settings file carries parameters and *_FILE references only
-# (SOL-DECISIONS-2 §M): a variable whose name says it holds a secret, with a
-# value, is refused by name — sourcing it would export it into this script,
-# podman and conmon. The value is never printed.
-SECRET_NAME_RE='(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASSPHRASE|API_KEY|MASTER_KEY|PRIVATE_KEY|ENCRYPTION_KEY|SECRET_KEY|ACCESS_KEY)$'
-shaper_env_file_carries_no_secret() {
-  local file="$1" line name value found=()
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ "$line" =~ ^[[:space:]]*([A-Z][A-Z0-9_]*)=(.*)$ ]] || continue
-    name="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
-    [[ "$name" == PWD || "$name" == OLDPWD ]] && continue
-    [[ "$name" =~ $SECRET_NAME_RE ]] || continue
-    [[ -z "$value" || "$value" == '""' || "$value" == "''" ]] && continue
-    found+=("$name")
-  done < "$file"
-  (( ${#found[@]} == 0 )) && return 0
-  echo "[podman-up] $file gives a secret a value: ${found[*]} — a settings file carries parameters and *_FILE references only." >&2
-  echo "[podman-up] Put the secret in its root-only source file (the secrets store, deploy/unit-probes.sh secrets_of) and leave its line empty or remove it. Halt." >&2
-  return 1
-}
-shaper_source_env() {
-  shaper_env_file_is_variables_only "$1" || exit 1
-  shaper_env_file_carries_no_secret "$1" || exit 1
-  set -a; source "$1"; set +a
-}
-if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
-  shaper_source_env "$ENV_FILE"
-elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then
-  shaper_source_env "$UNIV/cfg-univ-minimal.env"
-fi
+# ── 1. Configuration: the settings are read, never executed ───────────────
+# One declarative reader for the base (deploy/settings.sh, INTENT.md#settings):
+# only the parameters of its catalogue, no secret, no executable syntax, no
+# key twice, the inherited environment held to the same catalogue — all
+# checked before anything is written. Every command below receives only the
+# environment settings.sh keeps (PATH, HOME, locale…) and its own arguments.
+# shellcheck source=/dev/null
+source "$UNIV/deploy/settings.sh"
+shaper_settings_load "[podman-up]" || exit 1
+RECREATE+="${PODMAN_UP_RECREATE:-} "
 
 for tool in podman jq openssl ss sha256sum flock; do
   command -v "$tool" >/dev/null || { echo "[podman-up] $tool is missing in the universe container — install it at first boot" >&2; exit 1; }
@@ -129,6 +94,22 @@ APPS_ROOT="${SHAPER_APPS_ROOT:-/apps}"
 source "$UNIV/deploy/unit-probes.sh"
 halt() { echo "[podman-up] $*" >&2; exit 1; }
 say() { echo "[podman-up] $*"; }
+# What the settings name must exist in this universe, or a run would quietly
+# do something else: a restore dump for a unit the manifest does not declare
+# would leave that unit to birth an empty database; a secrets store inside a
+# unit's own directory would be mounted into it with its volumes.
+DECLARED_SLUGS=" $(jq -r '.bricks[].database.slug' "$MANIFEST" | tr '\n' ' ') "
+for restore_var in "${!RESTORE_DUMP_@}"; do
+  [[ "$DECLARED_SLUGS" == *" ${restore_var#RESTORE_DUMP_} "* || "${DECLARED_SLUGS//-/_}" == *" ${restore_var#RESTORE_DUMP_} "* ]] \
+    || halt "$restore_var names no unit of this universe (units:${DECLARED_SLUGS% }). Halt."
+done
+STORE_REAL="$(readlink -m -- "$SECRETS_ROOT")"
+for slug in $DECLARED_SLUGS; do
+  case "$STORE_REAL/" in
+    "$(readlink -m -- "$APPS_ROOT/$slug")"/*)
+      halt "the secrets store $SECRETS_ROOT lies inside unit $slug's directory ($APPS_ROOT/$slug), whose volumes are mounted into it: name a store outside every unit (SHAPER_SECRETS_ROOT). Halt." ;;
+  esac
+done
 (( PREFLIGHT )) && say "preflight — nothing is written, registered or started"
 # A new incarnation for a recreated unit: random, never a clock reading.
 new_incarnation() { echo "$1-$(openssl rand -hex 8)"; }
@@ -181,6 +162,44 @@ TOKEN_FILE="$(secret_source vault VAULT_TOKEN)"
 LEGACY_TOKEN_FILE="$VAULT_ETC/api-token"
 KEY_FILE="$VAULT_ETC/master.key"
 fault="$(path_protected "$SECRETS_ROOT")" || halt "the secrets store $SECRETS_ROOT is not protected: $fault. A secret is kept only where no account but root can replace it. Halt."
+# The store the base used before SHAPER_SECRETS_ROOT named a universe-wide one
+# (SOL-DECISIONS-4 §1): its default, <apps root>/.state/secrets. Each base
+# unit's source there moves into the named store, the same value, atomically,
+# under the parent lock; an earlier copy of the same value is removed; two
+# different values are a human's decision, never a guess. A moved source
+# changes the unit's mount, so the unit is recreated with its new copy (7b).
+EARLIER_STORE="$APPS_ROOT/.state/secrets"
+#   earlier_source <unit> <NAME>   the source in the earlier store, when there is one to move
+earlier_source() {
+  [[ "$(readlink -m -- "$EARLIER_STORE")" != "$STORE_REAL" && -e "$EARLIER_STORE/$1/$2" ]] && echo "$EARLIER_STORE/$1/$2"
+}
+move_earlier_sources() {
+  local slug name old new tmp
+  for slug in $DECLARED_SLUGS; do
+    for name in $(secrets_of "$slug"); do
+      old="$(earlier_source "$slug" "$name")" || continue
+      new="$(secret_source "$slug" "$name")"
+      [[ -f "$old" && ! -L "$old" ]] || halt "$old is not a regular file: the earlier store is left as it is. Halt."
+      if [[ -s "$new" ]]; then
+        cmp -s -- "$old" "$new" \
+          || halt "two values of $slug's $name differ: $new (the store named) and $old (the earlier store). Keep the one the running unit uses, remove the other. Halt."
+        if (( PREFLIGHT )); then say "would remove the earlier copy of $slug's $name ($old), the same value as the store's"; continue; fi
+        say "earlier copy of $slug's $name removed ($old), the same value as the store's"
+      else
+        if (( PREFLIGHT )); then say "would move $slug's $name into the store named ($old → $new), value kept"; continue; fi
+        install -d -m 0700 -o root -g root "$SECRETS_ROOT/$slug"
+        tmp="$(mktemp "$SECRETS_ROOT/$slug/.$name.XXXXXX")"
+        cat -- "$old" > "$tmp"
+        chown root:root "$tmp"; chmod 0600 "$tmp"
+        mv -f -- "$tmp" "$new"
+        say "$slug's $name moved into the store $SECRETS_ROOT ($new), value kept"
+      fi
+      rm -f -- "$old" "$EARLIER_STORE/$slug/mount/$name"
+      rmdir -- "$EARLIER_STORE/$slug/mount" "$EARLIER_STORE/$slug" 2>/dev/null || true
+    done
+  done
+  if (( ! PREFLIGHT )) && [[ "$(readlink -m -- "$EARLIER_STORE")" != "$STORE_REAL" ]]; then rmdir -- "$EARLIER_STORE" 2>/dev/null || true; fi
+}
 if (( ! PREFLIGHT )); then
   install -d -m 0755 -o root -g root "$APPS_ROOT" "$APPS_ROOT/vault" "$APPS_ROOT/vault/etc"
   install -d -m 0700 -o root -g root "$VAULT_ETC"
@@ -194,6 +213,7 @@ if (( ! PREFLIGHT )); then
   install -d -m 0700 -o root -g root "$SECRETS_ROOT"
   fault="$(path_protected "$SECRETS_ROOT")" || halt "the secrets store $SECRETS_ROOT is not protected: $fault. Halt."
   install -d -m 0700 -o root -g root "$(dirname "$TOKEN_FILE")"
+  move_earlier_sources
   # A universe born before the secrets store kept its token beside the master
   # key: it moves, the same value, so the running Vault and the proof agree.
   if [[ ! -s "$TOKEN_FILE" && -s "$LEGACY_TOKEN_FILE" ]]; then
@@ -211,7 +231,10 @@ if (( ! PREFLIGHT )); then
     ( umask 077; openssl rand -hex 32 > "$TOKEN_FILE" )
   fi
   chown root:root "$TOKEN_FILE"; chmod 0600 "$TOKEN_FILE"
-elif [[ ! -s "$TOKEN_FILE" ]]; then
+else
+  move_earlier_sources
+fi
+if (( PREFLIGHT )) && [[ ! -s "$TOKEN_FILE" ]] && ! earlier_source vault VAULT_TOKEN >/dev/null; then
   if [[ -s "$LEGACY_TOKEN_FILE" ]]; then
     say "would move the Vault API token into the secrets store ($LEGACY_TOKEN_FILE → $TOKEN_FILE)"
   else
@@ -266,7 +289,7 @@ else
   fi
 fi
 [[ "$UNIVERSE_ID" =~ $UUID_PATTERN ]] || halt "$UNIVERSE_ID_FILE holds no lowercase UUID. Halt."
-export SHAPER_UNIVERSE_ID="$UNIVERSE_ID"
+SHAPER_UNIVERSE_ID="$UNIVERSE_ID"
 
 # ── 6. Every unit's image and volumes, checked before anything starts ───────
 port_of() { jq -r --arg b "brick-$1" '.bricks[$b].port' "$MANIFEST"; }
@@ -377,7 +400,7 @@ registration() { podman run --rm --network none --cap-drop=all --security-opt=no
 PIN="$VAULT_ETC/vault-signing.pub"
 if [[ -s "$KEY_FILE" ]]; then
   derived="$(mktemp)"
-  registration --user "$VAULT_UID:$VAULT_UID" -e SHAPER_UNIVERSE_ID \
+  registration --user "$VAULT_UID:$VAULT_UID" -e "SHAPER_UNIVERSE_ID=$UNIVERSE_ID" \
     -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -v "$KEY_FILE:/apps/vault/etc/vault/master.key:ro,Z" \
     "${IMAGE_OF[vault]}" "$REG_TOOL" public-key > "$derived"
   [[ "$(head -n1 "$derived")" == '-----BEGIN PUBLIC KEY-----' ]] || { rm -f "$derived"; halt "the Vault image did not derive a public key"; }
@@ -570,7 +593,7 @@ register() {  # <unit> <incarnation> <grant>...
   local grants=()
   for g; do grants+=(--grant "$g"); done
   rm -f -- "${STAGE:?}/$unit.bootstrap"
-  registration -e SHAPER_UNIVERSE_ID -v "$STAGE:/identity:Z" "${IMAGE_OF[vault]}" "$REG_TOOL" register \
+  registration -e "SHAPER_UNIVERSE_ID=$UNIVERSE_ID" -v "$STAGE:/identity:Z" "${IMAGE_OF[vault]}" "$REG_TOOL" register \
     --unit "$unit" --incarnation "$inc" "${grants[@]}" --bootstrap-file "/identity/$unit.bootstrap" >> "$STAGE/registration.sql.next"
   [[ -s "$STAGE/$unit.bootstrap" ]] || halt "no bootstrap was written for $unit"
   REGISTERED+="${REGISTERED:+,}'$unit:$inc'"

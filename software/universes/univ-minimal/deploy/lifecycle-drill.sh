@@ -34,9 +34,14 @@ set -uo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$UNIV/manifest.json"
-if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then set -a; source "$ENV_FILE"; set +a
-elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then set -a; source "$UNIV/cfg-univ-minimal.env"; set +a
-fi
+# The settings are read, never executed (deploy/settings.sh, INTENT.md#settings).
+# shellcheck source=/dev/null
+source "$UNIV/deploy/settings.sh"
+shaper_settings_load "[lifecycle-drill]" || exit 1
+# The base's own scripts it drills run with an environment built here: the
+# settings this run read, nothing else this shell inherited.
+shaper_settings_child_env
+base_script() { env -i "${SHAPER_CHILD_ENV[@]}" bash "$UNIV/deploy/$1" "${@:2}"; }
 UNIVERSE="${SHAPER_UNIVERSE:-univ-minimal}"
 APPS_ROOT="${SHAPER_APPS_ROOT:-/apps}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -171,12 +176,12 @@ for s in "${UNITS[@]}"; do
   INC_KEPT[$s]="$(unit_env "${UNIVERSE}-ctr-$s" SHAPER_UNIT_INCARNATION)"
 done
 EPOCHS_KEPT="$(rootsql vault vault -e "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities WHERE universe_id='$UNIVERSE_ID'" 2>/dev/null)"
-preflight_out="$(bash "$UNIV/deploy/podman-up.sh" --preflight 2>&1)" \
+preflight_out="$(base_script podman-up.sh --preflight 2>&1)" \
   && ok preflight "deploy/podman-up.sh --preflight ran: nothing written, registered or started" \
   || fail preflight "deploy/podman-up.sh --preflight failed: $(tail -n 3 <<<"$preflight_out" | tr '\n' ' ')"
 check preflight-keeps "the preflight would keep every unit and the proof's identity" \
   bash -c '! grep -qE "^  [a-z]+ +(recreate|register) " <<<"$1"' _ "$preflight_out"
-if bash "$UNIV/deploy/podman-up.sh" >/dev/null; then ok rerun "deploy/podman-up.sh ran again with nothing to recreate"
+if base_script podman-up.sh >/dev/null; then ok rerun "deploy/podman-up.sh ran again with nothing to recreate"
 else fail rerun "deploy/podman-up.sh failed on a re-run"; fi
 for s in "${UNITS[@]}"; do
   check "rerun-$s-kept" "$s: the same container, the same incarnation ${INC_KEPT[$s]:-(none: it holds no credential)}" \
@@ -192,7 +197,7 @@ expiries() { rootsql vault vault -e "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', TI
 shifted() { tr ',' '\n' <<<"$1" | awk -F: -v d="$2" '{ split($2, t, "."); printf "%s%s:%d", (NR > 1 ? "," : ""), $1, t[1] + d }'; }
 EXP_BEFORE="$(expiries)"
 renew_since="$(rootsql vault -e 'SELECT UTC_TIMESTAMP(3)')"
-renew_out="$(RENEW_WITHIN_SECONDS=$((40 * 86400)) bash "$UNIV/deploy/renew-bootstraps.sh" 2>&1)" \
+renew_out="$(env -i "${SHAPER_CHILD_ENV[@]}" RENEW_WITHIN_SECONDS=$((40 * 86400)) bash "$UNIV/deploy/renew-bootstraps.sh" 2>&1)" \
   && ok renewal "renew-bootstraps.sh (40-day drill window) ran: $(count_state "$renew_out" renewed) identities renewed" \
   || fail renewal "renew-bootstraps.sh failed: $(tail -n 2 <<<"$renew_out" | tr '\n' ' ')"
 check renewal-extended "every recorded bootstrap extended by exactly 30 days (vault.unit_identities, root path)" \
@@ -207,7 +212,7 @@ check renewal-evidence "each renewal's proof (UNIT_BOOTSTRAP_RENEWED) committed 
   evidence_delivered vault "JSON_VALUE(body, '\$.event') = 'UNIT_BOOTSTRAP_RENEWED' AND created_at >= '$renew_since'"
 check renewal-no-token "the renewal's output carries no bootstrap value" \
   bash -c '! grep -qE "[0-9a-f]{64}" <<<"$1"' _ "$renew_out"
-daily_out="$(bash "$UNIV/deploy/renew-bootstraps.sh" 2>&1)" \
+daily_out="$(base_script renew-bootstraps.sh 2>&1)" \
   && ok renewal-daily "the daily run right after: nothing due ($(count_state "$daily_out" current) current)" \
   || fail renewal-daily "the daily run failed: $(tail -n 2 <<<"$daily_out" | tr '\n' ' ')"
 check renewal-daily-nothing "the daily run renewed nothing, and found every identity current" \
@@ -225,7 +230,7 @@ OLD_CREDENTIAL="$PROOF_DIR/identity/before-recreation.header"
 issue_proof_credential "$OLD_CREDENTIAL" \
   && ok old-credential "a logger credential issued to the proof's current incarnation, kept for after the recreation" \
   || fail old-credential "Vault issued no credential to the proof before the recreation"
-if bash "$UNIV/deploy/podman-up.sh" --recreate all >/dev/null; then ok recreate "deploy/podman-up.sh --recreate all replaced every unit container"
+if base_script podman-up.sh --recreate all >/dev/null; then ok recreate "deploy/podman-up.sh --recreate all replaced every unit container"
 else fail recreate "deploy/podman-up.sh --recreate all failed"; fi
 owe_evidence recreate
 for s in "${UNITS[@]}"; do
