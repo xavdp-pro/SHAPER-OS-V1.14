@@ -147,9 +147,9 @@ vault_curl -sf -o /dev/null -X POST -H "$H" --data-binary @- \
 CONTROL_EVENT="$(logger_curl -s -X POST "http://127.0.0.1:$(port_of logger)/api/ingest" -H "$H" \
   -d "{\"pod\":\"proof\",\"event\":\"RESTORE_DRILL\",\"correlationId\":\"$STAMP\",\"sourceEventId\":\"restore-drill/$STAMP\",\"data\":{\"stamp\":\"$STAMP\"}}" | jq -r '.record.id // empty')"
 [[ -n "$CONTROL_EVENT" ]] && ok logger-control "event $CONTROL_EVENT ingested by the live Logger" || fail logger-control "the live Logger refused the control event"
-CONTROL_JOB="$(curl -s -X POST "http://127.0.0.1:$(port_of queue)/api/jobs" -H "$H" \
+CONTROL_JOB="$(queue_curl -s -X POST "http://127.0.0.1:$(port_of queue)/api/jobs" -H "$H" \
   -d "{\"type\":\"restore.drill\",\"payload\":{\"stamp\":\"$STAMP\"},\"idempotencyKey\":\"restore-drill-$STAMP\"}" | jq -r '.job.id // empty')"
-curl -s -o /dev/null -X PATCH "http://127.0.0.1:$(port_of queue)/api/jobs/$CONTROL_JOB" -H "$H" -d '{"status":"COMPLETED","progress":100,"step":1,"result":{"drill":true}}'
+[[ -n "$CONTROL_JOB" ]] && queue_complete "$CONTROL_JOB" '{"drill":true}' >/dev/null
 [[ -n "$CONTROL_JOB" ]] && ok queue-control "job $CONTROL_JOB COMPLETED in the live Queue" || fail queue-control "the live Queue refused the control job"
 # The Queue's evidence of the control job reaches the Logger before the Logger is dumped.
 evidence_delivered queue "JSON_VALUE(body, '\$.correlationId') = '$CONTROL_JOB'" \
@@ -241,7 +241,7 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
         || fail logger-restore-reads "expected event $CONTROL_EVENT, got '$got'"
       ;;
     queue)
-      got="$(curl -s "$D/api/jobs/$CONTROL_JOB" | jq -r '"\(.job.id)|\(.job.status)"')"
+      got="$(queue_curl -s "$D/api/jobs/$CONTROL_JOB" | jq -r '"\(.job.id)|\(.job.status)"')"
       [[ "$got" == "$CONTROL_JOB|COMPLETED" ]] && ok queue-restore-reads "the restored Queue returns job $CONTROL_JOB COMPLETED" \
         || fail queue-restore-reads "expected $CONTROL_JOB|COMPLETED, got '$got'"
       ;;

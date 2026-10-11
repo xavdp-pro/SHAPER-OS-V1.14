@@ -27,12 +27,15 @@
  *
  * ── The ledger moves first ─────────────────────────────────────────────────
  * Every transition is awaited: with the MariaDB store it is committed before
- * the worker acts on it. A job is sent to a bridge only after its move out of
- * PENDING is recorded, and that move is conditional on the job still being
- * PENDING, so two lanes never run one job. A transition the store refuses
+ * the worker acts on it. A job is sent to a bridge only after its claim is
+ * recorded — a durable attempt bound to this unit and incarnation, which the
+ * store grants only to a job still PENDING, so two lanes never run one job —
+ * and every later update presents that attempt (DECISIONS-20261011 §G): an
+ * update the store finds stale changes nothing. A transition the store refuses
  * (database unreachable) stops that job's handling where it stands and frees
  * the lane; the job keeps its last recorded state — PENDING is picked up
- * again, RUNNING is settled as an orphan at the next start.
+ * again, RUNNING is settled FAILED as interrupted, its attempt invalidated,
+ * at the next start of the service (not by this worker).
  */
 
 import { taskFromPayload } from './task-frame.js';
@@ -177,7 +180,7 @@ export function startQueueAgentWorker({
   // How long a lane will wait for a run's terminal event before giving up.
   // A hung event stream once held the only lane forever: the job sat RUNNING,
   // every later job sat PENDING, and only a container restart freed the queue
-  // (v1.13.11 sealing run, incident 2). Same epistemology as adoptOrphans:
+  // (v1.13.11 sealing run, incident 2). Same epistemology as restart recovery:
   // giving up is not inventing an outcome — it is saying nobody watches anymore.
   runMaxSeconds = Math.max(0.05, Number(process.env.QUEUE_RUN_MAX_SECONDS || 900)),
   fetchImpl = fetch,
@@ -193,49 +196,25 @@ export function startQueueAgentWorker({
   // runs one, a well-sized server runs four. Same image, same code — Rule 32
   // says a brick that only works at one scale is not a base.
   const running = new Map(); // job id → conversation
+  // A job left RUNNING by a previous process is not this worker's to settle:
+  // the service's start (recoverInterrupted) fails it as interrupted and
+  // invalidates its attempt before any lane is filled.
 
   /**
-   * Jobs left RUNNING by a worker that no longer exists.
-   *
-   * This does not contradict "work whose end cannot be observed stays RUNNING".
-   * That invariant forbids **inventing a success**; it does not require pretending
-   * a run is still watched when the process watching it is gone. An orphan's end
-   * will never be observed by anyone, and saying so is a fact, not a guess.
-   *
-   * Leaving them is worse than it looks: each one occupies its pod's exclusivity
-   * for ever, so that pod never beats again, and each one inflates `inFlight`,
-   * so every capacity reading built on it is wrong. A stale RUNNING job is a
-   * measurement poisoning itself.
+   * Claims a job, and only a PENDING one: the store records an attempt bound
+   * to this unit's incarnation and moves the job to RUNNING, or refuses
+   * (JOB_STATE_CHANGED) when someone else already moved it; the lane then
+   * stands down instead of running the job twice. Recorded before this
+   * resolves — with MariaDB, committed — so nothing is sent to a bridge for a
+   * job the ledger does not show as taken.
+   * @returns {Promise<string|null>} the attempt id, or null when the job is gone
    */
-  async function adoptOrphans() {
-    const orphans = (await queue.listJobs({ status: 'RUNNING', type: 'agent.inject' }))
-      .filter((j) => j.type === 'agent.inject' && !running.has(j.id));
-    for (const job of orphans) {
-      await queue.updateJobProgress(job.id, {
-        status: 'FAILED',
-        error: 'orphaned by restart — the worker watching this run is gone, its outcome is unknowable',
-        progress: 100,
-        step: 2,
-        result: { ...(job.result || {}), orphaned: true },
-      });
-    }
-    if (orphans.length) console.log(`[queue-worker] ${orphans.length} orphan(s) from a previous worker, marked failed`);
-    return orphans.length;
-  }
-
-  /**
-   * Moves a job out of PENDING, and only out of PENDING. The store refuses the
-   * change (JOB_STATE_CHANGED) when someone else already moved it; the lane
-   * then stands down instead of running the job twice. The new state is
-   * recorded before this resolves — with MariaDB, committed — so nothing is
-   * sent to a bridge for a job the ledger does not show as taken.
-   */
-  async function leavePending(job, patch) {
+  async function claim(job, initial) {
     try {
-      await queue.updateJobProgress(job.id, patch, { expectStatus: 'PENDING' });
-      return true;
+      const { attempt } = await queue.claimJob(job.id, undefined, initial);
+      return attempt.id;
     } catch (err) {
-      if (err && err.code === 'JOB_STATE_CHANGED') return false;
+      if (err && err.code === 'JOB_STATE_CHANGED') return null;
       throw err;
     }
   }
@@ -254,26 +233,27 @@ export function startQueueAgentWorker({
     // (task-frame.js) so a task arrives under the same contract whether it came
     // through the queue or through the CLI router.
     let message;
+    let refusal = null;
     try {
       message = taskFromPayload(payload) || String(payload.message || '').trim();
+      if (!message) refusal = 'payload.message required';
     } catch (err) {
-      await leavePending(job, {
-        status: 'FAILED', progress: 100,
-        error: `malformed task: ${err.message}`,
-      });
-      return;
+      refusal = `malformed task: ${err.message}`;
     }
-    if (!message) {
-      await leavePending(job, { status: 'FAILED', error: 'payload.message required', progress: 100 });
-      return;
-    }
-    const target = (payload.bridgeUrl || bridgeUrl).replace(/\/$/, '');
-    const conversation = payload.conversation || `queue-${job.id}`;
     // Stamp when work actually began. Without it, "service time" would be
     // measured from creation and would silently include queue wait — inflating
     // under load, which is precisely when the measure matters most.
     const startedAt = new Date().toISOString();
-    if (!await leavePending(job, { status: 'RUNNING', progress: 10, step: 1, result: { startedAt } })) return;
+    const attempt = await claim(job, refusal ? { progress: 0 } : { progress: 10, step: 1, result: { startedAt } });
+    if (!attempt) return;
+    // Every later update of this run presents its attempt.
+    const update = (patch) => queue.updateJobProgress(job.id, { ...patch, attempt });
+    if (refusal) {
+      await update({ status: 'FAILED', progress: 100, error: refusal });
+      return;
+    }
+    const target = (payload.bridgeUrl || bridgeUrl).replace(/\/$/, '');
+    const conversation = payload.conversation || `queue-${job.id}`;
 
     // Subscribe before injecting: a short run could otherwise finish before we
     // are listening, leaving us waiting on an event that already went by.
@@ -295,7 +275,7 @@ export function startQueueAgentWorker({
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.ok !== true) {
       follower.cancel();
-      await queue.updateJobProgress(job.id, {
+      await update({
         status: 'FAILED',
         error: data.error || `inject HTTP ${res.status}`,
         progress: 100,
@@ -313,7 +293,7 @@ export function startQueueAgentWorker({
     };
     // Accepted, so started — but not finished. Progress says where we stand.
     try {
-      await queue.updateJobProgress(job.id, { status: 'RUNNING', progress: 50, step: 1, result });
+      await update({ status: 'RUNNING', progress: 50, step: 1, result });
     } catch (err) {
       // The ledger cannot follow this run any more: stop watching it too.
       follower.cancel();
@@ -332,7 +312,7 @@ export function startQueueAgentWorker({
         }),
       ]);
     } catch (err) {
-      await queue.updateJobProgress(job.id, {
+      await update({
         status: 'RUNNING', progress: 50, step: 1,
         result: { ...result, unobserved: `event stream interrupted: ${err.message}` },
       });
@@ -343,7 +323,7 @@ export function startQueueAgentWorker({
 
     if (outcome === GAVE_UP) {
       follower.cancel();
-      await queue.updateJobProgress(job.id, {
+      await update({
         status: 'FAILED',
         progress: 100,
         step: 2,
@@ -354,7 +334,7 @@ export function startQueueAgentWorker({
     }
 
     if (!outcome || outcome.observable === false || outcome.exitCode === undefined) {
-      await queue.updateJobProgress(job.id, {
+      await update({
         status: 'RUNNING', progress: 50, step: 1,
         // Say which kind of blindness this is. "No event stream" and "the bridge
         // refused the connection" call for different actions, and a generic
@@ -370,7 +350,7 @@ export function startQueueAgentWorker({
     }
 
     const ok = outcome.exitCode === 0;
-    await queue.updateJobProgress(job.id, {
+    await update({
       status: ok ? 'COMPLETED' : 'FAILED',
       progress: 100,
       step: 2,
@@ -387,18 +367,11 @@ export function startQueueAgentWorker({
   // Reading the store may take a round trip (MariaDB), so one tick at a time:
   // two overlapping ticks would each see the same PENDING job.
   let ticking = false;
-  let adopted = false;
 
   async function tick() {
     if (stopped || ticking) return;
     ticking = true;
     try {
-      // Before filling any lane, settle what a previous worker left behind.
-      // Retried every tick until it succeeds: no lane is filled before it has.
-      if (!adopted) {
-        await adoptOrphans();
-        adopted = true;
-      }
       while (!stopped && running.size < concurrency) {
         const pending = (await queue.listJobs({ status: 'PENDING', type: 'agent.inject' }))
           .filter((j) => j.type === 'agent.inject' && !running.has(j.id));

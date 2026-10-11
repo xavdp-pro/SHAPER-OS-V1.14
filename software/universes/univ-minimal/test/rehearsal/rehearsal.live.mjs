@@ -130,8 +130,8 @@ test('no secret value reaches a podman command line or the deploy output', () =>
 const oweEvidence = (tag) => probe(`
   H='Content-Type: application/json'
   vault_curl -sf -o /dev/null -X POST -H "$H" -d '{"data":"owe"}' "http://127.0.0.1:8610/api/secret/rehearsal/${tag}" && echo vault=ok
-  job="$(curl -s -X POST http://127.0.0.1:8640/api/jobs -H "$H" -d '{"type":"rehearsal.owe","payload":{},"idempotencyKey":"owe-${tag}"}' | jq -r '.job.id')"
-  curl -s -o /dev/null -X PATCH "http://127.0.0.1:8640/api/jobs/$job" -H "$H" -d '{"status":"COMPLETED","progress":100,"step":1,"result":{}}' && echo queue=ok
+  job="$(queue_curl -s -X POST http://127.0.0.1:8640/api/jobs -H "$H" -d '{"type":"rehearsal.owe","payload":{},"idempotencyKey":"owe-${tag}"}' | jq -r '.job.id')"
+  [[ "$(queue_complete "$job")" == 200 ]] && echo queue=ok
 `);
 
 test('an idle unit asks Vault for nothing: Queue, owing no evidence, holds no credential (DECISIONS §C)', async () => {
@@ -170,8 +170,8 @@ test("the proof's helpers: Logger refuses anonymity, the proof writes and reads 
     vault_curl -sf -o /dev/null -X POST -H "$H" -d '{"data":"rehearsal-value"}' "http://127.0.0.1:8610/api/secret/rehearsal/one" && echo vault-write=ok
     echo "vault-read=$(vault_curl -sf "http://127.0.0.1:8610/api/secret/rehearsal/one" | jq -r .data)"
     evidence_delivered vault "JSON_VALUE(body, '\\$.event') = 'SECRET_STORED' AND JSON_VALUE(body, '\\$.data.secretRef') = 'rehearsal/one' AND created_at >= '$since'" && echo vault-evidence=ok
-    job="$(curl -s -X POST http://127.0.0.1:8640/api/jobs -H "$H" -d '{"type":"rehearsal.ping","payload":{},"idempotencyKey":"reh-job-1"}' | jq -r '.job.id')"
-    curl -s -o /dev/null -X PATCH "http://127.0.0.1:8640/api/jobs/$job" -H "$H" -d '{"status":"COMPLETED","progress":100,"step":1,"result":{}}'
+    job="$(queue_curl -s -X POST http://127.0.0.1:8640/api/jobs -H "$H" -d '{"type":"rehearsal.ping","payload":{},"idempotencyKey":"reh-job-1"}' | jq -r '.job.id')"
+    queue_complete "$job" >/dev/null
     evidence_delivered queue "JSON_VALUE(body, '\\$.correlationId') = '$job'" && echo queue-evidence=ok
   `);
   const out = r.stdout;

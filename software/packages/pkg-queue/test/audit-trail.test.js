@@ -28,7 +28,7 @@ describe('the queue testifies for every job, however it was enqueued', () => {
     const q = new JobQueue({ loggerUrl: 'http://127.0.0.1:8620', fetchImpl });
 
     const job = q.createJob({ type: 'agent.inject', payload: { message: 'hi' } });
-    q.updateJobProgress(job.id, { status: 'COMPLETED', result: { answer: 'done' } });
+    q.updateJobProgress(job.id, { attempt: q.claimJob(job.id).attempt.id, status: 'COMPLETED', result: { answer: 'done' } });
     await new Promise((r) => setTimeout(r, 30));
 
     const names = events.map((e) => e.body.event);
@@ -43,6 +43,6 @@ describe('the queue testifies for every job, however it was enqueued', () => {
   it('stays silent when no logger is configured, and never throws', () => {
     const q = new JobQueue({});
     const job = q.createJob({ type: 'agent.inject', payload: {} });
-    assert.doesNotThrow(() => q.updateJobProgress(job.id, { status: 'COMPLETED' }));
+    assert.doesNotThrow(() => q.updateJobProgress(job.id, { attempt: q.claimJob(job.id).attempt.id, status: 'COMPLETED' }));
   });
 });

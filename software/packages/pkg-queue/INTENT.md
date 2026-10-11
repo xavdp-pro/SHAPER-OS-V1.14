@@ -16,7 +16,7 @@ Jobs live in the unit's own private MariaDB (Rules 4 and 26,
 
 ## 2. Universal Invariants (Parameterized)
 
-1. **Lifecycle**: `PENDING` → `RUNNING` → `COMPLETED` | `FAILED` — set explicitly by the consumer (or by `QUEUE_AUTO_DISPATCH=1` worker for `agent.inject`).
+1. **Lifecycle**: `PENDING` → `RUNNING` → `COMPLETED` | `FAILED` — set explicitly by the consumer (or by `QUEUE_AUTO_DISPATCH=1` worker for `agent.inject`), which claims the job and updates it only under its attempt ([attempts](#attempts)).
 2. **Durability is evidence, never resumption** *(corrected in V1.13 — this
    line used to say "in-memory only, no persistence", which the code itself
    contradicted; the durable store became the unit's private MariaDB in V1.14,
@@ -218,9 +218,8 @@ deliverable.
 The recipient must provide idempotent durable ingest; a transport acknowledgment
 alone is refused. Application credentials are transport-only, never outbox data.
 
-Authenticated Vault-derived identity, Queue leases/attempts and the
-`before_execution` policy remain open reconstruction obligations. The current
-relay does not make the unauthenticated prototype a qualified reference.
+Leases with renewal and expiry, and the `before_execution` policy, remain
+open reconstruction obligations; the durable attempts below are not a lease.
 
 ## Outbound evidence identity
 
@@ -229,6 +228,41 @@ public key to obtain a short-lived `logger` audience credential. Every relay
 request carries that credential in its HTTP header; tokens never enter the
 outbox. Inbound Queue producer/consumer scopes and lease settlement remain
 open work and are not inferred from authenticated Logger delivery.
+
+<a id="attempts"></a>
+## Attempts: claim, update, terminal (DECISIONS-20261011 §G)
+
+A consumer takes a job with `POST /api/jobs/<id>/claim` (body: optional
+`progress`, `step`, `result`): in one transaction, under the job row's lock,
+Queue records an attempt (`job_attempts`, schema version 4) bound to the
+consumer's unit and incarnation — those its verified credential names; the
+in-process worker's are `queue` and `SHAPER_UNIT_INCARNATION` — moves the job
+from `PENDING` to `RUNNING` with `jobs.attempt_id` naming it, and commits a
+`claimed` history row and `JOB_CLAIMED` evidence. Only a `PENDING` job can be
+claimed (`409 JOB_STATE_CHANGED` otherwise); the same consumer and
+incarnation claiming the job it holds get their attempt back
+(`duplicate: true`) and change nothing.
+
+Every progress or terminal update (`PATCH /api/jobs/<id>`) presents
+`attempt`; without it the answer is `400 ATTEMPT_REQUIRED`. Status under an
+attempt is `RUNNING`, `COMPLETED` or `FAILED`. The job and attempt rows are
+locked, and the update applies only when the attempt is the job's current one,
+still `ACTIVE`, the job `RUNNING`, and the caller its consumer under the same
+incarnation (`403 ATTEMPT_FORBIDDEN` for another consumer). The accepted
+terminal update ends the attempt with the digest of the update and a receipt
+(`attemptId`, `jobId`, `status`, `acceptedAt`, `requestDigest`), returned in the
+answer. A terminal state is never rewritten: the identical repeat of the
+accepted terminal update answers the same receipt (`duplicate: true`); any
+other update — late, from a later incarnation, or under an attempt restart
+recovery invalidated — is `409 STALE_ATTEMPT` (the decision's `stale_attempt`)
+and writes nothing. Restart recovery ends each `ACTIVE` attempt of a job it
+settles as `INVALIDATED` (`interrupted`), keeping `orphaned`/`unknown`. A new
+run is never automatic: the owning unit reconciles, then enqueues a new job.
+
+Proof: `test/attempts.test.js` (store and HTTP semantics, DEV store),
+`test/evidence-and-recovery.live.mjs` (MariaDB: a crash between claim and
+completion, recovery, the late completion refused; two consumers racing one
+claim; the receipt answered again from another process).
 
 <a id="lifecycle"></a>
 ## 4. Service lifecycle
@@ -251,9 +285,10 @@ open work and are not inferred from authenticated Logger delivery.
    `orphaned: true, outcome: "unknown"`, a `job_transitions` row of kind
    `interrupted`, and `JOB_FAILED` evidence (`reason: interrupted`) — all in one
    transaction, before anything is served. `PENDING` jobs are left for their
-   first execution. A failure here is a refusal to start. The worker's own
-   orphan adoption remains for in-process library use; at service start it
-   finds nothing left.
+   first execution. Each such job's `ACTIVE` attempt is ended `INVALIDATED`
+   in the same transaction, so a late update under it is `STALE_ATTEMPT`. A
+   failure here is a refusal to start. The worker claims and updates only
+   under its own attempts; it settles no other job.
 3. **Listen**, then start the evidence relay (one lane: `QUEUE_RELAY_*`
    interval, batch and timeout) and, only if asked, the `agent.inject` worker.
 4. **Stop** on SIGTERM/SIGINT: worker; then the server (requests in flight

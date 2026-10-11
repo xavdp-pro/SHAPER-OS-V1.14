@@ -86,8 +86,8 @@ vault_marker() { rootsql vault vault -e "SELECT SHA2(CONCAT(secret_key,iv,auth_t
 eid="$(logger_curl -s -X POST "$(url logger)/api/ingest" -H "$H" -d "{\"pod\":\"proof\",\"event\":\"LIFECYCLE_MARKER\",\"correlationId\":\"$STAMP\",\"sourceEventId\":\"lifecycle/$STAMP\",\"data\":{\"stamp\":\"$STAMP\"}}" | jq -r '.record.id // empty')"
 [[ -n "$eid" ]] && ok logger-marker "event $eid ingested" || fail logger-marker "the Logger refused the marker"
 logger_marker() { rootsql logger logger -e "SELECT digest FROM events WHERE id='$eid'" 2>/dev/null; }
-job="$(curl -s -X POST "$(url queue)/api/jobs" -H "$H" -d "{\"type\":\"lifecycle.marker\",\"payload\":{\"stamp\":\"$STAMP\"},\"idempotencyKey\":\"lifecycle-$STAMP\"}" | jq -r '.job.id // empty')"
-curl -s -o /dev/null -X PATCH "$(url queue)/api/jobs/$job" -H "$H" -d '{"status":"COMPLETED","progress":100,"step":1,"result":{"marker":true}}'
+job="$(queue_curl -s -X POST "$(url queue)/api/jobs" -H "$H" -d "{\"type\":\"lifecycle.marker\",\"payload\":{\"stamp\":\"$STAMP\"},\"idempotencyKey\":\"lifecycle-$STAMP\"}" | jq -r '.job.id // empty')"
+[[ -n "$job" ]] && queue_complete "$job" '{"marker":true}' >/dev/null
 [[ -n "$job" ]] && ok queue-marker "job $job COMPLETED" || fail queue-marker "the Queue refused the marker"
 check queue-marker-evidence "the marker job's evidence receipted by Logger and held there as queue's" \
   evidence_delivered queue "JSON_VALUE(body, '\$.correlationId') = '$job'"
@@ -135,8 +135,8 @@ after_checks restart
 owe_evidence() {  # <phase>
   vault_curl -sf -o /dev/null -X POST -H "$H" -d "{\"data\":\"$1-$STAMP\"}" "$(url vault)/api/secret/lifecycle/$STAMP-$1"
   local j
-  j="$(curl -s -X POST "$(url queue)/api/jobs" -H "$H" -d "{\"type\":\"lifecycle.owe\",\"payload\":{\"phase\":\"$1\"},\"idempotencyKey\":\"lifecycle-$STAMP-$1\"}" | jq -r '.job.id // empty')"
-  [[ -n "$j" ]] && curl -s -o /dev/null -X PATCH "$(url queue)/api/jobs/$j" -H "$H" -d '{"status":"COMPLETED","progress":100,"step":1,"result":{}}'
+  j="$(queue_curl -s -X POST "$(url queue)/api/jobs" -H "$H" -d "{\"type\":\"lifecycle.owe\",\"payload\":{\"phase\":\"$1\"},\"idempotencyKey\":\"lifecycle-$STAMP-$1\"}" | jq -r '.job.id // empty')"
+  [[ -n "$j" ]] && queue_complete "$j" >/dev/null
   vault_curl -sf -o /dev/null -X DELETE "$(url vault)/api/secret/lifecycle/$STAMP-$1"
 }
 

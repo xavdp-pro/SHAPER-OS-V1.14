@@ -27,7 +27,7 @@ describe('JobQueue — Delegation & Recovery Protocol', () => {
     });
 
     // Step 1: running
-    const running = queue.updateJobProgress(job.id, {
+    const running = queue.updateJobProgress(job.id, { attempt: queue.claimJob(job.id).attempt.id,
       status: 'RUNNING',
       progress: 50,
       step: 1,
@@ -36,7 +36,7 @@ describe('JobQueue — Delegation & Recovery Protocol', () => {
     assert.equal(running.progress, 50);
 
     // Step 2: completed with result
-    const completed = queue.updateJobProgress(job.id, {
+    const completed = queue.updateJobProgress(job.id, { attempt: queue.claimJob(job.id).attempt.id,
       status: 'COMPLETED',
       progress: 100,
       step: 2,
@@ -51,7 +51,7 @@ describe('JobQueue — Delegation & Recovery Protocol', () => {
     const queue = new JobQueue();
     const j1 = queue.createJob({ type: 'task_1', payload: {} });
     const j2 = queue.createJob({ type: 'task_2', payload: {} });
-    queue.updateJobProgress(j1.id, { status: 'COMPLETED', progress: 100, result: { ok: true } });
+    queue.updateJobProgress(j1.id, { attempt: queue.claimJob(j1.id).attempt.id, status: 'COMPLETED', progress: 100, result: { ok: true } });
 
     const pending = queue.listJobs({ status: 'PENDING' });
     const completed = queue.listJobs({ status: 'COMPLETED' });

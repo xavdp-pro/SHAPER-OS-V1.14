@@ -17,7 +17,7 @@
       "<unit>.recovery_points": "unlimited — written by the administrative path after a verified restore",
       "logger.events (audit chain)": "unlimited for this wave",
       "logger.ingest_keys (deduplication)": "unlimited for this wave",
-      "queue.jobs, queue.job_transitions": "unlimited",
+      "queue.jobs, queue.job_transitions, queue.job_attempts": "unlimited",
       "maestro.schedules, maestro.schedule_revisions, maestro.occurrences": "unlimited",
       "sav/dumps (logical dumps)": "kept with the unit's sav volume; removed with it",
       "proof state": "unlimited until the universe is terminated"
@@ -105,7 +105,7 @@
         "uid": 10640,
         "engineUid": 10641,
         "schema": "/apps/queue/app/packages/pkg-queue/sql/schema.sql",
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "volumes": [
           "etc/mysql",
           "sav",

@@ -2,7 +2,8 @@
  * Live (real private MariaDB, real Vault and Logger): Queue evidence survives
  * a crash between its SQL commit and Logger delivery, a Logger outage and a
  * lost Logger response, and a job found RUNNING at restart is settled FAILED
- * as interrupted — never replayed.
+ * as interrupted — never replayed — its attempt invalidated, so a late update
+ * from the process that died is STALE_ATTEMPT (DECISIONS-20261011 §G).
  *
  * Run through software/packages/pkg-db/test/live/run-live.mjs.
  * Intent: software/packages/pkg-queue/INTENT.md#lifecycle
@@ -146,11 +147,11 @@ describe('restart recovery settles a RUNNING job, whatever the worker setting', 
   before(async () => { await resetUnit('queue'); });
 
   it('a job RUNNING when the process died is FAILED as interrupted at the next start, never replayed', async () => {
-    const { running, pending } = crashAfter(`async (q) => {
+    const { running, pending, attempt } = crashAfter(`async (q) => {
       const running = (await q.enqueue({ type: 'live.work' })).job;
-      await q.updateJobProgress(running.id, { status: 'RUNNING', progress: 40, result: { startedAt: 'before the crash' } });
+      const { attempt } = await q.claimJob(running.id, { unit: 'worker-live', incarnation: 'worker-live-1' }, { progress: 40, result: { startedAt: 'before the crash' } });
       const pending = (await q.enqueue({ type: 'live.work' })).job;
-      return { running: running.id, pending: pending.id };
+      return { running: running.id, pending: pending.id, attempt: attempt.id };
     }`);
 
     const queue = await MariaDbJobQueue.open({ slug: 'queue', db: unitDb() });
@@ -177,6 +178,16 @@ describe('restart recovery settles a RUNNING job, whatever the worker setting', 
 
       assert.deepEqual(await queue.recoverInterrupted(), [], 'a second start finds nothing to settle');
 
+      const [ended] = await adminQuery('SELECT state, end_reason FROM queue.job_attempts WHERE attempt_id = ?', [attempt]);
+      assert.deepEqual({ ...ended }, { state: 'INVALIDATED', end_reason: 'interrupted' });
+      assert.equal(evidence[0].data.attemptId, attempt);
+      // The process that died comes back late with its completion.
+      await assert.rejects(queue.updateAttempt(running, { attempt, status: 'COMPLETED', progress: 100 },
+        { consumer: { unit: 'worker-live', incarnation: 'worker-live-1' } }), { code: 'STALE_ATTEMPT' });
+      assert.equal((await queue.getJob(running)).status, 'FAILED', 'the orphaned outcome stands');
+      await assert.rejects(queue.claimJob(running, { unit: 'worker-live', incarnation: 'worker-live-1' }), { code: 'JOB_STATE_CHANGED' },
+        'no new run without reconciliation');
+
       const relay = relayFor(queue);
       await relay.tick();
       const failed = await stack.loggerEvents("correlation_id = ? AND event = 'JOB_FAILED'", [running]);
@@ -184,6 +195,64 @@ describe('restart recovery settles a RUNNING job, whatever the worker setting', 
       await relay.close();
     } finally {
       await queue.close();
+    }
+  });
+});
+
+describe('attempts are durable: one claim wins, a terminal state is never rewritten (DECISIONS §G)', () => {
+  before(async () => { await resetUnit('queue'); });
+  const a = { unit: 'worker-a', incarnation: 'worker-a-1' };
+  const b = { unit: 'worker-b', incarnation: 'worker-b-1' };
+
+  it('two consumers racing for one job: exactly one attempt, the other is refused', async () => {
+    const q1 = await MariaDbJobQueue.open({ slug: 'queue', db: unitDb() });
+    const q2 = await MariaDbJobQueue.open({ slug: 'queue', db: unitDb() });
+    try {
+      const { job } = await q1.enqueue({ type: 'live.race' });
+      const results = await Promise.allSettled([q1.claimJob(job.id, a), q2.claimJob(job.id, b)]);
+      const won = results.filter((r) => r.status === 'fulfilled');
+      assert.equal(won.length, 1);
+      assert.equal(results.find((r) => r.status === 'rejected').reason.code, 'JOB_STATE_CHANGED');
+      const rows = await adminQuery('SELECT consumer, state FROM queue.job_attempts WHERE job_id = ?', [job.id]);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].state, 'ACTIVE');
+      const [evidence] = (await adminQuery('SELECT body FROM queue.event_outbox')).map((r) => JSON.parse(r.body))
+        .filter((e) => e.correlationId === job.id && e.event === 'JOB_CLAIMED');
+      assert.deepEqual([evidence.data.attemptId, evidence.data.consumer], [won[0].value.attempt.id, rows[0].consumer]);
+    } finally {
+      await q1.close(); await q2.close();
+    }
+  });
+
+  it('the accepted terminal update answers the same receipt again, from another process; a different one is stale', async () => {
+    const q1 = await MariaDbJobQueue.open({ slug: 'queue', db: unitDb() });
+    let jobId, attemptId, receipt;
+    try {
+      const { job } = await q1.enqueue({ type: 'live.terminal' });
+      jobId = job.id;
+      attemptId = (await q1.claimJob(jobId, a)).attempt.id;
+      await assert.rejects(q1.updateAttempt(jobId, { attempt: attemptId, progress: 10 }, { consumer: b }), { code: 'ATTEMPT_FORBIDDEN' });
+      await assert.rejects(q1.updateAttempt(jobId, { attempt: attemptId, progress: 10 }, { consumer: { ...a, incarnation: 'worker-a-2' } }), { code: 'STALE_ATTEMPT' });
+      ({ receipt } = await q1.updateAttempt(jobId, { attempt: attemptId, status: 'COMPLETED', progress: 100, result: { n: 1 } }, { consumer: a }));
+      assert.equal(receipt.status, 'COMPLETED');
+    } finally {
+      await q1.close();
+    }
+    const q2 = await MariaDbJobQueue.open({ slug: 'queue', db: unitDb() });
+    try {
+      const repeat = await q2.updateAttempt(jobId, { result: { n: 1 }, progress: 100, status: 'COMPLETED', attempt: attemptId }, { consumer: a });
+      assert.deepEqual([repeat.duplicate, repeat.receipt], [true, receipt]);
+      for (const late of [{ status: 'FAILED', error: 'late' }, { status: 'COMPLETED', progress: 100, result: { n: 2 } }, { progress: 50 }]) {
+        await assert.rejects(q2.updateAttempt(jobId, { attempt: attemptId, ...late }, { consumer: a }), { code: 'STALE_ATTEMPT' });
+      }
+      const job = await q2.getJob(jobId);
+      assert.deepEqual([job.status, job.result], ['COMPLETED', { n: 1 }]);
+      const [attempt] = await adminQuery('SELECT state, end_reason, request_digest FROM queue.job_attempts WHERE attempt_id = ?', [attemptId]);
+      assert.deepEqual([attempt.state, attempt.end_reason, attempt.request_digest], ['COMPLETED', 'terminal', receipt.requestDigest]);
+      const transitions = await adminQuery('SELECT kind FROM queue.job_transitions WHERE job_id = ? ORDER BY transition_id', [jobId]);
+      assert.deepEqual(transitions.map((t) => t.kind), ['created', 'claimed', 'updated'], 'refused and repeated updates wrote nothing');
+    } finally {
+      await q2.close();
     }
   });
 });

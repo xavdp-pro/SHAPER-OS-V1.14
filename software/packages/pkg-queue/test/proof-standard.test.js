@@ -194,7 +194,7 @@ describe('proof #1 — the persisted answer is read, not assumed', () => {
 
   it('fails a job that reached COMPLETED with its answer only on the stream', async () => {
     const job = queue.createJob({ type: 'agent.inject', payload: { message: 'hi' } });
-    queue.updateJobProgress(job.id, { status: 'COMPLETED' });
+    queue.updateJobProgress(job.id, { attempt: queue.claimJob(job.id).attempt.id, status: 'COMPLETED' });
 
     const out = await runProof({ QUEUE_PORT: String(port) });
 
@@ -207,7 +207,7 @@ describe('proof #1 — the persisted answer is read, not assumed', () => {
 
   it('reads the persisted answer and checks it carries the declared marker', async () => {
     const job = queue.createJob({ type: 'agent.inject', payload: { message: 'hi' } });
-    queue.updateJobProgress(job.id, { status: 'COMPLETED', result: { answer: 'MARKER-7QX' } });
+    queue.updateJobProgress(job.id, { attempt: queue.claimJob(job.id).attempt.id, status: 'COMPLETED', result: { answer: 'MARKER-7QX' } });
 
     const proven = await runProof({ QUEUE_PORT: String(port), PROOF_JOB_ID: job.id, PROOF_ANSWER: 'MARKER-7QX' });
     assert.match(proven, /^\s+OK\s+answer\s+.*answer persisted/m);

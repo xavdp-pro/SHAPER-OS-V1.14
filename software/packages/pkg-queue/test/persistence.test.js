@@ -13,7 +13,7 @@ test('JobQueue - Disk Persistence re-hydrates jobs after restart', () => {
     const queue1 = new JobQueue({ storageFile: tmpFile });
     const job1 = queue1.createJob({ type: 'task-a', payload: { step: 1 } });
     const job2 = queue1.createJob({ type: 'task-b', payload: { step: 2 } });
-    queue1.updateJobProgress(job1.id, { status: 'COMPLETED', progress: 100 });
+    queue1.updateJobProgress(job1.id, { attempt: queue1.claimJob(job1.id).attempt.id, status: 'COMPLETED', progress: 100 });
 
     assert.equal(queue1.jobs.size, 2);
 

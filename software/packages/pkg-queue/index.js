@@ -7,16 +7,33 @@ import path from 'node:path';
 import { ingestLog } from '../pkg-logger/ingest-client.js';
 import {
   QueueError,
+  TERMINAL_STATUSES,
   applyJobPatch,
+  decideAttemptUpdate,
   interruptedJob,
+  newAttemptId,
   newJobRecord,
+  normalizeAttemptPatch,
+  normalizeClaim,
+  normalizeConsumer,
   normalizeCreateRequest,
-  normalizeJobPatch,
   queueErrorStatus,
   replayOrConflict,
   requestDigest,
+  terminalReceipt,
   validateIdempotencyKey,
 } from './job-contract.js';
+
+/**
+ * Who the store's own in-process worker is when it claims: the unit, under
+ * the incarnation it runs as. An HTTP caller is the unit its credential names.
+ */
+export function localConsumer(env = process.env) {
+  return { unit: 'queue', incarnation: env.SHAPER_UNIT_INCARNATION || 'local' };
+}
+
+/** What a reader learns of an attempt: who holds it and since when. */
+export const publicAttempt = (a) => ({ id: a.id, consumer: a.consumer, incarnation: a.incarnation, state: a.state, claimedAt: a.claimedAt });
 
 export { QueueError, queueErrorStatus } from './job-contract.js';
 
@@ -138,9 +155,12 @@ export function terminalAudit(job) {
  * it is not a store anything may be promoted on.
  */
 export class JobQueue extends EventEmitter {
-  constructor({ storageFile = null, enforceQualityGate = false, gedRoot = null, loggerUrl = null, fetchImpl = fetch } = {}) {
+  constructor({ storageFile = null, enforceQualityGate = false, gedRoot = null, loggerUrl = null, fetchImpl = fetch, consumer = localConsumer() } = {}) {
     super();
     this.jobs = new Map();
+    // Attempts live in memory only: DEV scaffolding keeps no durable claim.
+    this.attempts = new Map();
+    this.localConsumer = normalizeConsumer(consumer);
     this.byIdempotencyKey = new Map();
     this.jobCounter = 0;
     this.storageFile = storageFile;
@@ -255,28 +275,67 @@ export class JobQueue extends EventEmitter {
   }
 
   /**
+   * Claims a PENDING job for a consumer: a new attempt, the job RUNNING
+   * (DECISIONS-20261011 §G). The same consumer and incarnation claiming the job
+   * it already holds gets its attempt back (duplicate) and changes nothing.
    * @param {string} jobId
-   * @param {object} patch - { progress, step, status, result, error, contractType, testRunner }
-   * @param {{ expectStatus?: string }} [options] - refuse (JOB_STATE_CHANGED) unless the job is in this state
+   * @param {{ unit: string, incarnation: string }} [consumer] - defaults to the store's own worker
+   * @param {object} [initial] - { progress, step, result }
+   * @returns {{ job: object, attempt: object, duplicate: boolean }}
    */
-  updateJobProgress(jobId, patch, { expectStatus = null } = {}) {
-    const changes = normalizeJobPatch(patch);
+  claimJob(jobId, consumer = this.localConsumer, initial = {}) {
+    const who = normalizeConsumer(consumer);
+    const first = normalizeClaim(initial);
     const job = this.jobs.get(jobId);
-    if (!job) {
-      throw new QueueError('JOB_NOT_FOUND', `Job ${jobId} not found`);
+    if (!job) throw new QueueError('JOB_NOT_FOUND', `Job ${jobId} not found`);
+    const held = job.attemptId ? this.attempts.get(job.attemptId) : null;
+    if (job.status === 'RUNNING' && held && held.state === 'ACTIVE' && held.consumer === who.unit && held.incarnation === who.incarnation) {
+      return { job, attempt: publicAttempt(held), duplicate: true };
     }
-    if (expectStatus && job.status !== expectStatus) {
-      throw new QueueError('JOB_STATE_CHANGED', `Job ${jobId} is ${job.status}, not ${expectStatus}`, { jobId, status: job.status });
+    if (job.status !== 'PENDING') {
+      throw new QueueError('JOB_STATE_CHANGED', `Job ${jobId} is ${job.status}, not PENDING`, { jobId, status: job.status });
     }
+    const now = new Date();
+    const attempt = { id: newAttemptId(), jobId, consumer: who.unit, incarnation: who.incarnation, state: 'ACTIVE',
+      claimedAt: now.toISOString(), endedAt: null, endReason: null, requestDigest: null, receipt: null };
+    Object.assign(job, applyJobPatch(job, { ...first, status: 'RUNNING' }, { gate: () => ({ passed: true }), now }), { attemptId: attempt.id });
+    this.attempts.set(attempt.id, attempt);
+    this._persistJob(job);
+    this.emit('jobUpdated', job);
+    this.emit('statusChange', job);
+    return { job, attempt: publicAttempt(attempt), duplicate: false };
+  }
 
+  /**
+   * A progress or terminal update under an attempt (see job-contract.js,
+   * decideAttemptUpdate). The identical repeat of the accepted terminal update
+   * answers its receipt again; anything late is STALE_ATTEMPT.
+   * @param {string} jobId
+   * @param {object} patch - { attempt, progress, step, status, result, error, contractType, testRunner }
+   * @param {{ consumer?: { unit: string, incarnation: string } }} [options]
+   * @returns {{ job: object, receipt: object|null, duplicate: boolean }}
+   */
+  updateAttempt(jobId, patch, { consumer = this.localConsumer } = {}) {
+    const { attemptId, changes, digest } = normalizeAttemptPatch(patch);
+    const who = normalizeConsumer(consumer);
+    const job = this.jobs.get(jobId);
+    if (!job) throw new QueueError('JOB_NOT_FOUND', `Job ${jobId} not found`);
+    const attempt = this.attempts.get(attemptId) ?? null;
+    if (decideAttemptUpdate({ job, attempt, consumer: who, digest }) === 'replay') {
+      return { job, receipt: attempt.receipt, duplicate: true };
+    }
+    const now = new Date();
     const next = applyJobPatch(job, changes, {
       gate: (candidate) => validateQualityGate(candidate, { gedRoot: this.gedRoot, testRunner: changes.testRunner }),
-      now: new Date(),
+      now,
     });
     // The job object is updated in place: holders of it see the new state.
     Object.assign(job, next);
-
-    this.jobs.set(jobId, job);
+    let receipt = null;
+    if (TERMINAL_STATUSES.includes(job.status)) {
+      receipt = terminalReceipt({ job, attemptId, digest, at: now.toISOString() });
+      Object.assign(attempt, { state: job.status, endedAt: now.toISOString(), endReason: 'terminal', requestDigest: digest, receipt });
+    }
     this._persistJob(job);
 
     const terminal = terminalAudit(job);
@@ -284,7 +343,12 @@ export class JobQueue extends EventEmitter {
 
     this.emit('jobUpdated', job);
     this.emit('statusChange', job);
-    return job;
+    return { job, receipt, duplicate: false };
+  }
+
+  /** updateAttempt, answering the job alone. */
+  updateJobProgress(jobId, patch, options = {}) {
+    return this.updateAttempt(jobId, patch, options).job;
   }
 
   /**
@@ -297,6 +361,8 @@ export class JobQueue extends EventEmitter {
     const settled = [];
     for (const job of this.jobs.values()) {
       if (job.status !== 'RUNNING') continue;
+      const attempt = job.attemptId ? this.attempts.get(job.attemptId) : null;
+      if (attempt && attempt.state === 'ACTIVE') Object.assign(attempt, { state: 'INVALIDATED', endedAt: new Date().toISOString(), endReason: 'interrupted' });
       Object.assign(job, interruptedJob(job, new Date()));
       this._persistJob(job);
       this._audit('JOB_FAILED', job, 'ERROR');
@@ -360,6 +426,9 @@ async function readJson(req) {
   }
 }
 
+/** The one consumer of the DEV open surface (no credential, no identity). */
+export const DEV_CONSUMER = Object.freeze({ unit: 'dev', incarnation: 'dev' });
+
 /** The body an error answers with; `error` stays the human-readable field. */
 export function errorBody(err, status) {
   if (status === 503) {
@@ -412,6 +481,10 @@ export function createQueueServer({
   jobQueue.on('statusChange', (job) => broadcast('statusChange', job));
 
   const lanes = () => Math.max(1, Number(process.env.QUEUE_CONCURRENCY || 1));
+  // The consumer a claim or an attempt update is bound to: the unit and
+  // incarnation the caller's verified credential names, or — on the DEV open
+  // surface, which has no credential — one fixed DEV consumer.
+  const consumerOf = (authority) => (authority ? { unit: authority.unit, incarnation: authority.incarnation } : DEV_CONSUMER);
 
   const server = http.createServer((req, res) => {
     const sendJson = (statusCode, data) => {
@@ -565,6 +638,13 @@ export function createQueueServer({
       return sendJson(duplicate ? 200 : 201, { status: 'ok', job, duplicate });
     }
 
+    const claimMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/claim$/);
+    if (claimMatch && req.method === 'POST') {
+      const parsed = await readJson(req);
+      const { job, attempt, duplicate } = await jobQueue.claimJob(decodeURIComponent(claimMatch[1]), consumerOf(null), parsed);
+      return sendJson(200, { status: 'ok', job, attempt, duplicate });
+    }
+
     const jobMatch = pathname.match(/^\/api\/jobs\/([^/]+)$/);
     if (jobMatch) {
       const jobId = decodeURIComponent(jobMatch[1]);
@@ -577,8 +657,8 @@ export function createQueueServer({
 
       if (req.method === 'PATCH' || req.method === 'POST') {
         const parsed = await readJson(req);
-        const job = await jobQueue.updateJobProgress(jobId, parsed);
-        return sendJson(200, { status: 'ok', job });
+        const { job, receipt, duplicate } = await jobQueue.updateAttempt(jobId, parsed, { consumer: consumerOf(null) });
+        return sendJson(200, { status: 'ok', job, ...(receipt ? { receipt } : {}), ...(duplicate ? { duplicate } : {}) });
       }
     }
 

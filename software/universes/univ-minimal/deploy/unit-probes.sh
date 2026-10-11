@@ -183,6 +183,23 @@ logger_curl() {
   curl_with_header "$PROOF_DIR/identity/logger.header" "$@"
 }
 
+# ── Queue, as a client of its API ───────────────────────────────────────────
+queue_base() { echo "http://127.0.0.1:$(jq -r '.bricks["brick-queue"].port' "$MANIFEST")"; }
+#   queue_curl <curl args…>
+queue_curl() { curl "$@"; }
+# A job run to its end the way a consumer runs one (DECISIONS-20261011 §G):
+# claimed — a durable attempt bound to the caller — then completed under that
+# attempt. Prints the completion's HTTP status; fails when no claim was granted.
+#   queue_complete <job-id> [<result-json>] [<queue-base-url>]
+queue_complete() {
+  local job="$1" result="${2:-}" base="${3:-$(queue_base)}" attempt
+  [[ -n "$result" ]] || result='{}'
+  attempt="$(queue_curl -s -X POST "$base/api/jobs/$job/claim" -H 'Content-Type: application/json' -d '{}' | jq -r '.attempt.id // empty')"
+  [[ -n "$attempt" ]] || return 1
+  queue_curl -s -o /dev/null -w '%{http_code}' -X PATCH "$base/api/jobs/$job" -H 'Content-Type: application/json' \
+    -d "{\"attempt\":\"$attempt\",\"status\":\"COMPLETED\",\"progress\":100,\"step\":1,\"result\":$result}"
+}
+
 # One variable of a unit container's environment, as podman created it.
 #   unit_env <ctr> <NAME>
 unit_env() {

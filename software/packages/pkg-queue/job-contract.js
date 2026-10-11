@@ -34,9 +34,12 @@ export const QUEUE_ERROR_STATUS = Object.freeze({
   INVALID_JOB_REQUEST: 400,
   INVALID_JOB_UPDATE: 400,
   IDEMPOTENCY_KEY_INVALID: 400,
+  ATTEMPT_REQUIRED: 400,
+  ATTEMPT_FORBIDDEN: 403,
   JOB_NOT_FOUND: 404,
   IDEMPOTENCY_CONFLICT: 409,
   JOB_STATE_CHANGED: 409,
+  STALE_ATTEMPT: 409,
   QUEUE_ROW_INVALID: 500,
 });
 
@@ -153,6 +156,7 @@ export function requestDigest(normalized) {
 export function newJobRecord(normalized, { id, digest, now }) {
   const at = now.toISOString();
   return {
+    attemptId: null,
     id,
     type: normalized.type,
     payload: normalized.payload,
@@ -198,6 +202,105 @@ export function interruptedJob(job, now) {
     result: plain ? { ...(result || {}), orphaned: true, outcome: 'unknown' } : result,
     updatedAt: now.toISOString(),
   };
+}
+
+// ── Attempts (DECISIONS-20261011 §G) ─────────────────────────────────────
+// A consumer claims a PENDING job: the claim is a durable attempt with its own
+// id, bound to the claimant's unit and incarnation, and moves the job to
+// RUNNING in the same transaction. Every later progress or terminal update
+// presents that attempt and must match the job's current attempt while the job
+// is RUNNING. A terminal state is never rewritten: the identical repeat of the
+// accepted terminal update answers the same receipt; anything else — an
+// attempt invalidated by restart recovery, superseded, ended, or presented by
+// a later incarnation — is 409 STALE_ATTEMPT. A new run needs an explicit
+// reconciliation by the owning unit and a new job; nothing re-runs a job.
+
+export const TERMINAL_STATUSES = Object.freeze(['COMPLETED', 'FAILED']);
+const ATTEMPT_STATUSES = new Set(['RUNNING', ...TERMINAL_STATUSES]);
+const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const CONSUMER = /^[a-z](?:[a-z0-9_-]{0,30}[a-z0-9_])?$/;
+const INCARNATION = /^[A-Za-z0-9._:-]{1,190}$/;
+
+/** A new attempt id. */
+export const newAttemptId = () => crypto.randomUUID();
+
+/**
+ * Who claims or updates: the unit and incarnation a verified credential names,
+ * or the store's own identity for its in-process worker.
+ * @param {{ unit: string, incarnation: string }} consumer
+ */
+export function normalizeConsumer(consumer) {
+  if (!consumer || typeof consumer.unit !== 'string' || !CONSUMER.test(consumer.unit)
+      || typeof consumer.incarnation !== 'string' || !INCARNATION.test(consumer.incarnation)) {
+    throw new QueueError('ATTEMPT_FORBIDDEN', 'a claim or an attempt update needs a consumer unit and incarnation');
+  }
+  return { unit: consumer.unit, incarnation: consumer.incarnation };
+}
+
+/**
+ * What a claim may set besides RUNNING: the first progress, step and result.
+ * @param {object} [initial]
+ */
+export function normalizeClaim(initial = {}) {
+  if (!isPlainObject(initial)) throw invalidUpdate('a claim is a JSON object');
+  const { progress, step, result } = initial;
+  if (initial.status !== undefined || initial.error !== undefined || initial.attempt !== undefined) {
+    throw invalidUpdate('a claim sets RUNNING itself; it carries only progress, step and result');
+  }
+  return normalizeJobPatch({ progress, step, result });
+}
+
+/**
+ * A progress or terminal update presented under an attempt.
+ * @param {object} patch - { attempt, progress?, step?, status?, result?, error?, contractType? }
+ * @returns {{ attemptId: string, changes: ReturnType<typeof normalizeJobPatch>, digest: string }}
+ */
+export function normalizeAttemptPatch(patch) {
+  if (!isPlainObject(patch)) throw invalidUpdate('a job update is a JSON object');
+  const { attempt, ...rest } = patch;
+  if (attempt === undefined || attempt === null) {
+    throw new QueueError('ATTEMPT_REQUIRED', 'a progress or terminal update presents the attempt its claim returned (POST /api/jobs/<id>/claim)');
+  }
+  if (typeof attempt !== 'string' || !ATTEMPT_ID.test(attempt)) throw invalidUpdate('attempt must be the attempt id a claim returned');
+  const changes = normalizeJobPatch(rest);
+  if (changes.status !== undefined && !ATTEMPT_STATUSES.has(changes.status)) {
+    throw invalidUpdate(`under an attempt, status is RUNNING, COMPLETED or FAILED; got ${changes.status}`);
+  }
+  const { testRunner, ...declared } = changes;
+  return { attemptId: attempt, changes, digest: crypto.createHash('sha256').update(canonicalJson(declared)).digest('hex') };
+}
+
+/**
+ * Decides an attempt update against what the store holds, inside the store's
+ * transaction (or its synchronous section): 'apply', 'replay' (the identical
+ * repeat of the accepted terminal update), or a refusal.
+ *
+ * @param {object} options
+ * @param {object} options.job - the job as stored
+ * @param {object|null} options.attempt - the presented attempt as stored, or null
+ * @param {{ unit: string, incarnation: string }} options.consumer
+ * @param {string} options.digest - normalizeAttemptPatch's digest
+ * @returns {'apply'|'replay'}
+ */
+export function decideAttemptUpdate({ job, attempt, consumer, digest }) {
+  const stale = (why) => new QueueError('STALE_ATTEMPT', `stale_attempt: ${why}`, { jobId: job.id, status: job.status });
+  if (!attempt || attempt.jobId !== job.id) throw stale('no such attempt for this job');
+  if (attempt.consumer !== consumer.unit) {
+    throw new QueueError('ATTEMPT_FORBIDDEN', `the attempt belongs to ${attempt.consumer}, not to ${consumer.unit}`, { jobId: job.id });
+  }
+  if (attempt.incarnation !== consumer.incarnation) throw stale('the attempt was claimed by another incarnation of this consumer');
+  if (TERMINAL_STATUSES.includes(job.status)) {
+    if (job.attemptId === attempt.id && TERMINAL_STATUSES.includes(attempt.state) && attempt.requestDigest === digest) return 'replay';
+    throw stale(`the job is ${job.status}; a terminal state is never rewritten`);
+  }
+  if (attempt.state !== 'ACTIVE') throw stale(`the attempt is ${attempt.state}`);
+  if (job.status !== 'RUNNING' || job.attemptId !== attempt.id) throw stale('the job is not running under this attempt');
+  return 'apply';
+}
+
+/** The answer an accepted terminal update gives, and gives again to its identical repeat. */
+export function terminalReceipt({ job, attemptId, digest, at }) {
+  return { attemptId, jobId: job.id, status: job.status, acceptedAt: at, requestDigest: digest };
 }
 
 /**

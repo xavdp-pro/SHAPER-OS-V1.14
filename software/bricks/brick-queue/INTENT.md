@@ -11,13 +11,13 @@ private MariaDB; the package intent states the contract
 
 ## 2. Invariants
 
-1. Lifecycle: `PENDING` → `RUNNING` → `COMPLETED` | `FAILED`.
+1. Lifecycle: `PENDING` → `RUNNING` → `COMPLETED` | `FAILED`. A consumer claims a job (`POST /api/jobs/<id>/claim`) — a durable attempt bound to its unit and incarnation — and presents that attempt on every progress or terminal update; a terminal state is never rewritten, its identical repeat answers the same receipt, and a late update is `409 STALE_ATTEMPT` ([attempts](../../packages/pkg-queue/INTENT.md#attempts), schema version 4).
 2. The Queue's durable state lives in its own private MariaDB (Rules 4 and 26): account, database and Linux user are all `queue`; the MariaDB server runs **inside this unit's own container**, as `mysql` (uid `10641`), beside the application (`queue`, uid `10640`) — two processes, one container, no database container beside it (Rule 4, Turbinobash method; [`runtime/unit-mariadb`](../../runtime/unit-mariadb/INTENT.md)); it has no TCP listener and its socket `/run/queue/mysqld.sock` is private to the container. A job state change is reported only after it commits; the image selects that store by default (`QUEUE_STORE=mariadb`) and never falls back to memory or a file.
 3. The application password (`/apps/queue/etc/mysql/localhost/passwd`) is generated once inside the unit, `0600`, owned by the `queue` account, in a directory the account cannot write, never in an image, a log or a dump. The schema (`/apps/queue/app/packages/pkg-queue/sql/schema.sql` in the image) is applied by root through the unit's socket when the database is born, never by the application.
 4. Localhost or mesh bind only.
 5. Podman Quadlet lifecycle.
 6. One instance per universe.
-7. Every transition commits its evidence to the unit's outbox in the same transaction (schema version 3, with `recovery_points` for the declared cleanup); the unit relays it to Logger under a logger credential renewed from Vault (`SHAPER_UNIT_INCARNATION`, `UNIT_BOOTSTRAP_TOKEN_FILE`, `UNIT_AUTH_PUBLIC_KEY_FILE`, `VAULT_URL`, `LOGGER_URL`, from `/apps/queue/etc/identity/`, mounted read-only). A job found `RUNNING` at start is settled `FAILED` as interrupted, whatever the worker setting.
+7. Every transition commits its evidence to the unit's outbox in the same transaction (schema version 4: `job_attempts`, and `recovery_points` for the declared cleanup); the unit relays it to Logger under a logger credential renewed from Vault (`SHAPER_UNIT_INCARNATION`, `UNIT_BOOTSTRAP_TOKEN_FILE`, `UNIT_AUTH_PUBLIC_KEY_FILE`, `VAULT_URL`, `LOGGER_URL`, from `/apps/queue/etc/identity/`, mounted read-only). A job found `RUNNING` at start is settled `FAILED` as interrupted, whatever the worker setting.
 
 ---
 
@@ -45,8 +45,14 @@ lesson instead of the bug (Rule 29, applied to intent as well as to tests).
 
 * **A read can be older than the last commit.** Once reads go to a database, a
   lane can see a job as `PENDING` after another change has moved it. The move
-  to `RUNNING` is therefore conditional on the job still being `PENDING`, and
+  to `RUNNING` is therefore a claim, granted only to a job still `PENDING`, and
   committed before anything reaches a bridge.
+
+* **A late completion must not overwrite what recovery settled.** A job left
+  `RUNNING` by a dead process was settled `FAILED`, orphaned, at the next
+  start — and the dead process's late `COMPLETED` could still rewrite it. Each
+  run is now an attempt; recovery invalidates it, and the late update is
+  `STALE_ATTEMPT`.
 
 * **An acknowledgement is not a result.** The queue once marked a job
   `COMPLETED` the moment a bridge answered `ok`. It now follows the run to its
@@ -103,8 +109,8 @@ lesson instead of the bug (Rule 29, applied to intent as well as to tests).
 ## 4. What this brick does not yet do
 
 Against the Queue target contract of 22 September 2026, and listed in full in
-the package intent: authenticated producers and consumers with scopes, durable
-leases with heartbeat, an attempts table with at-least-once lease recovery,
+the package intent: durable leases with heartbeat and expiry over the
+attempts, at-least-once lease recovery,
 `DEAD_LETTER`, evidence policies, and the removal of task framing, Bridge
 dispatch and the quality gate from Queue.
 

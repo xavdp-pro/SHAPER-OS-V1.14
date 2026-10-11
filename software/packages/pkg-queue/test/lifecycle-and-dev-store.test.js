@@ -77,7 +77,7 @@ describe('a job RUNNING at start is settled as interrupted', () => {
       const file = path.join(dir, 'jobs.jsonl');
       const q = new JobQueue({ storageFile: file });
       const { job } = q.enqueue({ type: 'any.type' });
-      q.updateJobProgress(job.id, { status: 'RUNNING' });
+      q.claimJob(job.id);
       const again = new JobQueue({ storageFile: file });
       assert.deepEqual(again.recoverInterrupted().map((j) => j.id), [job.id]);
       assert.deepEqual(again.recoverInterrupted(), []);

@@ -55,7 +55,7 @@ const patch = (url, body) => fetch(url, { method: 'PATCH', headers: { 'Content-T
 describe('the schema belongs to the administrative path', () => {
   it('creates every table idempotently, and records its version idempotently', () => {
     const creates = [...sql.matchAll(/CREATE TABLE\s+(IF NOT EXISTS\s+)?(\w+)/g)];
-    assert.deepEqual(creates.map((m) => m[2]).sort(), ['event_outbox', 'job_transitions', 'jobs', 'recovery_points', 'schema_meta']);
+    assert.deepEqual(creates.map((m) => m[2]).sort(), ['event_outbox', 'job_attempts', 'job_transitions', 'jobs', 'recovery_points', 'schema_meta']);
     for (const m of creates) assert.ok(m[1], `${m[2]} is not created IF NOT EXISTS`);
     const meta = sql.match(/INSERT INTO schema_meta \(unit, version\) VALUES \('queue', (\d+)\)\s+ON DUPLICATE KEY UPDATE/);
     assert.ok(meta, 'schema_meta row for queue, re-runnable');
@@ -191,6 +191,7 @@ describe('a row is read back exactly, or refused with a typed integrity error', 
     qualityGateStatus: 'NEEDS_CONTRACT',
     idempotencyKey: 'occ-abc',
     requestDigest: 'c'.repeat(64),
+    attemptId: '0f8fad5b-d9cb-469f-a165-70867728950e',
   };
   // The shape the pool hands back: dateStrings, JSON as text.
   const asRow = (record) => Object.fromEntries(JOB_COLUMN_NAMES.map((name, i) => [name, jobToParams(record)[i]]));
@@ -277,8 +278,10 @@ describe('a storage failure is an unavailable queue, never a success', () => {
       const plain = await post(`${base(server)}/api/jobs`, { type: 'agent.inject', payload: { message: 'm' } });
       assert.equal(plain.status, 503, 'without a key the INSERT itself must be refused, not assumed');
 
-      const updated = await patch(`${base(server)}/api/jobs/job-1`, { status: 'COMPLETED' });
+      const ATTEMPT = '0f8fad5b-d9cb-469f-a165-70867728950e';
+      const updated = await patch(`${base(server)}/api/jobs/job-1`, { attempt: ATTEMPT, status: 'COMPLETED' });
       assert.equal(updated.status, 503);
+      assert.equal((await post(`${base(server)}/api/jobs/job-1/claim`, {})).status, 503);
       for (const url of ['/api/jobs', '/api/jobs?idempotencyKey=occ-1', '/api/jobs/job-1', '/api/capacity']) {
         assert.equal((await fetch(`${base(server)}${url}`)).status, 503, url);
       }
@@ -354,8 +357,9 @@ describe('the HTTP idempotency contract (memory store, selected explicitly)', ()
     await new Promise((r) => setTimeout(r, 20));
     assert.equal(audits.filter((e) => e.event === 'JOB_CREATED' && e.correlationId === a.job.id).length, 1, 'one audit line');
 
-    // Close it so the ledger holds no PENDING residue.
-    const closed = await patch(`${base(server)}/api/jobs/${a.job.id}`, { status: 'COMPLETED', progress: 100 });
+    // Close it so the ledger holds no PENDING residue: claim, then complete under the attempt.
+    const { attempt } = await (await post(`${base(server)}/api/jobs/${a.job.id}/claim`, {})).json();
+    const closed = await patch(`${base(server)}/api/jobs/${a.job.id}`, { attempt: attempt.id, status: 'COMPLETED', progress: 100 });
     assert.equal((await closed.json()).job.status, 'COMPLETED');
   });
 
@@ -382,11 +386,16 @@ describe('the HTTP idempotency contract (memory store, selected explicitly)', ()
     assert.equal((await notJson.json()).code, 'INVALID_JSON');
 
     const job = (await (await post(`${base(server)}/api/jobs`, { type: 'ping' })).json()).job;
-    const badUpdate = await patch(`${base(server)}/api/jobs/${job.id}`, { progress: 'half' });
+    const { attempt } = await (await post(`${base(server)}/api/jobs/${job.id}/claim`, {})).json();
+    const noAttempt = await patch(`${base(server)}/api/jobs/${job.id}`, { progress: 50 });
+    assert.equal(noAttempt.status, 400);
+    assert.equal((await noAttempt.json()).code, 'ATTEMPT_REQUIRED');
+    const badUpdate = await patch(`${base(server)}/api/jobs/${job.id}`, { attempt: attempt.id, progress: 'half' });
     assert.equal(badUpdate.status, 400);
     assert.equal((await badUpdate.json()).code, 'INVALID_JOB_UPDATE');
+    await patch(`${base(server)}/api/jobs/${job.id}`, { attempt: attempt.id, status: 'FAILED', progress: 100, error: 'closed by the test' });
 
-    const missing = await patch(`${base(server)}/api/jobs/job-nope`, { status: 'COMPLETED' });
+    const missing = await patch(`${base(server)}/api/jobs/job-nope`, { attempt: attempt.id, status: 'COMPLETED' });
     assert.equal(missing.status, 404);
     assert.equal((await missing.json()).code, 'JOB_NOT_FOUND');
   });
@@ -405,9 +414,11 @@ describe('the worker acts only on what the ledger recorded', () => {
     const inner = new JobQueue();
     const job = inner.createJob({ type: 'agent.inject', payload: { message: 'once' } });
     const stale = [{ ...job }];
-    inner.updateJobProgress(job.id, { status: 'COMPLETED', progress: 100 });
+    const { attempt } = inner.claimJob(job.id, { unit: 'elsewhere', incarnation: 'e-1' });
+    inner.updateJobProgress(job.id, { attempt: attempt.id, status: 'COMPLETED', progress: 100 }, { consumer: { unit: 'elsewhere', incarnation: 'e-1' } });
     const view = {
       listJobs: async ({ status } = {}) => (status === 'PENDING' ? stale : []),
+      claimJob: async (...args) => inner.claimJob(...args),
       updateJobProgress: async (...args) => inner.updateJobProgress(...args),
     };
     const calls = [];
@@ -423,6 +434,7 @@ describe('the worker acts only on what the ledger recorded', () => {
     const job = inner.createJob({ type: 'agent.inject', payload: { message: 'm' } });
     const view = {
       listJobs: async (filter) => inner.listJobs(filter),
+      claimJob: async () => { throw Object.assign(new Error('socket gone'), { code: 'ENOENT' }); },
       updateJobProgress: async () => { throw Object.assign(new Error('socket gone'), { code: 'ENOENT' }); },
     };
     const calls = [];

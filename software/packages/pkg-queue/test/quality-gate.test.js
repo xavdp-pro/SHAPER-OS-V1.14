@@ -11,7 +11,7 @@ test('Quality Gate - Code contract passes when tests succeed', () => {
   });
 
   const testRunnerMock = () => ({ passed: true });
-  queue.updateJobProgress(job.id, {
+  queue.updateJobProgress(job.id, { attempt: queue.claimJob(job.id).attempt.id,
     status: 'COMPLETED',
     testRunner: testRunnerMock,
     result: { filesChanged: ['math.js'] }
@@ -31,7 +31,7 @@ test('Quality Gate - Code contract fails when tests fail (rejects COMPLETED)', (
   });
 
   const failingTestRunner = () => ({ passed: false, error: '1 test failed in math.test.js' });
-  queue.updateJobProgress(job.id, {
+  queue.updateJobProgress(job.id, { attempt: queue.claimJob(job.id).attempt.id,
     status: 'COMPLETED',
     testRunner: failingTestRunner,
     result: { filesChanged: ['broken.js'] }
@@ -51,7 +51,7 @@ test('Quality Gate - Document contract validates arithmetic totals', () => {
   });
 
   // Valid totals: 100 HT + 20 VAT = 120 TTC
-  queue.updateJobProgress(job.id, {
+  queue.updateJobProgress(job.id, { attempt: queue.claimJob(job.id).attempt.id,
     status: 'COMPLETED',
     result: {
       filePath: 'invoices/2026-001.pdf',
@@ -70,7 +70,7 @@ test('Quality Gate - Document contract validates arithmetic totals', () => {
     payload: { client: 'Martin' }
   });
 
-  queue.updateJobProgress(job2.id, {
+  queue.updateJobProgress(job2.id, { attempt: queue.claimJob(job2.id).attempt.id, 
     status: 'COMPLETED',
     result: {
       filePath: 'invoices/2026-002.pdf',
@@ -94,7 +94,7 @@ test('Quality Gate - records NEEDS_CONTRACT and proceeds while the gate is not e
     payload: { message: 'hello' }
   });
 
-  queue.updateJobProgress(job.id, {
+  queue.updateJobProgress(job.id, { attempt: queue.claimJob(job.id).attempt.id,
     status: 'COMPLETED',
     result: { text: 'ok' }
   });

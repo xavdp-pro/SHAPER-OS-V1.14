@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   quality_gate_status VARCHAR(64)  NULL,
   idempotency_key     VARCHAR(190) NULL,
   request_digest      CHAR(64)     NOT NULL,
+  attempt_id          CHAR(36)     NULL,
   row_version         INT UNSIGNED NOT NULL DEFAULT 1,
   created_at          DATETIME(3)  NOT NULL,
   updated_at          DATETIME(3)  NOT NULL,
@@ -45,6 +46,30 @@ CREATE TABLE IF NOT EXISTS jobs (
   KEY jobs_updated (updated_at),
   CONSTRAINT jobs_payload_json CHECK (JSON_VALID(payload)),
   CONSTRAINT jobs_result_json CHECK (result IS NULL OR JSON_VALID(result))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Attempts (DECISIONS-20261011 §G; schema version 4). A claim moves a PENDING
+-- job to RUNNING and records one attempt bound to the claimant's unit and
+-- incarnation, in the same transaction; jobs.attempt_id names the current (or
+-- last) attempt. Every progress or terminal update presents it and is checked
+-- and applied under the job row's lock. An attempt ends COMPLETED or FAILED
+-- with the digest of the accepted terminal update and its receipt — answered
+-- again to the identical repeat — or INVALIDATED by restart recovery. Kept
+-- unlimited (dataLifecycle).
+CREATE TABLE IF NOT EXISTS job_attempts (
+  attempt_id     CHAR(36)     NOT NULL PRIMARY KEY,
+  job_id         VARCHAR(64)  NOT NULL,
+  consumer       VARCHAR(32)  NOT NULL,
+  incarnation    VARCHAR(190) NOT NULL,
+  state          VARCHAR(16)  NOT NULL,
+  claimed_at     DATETIME(3)  NOT NULL,
+  ended_at       DATETIME(3)  NULL,
+  end_reason     VARCHAR(32)  NULL,
+  request_digest CHAR(64)     NULL,
+  receipt        TEXT         NULL,
+  KEY job_attempts_job (job_id, claimed_at),
+  CONSTRAINT job_attempts_state CHECK (state IN ('ACTIVE', 'COMPLETED', 'FAILED', 'INVALIDATED')),
+  CONSTRAINT job_attempts_receipt_json CHECK (receipt IS NULL OR JSON_VALID(receipt))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 -- Append-only history: one row per committed state change of a job, written
@@ -109,5 +134,5 @@ CREATE TABLE IF NOT EXISTS recovery_points (
   KEY recovery_points_snapshot (snapshot_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-INSERT INTO schema_meta (unit, version) VALUES ('queue', 3)
+INSERT INTO schema_meta (unit, version) VALUES ('queue', 4)
   ON DUPLICATE KEY UPDATE version = GREATEST(version, VALUES(version));

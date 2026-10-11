@@ -14,31 +14,37 @@
 
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { terminalAudit, validateQualityGate } from './index.js';
+import { localConsumer, publicAttempt, terminalAudit, validateQualityGate } from './index.js';
 import { appendOutbox, outboxStatus } from '../pkg-db/outbox.js';
 import { publicEvidence } from '../pkg-logger/public-event.js';
 import {
   QueueError,
+  TERMINAL_STATUSES,
   applyJobPatch,
+  decideAttemptUpdate,
   interruptedJob,
+  newAttemptId,
   newJobRecord,
+  normalizeAttemptPatch,
+  normalizeClaim,
+  normalizeConsumer,
   normalizeCreateRequest,
-  normalizeJobPatch,
   replayOrConflict,
   requestDigest,
+  terminalReceipt,
   transitionDetail,
   validateIdempotencyKey,
 } from './job-contract.js';
 import { UnitDbError } from '../pkg-db/index.js';
 import { assertSchema, openUnitDb, probeDb, withTransaction } from '../pkg-db/pool.js';
 
-export const QUEUE_SCHEMA_VERSION = 3;
+export const QUEUE_SCHEMA_VERSION = 4;
 
 /** Column order shared by INSERT, SELECT and the row mapping below. */
 export const JOB_COLUMN_NAMES = Object.freeze([
   'id', 'type', 'payload', 'contract_type', 'status', 'progress', 'step', 'total_steps',
   'result', 'error', 'quality_gate_status', 'idempotency_key', 'request_digest',
-  'created_at', 'updated_at',
+  'created_at', 'updated_at', 'attempt_id',
 ]);
 const JOB_COLUMNS = JOB_COLUMN_NAMES.join(', ');
 
@@ -48,6 +54,8 @@ const UPDATE_JOB = `UPDATE jobs SET contract_type = ?, status = ?, progress = ?,
 const INSERT_TRANSITION = `INSERT INTO job_transitions
   (job_id, kind, from_status, to_status, recorded_at, detail) VALUES (?, ?, ?, ?, ?, ?)`;
 const SELECT_JOB = `SELECT ${JOB_COLUMNS} FROM jobs WHERE id = ?`;
+const ATTEMPT_COLUMNS = 'attempt_id, job_id, consumer, incarnation, state, claimed_at, ended_at, end_reason, request_digest, receipt';
+const SELECT_ATTEMPT = `SELECT ${ATTEMPT_COLUMNS} FROM job_attempts WHERE attempt_id = ? FOR UPDATE`;
 const SELECT_BY_KEY = `SELECT ${JOB_COLUMNS} FROM jobs WHERE idempotency_key = ?`;
 
 const SQL_DATETIME = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?$/;
@@ -97,6 +105,7 @@ export function jobToParams(job) {
     job.requestDigest,
     toSqlDateTime(job.createdAt),
     toSqlDateTime(job.updatedAt),
+    job.attemptId ?? null,
   ];
 }
 
@@ -157,7 +166,9 @@ export function rowToJob(row) {
     }
   }
 
+  const attemptId = optionalText(row.attempt_id, 'attempt_id');
   return {
+    attemptId,
     id,
     type,
     payload,
@@ -173,6 +184,28 @@ export function rowToJob(row) {
     qualityGateStatus: optionalText(row.quality_gate_status, 'quality_gate_status'),
     idempotencyKey,
     requestDigest: row.request_digest,
+  };
+}
+
+/** An attempt row in the shape decideAttemptUpdate reads. */
+export function rowToAttempt(row) {
+  if (!row) return null;
+  let receipt = null;
+  if (row.receipt !== null && row.receipt !== undefined) {
+    try { receipt = JSON.parse(Buffer.isBuffer(row.receipt) ? row.receipt.toString('utf8') : row.receipt); }
+    catch { throw new QueueError('QUEUE_ROW_INVALID', `job_attempts row ${row.attempt_id} holds an unreadable receipt`); }
+  }
+  return {
+    id: row.attempt_id,
+    jobId: row.job_id,
+    consumer: row.consumer,
+    incarnation: row.incarnation,
+    state: row.state,
+    claimedAt: fromSqlDateTime(row.claimed_at),
+    endedAt: fromSqlDateTime(row.ended_at),
+    endReason: row.end_reason ?? null,
+    requestDigest: row.request_digest ?? null,
+    receipt,
   };
 }
 
@@ -225,9 +258,10 @@ export async function hydrate(pool) {
   try {
     await pool.query('SELECT transition_id FROM job_transitions LIMIT 1');
     await pool.query('SELECT event_id FROM event_outbox LIMIT 1');
+    await pool.query('SELECT attempt_id FROM job_attempts LIMIT 1');
   } catch (err) {
     if (err.code === 'ER_NO_SUCH_TABLE') {
-      throw new UnitDbError('SCHEMA_MISSING', 'queue history or event_outbox is absent: install queue\'s schema through the administrative path');
+      throw new UnitDbError('SCHEMA_MISSING', 'queue history, attempts or event_outbox is absent: install queue\'s schema through the administrative path');
     }
     throw err;
   }
@@ -273,8 +307,10 @@ export class MariaDbJobQueue extends EventEmitter {
     gedRoot = null,
     now = () => new Date(),
     newId = newJobId,
+    consumer = localConsumer(),
   }) {
     super();
+    this.localConsumer = normalizeConsumer(consumer);
     this.pool = pool;
     this.config = config;
     this.schemaVersion = schemaVersion;
@@ -342,22 +378,81 @@ export class MariaDbJobQueue extends EventEmitter {
   }
 
   /**
+   * Claims a PENDING job for a consumer (DECISIONS-20261011 §G): in one
+   * transaction, under the job row's lock, one attempt bound to the consumer's
+   * unit and incarnation, the job RUNNING under it, its history row and its
+   * JOB_CLAIMED evidence. The same consumer and incarnation claiming the job
+   * it already holds gets its attempt back and changes nothing.
    * @param {string} jobId
-   * @param {object} patch - { progress, step, status, result, error, contractType, testRunner }
-   * @param {{ expectStatus?: string }} [options] - refuse (JOB_STATE_CHANGED) unless the job is in this state
+   * @param {{ unit: string, incarnation: string }} [consumer]
+   * @param {object} [initial] - { progress, step, result }
+   * @returns {Promise<{ job: object, attempt: object, duplicate: boolean }>}
    */
-  async updateJobProgress(jobId, patch, { expectStatus = null } = {}) {
-    const changes = normalizeJobPatch(patch);
-    const updated = await withTransaction(this.pool, async (conn) => {
+  async claimJob(jobId, consumer = this.localConsumer, initial = {}) {
+    const who = normalizeConsumer(consumer);
+    const first = normalizeClaim(initial);
+    const out = await withTransaction(this.pool, async (conn) => {
       const [rows] = await conn.execute(`${SELECT_JOB} FOR UPDATE`, [jobId]);
       if (!rows.length) throw new QueueError('JOB_NOT_FOUND', `Job ${jobId} not found`);
       const current = rowToJob(rows[0]);
-      if (expectStatus && current.status !== expectStatus) {
-        throw new QueueError('JOB_STATE_CHANGED', `Job ${jobId} is ${current.status}, not ${expectStatus}`, { jobId, status: current.status });
+      if (current.status === 'RUNNING' && current.attemptId) {
+        const [held] = await conn.execute(SELECT_ATTEMPT, [current.attemptId]);
+        const attempt = rowToAttempt(held[0]);
+        if (attempt && attempt.state === 'ACTIVE' && attempt.consumer === who.unit && attempt.incarnation === who.incarnation) {
+          return { job: current, attempt: publicAttempt(attempt), duplicate: true };
+        }
       }
+      if (current.status !== 'PENDING') {
+        throw new QueueError('JOB_STATE_CHANGED', `Job ${jobId} is ${current.status}, not PENDING`, { jobId, status: current.status });
+      }
+      const now = this.now();
+      const attempt = { id: newAttemptId(), jobId, consumer: who.unit, incarnation: who.incarnation, state: 'ACTIVE', claimedAt: now.toISOString() };
+      const next = { ...applyJobPatch(current, { ...first, status: 'RUNNING' }, { gate: () => ({ passed: true }), now }), attemptId: attempt.id };
+      if (next.result !== null && next.result !== undefined) next.result = JSON.parse(JSON.stringify(next.result));
+      await conn.execute(`INSERT INTO job_attempts (attempt_id, job_id, consumer, incarnation, state, claimed_at)
+        VALUES (?, ?, ?, ?, 'ACTIVE', ?)`, [attempt.id, jobId, who.unit, who.incarnation, toSqlDateTime(attempt.claimedAt)]);
+      await conn.execute(`UPDATE jobs SET status = 'RUNNING', progress = ?, step = ?, result = ?, attempt_id = ?, updated_at = ?,
+        row_version = row_version + 1 WHERE id = ?`, [next.progress, next.step,
+        next.result === null || next.result === undefined ? null : JSON.stringify(next.result), attempt.id, toSqlDateTime(next.updatedAt), jobId]);
+      await conn.execute(INSERT_TRANSITION, transitionParams(next, 'claimed', current));
+      await appendOutbox(conn, evidence(next, 'JOB_CLAIMED', 'INFO', { attemptId: attempt.id, consumer: who.unit, incarnation: who.incarnation }));
+      return { job: next, attempt: publicAttempt(attempt), duplicate: false };
+    });
+    if (!out.duplicate) {
+      this.emit('jobUpdated', out.job);
+      this.emit('statusChange', out.job);
+    }
+    return out;
+  }
+
+  /**
+   * A progress or terminal update under an attempt: the job row and the
+   * attempt row are locked, the attempt checked against the job and the
+   * consumer (job-contract.js decideAttemptUpdate), and the change, its history
+   * row, the attempt's end and the evidence commit together. The identical
+   * repeat of the accepted terminal update answers the stored receipt; a late
+   * update is STALE_ATTEMPT and changes nothing.
+   * @param {string} jobId
+   * @param {object} patch - { attempt, progress, step, status, result, error, contractType, testRunner }
+   * @param {{ consumer?: { unit: string, incarnation: string } }} [options]
+   * @returns {Promise<{ job: object, receipt: object|null, duplicate: boolean }>}
+   */
+  async updateAttempt(jobId, patch, { consumer = this.localConsumer } = {}) {
+    const { attemptId, changes, digest } = normalizeAttemptPatch(patch);
+    const who = normalizeConsumer(consumer);
+    const out = await withTransaction(this.pool, async (conn) => {
+      const [rows] = await conn.execute(`${SELECT_JOB} FOR UPDATE`, [jobId]);
+      if (!rows.length) throw new QueueError('JOB_NOT_FOUND', `Job ${jobId} not found`);
+      const current = rowToJob(rows[0]);
+      const [held] = await conn.execute(SELECT_ATTEMPT, [attemptId]);
+      const attempt = rowToAttempt(held[0]);
+      if (decideAttemptUpdate({ job: current, attempt, consumer: who, digest }) === 'replay') {
+        return { job: current, receipt: attempt.receipt, duplicate: true };
+      }
+      const now = this.now();
       const next = applyJobPatch(current, changes, {
         gate: (candidate) => validateQualityGate(candidate, { gedRoot: this.gedRoot, testRunner: changes.testRunner }),
-        now: this.now(),
+        now,
       });
       if (next.result !== null && next.result !== undefined) next.result = JSON.parse(JSON.stringify(next.result));
       await conn.execute(UPDATE_JOB, [
@@ -371,15 +466,33 @@ export class MariaDbJobQueue extends EventEmitter {
         toSqlDateTime(next.updatedAt),
         jobId,
       ]);
+      let receipt = null;
+      if (TERMINAL_STATUSES.includes(next.status)) {
+        receipt = terminalReceipt({ job: next, attemptId, digest, at: now.toISOString() });
+        await conn.execute(`UPDATE job_attempts SET state = ?, ended_at = ?, end_reason = 'terminal', request_digest = ?, receipt = ?
+          WHERE attempt_id = ? AND state = 'ACTIVE'`, [next.status, toSqlDateTime(receipt.acceptedAt), digest, JSON.stringify(receipt), attemptId]);
+      }
       await conn.execute(INSERT_TRANSITION, transitionParams(next, 'updated', current));
       const terminal = terminalAudit(next);
-      await appendOutbox(conn, evidence(next, terminal?.[0] || 'JOB_UPDATED', terminal?.[1] || 'INFO'));
-      return next;
+      await appendOutbox(conn, evidence(next, terminal?.[0] || 'JOB_UPDATED', terminal?.[1] || 'INFO', { attemptId }));
+      return { job: next, receipt, duplicate: false };
     });
+    if (!out.duplicate) {
+      this.emit('jobUpdated', out.job);
+      this.emit('statusChange', out.job);
+    }
+    return out;
+  }
 
-    this.emit('jobUpdated', updated);
-    this.emit('statusChange', updated);
-    return updated;
+  /** updateAttempt, answering the job alone. */
+  async updateJobProgress(jobId, patch, options = {}) {
+    return (await this.updateAttempt(jobId, patch, options)).job;
+  }
+
+  /** The attempts of one job, oldest first. */
+  async listAttempts(jobId) {
+    const [rows] = await this.pool.execute(`SELECT ${ATTEMPT_COLUMNS} FROM job_attempts WHERE job_id = ? ORDER BY claimed_at, attempt_id`, [jobId]);
+    return rows.map(rowToAttempt);
   }
 
   /**
@@ -399,6 +512,12 @@ export class MariaDbJobQueue extends EventEmitter {
       for (const row of rows) {
         const current = rowToJob(row);
         const next = interruptedJob(current, this.now());
+        // The attempt that was running ends with it: a late update under it is
+        // STALE_ATTEMPT, and the job is never re-run by this recovery.
+        if (current.attemptId) {
+          await conn.execute(`UPDATE job_attempts SET state = 'INVALIDATED', ended_at = ?, end_reason = 'interrupted'
+            WHERE attempt_id = ? AND state = 'ACTIVE'`, [toSqlDateTime(next.updatedAt), current.attemptId]);
+        }
         await conn.execute(UPDATE_JOB, [
           next.contractType ?? null,
           next.status,
@@ -411,7 +530,7 @@ export class MariaDbJobQueue extends EventEmitter {
           next.id,
         ]);
         await conn.execute(INSERT_TRANSITION, transitionParams(next, 'interrupted', current));
-        await appendOutbox(conn, evidence(next, 'JOB_FAILED', 'ERROR', { reason: 'interrupted', outcome: 'unknown' }));
+        await appendOutbox(conn, evidence(next, 'JOB_FAILED', 'ERROR', { reason: 'interrupted', outcome: 'unknown', ...(current.attemptId ? { attemptId: current.attemptId } : {}) }));
         out.push(next);
       }
       return out;
