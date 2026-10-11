@@ -30,6 +30,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { birthOrKeep } from './birth.mjs';
+import { ENGINE_PATH, createDatabaseOps } from './database-ops.mjs';
 import {
   EXIT, STATE_DIR, UnitError,
   applicationEnv, assertPassword, assertProtectedFrom, engineArgs, exitCodeOf, installDbArgs,
@@ -37,7 +38,6 @@ import {
 } from './lib.mjs';
 import { stopInOrder, terminate, track } from './lifecycle.mjs';
 
-const ENGINE_PATH = '/usr/sbin:/usr/bin:/sbin:/bin';
 const secrets = [];
 let slugForLog = process.env.SHAPER_UNIT_SLUG || 'unit';
 
@@ -197,16 +197,6 @@ function ensurePassword(config, accounts, fresh) {
 }
 
 // ── The engine ────────────────────────────────────────────────────────────
-async function rootSql(config, sql, { database = null, what = 'statement' } = {}) {
-  const result = await run('mariadb', rootClientArgs(config.paths.socket, { database }), {
-    input: sql, env: engineEnv('/root'), timeoutMs: 3600000,
-  });
-  if (result.code !== 0) {
-    throw new UnitError('ROOT_PATH_FAILED', `${what}: ${redact(result.stderr.trim() || `exit ${result.code}`, secrets)}`, EXIT.ENGINE);
-  }
-  return result.stdout;
-}
-
 async function initEngine(config, accounts) {
   log('engine: first birth — mariadb-install-db as mysql, root by unix_socket, no test database');
   const result = await run('mariadb-install-db', installDbArgs(config.paths), {
@@ -256,50 +246,7 @@ async function waitEngineReady(config, engine, abort) {
   throw new UnitError('ENGINE_NOT_READY', `mariadbd did not answer within ${config.engineStartSeconds}s`, EXIT.ENGINE);
 }
 
-function databaseOps(config, password) {
-  const load = async (input, what, code, exitCode) => {
-    const result = await run('mariadb', rootClientArgs(config.paths.socket, what === 'schema' ? { database: config.slug } : {}), {
-      input, env: engineEnv('/root'), timeoutMs: 3600000,
-    });
-    if (result.code !== 0) {
-      throw new UnitError(code, `the ${what} did not load: ${redact(result.stderr.trim().split('\n').slice(-3).join(' / '), secrets)}`, exitCode);
-    }
-  };
-  return {
-    rootSql: (sql, options) => rootSql(config, sql, options),
-    loadSchema: () => load(fs.readFileSync(config.schemaFile), 'schema', 'SCHEMA_APPLY_FAILED', EXIT.SCHEMA_APPLY),
-    loadDump: async () => {
-      const stat = fs.lstatSync(config.restoreDump);
-      if (!stat.isFile() || stat.uid !== 0 || (stat.mode & 0o077)) {
-        throw new UnitError('RESTORE_FAILED', `${config.restoreDump} must be a regular file owned by root and private to it`, EXIT.RESTORE);
-      }
-      const dump = fs.readFileSync(config.restoreDump);
-      log(`restore: loading ${config.restoreDump} (${dump.length} bytes, sha256 ${crypto.createHash('sha256').update(dump).digest('hex').slice(0, 16)}…) through the root path into a fresh datadir`);
-      await load(dump, 'dump', 'RESTORE_FAILED', EXIT.RESTORE);
-    },
-    // The application's own credential, through a client option file private
-    // to root and removed at once: never on a command line.
-    checkCredential: async () => {
-      const file = path.join(STATE_DIR, `.client-${crypto.randomBytes(6).toString('hex')}.cnf`);
-      const fd = fs.openSync(file, 'wx', 0o600);
-      try {
-        fs.writeSync(fd, `[client]\nuser=${config.slug}\npassword=${password}\nsocket=${config.paths.socket}\n`);
-      } finally {
-        fs.closeSync(fd);
-      }
-      try {
-        const result = await run('mariadb', [`--defaults-file=${file}`, '--batch', '--skip-column-names', '-e', "SELECT CONCAT(CURRENT_USER(), '|', IFNULL(DATABASE(), ''))", config.slug], {
-          env: engineEnv('/root'), timeoutMs: 30000,
-        });
-        const answer = result.stdout.trim();
-        const ok = result.code === 0 && answer === `${config.slug}@localhost|${config.slug}`;
-        return { ok, detail: redact(result.stderr.trim() || answer, secrets) };
-      } finally {
-        fs.rmSync(file, { force: true });
-      }
-    },
-  };
-}
+const databaseOps = (config, password) => createDatabaseOps({ config, password, env: engineEnv('/root'), secrets, log });
 
 // ── The application ───────────────────────────────────────────────────────
 function startApplication(config, accounts, argv) {

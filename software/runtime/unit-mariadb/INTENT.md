@@ -48,7 +48,13 @@ is the image's entrypoint, under `tini`:
    standard input or in a root-only option file, never on a command line, and
    is redacted from every log line.
 6. **Credential continuity, never a silent rotation.** At every start the file
-   must open `<slug>@localhost` on `<slug>` (`CREDENTIAL_MISMATCH`, exit 9).
+   must authenticate `<slug>@localhost` — without its database, which needs
+   the grants — before any grant (`CREDENTIAL_MISMATCH`, exit 9); once the
+   grants converged, it must open `<slug>` (`GRANTS_MISMATCH`, exit 10).
+   Checking the database before the grants refused every first birth (ERROR
+   1044, CT121, 11 October 2026); `test/birth.live.mjs` births a unit twice
+   against a real server with the operations the supervisor runs
+   (`database-ops.mjs`).
 7. **Root administers through its own path.** `mariadb -uroot` over the socket,
    by `unix_socket` as OS root. At first birth every account but
    `root@localhost` and `mariadb.sys@localhost` is removed and root is set to

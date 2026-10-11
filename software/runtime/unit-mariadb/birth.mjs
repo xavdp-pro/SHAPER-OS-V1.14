@@ -7,8 +7,17 @@
  *   always              refuse unsafe administrative accounts            (exit 8)
  *   always              refuse a retained schema of another version      (exit 7)
  *   empty database      birth the schema from the image, or from a dump
- *   always              the account exists; the password file opens it   (exit 9)
+ *   always              the account exists; the password file
+ *                       authenticates it (no database: USAGE suffices)   (exit 9)
  *   always              DML-only grants converged, then verified          (exit 10)
+ *   always              the account opens its own database                (exit 10)
+ *
+ * The credential is proven in two steps on purpose. Opening the database needs
+ * the grants, which a first birth has not converged yet: checking it before
+ * the grants refused every first birth (ERROR 1044, CT121, 11 October 2026),
+ * and the container's restarts then found a retained schema and refused
+ * forever. Granting before the password file is proven would grant to an
+ * account the file may not open.
  *
  * A refusal happens before any grant or schema statement. The operations are
  * injected (`ops`) so the order is tested without a server; the supervisor
@@ -30,7 +39,7 @@ import {
  * @param {(sql: string, o?: { database?: string, what?: string }) => Promise<string>} args.ops.rootSql
  * @param {() => Promise<void>} args.ops.loadSchema - the image's schema into the unit database, as root
  * @param {() => Promise<void>} args.ops.loadDump - the restore dump, as root
- * @param {() => Promise<{ ok: boolean, detail: string }>} args.ops.checkCredential
+ * @param {(o?: { database?: boolean }) => Promise<{ ok: boolean, detail: string }>} args.ops.checkCredential
  * @param {() => void} [args.abort] - throws when a stop was requested
  * @param {(m: string) => void} [args.log]
  * @returns {Promise<{ schema: 'applied'|'restored'|'retained', version: number }>}
@@ -99,16 +108,20 @@ export async function birthOrKeep({ config, fresh, password, ops, abort = () => 
   abort();
 
   await ops.rootSql(createAccountSql(slug, password), { what: 'ensure the unit account' });
-  const credential = await ops.checkCredential();
+  const credential = await ops.checkCredential({ database: false });
   if (!credential.ok) {
     throw new UnitError(
       'CREDENTIAL_MISMATCH',
-      `${config.paths.passwd} does not open ${slug}@localhost on ${slug} (${credential.detail}). Rotation is an explicit, recovery-safe procedure; it is never done at start.`,
+      `${config.paths.passwd} does not authenticate ${slug}@localhost (${credential.detail}). Rotation is an explicit, recovery-safe procedure; it is never done at start.`,
       EXIT.CREDENTIAL,
     );
   }
   await ops.rootSql(grantsSql(slug), { what: 'converge the unit grants' });
   assertGrants(await ops.rootSql(grantsObservationSql(slug), { what: 'observe the unit grants' }), slug);
-  log(`account: ${slug}@localhost opens with ${config.paths.passwd}; SELECT, INSERT, UPDATE, DELETE on ${slug}.* and nothing else`);
+  const opened = await ops.checkCredential({ database: true });
+  if (!opened.ok) {
+    throw new UnitError('GRANTS_MISMATCH', `${slug}@localhost authenticates but does not open ${slug} after its grants converged (${opened.detail})`, EXIT.GRANTS);
+  }
+  log(`account: ${slug}@localhost opens ${slug} with ${config.paths.passwd}; SELECT, INSERT, UPDATE, DELETE on ${slug}.* and nothing else`);
   return { schema, version };
 }

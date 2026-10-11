@@ -390,7 +390,7 @@ spec_args() {  # fills RUN_ARGS for <slug>, without its incarnation
 # schedule; Vault's API token, by its digest, never its value).
 content_of() {
   case "$1" in
-    vault) printf 'api-token:%s' "$(sha256sum < "$TOKEN_FILE" 2>/dev/null | cut -c1-64)" ;;
+    vault) if [[ -s "$TOKEN_FILE" ]]; then printf 'api-token:%s' "$(sha256sum < "$TOKEN_FILE" | cut -c1-64)"; else printf 'api-token:none'; fi ;;
     maestro) printf 'task-schedule:%s' "$(sha256sum < "$UNIV/task-schedule.json" | cut -c1-64)" ;;
   esac
 }

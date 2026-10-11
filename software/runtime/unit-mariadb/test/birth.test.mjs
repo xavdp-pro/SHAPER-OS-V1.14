@@ -22,16 +22,21 @@ const config = (extra = {}) => readConfig({
  * @param {string} [world.principals]  what mariadb-install-db left
  * @param {string} [world.admin]       the predicate's row
  * @param {Array<[number, boolean, number|null]>} [world.retained] successive [tables, hasMeta, version] observations
- * @param {boolean} [world.credential]
+ * @param {boolean} [world.credential]   false: the password file does not authenticate the account
+ * @param {boolean} [world.granted]      the account already holds its grants (a retained datadir)
  * @param {string} [world.grants]
  */
 function double(world = {}) {
   const calls = [];
   const retained = [...(world.retained || [[0, false, null], [6, true, 1]])];
   let current = retained[0];
+  // As a real server answers: authenticating needs the account and its
+  // password; opening the unit database needs its grants (else ERROR 1044).
+  let granted = world.granted ?? false;
   const ops = {
     async rootSql(sql, { what } = {}) {
       calls.push({ kind: 'sql', what, sql });
+      if (what === 'converge the unit grants') granted = true;
       if (what === 'read the accounts mariadb-install-db created') return world.principals ?? 'root\tlocalhost\t0\nmariadb.sys\tlocalhost\t0\nmysql\tlocalhost\t0\n';
       if (what === 'observe the administrative accounts') return world.admin ?? '1\t1\t\n';
       if (what === 'observe the retained database') {
@@ -44,9 +49,11 @@ function double(world = {}) {
     },
     async loadSchema() { calls.push({ kind: 'loadSchema' }); },
     async loadDump() { calls.push({ kind: 'loadDump' }); },
-    async checkCredential() {
-      calls.push({ kind: 'credential' });
-      return world.credential === false ? { ok: false, detail: 'Access denied' } : { ok: true, detail: '' };
+    async checkCredential({ database = true } = {}) {
+      calls.push({ kind: database ? 'opens database' : 'authenticates' });
+      if (world.credential === false) return { ok: false, detail: "ERROR 1045 (28000): Access denied for user 'queue'@'localhost'" };
+      if (database && (!granted || world.opens === false)) return { ok: false, detail: "ERROR 1044 (42000): Access denied for user 'queue'@'localhost' to database 'queue'" };
+      return { ok: true, detail: '' };
     },
   };
   return { ops, calls };
@@ -72,9 +79,10 @@ test('first birth: hardening, then the administrative check, then schema, accoun
     'observe the retained database',
     'read schema_meta',
     'ensure the unit account',
-    'credential',
+    'authenticates',
     'converge the unit grants',
     'observe the unit grants',
+    'opens database',
   ]);
   const hardening = calls.find((c) => c.what === 'first-birth hardening').sql;
   assert.match(hardening, /DROP USER IF EXISTS 'mysql'@'localhost'/);
@@ -82,8 +90,26 @@ test('first birth: hardening, then the administrative check, then schema, accoun
   assert.match(calls.find((c) => c.what === 'ensure the unit account').sql, new RegExp(`IDENTIFIED BY '${PW}'`));
 });
 
+test('a first birth succeeds against a server that refuses the database before the grants (CT121, ERROR 1044)', async () => {
+  // Non-regression: the credential was checked against the unit database
+  // before the grants converged, so every first birth refused (exit 9), and
+  // each restart of the container then found a retained schema and refused again.
+  const { ops, calls } = double();
+  assert.deepEqual(await birthOrKeep({ config: config(), fresh: true, password: PW, ops }), { schema: 'applied', version: 1 });
+  const second = double({ retained: [[6, true, 1]], granted: true });
+  assert.deepEqual(await birthOrKeep({ config: config(), fresh: false, password: PW, ops: second.ops }), { schema: 'retained', version: 1 });
+  assert.ok(index(calls, (c) => c.kind === 'authenticates') < index(calls, (c) => c.what === 'converge the unit grants'));
+  assert.ok(index(calls, (c) => c.kind === 'opens database') > index(calls, (c) => c.what === 'observe the unit grants'));
+});
+
+test('an account that authenticates but still cannot open its database after the grants refuses (exit 10)', async () => {
+  const { ops } = double({ retained: [[6, true, 1]], opens: false });
+  await assert.rejects(birthOrKeep({ config: config(), fresh: false, password: PW, ops }),
+    (err) => err.code === 'GRANTS_MISMATCH' && err.exitCode === EXIT.GRANTS && /does not open queue/.test(err.message));
+});
+
 test('a retained database at the declared version re-applies nothing and keeps the account', async () => {
-  const { ops, calls } = double({ retained: [[6, true, 1]] });
+  const { ops, calls } = double({ retained: [[6, true, 1]], granted: true });
   const result = await birthOrKeep({ config: config(), fresh: false, password: PW, ops });
   assert.deepEqual(result, { schema: 'retained', version: 1 });
   assert.equal(index(calls, (c) => c.what === 'first-birth hardening'), -1, 'no hardening outside first birth');

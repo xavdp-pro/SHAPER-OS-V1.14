@@ -68,12 +68,19 @@ const secretsSeen = () => {
   return out;
 };
 
-let first;
-before(() => { first = up(); });
+let first, birthPreflight;
+before(() => { birthPreflight = up('--preflight'); first = up(); });
 after(() => {
   for (const f of fs.existsSync(fakeState) ? fs.readdirSync(fakeState).filter((x) => x.endsWith('.json')) : []) {
     spawnSync(path.join(HERE, 'bin/podman'), ['stop', f.slice(0, -5)], { env });
   }
+});
+
+test('--preflight on an empty universe says what a birth would do, with no error, and leaves nothing behind', () => {
+  assert.equal(birthPreflight.status, 0, birthPreflight.stderr);
+  assert.equal(birthPreflight.stderr, '', 'no error on standard error (CT121: the token digest read a file not yet written)');
+  assert.match(birthPreflight.stdout, /would generate the Vault API token/);
+  for (const s of ['vault', 'logger', 'queue', 'maestro']) assert.match(birthPreflight.stdout, new RegExp(`${s}\\s+recreate\\s+no container`));
 });
 
 test('podman-up births the universe: Vault first, registrations applied by root, then Logger, Queue and Maestro', () => {
