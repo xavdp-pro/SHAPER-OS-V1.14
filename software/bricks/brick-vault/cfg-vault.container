@@ -41,14 +41,19 @@ Environment=SHAPER_UNIT_INCARNATION=@INCARNATION@
 Environment=UNIT_BOOTSTRAP_TOKEN_FILE=/apps/vault/etc/identity/bootstrap
 # Evidence of every secret change and credential issuance is owed to Logger.
 Environment=LOGGER_URL=http://127.0.0.1:8620
-# VAULT_TOKEN, the credential of the generic secret API, is a secret: it never
-# sits in this file. The installing universe passes it by name from its own
-# environment (deploy/podman-up.sh); without it that surface stays closed.
+# VAULT_TOKEN, the credential of the generic secret API, is a secret: neither
+# its value nor the variable sits in this file or in the container's
+# environment (SOL-DECISIONS-2 §M). The installing universe keeps its source
+# root-only in its secrets store and delivers vault's own copy (vault, 0400),
+# mounted alone, read-only, named by VAULT_TOKEN_FILE (deploy/podman-up.sh).
+# Without it that surface stays closed.
+Environment=VAULT_TOKEN_FILE=/run/secrets/VAULT_TOKEN
 Volume=/apps/vault/etc/mysql:/apps/vault/etc/mysql:Z
 Volume=/apps/vault/sav:/apps/vault/sav:Z
 Volume=/apps/vault/log:/apps/vault/log:Z
 Volume=/apps/vault/etc/vault/master.key:/apps/vault/etc/vault/master.key:ro,Z
 Volume=/apps/vault/etc/identity:/apps/vault/etc/identity:ro,Z
+Volume=/apps/.state/secrets/vault/mount/VAULT_TOKEN:/run/secrets/VAULT_TOKEN:ro,Z
 DropCapability=all
 AddCapability=CHOWN DAC_OVERRIDE FOWNER KILL SETGID SETUID
 NoNewPrivileges=true

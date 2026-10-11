@@ -118,6 +118,41 @@ describe('the entrypoint never falls back to a file', () => {
     assert.match(r.stderr, /VAULT_MASTER_KEY_FILE is required for MariaDB/);
   });
 
+  // SOL-DECISIONS-2 §M: the API token is a private file too; its value never
+  // sits in the environment, and no refusal ever prints it.
+  const token = 'e7'.repeat(32);
+  const withTokenFile = (mode, extra = {}) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-entry-token-'));
+    const file = path.join(dir, 'VAULT_TOKEN');
+    fs.writeFileSync(file, `${token}\n`, { mode });
+    fs.chmodSync(file, mode);
+    try { return run({ SHAPER_UNIT_SLUG: 'vault', VAULT_TOKEN_FILE: file, ...extra }); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  };
+
+  it('refuses the API token as an environment value on MariaDB, without printing it', () => {
+    const r = run({ SHAPER_UNIT_SLUG: 'vault', VAULT_TOKEN: token });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /refusing to start: SECRET_IN_ENVIRONMENT — VAULT_TOKEN is set in the environment/);
+    assert.ok(!r.stderr.includes(token) && !r.stdout.includes(token));
+  });
+
+  it('reads the API token from its private file and goes on to the database', () => {
+    const r = withTokenFile(0o400);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /refusing to start: PASSWD_MISSING/, 'the token stage passed');
+    assert.ok(!r.stderr.includes(token) && !r.stdout.includes(token));
+  });
+
+  it('refuses a token file another account could read, and a token given twice', () => {
+    const open = withTokenFile(0o440);
+    assert.equal(open.status, 1);
+    assert.match(open.stderr, /SECRET_FILE_UNTRUSTED — VAULT_TOKEN: .* has mode 440/);
+    const twice = withTokenFile(0o400, { VAULT_TOKEN: token });
+    assert.equal(twice.status, 1);
+    assert.match(twice.stderr, /SECRET_AMBIGUOUS/);
+    for (const r of [open, twice]) assert.ok(!r.stderr.includes(token) && !r.stdout.includes(token));
+  });
+
   it('uses the file store only when asked, with an explicit file', () => {
     const r = run({ VAULT_STORE: 'file' });
     assert.equal(r.status, 1);

@@ -64,9 +64,15 @@ const renew = (extra = {}) => spawnSync('unshare', ['-r', 'bash', path.join(UNIV
 const expiries = () => Object.fromEntries(sql('vault', "SELECT CONCAT(unit_id, ' ', TIMESTAMPDIFF(SECOND, '1970-01-01', bootstrap_expires_at)) FROM unit_identities ORDER BY unit_id")
   .split('\n').map((l) => l.split(' ')).map(([u, t]) => [u, Number(t)]));
 const lastRun = () => JSON.parse(read(path.join(renewalDir, 'last.json')));
+// SOL-DECISIONS-2 §M: the secrets store, root-only, and Vault's own copy of its token.
+const store = path.join(appsRoot, '.state/secrets');
+const tokenSource = path.join(store, 'vault/VAULT_TOKEN');
+const tokenCopy = path.join(store, 'vault/mount/VAULT_TOKEN');
+const legacyToken = path.join(appsRoot, 'vault/etc/vault/api-token');
+const SECRET_NAME = /(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASSPHRASE|API_KEY|MASTER_KEY|PRIVATE_KEY|ENCRYPTION_KEY|SECRET_KEY|ACCESS_KEY)$/;
 const secretsSeen = () => {
   const out = [];
-  for (const p of [path.join(appsRoot, 'vault/etc/vault/api-token'), path.join(appsRoot, 'vault/etc/vault/master.key'),
+  for (const p of [tokenSource, path.join(appsRoot, 'vault/etc/vault/master.key'),
     ...['vault', 'queue', 'maestro'].map((s) => path.join(appsRoot, s, 'etc/identity/bootstrap')), path.join(proofDir, 'identity/bootstrap'),
     ...['vault', 'logger', 'queue', 'maestro'].map((s) => path.join(appsRoot, s, 'etc/mysql/localhost/passwd'))]) {
     if (fs.existsSync(p)) out.push(read(p).trim());
@@ -154,6 +160,36 @@ test('no secret value reaches a podman command line or the deploy output', () =>
   }
 });
 
+test('every secret a unit consumes is one read-only file named by <NAME>_FILE; no unit has a secret in its environment (SOL-DECISIONS-2 §M)', () => {
+  assert.equal(fs.statSync(store).mode & 0o777, 0o700, 'the store is root-only');
+  assert.equal(fs.statSync(path.join(store, 'vault')).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(tokenSource).mode & 0o777, 0o600, 'the source is root-only');
+  assert.match(read(tokenSource).trim(), /^[0-9a-f]{64}$/);
+  assert.equal(fs.statSync(tokenCopy).mode & 0o777, 0o400, "vault's copy: 0400 (its owner is vault's uid on a real host)");
+  assert.equal(read(tokenCopy), read(tokenSource));
+  assert.ok(!fs.existsSync(legacyToken), 'no token beside the master key any more');
+  for (const s of ['vault', 'logger', 'queue', 'maestro']) {
+    const st = JSON.parse(read(path.join(fakeState, `univ-minimal-ctr-${s}.json`)));
+    const named = Object.entries(st.env).filter(([k, v]) => SECRET_NAME.test(k) && v !== '').map(([k]) => k);
+    assert.deepEqual(named, [], `${s}'s container environment carries a secret value`);
+    for (const secret of secretsSeen()) assert.ok(!JSON.stringify(st.env).includes(secret), `${s}'s environment holds a secret value`);
+    const secretMounts = st.spec.mounts.filter(([dst, src]) => dst.startsWith('/run/secrets/') || src.startsWith(store));
+    if (s === 'vault') {
+      assert.equal(st.env.VAULT_TOKEN_FILE, '/run/secrets/VAULT_TOKEN');
+      assert.deepEqual(secretMounts, [['/run/secrets/VAULT_TOKEN', tokenCopy]], 'one file, the unit\'s own copy, never the store');
+    } else {
+      assert.deepEqual(secretMounts, [], `${s} consumes no secret file`);
+    }
+  }
+  const argvLog = read(path.join(fakeState, 'argv.log')).split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  for (const argv of argvLog) {
+    argv.forEach((a, i) => {
+      if (argv[i - 1] === '-e') assert.ok(!SECRET_NAME.test(a.split('=')[0]), `podman ${argv[0]} passes ${a.split('=')[0]} into an environment`);
+      if (argv[i - 1] === '-v') assert.ok(!a.startsWith(`${store}:`) && !a.startsWith(`${store}/vault:`), 'the store is mounted');
+    });
+  }
+});
+
 // Work for each credential holder's outbox: a secret written and removed, a job.
 const oweEvidence = (tag) => probe(`
   H='Content-Type: application/json'
@@ -226,6 +262,35 @@ test('a re-run that recreates nothing keeps every container, incarnation and epo
   assert.match(again.stdout, /identities — nothing to register/);
   assert.equal(identities(), before.rows, 'no epoch moved, no incarnation changed');
   assert.deepEqual(pids(), before.pids, 'no container was replaced');
+});
+
+test('a universe whose token sat beside the master key moves it into the store, value kept, and keeps every unit', () => {
+  const before = { rows: identities(), pids: pids(), token: read(tokenSource) };
+  fs.renameSync(tokenSource, legacyToken);
+  const moved = up();
+  assert.equal(moved.status, 0, `${moved.stdout}\n${moved.stderr}`);
+  assert.match(moved.stdout, /Vault API token moved into the secrets store \(.*\), value kept/);
+  assert.ok(!fs.existsSync(legacyToken));
+  assert.equal(read(tokenSource), before.token, 'the same value');
+  for (const s of ['vault', 'logger', 'queue', 'maestro']) assert.match(moved.stdout, new RegExp(`KEEP ${s} — runs as declared`));
+  assert.deepEqual(pids(), before.pids, 'nothing restarted');
+  assert.equal(identities(), before.rows);
+  const call = probe(`vault_curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8610/api/secrets`);
+  assert.equal(call.stdout, '200', 'the proof and the running Vault still agree on the token');
+  for (const secret of secretsSeen()) assert.ok(!moved.stdout.includes(secret) && !moved.stderr.includes(secret));
+  // An earlier copy left beside the store's: removed when it is the same
+  // value; two different tokens halt, nothing guessed.
+  fs.writeFileSync(legacyToken, `${'0'.repeat(64)}\n`, { mode: 0o600 });
+  const differ = up();
+  assert.equal(differ.status, 1);
+  assert.match(differ.stderr, /two Vault API tokens differ/);
+  assert.ok(!differ.stderr.includes(before.token.trim()) && !differ.stderr.includes('0'.repeat(64)));
+  fs.copyFileSync(tokenSource, legacyToken);
+  const same = up();
+  assert.equal(same.status, 0, `${same.stdout}\n${same.stderr}`);
+  assert.match(same.stdout, /earlier copy of the Vault API token removed/);
+  assert.ok(!fs.existsSync(legacyToken));
+  assert.deepEqual(pids(), before.pids, 'nothing restarted');
 });
 
 test('--preflight says what a run would do and changes nothing', () => {

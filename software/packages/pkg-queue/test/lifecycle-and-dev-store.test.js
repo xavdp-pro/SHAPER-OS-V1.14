@@ -111,6 +111,38 @@ describe('the DEV stores are refused under a promotion or qualification flag', (
   });
 });
 
+// SOL-DECISIONS-2 §M: the bridge token is a private file; on MariaDB its value
+// in the environment is refused before the store opens, and never printed.
+describe('the bridge token arrives as a private file, never as an environment value', () => {
+  const token = 'b3'.repeat(32);
+  const run = (env) => spawnSync(process.execPath, [SERVER], {
+    env: { PATH: process.env.PATH, QUEUE_PORT: '0', HOST: '127.0.0.1', ...env }, encoding: 'utf8', timeout: 10000,
+  });
+  for (const name of ['QUEUE_BRIDGE_TOKEN', 'BRIDGE_AUTH_TOKEN']) {
+    it(`refuses ${name} as an environment value on MariaDB`, () => {
+      const r = run({ [name]: token });
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, new RegExp(`refusing to start: SECRET_IN_ENVIRONMENT — ${name} is set`));
+      assert.ok(!r.stderr.includes(token) && !r.stdout.includes(token));
+    });
+  }
+  it('reads QUEUE_BRIDGE_TOKEN_FILE and goes on to the database; refuses a file others can read', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'queue-token-'));
+    try {
+      const file = path.join(dir, 'QUEUE_BRIDGE_TOKEN');
+      fs.writeFileSync(file, token, { mode: 0o400 });
+      const ok = run({ QUEUE_BRIDGE_TOKEN_FILE: file });
+      assert.equal(ok.status, 1);
+      assert.match(ok.stderr, /refusing to start: PASSWD_MISSING/, 'the token stage passed');
+      fs.chmodSync(file, 0o444);
+      const open = run({ QUEUE_BRIDGE_TOKEN_FILE: file });
+      assert.equal(open.status, 1);
+      assert.match(open.stderr, /refusing to start: SECRET_FILE_UNTRUSTED/);
+      for (const r of [ok, open]) assert.ok(!r.stderr.includes(token) && !r.stdout.includes(token));
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
 describe('the entrypoint keeps its evidence deliverable and its stop bounded', () => {
   it('refuses a unit name its evidence source would contradict', () => {
     const r = spawnSync(process.execPath, [SERVER], {

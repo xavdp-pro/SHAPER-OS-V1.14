@@ -86,8 +86,58 @@ outside the unit:
 The Vault master key is `/apps/vault/etc/vault/master.key` (`0400`, owned by
 `vault`, mounted read-only as a single file). It is generated only when the
 Vault is born; a Vault whose datadir exists without its key is a halt, never a
-new key. The Vault API token sits beside it, root-only, and reaches the unit
-through its environment, by name; `etc/vault/` itself is never mounted.
+new key; `etc/vault/` itself is never mounted. The Vault API token is a secret
+the unit consumes: it lives in the secrets store and reaches Vault as a file
+([secret files](#secret-files)).
+
+<a id="secret-files"></a>
+## Secrets reach a unit as private files, never through its environment
+
+SOL-DECISIONS-2 §M (Rules 0J, 4 and 12). A value in a container's environment
+sits in `podman inspect`, in the initial environment of PID 1 (`tini`, which
+the supervisor cannot clean) and in every process that inherits it; a file
+descriptor hand-over fixes the children, not the first two. So:
+
+- **The parent's store.** `SHAPER_SECRETS_ROOT` (default
+  `<SHAPER_APPS_ROOT>/.state/secrets`) is root's alone, `0700`, and no
+  ancestor of it can be replaced by another account — every existing
+  component root-owned, none writable by group or others unless sticky
+  (`path_protected`; `podman-up.sh` halts otherwise). One root `0700`
+  directory per unit holds its sources, each a root `0600` file named after
+  the variable: `<store>/<unit>/<NAME>`. The declaration of which unit
+  consumes which secret is `secrets_of` in `deploy/unit-probes.sh`, shared
+  with the proofs: today Vault's `VAULT_TOKEN` (the generic secret API's
+  bearer, generated here at birth). A source that is absent or empty is a
+  halt (Rule 0J), never a unit started hoping.
+- **The unit's copy.** `<store>/<unit>/mount/<NAME>`, owned by the unit's
+  account, `0400`, replaced only when it differs from the source (a kept
+  container keeps what it reads; a changed value changes the unit's run
+  specification and recreates it). It is mounted **alone, read-only** at
+  `/run/secrets/<NAME>`, and the unit receives only the reference
+  `<NAME>_FILE=/run/secrets/<NAME>`. The store and its directories are never
+  mounted; nothing is sourced or exported into a process environment.
+- **The application reads the file itself** (pkg-auth
+  [`secret-file.js`](../../packages/pkg-auth/INTENT.md#secret-files)): a
+  regular file of its own account with no group or other bit, read once into
+  memory. On MariaDB a value in the environment is refused
+  (`SECRET_IN_ENVIRONMENT`), and so is a secret given both ways.
+- **The unit runtime refuses** to start a container whose environment gives
+  a secret-shaped variable (`*_TOKEN`, `*_SECRET`, `*_PASSWORD`, `*_PWD`,
+  `*_API_KEY`, `*_MASTER_KEY`, …) a value: exit 13, by name, never by value
+  (runtime/unit-mariadb). A plain `unset` would not qualify.
+- **The settings file** (`cfg-univ-minimal.env`) carries parameters and
+  `*_FILE` references only: `podman-up.sh` refuses one that gives a
+  secret-shaped variable a value, before it sources anything.
+
+Unchanged, by decision: the Vault master key keeps its own file
+(`etc/vault/master.key`), the bootstraps theirs (`etc/identity/bootstrap`),
+the MariaDB passwords their canonical place
+(`/apps/<slug>/etc/mysql/localhost/passwd`). A universe born before the store
+kept the API token at `etc/vault/api-token`: `podman-up.sh` moves it into the
+store, the same value, so the running Vault and the proof keep agreeing. Root
+keeps its declared administrative access to every file; that limit is
+explicit, not closed. A later realization with podman secrets uses
+`type=mount` with an explicit uid and mode, never `type=env`.
 
 <a id="identity"></a>
 ## Unit identities: the parent's registration and the birth order
@@ -294,7 +344,23 @@ and held by Logger under that unit's name — both read from the databases,
 never from either unit's answer. The proof calls Logger, Queue and Maestro
 under credentials Vault issues to its own identity for each call (one root-only
 header file per call, removed after it), and the Vault API with the
-construction path's token; no credential is ever on a command line.
+construction path's token, read by root from the store; no credential is ever
+on a command line.
+
+The secrets are in the same inventory ([secret files](#secret-files)), checked
+without printing a value: a root-only list of every secret value the
+universe holds — the store's sources, the master key, every bootstrap (the
+units' and the proof's) and every unit's MariaDB password — is matched as
+fixed strings against each unit's whole `podman inspect` document
+(environment, command, labels, mounts, create command) and against the argv
+and initial environment of PID 1 and of every process in the unit's pid
+namespace, read from the host's `/proc` (at least the four processes of a
+unit read, none holding a value; an unreadable one fails). Each secret a
+unit consumes is checked delivered — the reference and no value in its
+environment, its own copy mounted alone and read-only, inside a `0400` file
+of its account with the source's digest — and refused to the engine account
+and to `nobody`; no directory of the store or of `etc/vault/` is mounted; the
+store itself is root's alone with protected ancestors.
 
 A green health endpoint is not in that list as a proof: it shows a process is
 up, never that work happened.
@@ -423,6 +489,9 @@ Recorded so nobody reads the floor as the full target contract of the units
 
 - Vault's generic secret API keeps its bearer token (Rule 0K); Logger, Queue,
   Maestro and Vault's identity endpoints check Vault-signed credentials;
+- root reads every secret file and every process's environment: the files
+  close the secrets to the other accounts and to podman's records, not to an
+  authorized administrator;
 - the bootstrap renewal is installed by `install-renewal-timer.sh`, a separate
   step after `podman-up.sh`;
 - refusal counts not yet committed (at most one minute) are lost with Vault's

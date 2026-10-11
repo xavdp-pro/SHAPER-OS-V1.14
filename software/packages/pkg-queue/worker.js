@@ -170,7 +170,9 @@ function followViaSse({ fetchImpl, target, conversation, headers }) {
 export function startQueueAgentWorker({
   queue,
   bridgeUrl = process.env.QUEUE_BRIDGE_URL || 'http://127.0.0.1:4440',
-  bridgeToken = process.env.QUEUE_BRIDGE_TOKEN || process.env.BRIDGE_AUTH_TOKEN || '',
+  // The caller reads the token (server.js: from its private file); a worker
+  // never takes a secret from the environment itself.
+  bridgeToken = '',
   pollMs = Number(process.env.QUEUE_POLL_MS || 2000),
   // How many jobs may run at once. One by default: a queue that quietly
   // parallelises on a machine that cannot take it is worse than a slow one.

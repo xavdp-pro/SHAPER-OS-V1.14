@@ -27,6 +27,18 @@ test('the supervisor refuses an invalid declaration before anything else, with i
   assert.match(r.stderr, /\[unit-mariadb:vault\] refusing: CONFIG_INVALID — SHAPER_DB_SOCKET/);
 });
 
+// SOL-DECISIONS-2 §M: refused first — before the declaration, before the root
+// check — by name, with its own exit code, and the value is never printed.
+test('the supervisor refuses a secret value in its environment before anything else', () => {
+  const value = 'ab'.repeat(32);
+  const r = run('supervisor.mjs', { ...ENV, SHAPER_DB_SOCKET: '/run/mysqld/mysqld.sock', VAULT_TOKEN: value }, ['node', 'server.js']);
+  assert.equal(r.status, 13);
+  assert.match(r.stderr, /refusing: SECRET_IN_ENVIRONMENT — VAULT_TOKEN carries a value in the container's environment/);
+  assert.ok(!r.stderr.includes(value) && !r.stdout.includes(value));
+  const byFile = run('supervisor.mjs', { ...ENV, SHAPER_DB_SOCKET: '/run/mysqld/mysqld.sock', VAULT_TOKEN_FILE: '/run/secrets/VAULT_TOKEN' }, ['node', 'server.js']);
+  assert.equal(byFile.status, 2, 'a file reference passes the guard and meets the next check');
+});
+
 test('the supervisor refuses to serve without an application command', () => {
   const r = run('supervisor.mjs', ENV, []);
   assert.equal(r.status, 2);

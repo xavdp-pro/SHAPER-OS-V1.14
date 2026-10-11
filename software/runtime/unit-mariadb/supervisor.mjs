@@ -7,6 +7,8 @@
  * Runs as root — the container's administrative path — and never runs
  * application code itself:
  *
+ *   0. refuses a secret value in its environment: each secret arrives as a
+ *      private file named by <NAME>_FILE (SOL-DECISIONS-2 §M);
  *   1. checks the declared accounts and the Rule 4 layout, and that the
  *      application cannot modify or replace the data, socket, password or
  *      administrative paths, writable ancestors included;
@@ -33,7 +35,7 @@ import { birthOrKeep } from './birth.mjs';
 import { ENGINE_PATH, createDatabaseOps } from './database-ops.mjs';
 import {
   EXIT, STATE_DIR, UnitError,
-  applicationEnv, assertPassword, assertProtectedFrom, engineArgs, exitCodeOf, installDbArgs,
+  applicationEnv, assertNoSecretInEnvironment, assertPassword, assertProtectedFrom, engineArgs, exitCodeOf, installDbArgs,
   readConfig, redact, resolveAccounts, rootClientArgs, run,
 } from './lib.mjs';
 import { stopInOrder, terminate, track } from './lifecycle.mjs';
@@ -267,6 +269,8 @@ function startApplication(config, accounts, argv) {
 // ── Main ──────────────────────────────────────────────────────────────────
 async function main() {
   const argv = process.argv.slice(2);
+  // First: no secret value in the environment this container was given.
+  assertNoSecretInEnvironment(process.env);
   const config = readConfig(process.env);
   slugForLog = config.slug;
   if (config.mode === 'serve' && argv.length === 0) {

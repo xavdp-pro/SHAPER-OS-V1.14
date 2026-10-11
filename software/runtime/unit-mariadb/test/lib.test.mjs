@@ -5,10 +5,10 @@ import path from 'node:path';
 import test, { describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  EXIT, SUPERVISOR_CONTROLS, UnitError, adminPredicateSql, applicationEnv, assertGrants, assertPassword, assertProtectedFrom,
+  EXIT, SUPERVISOR_CONTROLS, UnitError, adminPredicateSql, applicationEnv, assertGrants, assertNoSecretInEnvironment, assertPassword, assertProtectedFrom,
   chainOf, createAccountSql, createDatabaseSql, decideSchema, engineArgs, exitCodeOf, expectedGrants, firstBirthSql,
   grantsSql, installDbArgs, parseAdminPredicate, parsePrincipals, parseRetained, parseVersion,
-  readConfig, redact, resolveAccounts, rootClientArgs, schemaVersionSql, sqlString, unitPaths, writableBy,
+  readConfig, redact, resolveAccounts, rootClientArgs, schemaVersionSql, secretNamesIn, sqlString, unitPaths, writableBy,
 } from '../lib.mjs';
 
 const ENV = {
@@ -286,11 +286,31 @@ describe('processes and secrets', () => {
     assert.equal(args.at(-1), 'queue');
   });
 
+  // SOL-DECISIONS-2 §M: a secret reaches a unit as a private file, never as a
+  // value in the container's environment — refused, never unset.
+  test('a secret-shaped variable with a value is refused by name, never by value; file references pass', () => {
+    const value = 'f0'.repeat(32);
+    const env = {
+      PATH: '/bin', PWD: '/apps/vault', OLDPWD: '/', VAULT_TOKEN_FILE: '/run/secrets/VAULT_TOKEN',
+      UNIT_BOOTSTRAP_TOKEN_FILE: '/apps/vault/etc/identity/bootstrap', VAULT_MASTER_KEY_FILE: '/apps/vault/etc/vault/master.key',
+      UNIT_CREDENTIAL_TTL_SECONDS: '300', UNIT_AUTH_PUBLIC_KEY_FILE: '/apps/queue/etc/identity/vault-signing.pub', EMPTY_TOKEN: '',
+    };
+    assert.deepEqual(secretNamesIn(env), []);
+    assert.doesNotThrow(() => assertNoSecretInEnvironment(env));
+    for (const name of ['VAULT_TOKEN', 'VAULT_MASTER_KEY', 'MYSQL_PWD', 'MYSQL_PASSWORD', 'BRIDGE_AUTH_TOKEN', 'QUEUE_BRIDGE_TOKEN',
+      'TOOLS_AUTH_JWT_SECRET', 'DEEPGRAM_API_KEY', 'IPBX_TRUNK_PASSWORD', 'TOKEN', 'PASSWORD', 'SECRET']) {
+      assert.deepEqual(secretNamesIn({ ...env, [name]: value }), [name], name);
+      assert.throws(() => assertNoSecretInEnvironment({ ...env, [name]: value }), (err) => err.code === 'SECRET_IN_ENVIRONMENT'
+        && err.exitCode === EXIT.SECRET_IN_ENVIRONMENT && err.message.includes(name) && !err.message.includes(value));
+    }
+    assert.deepEqual(secretNamesIn({ ...env, B_TOKEN: value, A_PASSWORD: value }), ['A_PASSWORD', 'B_TOKEN']);
+  });
+
   test('the application environment drops the supervisor controls and states the identity', () => {
-    const env = applicationEnv({ PATH: '/bin', UNIT_MODE: 'serve', UNIT_RESTORE_DUMP: 'x', MYSQL_PWD: 'leak', VAULT_TOKEN: 't' },
+    const env = applicationEnv({ PATH: '/bin', UNIT_MODE: 'serve', UNIT_RESTORE_DUMP: 'x', MYSQL_PWD: 'leak', VAULT_TOKEN_FILE: '/run/secrets/VAULT_TOKEN' },
       { slug: 'vault', home: '/apps/vault', socket: '/run/vault/mysqld.sock' });
     assert.deepEqual(env, {
-      PATH: '/bin', VAULT_TOKEN: 't', HOME: '/apps/vault', USER: 'vault', LOGNAME: 'vault',
+      PATH: '/bin', VAULT_TOKEN_FILE: '/run/secrets/VAULT_TOKEN', HOME: '/apps/vault', USER: 'vault', LOGNAME: 'vault',
       SHAPER_UNIT_SLUG: 'vault', SHAPER_DB_SOCKET: '/run/vault/mysqld.sock',
     });
   });

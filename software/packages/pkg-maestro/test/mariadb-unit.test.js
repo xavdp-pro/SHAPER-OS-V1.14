@@ -210,6 +210,24 @@ describe('the entrypoint refuses to start rather than fall back', () => {
     assert.match(r.stderr, /refusing to start: QUEUE_URL_MISSING/);
   });
 
+  // SOL-DECISIONS-2 §M: the bridge token is a private file, never an
+  // environment value on MariaDB, and no refusal prints it.
+  it('refuses BRIDGE_AUTH_TOKEN as an environment value, reads it from its private file', () => {
+    const token = 'c5'.repeat(32);
+    const inEnv = run({ ...durable, BRIDGE_AUTH_TOKEN: token });
+    assert.equal(inEnv.status, 1);
+    assert.match(inEnv.stderr, /refusing to start: SECRET_IN_ENVIRONMENT — BRIDGE_AUTH_TOKEN is set/);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maestro-token-'));
+    try {
+      const file = path.join(dir, 'BRIDGE_AUTH_TOKEN');
+      fs.writeFileSync(file, token, { mode: 0o400 });
+      const byFile = run({ ...durable, BRIDGE_AUTH_TOKEN_FILE: file });
+      assert.equal(byFile.status, 1);
+      assert.match(byFile.stderr, /refusing to start: PASSWD_MISSING/, 'the token stage passed');
+      for (const r of [inEnv, byFile]) assert.ok(!r.stderr.includes(token) && !r.stdout.includes(token));
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
   it('refuses to start on MariaDB without its passwd file, and says why', () => {
     const r = run(durable);
     assert.equal(r.status, 1);
