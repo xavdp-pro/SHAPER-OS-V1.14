@@ -35,8 +35,10 @@ source "$UNIV/deploy/lib.sh"
 SHAPER_REPO="" SHAPER_COMMIT=""
 while (( $# )); do
   case "$1" in
-    --shaper-repo) SHAPER_REPO="${2:-}"; shift 2 ;;
-    --shaper-commit) SHAPER_COMMIT="${2:-}"; shift 2 ;;
+    --shaper-repo|--shaper-commit)
+      (( $# >= 2 )) || halt "$1 takes a value — install-base.sh --shaper-repo <checkout> --shaper-commit <revision>"
+      if [[ "$1" == --shaper-repo ]]; then SHAPER_REPO="$2"; else SHAPER_COMMIT="$2"; fi
+      shift 2 ;;
     *) halt "unknown argument $1 — install-base.sh --shaper-repo <checkout> --shaper-commit <revision>" ;;
   esac
 done
@@ -90,12 +92,16 @@ ln -s ../cfg-universe.env "$STAGE/cfg-univ-minimal.env"
 printf '%s\n' "$REV" > "$STAGE/.shaper-revision"
 chmod 0755 "$STAGE"
 
-if [[ -e "$UNIV/base" ]]; then
-  KEPT="$UNIV/base.before-install-$(date -u +%Y%m%dT%H%M%SZ)"
-  mv "$UNIV/base" "$KEPT"
+if [[ -e "$UNIV/base" || -L "$UNIV/base" ]]; then
+  # A name of its own, even for two installs in the same second; -T never
+  # moves base/ into an existing directory.
+  STEM="$UNIV/base.before-install-$(date -u +%Y%m%dT%H%M%SZ)"
+  KEPT="$STEM"; n=1
+  while [[ -e "$KEPT" || -L "$KEPT" ]]; do KEPT="$STEM-$n"; n=$((n + 1)); done
+  mv -T "$UNIV/base" "$KEPT"
   echo "$TAG the previous base/ is kept as $KEPT"
 fi
-mv "$STAGE" "$UNIV/base"
+mv -T "$STAGE" "$UNIV/base"
 trap - EXIT
 echo "$TAG $UNIVERSE: base units = univ-minimal at ${REV:0:12} in $UNIV/base"
 echo "$TAG next: cfg-universe.env (from cfg-universe.env.example), the image lock, then bash $UNIV/deploy/podman-up.sh"

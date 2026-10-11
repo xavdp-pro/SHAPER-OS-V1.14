@@ -38,7 +38,7 @@ function deployScripts() {
 const handsTheModel = (text) => /CURSOR_MODEL/.test(text) && /podman run/.test(text);
 
 test('bridge-cursor - the template starts no bridge', () => {
-  for (const name of ['podman-up.sh', 'lib.sh', 'install-base.sh', 'proof.sh']) {
+  for (const name of ['podman-up.sh', 'lib.sh', 'install-base.sh', 'proof.sh', 'base.sh']) {
     const text = fs.readFileSync(path.join(UNIVERSES, '_template/deploy', name), 'utf8');
     // The template starts nothing itself (the base's own script starts the base
     // units), and wires no engine.

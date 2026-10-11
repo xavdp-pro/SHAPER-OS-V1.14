@@ -69,7 +69,7 @@ function universe(t, { cfg = CFG, base = true } = {}) {
     const b = path.join(univ, 'base');
     fs.mkdirSync(path.join(b, 'deploy'), { recursive: true });
     fs.copyFileSync(path.join(MINIMAL, 'manifest.json'), path.join(b, 'manifest.json'));
-    for (const s of ['podman-up.sh', 'proof.sh']) fs.writeFileSync(path.join(b, 'deploy', s), RECORDER, { mode: 0o755 });
+    for (const s of ['podman-up.sh', 'proof.sh', 'lifecycle-drill.sh', 'restore-drill.sh', 'install-renewal-timer.sh', 'renew-bootstraps.sh']) fs.writeFileSync(path.join(b, 'deploy', s), RECORDER, { mode: 0o755 });
     fs.writeFileSync(path.join(b, '.shaper-revision'), `${QUALIFIED}\n`);
     fs.symlinkSync('../tasks/task-schedule.json', path.join(b, 'task-schedule.json'));
     fs.symlinkSync('../cfg-image-lock.json', path.join(b, 'cfg-image-lock.json'));
@@ -106,7 +106,7 @@ test('the template declares univ-minimal\'s four units exactly — image, port, 
 });
 
 test('the template carries no store of the earlier shape and no engine', () => {
-  const text = ['manifest.json', 'cfg-universe.env.example', 'deploy/podman-up.sh', 'deploy/proof.sh', 'deploy/install-base.sh']
+  const text = ['manifest.json', 'cfg-universe.env.example', 'deploy/podman-up.sh', 'deploy/proof.sh', 'deploy/install-base.sh', 'deploy/base.sh'] // lib.sh names the earlier stores to refuse them
     .map((f) => fs.readFileSync(path.join(TEMPLATE, f), 'utf8')).join('\n');
   assert.doesNotMatch(text, /VAULT_STORAGE_FILE|QUEUE_STORAGE_FILE|LOG_DIR=|vault\.enc|jobs\.jsonl|brick-bridge-|OPENCODE_|QUEUE_AUTO_DISPATCH=1/);
   assert.ok(!fs.existsSync(path.join(TEMPLATE, 'deploy/env.example')), 'no second settings file');
@@ -214,18 +214,47 @@ test('a manifest that disagrees with the installed base is refused, naming the d
   refused(u.run('podman-up.sh'), /brick-queue\.database: the manifest declares .*"schemaVersion": 3.*the base at e83f73188a80 births/);
 });
 
-test('a unit the universe adds holds its own MariaDB inside its own container, after the base layers', (t) => {
+test('a unit beyond the base units is refused: the template would never start nor prove it', (t) => {
+  // Fresh-context review (wave 3): such a unit was accepted by the checks,
+  // then silently never started and never proved.
   const u = universe(t);
   const file = path.join(u.univ, 'manifest.json');
   const m = JSON.parse(fs.readFileSync(file, 'utf8'));
-  m.bricks['brick-example'] = { source: 'catalogue', perimeter: 'P3', package: '@example/x', image: 'img-example', intent: './INTENT.md', role: 'r', port: 7000 };
+  m.bricks['brick-example'] = { source: 'catalogue', perimeter: 'P3', package: '@example/x', image: 'img-example', intent: './INTENT.md', role: 'r', port: 7000,
+    database: { engine: 'mariadb', placement: 'in-unit', slug: 'example', uid: 10700, engineUid: 10701, schema: '/x', schemaVersion: 1 } };
   m.bootOrder.push(['brick-example']);
   fs.writeFileSync(file, JSON.stringify(m));
-  refused(u.run('podman-up.sh'), /brick-example: a unit of this universe holds its own MariaDB inside its own container/);
-  m.bootOrder = [['brick-example'], ...m.bootOrder.slice(0, -1)];
-  m.bricks['brick-example'].database = { engine: 'mariadb', placement: 'in-unit', slug: 'example', uid: 10700, engineUid: 10701, schema: '/x', schemaVersion: 1 };
+  for (const script of ['podman-up.sh', 'proof.sh']) {
+    refused(u.run(script), /brick-example: the template does not yet start or prove a unit the universe adds; declare only the base units/);
+  }
+  delete m.bricks['brick-example'];
+  m.bootOrder = [m.bootOrder[1], m.bootOrder[0], ...m.bootOrder.slice(2, -1)];
   fs.writeFileSync(file, JSON.stringify(m));
-  refused(u.run('podman-up.sh'), /bootOrder: the base's layers .* must come first/);
+  refused(u.run('podman-up.sh'), /bootOrder: the manifest declares .*, the base at e83f73188a80 births/);
+});
+
+test('deploy/base.sh runs the base\'s drills and renewal after the same checks, with the universe\'s settings file', (t) => {
+  const u = universe(t);
+  for (const [script, args] of [['lifecycle-drill.sh', []], ['restore-drill.sh', ['--unit', 'vault']], ['install-renewal-timer.sh', []], ['renew-bootstraps.sh', []]]) {
+    const r = u.run('base.sh', [script, ...args]);
+    assert.equal(r.status, 0, r.output);
+    assert.equal(r.record.at(-1), `${script} args=[${args.join(' ')}] env_file=${path.join(u.univ, 'cfg-universe.env')} universe=univ-example leak=`);
+  }
+  const unknown = u.run('base.sh', ['podman-up.sh']);
+  assert.notEqual(unknown.status, 0);
+  assert.match(unknown.output, /deploy\/base\.sh <lifecycle-drill\.sh\|restore-drill\.sh\|install-renewal-timer\.sh\|renew-bootstraps\.sh>/);
+  const v = universe(t, { cfg: `${CFG}KEY=1; touch INJECTED\n` });
+  const bad = v.run('base.sh', ['restore-drill.sh']);
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.output, /would be EXECUTED by source/);
+  assert.deepEqual(bad.record, [], 'the base never sources a file that failed the guard');
+});
+
+test('base/cfg-univ-minimal.env must link to the universe\'s own settings file', (t) => {
+  const u = universe(t);
+  fs.unlinkSync(path.join(u.univ, 'base/cfg-univ-minimal.env'));
+  fs.writeFileSync(path.join(u.univ, 'base/cfg-univ-minimal.env'), 'SHAPER_UNIVERSE=univ-minimal\n');
+  refused(u.run('podman-up.sh'), /base\/cfg-univ-minimal\.env is not a link to the universe's own cfg-universe\.env/);
 });
 
 test('the template itself is a mold: it is never run in place', () => {
@@ -253,9 +282,18 @@ test('install-base.sh lays out univ-minimal at the revision, linked to the unive
   assert.equal(fs.readFileSync(path.join(base, 'deploy/podman-up.sh'), 'utf8'), committed, 'the base is the revision\'s own script');
   assert.deepEqual(fs.readdirSync(u.univ).filter((n) => n.startsWith('.base-install')), [], 'no staging left behind');
 
-  const second = u.run('install-base.sh', ['--shaper-repo', REPO, '--shaper-commit', head]);
-  assert.equal(second.status, 0, second.output);
-  assert.equal(fs.readdirSync(u.univ).filter((n) => n.startsWith('base.before-install-')).length, 1, 'the previous base/ is kept');
+  // Two more installs, at once: each previous base/ is kept under a name of its
+  // own, never moved inside another (fresh-context review: same-second nesting).
+  for (let i = 0; i < 2; i++) {
+    const again = u.run('install-base.sh', ['--shaper-repo', REPO, '--shaper-commit', head]);
+    assert.equal(again.status, 0, again.output);
+  }
+  const kept = fs.readdirSync(u.univ).filter((n) => n.startsWith('base.before-install-'));
+  assert.equal(kept.length, 2, `the previous bases are kept: ${kept}`);
+  for (const k of [...kept, 'base']) {
+    assert.ok(fs.existsSync(path.join(u.univ, k, '.shaper-revision')), `${k} is a whole base`);
+    assert.deepEqual(fs.readdirSync(path.join(u.univ, k)).filter((n) => n.startsWith('base')), [], `${k} holds no nested base`);
+  }
 
   // The template's own checks pass over what install-base laid out.
   const preflightChecks = spawnSync('bash', ['-c', `set -euo pipefail; UNIV='${u.univ}'; source '${u.univ}/deploy/lib.sh'; load_universe_env; check_base_layout; check_base_units_agree; echo agreed`], { encoding: 'utf8', env: { PATH: process.env.PATH } });
@@ -273,6 +311,9 @@ test('install-base.sh refuses a revision before the qualified base release, an u
   const bare = u.run('install-base.sh');
   assert.notEqual(bare.status, 0);
   assert.match(bare.output, /--shaper-repo .* and --shaper-commit/);
+  const noValue = u.run('install-base.sh', ['--shaper-repo', REPO, '--shaper-commit']);
+  assert.notEqual(noValue.status, 0);
+  assert.match(noValue.output, /--shaper-commit takes a value/, 'a missing value is a halt that speaks');
   assert.ok(!fs.existsSync(path.join(u.univ, 'base')), 'nothing was laid out');
 });
 
@@ -284,4 +325,19 @@ test('install-base.sh refuses a universe of the earlier template\'s shape', (t) 
   assert.notEqual(r.status, 0);
   assert.match(r.output, /earlier template's shape/);
   assert.ok(!fs.existsSync(path.join(u.univ, 'base')));
+});
+
+test('the earlier shape is also found under the directory\'s own name and univ-base\'s volumes', (t) => {
+  // The earlier template named its containers after UNIV_SLUG or the directory.
+  const u = universe(t);
+  refused(u.run('podman-up.sh', [], { CONTAINERS: `${path.basename(u.univ)}-queue` }), /container univ-example-queue/);
+  const renamed = universe(t);
+  const dir = path.join(renamed.root, 'univ-earlier');
+  fs.renameSync(renamed.univ, dir);
+  const r = spawnSync('bash', [path.join(dir, 'deploy/podman-up.sh')], { encoding: 'utf8', env: { PATH: `${path.join(renamed.root, 'bin')}:${process.env.PATH}`, RECORD: path.join(renamed.root, 'record.log'), CONTAINERS: 'univ-earlier-vault' } });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /container univ-earlier-vault/);
+  const v = universe(t);
+  fs.mkdirSync(path.join(v.univ, '.state/vol-univ-base-vault'), { recursive: true });
+  refused(v.run('podman-up.sh'), /\.state\/vol-univ-base-vault/);
 });

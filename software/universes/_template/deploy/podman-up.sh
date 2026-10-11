@@ -19,8 +19,9 @@
 # Before the base runs, this script checks what only the universe knows: its
 # settings file is variables only and names the manifest's universe; the
 # universe is not of the earlier template's shape (file stores, an AI bridge);
-# base/ is installed, with the universe's own schedule and lock; and the
-# manifest declares the four base units exactly as that base births them.
+# base/ is installed, linked to the universe's own schedule, lock and settings;
+# and the manifest declares the four base units, and only them, exactly as
+# that base births them.
 set -euo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
@@ -37,8 +38,8 @@ check_base_units_agree
 echo "$TAG $SHAPER_UNIVERSE — layers 0-3, vault, logger, queue, maestro: univ-minimal at $(base_revision)"
 bash "$BASE/deploy/podman-up.sh" "$@"
 
-# The universe's own units start here, after the base layers and in the
-# manifest's bootOrder: each one functional Podman holding its application and
-# its own MariaDB server, born like the base units (one account = one MariaDB
-# account = one database, a private socket, no TCP, readiness gated on the
-# database), its image pinned in cfg-image-lock.json. The template has none.
+# The template starts no unit of its own, and check_base_units_agree refuses a
+# manifest that declares one (INTENT.md#materialise): a universe that adds
+# units adds their start here, after the base layers, each one functional
+# Podman holding its application and its own MariaDB server — and their proof
+# to deploy/proof.sh — before it declares them.

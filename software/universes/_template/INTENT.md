@@ -58,13 +58,23 @@ never re-implements:
   owner-only bootstrap file per unit; credentials Vault signs on every route of
   Logger, Queue and Maestro but a minimal health; durable Queue attempts.
 - **Renewal** — the parent's daily bootstrap renewal, installed once with
-  `base/deploy/install-renewal-timer.sh`.
+  `deploy/base.sh install-renewal-timer.sh` (its service names the universe's
+  settings file).
 - **Proof and drills** — `base/deploy/proof.sh` (the Rule 26 inventory of every
-  unit and one real effect each), `lifecycle-drill.sh` and `restore-drill.sh`.
+  unit and one real effect each), run by `deploy/proof.sh`;
+  `lifecycle-drill.sh` and `restore-drill.sh`, run by `deploy/base.sh`.
+
+The base's scripts source their settings file without the variables-only
+guard, so the universe runs each of them through `deploy/podman-up.sh`,
+`deploy/proof.sh` or `deploy/base.sh`, which check the file first and hand it
+over in `ENV_FILE`; `base/cfg-univ-minimal.env` links to `cfg-universe.env` only
+so that a base script run on its own still reads this universe, never
+univ-minimal's defaults.
 
 The manifest declares the four units exactly as the installed base births them
-(image, port, database), in the base's boot order and first; `deploy/podman-up.sh`
-and `deploy/proof.sh` refuse a manifest that disagrees with `base/`.
+(image, port, database), in the base's boot order, and nothing else;
+`deploy/podman-up.sh`, `deploy/proof.sh` and `deploy/base.sh` refuse a manifest
+that disagrees with `base/`.
 
 <a id="materialise"></a>
 ## 4. Materialise
@@ -74,8 +84,15 @@ and `deploy/proof.sh` refuse a manifest that disagrees with `base/`.
 `universe`), refuses the earlier template's shape and a `base/` that is missing
 or not linked to the universe's own schedule and lock, then runs
 `base/deploy/podman-up.sh` with the same arguments (`--preflight`,
-`--recreate <slug>|proof|all`) and the same settings file. A unit the universe
-adds starts after the base layers, from the same script, with the same shape.
+`--recreate <slug>|proof|all`) and the same settings file.
+
+The template starts no unit of its own, and it refuses a manifest that
+declares one: a unit accepted there would never be started nor proved. A
+universe that adds units — each one functional Podman holding its application
+and its own MariaDB server, after the base layers — first adds their start to
+`deploy/podman-up.sh`, their proof to `deploy/proof.sh` and their declaration
+to the checks of `deploy/lib.sh`, as the seven-unit Clinic kit does for its
+own.
 
 Maestro holds the universe's declared schedule, `tasks/task-schedule.json`; the
 template declares none, so Maestro is present and submits nothing. Queue does
@@ -85,9 +102,10 @@ joins a universe only once it meets Rules 4 and 26 like the others.
 <a id="proof"></a>
 ## 5. Proof
 
-`deploy/proof.sh` runs `base/deploy/proof.sh` and then the universe's own
-units' proofs; it exits 0 only when every unit passed. A green health endpoint
-is not in it as a proof. `test/socle-live.test.js` (`npm run test:live`) checks
+`deploy/proof.sh` runs `base/deploy/proof.sh` and keeps its verdict; it exits 0
+only when every unit passed. A green health endpoint is not in it as a proof.
+`test/socle-live.test.js` (`node --test test/socle-live.test.js` in the
+universe directory; `npm run test:live` from this repository's `software/`) checks
 from outside that each base unit answers a minimal health and refuses an
 anonymous read or write (401) — a smoke test after a start, never the proof.
 
@@ -136,7 +154,7 @@ What the earlier script learnt, and where each lesson lives now:
 | `cfg-image-lock.json` | One digest per unit image the manifest declares |
 | `tasks/task-schedule.json` | Maestro's declared schedule (empty in the template) |
 | `context/ctx-universe.md` | Business context for runtime AI at beat time |
-| `deploy/` | `install-base.sh`, `podman-up.sh`, `proof.sh`, and `lib.sh` they share |
+| `deploy/` | `install-base.sh`, `podman-up.sh`, `proof.sh`, `base.sh` (the base's drills and renewal), and `lib.sh` they share |
 | `test/` | `socle-live.test.js` (the smoke test), `rehearsal.live.mjs` (the rehearsal without podman) |
 
 Deploy agent: read files in order **INTENT → manifest → AGENT-DEPLOY**.

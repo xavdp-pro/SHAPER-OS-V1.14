@@ -34,12 +34,20 @@ and serves only where it already runs:
   before `958e0b7` and pinned by digest in the lock of the host that published
   them (on `gbs-test`, tag `v114-gbs`,
   [proof record](../../../docs/proof/proof-gbs-univ-os-v114-dev.md)). Those
-  digests are never re-tagged and this tree never rebuilds them:
-  `deploy/podman-up.sh` reads every image before it touches a container and
-  refuses a unit image of the one-container shape (`org.shaper.unit.*`
-  labels), and `deploy/gbs-test-bootstrap-v114.sh` refuses a checkout whose
-  bricks are those units, never replaces the registry container (its images
-  live in it) and halts on a tag the registry already serves.
+  digests are never re-tagged, and this tree's bricks cannot reproduce them
+  (they are the later shapes). `deploy/podman-up.sh` reads every image before
+  it touches a container and requires the earlier shape positively — the brick
+  it declares, no `db` package, no `*_STORE=mariadb` or `SHAPER_UNIT_SLUG`, no
+  application user, Vault's storage file — so it refuses both the interim
+  MariaDB-store images (`96a1319` to `e03370f`) and the one-container units
+  (`org.shaper.unit.*` labels). `deploy/gbs-test-bootstrap-v114.sh`, run from
+  this tree with `SHAPER_CHECKOUT=<a checkout at or before 958e0b7>`, builds
+  from that checkout only, never replaces the registry container (its images
+  live in it), publishes only where the registry answers 404 for the tag —
+  checked before anything is built, tagged or pushed — and deploys with this
+  tree's `podman-up.sh` over the checkout's universe directory
+  (`SHAPER_UNIVERSE_DIR`). The copy of that script inside such a checkout
+  still replaces the registry and pushes over the tag: it is never run.
 - **Stores.** Its Vault, Logger and Queue keep their file stores
   (`.state/vol-univ-base-*`); its proof reads Queue and Logger without a
   credential, as those images allow. This is technical debt, recorded as such,

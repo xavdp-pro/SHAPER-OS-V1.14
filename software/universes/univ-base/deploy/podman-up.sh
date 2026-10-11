@@ -12,7 +12,10 @@
 #   vol-*  a persistent universe-owned volume
 set -euo pipefail
 
-UNIV="$(cd "$(dirname "$0")/.." && pwd)"
+# SHAPER_UNIVERSE_DIR names a univ-base directory of an earlier checkout (its
+# lock, settings and volumes) to run with this script and its guard: what
+# gbs-test-bootstrap-v114.sh does after it published from that checkout.
+UNIV="$(cd "${SHAPER_UNIVERSE_DIR:-$(dirname "$0")/..}" && pwd)"
 SOFTWARE="$(cd "$UNIV/../.." && pwd)"
 UNIVERSE="univ-base"
 LOCK="$UNIV/cfg-image-lock.json"
@@ -105,30 +108,62 @@ IMG_BRIDGE="$(resolve_image img-bridge-opencode)"
 # ── 2b. Only images of the earlier shape ────────────────────────────────────
 # univ-base is kept on the file-store bricks it was proven with: images built
 # from V1.14 main at or before 958e0b7, pinned by digest where they were
-# published (INTENT.md#earlier-shape). A unit image of the one-container shape
-# (labels org.shaper.unit.*: MariaDB inside, an /apps/<slug> layout, a
-# Vault-signed identity) cannot serve this script: it would remove the running
-# containers below, then start units that refuse to start. Every image is
-# therefore present — pulled when it is not — and read before any container of
-# this universe is touched. A tag is never moved here, and nothing is rebuilt.
+# published (INTENT.md#earlier-shape). Two later shapes cannot serve this
+# script: the interim MariaDB-store images (96a1319 to e03370f, no unit
+# labels, but a *_STORE=mariadb, a SHAPER_UNIT_SLUG, an application USER and
+# the db package) and the one-container units (org.shaper.unit.* labels). Either
+# would let this script remove the running containers below, then start bricks
+# that refuse to start. Every image is therefore present — pulled when it is
+# not — and read before any container of this universe is touched, and the
+# earlier shape is required positively: the brick it declares, no db package,
+# no store or unit variable, no application user, and for Vault its storage
+# file. A tag is never moved here.
 earlier_shape_only() {
-  local key="$1" ref="$2" labels
+  local key="$1" ref="$2" verdict
   if ! podman image exists "$ref" 2>/dev/null; then
     podman pull -q "$ref" >/dev/null || {
       echo "[podman-up] $key: $ref is neither present nor pullable — nothing was stopped" >&2
       exit 1
     }
   fi
-  labels="$(podman image inspect -f '{{json .Labels}}' "$ref")" || {
-    echo "[podman-up] $key: $ref cannot be inspected — nothing was stopped" >&2
-    exit 1
-  }
-  if [[ "$labels" == *'"org.shaper.unit.'* ]]; then
-    echo "[podman-up] $key: $ref is a unit image of the one-container shape (org.shaper.unit.* labels: MariaDB inside, unit identities)." >&2
-    echo "[podman-up] univ-base runs only the earlier file-store images, pinned by digest (INTENT.md#earlier-shape)." >&2
-    echo "[podman-up] A universe of the current shape starts from universes/_template (the base units of univ-minimal). Nothing was stopped. Halt." >&2
-    exit 1
-  fi
+  verdict="$(podman image inspect "$ref" | python3 -c '
+import json, sys
+key = sys.argv[1]
+brick = key[len("img-"):]
+try:
+    image = json.load(sys.stdin)
+    image = image[0] if isinstance(image, list) else image
+except Exception:
+    print("unreadable"); sys.exit(0)
+config = image.get("Config") or {}
+labels = image.get("Labels") or config.get("Labels") or {}
+env = dict(e.split("=", 1) for e in (config.get("Env") or []) if "=" in e)
+user = (config.get("User") or "").split(":")[0]
+packages = (labels.get("org.shaper.build-packages") or "").split()
+if any(k.startswith("org.shaper.unit.") for k in labels):
+    print("unit"); sys.exit(0)
+found = [k for k, v in env.items() if k.endswith("_STORE") and v == "mariadb"]
+found += ["SHAPER_UNIT_SLUG"] if "SHAPER_UNIT_SLUG" in env else []
+found += ["the db package"] if "db" in packages else []
+found += [f"USER {user}"] if user not in ("", "root", "0") else []
+if found:
+    print("interim " + ", ".join(found)); sys.exit(0)
+if labels.get("org.shaper.brick") != brick:
+    print("other"); sys.exit(0)
+if brick == "vault" and "VAULT_STORAGE_FILE" not in env:
+    print("other"); sys.exit(0)
+print("earlier")
+' "$key")" || verdict="unreadable"
+  case "$verdict" in
+    earlier) return 0 ;;
+    unit) echo "[podman-up] $key: $ref is a unit image of the one-container shape (org.shaper.unit.* labels: MariaDB inside, unit identities)." >&2 ;;
+    interim*) echo "[podman-up] $key: $ref is an interim MariaDB-store image (${verdict#interim }), not the earlier file-store brick." >&2 ;;
+    other) echo "[podman-up] $key: $ref is not the earlier ${key#img-} brick: its org.shaper.brick label (and, for Vault, its VAULT_STORAGE_FILE) does not say so." >&2 ;;
+    *) echo "[podman-up] $key: $ref cannot be read as an image — nothing was stopped" >&2; exit 1 ;;
+  esac
+  echo "[podman-up] univ-base runs only the earlier file-store images, pinned by digest (INTENT.md#earlier-shape)." >&2
+  echo "[podman-up] A universe of the current shape starts from universes/_template (the base units of univ-minimal). Nothing was stopped. Halt." >&2
+  exit 1
 }
 earlier_shape_only img-vault "$IMG_VAULT"
 earlier_shape_only img-logger "$IMG_LOGGER"

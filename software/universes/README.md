@@ -8,7 +8,7 @@
 
 | Universe | Role |
 | :--- | :--- |
-| [`_template/`](./_template/) | **The blueprint.** The shape every universe is derived from: univ-minimal's four base units, installed from one recorded revision into the universe's `base/`, then the universe's own units of the same shape. Generic by construction: it names no domain, no account, no catalogue brick. |
+| [`_template/`](./_template/) | **The blueprint.** The shape every universe is derived from: univ-minimal's four base units, installed from one recorded revision into the universe's `base/`; a universe that adds units of the same shape adds their start and proof first. Generic by construction: it names no domain, no account, no catalogue brick. |
 | [`univ-minimal/`](./univ-minimal/) | **The base units.** Vault, Logger, Queue and Maestro, each one functional Podman holding its application and its own MariaDB server (Rules 4 and 26), with their birth order, identities, renewal, proof and drills. Deployable as it stands; the blueprint's `base/` is this folder at one revision. |
 | [`univ-base/`](./univ-base/) | **The earlier reference, kept as it was.** The five-brick cell of V1.13 and V1.14 main (file stores, one AI bridge), on its older pinned images only ([why](./univ-base/INTENT.md#earlier-shape)). Not a shape to imitate. |
 | [`_maker-template/`](./_maker-template/) | **The maker.** The hand of a machine, one per host: it asks its governor what should exist, stamps universes from matrices with frozen recipes, and reports. Generic by construction — it belongs to no project, and it listens on nothing. |

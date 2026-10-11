@@ -4,7 +4,8 @@
 # OpenCode stays the manifest default (free); jobs target Cursor via payload.bridgeUrl.
 set -euo pipefail
 
-UNIV="$(cd "$(dirname "$0")/.." && pwd)"
+UNIV="$(cd "${SHAPER_UNIVERSE_DIR:-$(dirname "$0")/..}" && pwd)"   # SHAPER_UNIVERSE_DIR: see podman-up.sh
+export SHAPER_UNIVERSE_DIR="$UNIV"
 VOL="$UNIV/.state"
 CFG="$UNIV/cfg-univ-base.env"
 PORT="${CURSOR_BRIDGE_PORT:-4510}"

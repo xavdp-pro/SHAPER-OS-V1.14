@@ -3,7 +3,8 @@
 # Rule 7: probe free OpenCode models from this host and write OPENCODE_MODEL into cfg.
 set -euo pipefail
 
-UNIV="$(cd "$(dirname "$0")/.." && pwd)"
+UNIV="$(cd "${SHAPER_UNIVERSE_DIR:-$(dirname "$0")/..}" && pwd)"   # SHAPER_UNIVERSE_DIR: see podman-up.sh
+export SHAPER_UNIVERSE_DIR="$UNIV"
 CFG="$UNIV/cfg-univ-base.env"
 export SHAPER_REGISTRY="${SHAPER_REGISTRY:-localhost:5000}"
 export SHAPER_IMAGE_TAG="${SHAPER_IMAGE_TAG:-v114-gbs}"

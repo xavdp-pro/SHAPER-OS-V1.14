@@ -31,7 +31,7 @@ const SCRIPTS = [
 ];
 
 test('the template binds nothing itself: its units are mounted by the base', async () => {
-  for (const name of ['podman-up.sh', 'proof.sh', 'install-base.sh', 'lib.sh']) {
+  for (const name of ['podman-up.sh', 'proof.sh', 'install-base.sh', 'lib.sh', 'base.sh']) {
     const script = await readFile(new URL(`_template/deploy/${name}`, UNIVERSES), 'utf8');
     assert.doesNotMatch(script, /podman (run|create)|--volume|--mount/, `_template/deploy/${name} starts or mounts something`);
   }

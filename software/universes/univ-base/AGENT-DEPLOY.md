@@ -44,9 +44,13 @@ with its number. Put a note behind `#`. The grammar and its reason are in
 ### 2. Build and pin the images
 
 Only from a checkout at or before `958e0b7` (V1.14 main), whose bricks are the
-earlier file-store images; never under a tag the registry already serves. From
-the base release on, the bricks are one-container units with MariaDB inside, and
-`podman-up.sh` refuses them before it stops anything.
+earlier file-store images, and never under a tag the registry already serves.
+Run this tree's scripts over that checkout — `SHAPER_CHECKOUT=<checkout>` for
+`deploy/gbs-test-bootstrap-v114.sh`, `SHAPER_UNIVERSE_DIR=<checkout>/software/universes/univ-base`
+for `podman-up.sh` and `proof.sh` — never the copies inside it, which replace
+the registry and push over a published tag. From `96a1319` on, the bricks are
+MariaDB-store images and then one-container units, and `podman-up.sh` refuses
+them before it stops anything.
 
 ```bash
 cd ../../                       # software/

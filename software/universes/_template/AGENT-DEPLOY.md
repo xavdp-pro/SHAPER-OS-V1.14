@@ -20,9 +20,11 @@ and 26). Read [`INTENT.md`](./INTENT.md#base-units) first.
    or, in DEV only, name a published tag in `cfg-universe.env`.
 4. Run `deploy/podman-up.sh --preflight`, then `deploy/podman-up.sh`, inside the
    universe container.
-5. Install the bootstrap renewal once: `bash base/deploy/install-renewal-timer.sh`.
-6. Prove: `bash deploy/proof.sh`, then `bash base/deploy/lifecycle-drill.sh` and
-   `bash base/deploy/restore-drill.sh`; `npm run test:live` is a smoke test only.
+5. Install the bootstrap renewal once: `bash deploy/base.sh install-renewal-timer.sh`.
+6. Prove: `bash deploy/proof.sh`, then `bash deploy/base.sh lifecycle-drill.sh` and
+   `bash deploy/base.sh restore-drill.sh`; `node --test test/socle-live.test.js` is a
+   smoke test only. Run the base's scripts through `deploy/base.sh`, never from
+   `base/deploy/` directly: that path skips the settings check.
 
 ## Forbidden
 
@@ -32,8 +34,10 @@ and 26). Read [`INTENT.md`](./INTENT.md#base-units) first.
 3. Push over a tag a registry already serves, or rebuild an image under a tag
    that a lock anywhere has pinned (`SHAPER_FORCE_REBUILD=1` on a published tag
    moves it).
-4. Add a unit without its own MariaDB inside its own container, or one that reads
-   another unit's database or files.
+4. Declare a unit beyond the four base units before its start and proof are added
+   to `deploy/podman-up.sh` and `deploy/proof.sh` (the template refuses it), or one
+   without its own MariaDB inside its own container, or one that reads another
+   unit's database or files.
 5. Run this over a universe of the earlier template's shape (file stores, an AI
    bridge): that is a migration, decided on its own ([why](./INTENT.md#earlier-template)).
 
@@ -47,7 +51,8 @@ cp cfg-universe.env.example cfg-universe.env               # SHAPER_UNIVERSE=uni
 # images: build under a new tag, then pin cfg-image-lock.json (or a DEV tag in cfg-universe.env)
 bash deploy/podman-up.sh --preflight
 bash deploy/podman-up.sh
-bash base/deploy/install-renewal-timer.sh
+bash deploy/base.sh install-renewal-timer.sh
 bash deploy/proof.sh
-bash base/deploy/lifecycle-drill.sh && bash base/deploy/restore-drill.sh
+bash deploy/base.sh lifecycle-drill.sh && bash deploy/base.sh restore-drill.sh
+node --test test/socle-live.test.js                        # smoke test, not the proof
 ```

@@ -8,7 +8,8 @@
 # nothing and repairs nothing; if a brick is down, that is the finding.
 set -euo pipefail
 
-UNIV="$(cd "$(dirname "$0")/.." && pwd)"
+UNIV="$(cd "${SHAPER_UNIVERSE_DIR:-$(dirname "$0")/..}" && pwd)"   # SHAPER_UNIVERSE_DIR: see podman-up.sh
+export SHAPER_UNIVERSE_DIR="$UNIV"
 SLUG="$(basename "$UNIV")"
 
 # Ports: env wins, then this universe's manifest, then univ-base's family.
@@ -72,7 +73,7 @@ echo "── every image this universe runs can be pulled back ─────�
 # registry, and this script still said "proven" — because the images were already
 # in the local store. See INTENT.md#image-lock.
 if [[ -f "$UNIV/cfg-image-lock.json" ]]; then
-  python3 "$UNIV/deploy/check-image-lock.py" "$UNIV/cfg-image-lock.json" || fail=1
+  python3 "$(dirname "$0")/check-image-lock.py" "$UNIV/cfg-image-lock.json" || fail=1
 else
   # A DEV universe on the registry rung has no lock yet — that is a declared
   # state, not a silent pass: record it and do not fail (Rule 36: the lock is

@@ -69,19 +69,21 @@ load_universe_env() {
 # ── The earlier template is not adopted ───────────────────────────────────────
 # Until the base release the template materialised file stores and an AI bridge
 # under UNIV/sav (vault.enc, queue/jobs.jsonl, opencode-*) and named containers
-# <universe>-vault, without -ctr-; univ-base, under UNIV/.state/vol-<universe>-*.
-# Such a universe keeps the scripts it copied
-# and the images it pinned; moving it to the one-container units is a
-# migration, a separate decision.
+# <slug>-vault, without -ctr- (the slug was UNIV_SLUG or the directory's name);
+# univ-base kept its volumes under UNIV/.state/vol-<name>-*. Such a universe
+# keeps the scripts it copied and the images it pinned; moving it to the
+# one-container units is a migration, a separate decision.
 refuse_earlier_template() {  # <universe name>
-  local universe="$1" found=() path name
-  for path in sav/vault/vault.enc sav/queue sav/opencode-bridge sav/opencode-ws \
-              ".state/vol-$universe-vault" ".state/vol-$universe-bridge"; do
+  local found=() path name prefix
+  for path in sav/vault/vault.enc sav/queue sav/opencode-bridge sav/opencode-ws "$UNIV"/.state/vol-*-vault "$UNIV"/.state/vol-*-bridge; do
+    path="${path#"$UNIV"/}"
     [[ -e "$UNIV/$path" ]] && found+=("$UNIV/$path")
   done
   if command -v podman >/dev/null 2>&1; then
-    for name in vault logger queue maestro bridge-opencode; do
-      podman container exists "$universe-$name" 2>/dev/null && found+=("container $universe-$name")
+    for prefix in $(printf '%s\n' "$1" "$(basename "$UNIV")" | sort -u); do
+      for name in vault logger queue maestro bridge-opencode; do
+        podman container exists "$prefix-$name" 2>/dev/null && found+=("container $prefix-$name")
+      done
     done
   fi
   (( ${#found[@]} == 0 )) && return 0
@@ -101,12 +103,17 @@ check_base_layout() {
     [[ "$(readlink -f "$BASE/${link%%:*}")" == "$(readlink -f "$want")" && -f "$want" ]] \
       || halt "$BASE/${link%%:*} is not the universe's own $want: one schedule, one lock (reinstall with deploy/install-base.sh). Halt."
   done
+  # What a base script reads when nobody names ENV_FILE: the universe's own
+  # settings file, never a file of base/ that would default to univ-minimal.
+  [[ -L "$BASE/cfg-univ-minimal.env" && "$(readlink -f "$BASE/cfg-univ-minimal.env")" == "$(readlink -f "$UNIV/cfg-universe.env")" ]] \
+    || halt "$BASE/cfg-univ-minimal.env is not a link to the universe's own cfg-universe.env (reinstall with deploy/install-base.sh). Halt."
 }
 
 # The universe declares the four base units exactly as the installed base
 # births them — image, port, database (slug, uids, schema version, volumes) —
-# in the base's boot order, first; any unit it adds comes after them and holds
-# its own MariaDB inside its own container (Rules 4 and 26).
+# in the base's boot order, and nothing else: the template does not yet start
+# or prove a unit a universe adds, so declaring one is refused rather than
+# accepted and silently never started (INTENT.md#materialise).
 check_base_units_agree() {
   python3 - "$MANIFEST" "$BASE/manifest.json" "$(cut -c1-12 "$BASE/.shaper-revision")" <<'PY' || halt "the manifest and the installed base disagree (above). Halt."
 import json, sys
@@ -120,15 +127,11 @@ for name, unit in base["bricks"].items():
     for key in ("image", "port", "database"):
         if mine.get(key) != unit.get(key):
             problems.append(f"{name}.{key}: the manifest declares {json.dumps(mine.get(key))}, the base at {rev} births {json.dumps(unit.get(key))}")
-layers = len(base["bootOrder"])
-if universe["bootOrder"][:layers] != base["bootOrder"]:
-    problems.append(f"bootOrder: the base's layers {base['bootOrder']} must come first, as they are")
-for name, unit in universe["bricks"].items():
-    if name in base["bricks"]:
-        continue
-    db = unit.get("database") or {}
-    if db.get("engine") != "mariadb" or db.get("placement") != "in-unit":
-        problems.append(f"{name}: a unit of this universe holds its own MariaDB inside its own container (database.engine mariadb, placement in-unit)")
+if universe["bootOrder"] != base["bootOrder"]:
+    problems.append(f"bootOrder: the manifest declares {universe['bootOrder']}, the base at {rev} births {base['bootOrder']}")
+for name in universe["bricks"]:
+    if name not in base["bricks"]:
+        problems.append(f"{name}: the template does not yet start or prove a unit the universe adds; declare only the base units")
 for p in problems:
     print(f"[universe]   {p}", file=sys.stderr)
 sys.exit(1 if problems else 0)

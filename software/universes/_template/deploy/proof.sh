@@ -5,7 +5,7 @@
 # at the revision installed: the Rule 26 inventory of each unit (application and
 # MariaDB in one container, identities, grants, refusals, no TCP, non-writable
 # paths), its identity in Vault, and one real effect per unit read back from its
-# database. The universe's own units add their proof after it.
+# database. The template has no unit of its own to prove.
 set -euo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,7 +22,7 @@ echo "$TAG $SHAPER_UNIVERSE — base units: univ-minimal at $(base_revision)"
 status=0
 bash "$BASE/deploy/proof.sh" "$@" || status=$?
 
-# The universe's own units are proven here, each with the same inventory and
-# one real effect read back from its own database. The template has none.
+# A universe that adds units proves them here, each with the same inventory
+# and one real effect read back from its own database, before it declares them.
 
 exit "$status"

@@ -24,7 +24,7 @@
     },
     "onTermination": "destroy every unit's declared volumes (etc/mysql, sav, and log where declared) and its etc/identity, the Vault master key, the universe identity, and the proof's state and reader identity; nothing is exported"
   },
-  "description": "Template — copy to <universe>/manifest.json and replace every value. The four base units are univ-minimal's, each one functional Podman holding its application and its own MariaDB server (Rules 4 and 26), born by univ-minimal's scripts at the revision deploy/install-base.sh installs. A unit the universe adds comes after them, of the same shape. Validated on every test run, so a copy that drifts fails immediately.",
+  "description": "Template — copy to <universe>/manifest.json and replace every value. The four base units are univ-minimal's, each one functional Podman holding its application and its own MariaDB server (Rules 4 and 26), born by univ-minimal's scripts at the revision deploy/install-base.sh installs. The template starts and proves these four only; a manifest that declares a fifth is refused until its start and proof are added. Validated on every test run, so a copy that drifts fails immediately.",
   "intent": "./INTENT.md",
   "agentDeploy": "./AGENT-DEPLOY.md",
   "context": "./context/ctx-universe.md",
