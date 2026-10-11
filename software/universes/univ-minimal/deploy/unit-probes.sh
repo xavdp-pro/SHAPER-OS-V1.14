@@ -250,8 +250,9 @@ unit_env() {
 #   evidence_delivered <slug> <sql-where> [seconds]
 evidence_delivered() {
   local s="$1" where="$2" tries="${3:-60}" ids n
+  # Waits until the rows exist and every one carries its receipt.
   while (( tries-- > 0 )); do
-    [[ "$(rootsql "$s" "$s" -e "SELECT COUNT(*) FROM event_outbox WHERE ($where) AND receipt IS NULL" 2>/dev/null)" == 0 ]] && break
+    [[ "$(rootsql "$s" "$s" -e "SELECT CONCAT(COUNT(*) > 0, SUM(receipt IS NULL)) FROM event_outbox WHERE ($where)" 2>/dev/null)" == 10 ]] && break
     sleep 1
   done
   [[ "$(rootsql "$s" "$s" -e "SELECT COUNT(*) FROM event_outbox WHERE ($where) AND receipt IS NULL" 2>/dev/null)" == 0 ]] || return 1

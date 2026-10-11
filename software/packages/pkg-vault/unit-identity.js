@@ -55,20 +55,26 @@ export class VaultUnitIdentity {
         || typeof bootstrapToken !== 'string' || !/^[0-9a-f]{64}$/.test(bootstrapToken)) {
       throw new CredentialError('IDENTITY_ISSUE_DENIED', 403);
     }
+    // The refusal says one code to the caller; its typed reason, and whether the
+    // requester proved who it is (its bootstrap matched), are for Vault's own
+    // evidence (access-evidence.js), never for the answer.
+    const deny = (code, reason, authenticated) => Object.assign(new CredentialError(code, 403), { reason, authenticated, unit, incarnation });
     return withTransaction(this.pool, async (conn) => {
       const [rows] = await conn.execute(`SELECT incarnation, epoch, grants, bootstrap_digest,
         UNIX_TIMESTAMP(bootstrap_expires_at) AS bootstrap_expiry, revoked FROM unit_identities
         WHERE universe_id = ? AND unit_id = ? FOR UPDATE`, [this.universe, unit]);
       const row = rows[0];
-      if (!row || row.revoked || row.incarnation !== incarnation
-          || Number(row.bootstrap_expiry) <= this.now() / 1000
-          || typeof row.bootstrap_digest !== 'string' || !/^[0-9a-f]{64}$/.test(row.bootstrap_digest)
+      if (!row) throw deny('IDENTITY_ISSUE_DENIED', 'IDENTITY_UNKNOWN', false);
+      if (typeof row.bootstrap_digest !== 'string' || !/^[0-9a-f]{64}$/.test(row.bootstrap_digest)
           || !timingSafeEqual(Buffer.from(hash(bootstrapToken)), Buffer.from(row.bootstrap_digest))) {
-        throw new CredentialError('IDENTITY_ISSUE_DENIED', 403);
+        throw deny('IDENTITY_ISSUE_DENIED', 'BOOTSTRAP_MISMATCH', false);
       }
+      if (row.revoked) throw deny('IDENTITY_ISSUE_DENIED', 'IDENTITY_REVOKED', true);
+      if (row.incarnation !== incarnation) throw deny('IDENTITY_ISSUE_DENIED', 'INCARNATION_NOT_CURRENT', true);
+      if (Number(row.bootstrap_expiry) <= this.now() / 1000) throw deny('IDENTITY_ISSUE_DENIED', 'BOOTSTRAP_EXPIRED', true);
       const grants = typeof row.grants === 'string' ? JSON.parse(row.grants) : row.grants;
       const scopes = Object.hasOwn(grants, audience) ? grants[audience] : null;
-      if (!Array.isArray(scopes) || !scopes.length) throw new CredentialError('IDENTITY_AUDIENCE_DENIED', 403);
+      if (!Array.isArray(scopes) || !scopes.length) throw deny('IDENTITY_AUDIENCE_DENIED', 'AUDIENCE_NOT_GRANTED', true);
       const result = issueCredential({ universe: this.universe, unit, incarnation, audience, scopes,
         epoch: Number(row.epoch), revocationRef: `${unit}:${row.epoch}` }, this.privateKey, { now: this.now(), ttl: this.ttl });
       const c = result.claims;
@@ -83,7 +89,15 @@ export class VaultUnitIdentity {
   }
 
   async check(token, audience) {
-    const claims = verifyCredential(token, this.publicKey, { universe: this.universe, audience, now: this.now() });
+    let claims;
+    try {
+      claims = verifyCredential(token, this.publicKey, { universe: this.universe, audience, now: this.now() });
+    } catch (err) {
+      // Not a credential this Vault issued, or no longer valid: unauthenticated.
+      throw Object.assign(err, { reason: err.code, authenticated: false });
+    }
+    const revoked = () => Object.assign(new CredentialError('CREDENTIAL_REVOKED', 403),
+      { reason: 'CREDENTIAL_NOT_CURRENT', authenticated: true, unit: claims.unit, incarnation: claims.incarnation });
     const [rows] = await this.pool.execute(`SELECT i.incarnation, i.epoch, i.grants, i.revoked AS identity_revoked,
       c.revoked AS credential_revoked FROM unit_identities i JOIN unit_credentials c
       ON c.universe_id = i.universe_id AND c.unit_id = i.unit_id
@@ -91,11 +105,11 @@ export class VaultUnitIdentity {
     [claims.credentialId, this.universe, claims.unit]);
     const row = rows[0];
     if (!row || row.identity_revoked || row.credential_revoked || row.incarnation !== claims.incarnation
-        || Number(row.epoch) !== claims.epoch) throw new CredentialError('CREDENTIAL_REVOKED', 403);
+        || Number(row.epoch) !== claims.epoch) throw revoked();
     const grants = typeof row.grants === 'string' ? JSON.parse(row.grants) : row.grants;
     if (!Object.hasOwn(grants, audience) || !Array.isArray(grants[audience])
         || !claims.scopes.every((scope) => grants[audience].includes(scope))) {
-      throw new CredentialError('CREDENTIAL_REVOKED', 403);
+      throw revoked();
     }
     return claims;
   }

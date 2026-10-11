@@ -23,6 +23,7 @@ import { assertSchema, openUnitDb, probeDb, withTransaction } from '../pkg-db/po
 import { appendOutbox, outboxStatus } from '../pkg-db/outbox.js';
 import { vitals, ageSeconds } from '../pkg-logger/vitals.js';
 import { assertPublicEvent, publicEvidence } from '../pkg-logger/public-event.js';
+import { accessEntry, resourceId } from './access-evidence.js';
 
 /**
  * How a secret is named in evidence: its key, which is a public reference —
@@ -120,6 +121,52 @@ export class MariaDbVaultStore {
     );
     this.lastDecryptAt = new Date().toISOString();
     return decrypted;
+  }
+
+  /** The opaque id this Vault names a secret by in read and refusal evidence. */
+  resourceId(key) {
+    return resourceId(this.masterKey, normalizeSecretKey(key));
+  }
+
+  /**
+   * A read that leaves its proof first (DECISIONS-20261011 §H): the row is
+   * read and decrypted, then SECRET_READ — the requester, the opaque resource
+   * id, the result, the request id — is committed to the outbox, and only then
+   * is the value returned. The outbox unwritable, the read fails (503) and no
+   * secret leaves. A missing secret is a read too (result not_found).
+   * @param {string} key
+   * @param {{ identity: string, requestId: string, universe?: string|null }} context
+   * @returns {Promise<{ found: boolean, value?: unknown, eventId: string }>}
+   */
+  async readSecretWithEvidence(key, { identity, requestId, universe = null }) {
+    const normalizedKey = normalizeSecretKey(key);
+    const out = await withTransaction(this.pool, async (conn) => {
+      const [rows] = await conn.execute('SELECT iv, auth_tag, ciphertext FROM secrets WHERE secret_key = ?', [normalizedKey]);
+      const value = rows.length
+        ? decryptSecret({ iv: rows[0].iv, authTag: rows[0].auth_tag, ciphertext: rows[0].ciphertext }, this.masterKey)
+        : undefined;
+      const { eventId, entry } = accessEntry('SECRET_READ', 'INFO', {
+        action: 'secret.read', result: rows.length ? 'returned' : 'not_found', resource: this.resourceId(normalizedKey),
+        identity, requestId, at: new Date().toISOString(), ...(universe ? { universe } : {}),
+      });
+      await appendOutbox(conn, entry, { eventId });
+      return { found: rows.length > 0, value, eventId };
+    });
+    if (out.found) this.lastDecryptAt = new Date().toISOString();
+    return out;
+  }
+
+  /** The key list, after its read is committed to the outbox (count only, no key). */
+  async listKeysWithEvidence({ identity, requestId, universe = null }) {
+    return withTransaction(this.pool, async (conn) => {
+      const [rows] = await conn.query('SELECT secret_key FROM secrets ORDER BY secret_key');
+      const { eventId, entry } = accessEntry('SECRET_KEYS_LISTED', 'INFO', {
+        action: 'secret.list', result: 'returned', count: rows.length, identity, requestId, at: new Date().toISOString(),
+        ...(universe ? { universe } : {}),
+      });
+      await appendOutbox(conn, entry, { eventId });
+      return { keys: rows.map((row) => row.secret_key), eventId };
+    });
   }
 
   async deleteSecret(key) {

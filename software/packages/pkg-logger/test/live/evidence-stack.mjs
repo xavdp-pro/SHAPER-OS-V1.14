@@ -20,6 +20,7 @@ import { MariaDbVaultStore } from '../../../pkg-vault/mariadb-store.js';
 import { VaultUnitIdentity } from '../../../pkg-vault/unit-identity.js';
 import { createVaultServer } from '../../../pkg-vault/index.js';
 import { registrationStatement, signingPublicKeyPem } from '../../../pkg-vault/unit-registration.js';
+import { createRefusalRecorder } from '../../../pkg-vault/access-evidence.js';
 import { MariaDbLoggerStore } from '../../mariadb-store.js';
 import { createLoggerServer } from '../../index.js';
 import { runtimeAuthorizer, runtimeCredentialClient } from '../../../pkg-auth/runtime-identity.js';
@@ -44,8 +45,11 @@ export async function startEvidenceStack({ units = ['vault', 'queue', 'maestro']
   const masterKey = crypto.randomBytes(32).toString('hex');
   const vaultStore = await MariaDbVaultStore.open({ masterKey, slug: 'vault', db: unitDb() });
   const identityService = new VaultUnitIdentity({ pool: vaultStore.pool, masterKey: vaultStore.masterKey, universe: UNIVERSE });
+  // As the entrypoint wires it: refusals recorded, flushed when the test asks.
+  const refusals = createRefusalRecorder({ pool: vaultStore.pool, universe: UNIVERSE, windowMs: 3600000 });
+  const vaultToken = crypto.randomBytes(16).toString('hex');
   const vaultServer = createVaultServer({
-    port: 0, host: '127.0.0.1', vaultStore, identityService, vaultToken: crypto.randomBytes(16).toString('hex'),
+    port: 0, host: '127.0.0.1', vaultStore, identityService, vaultToken, refusals, universe: UNIVERSE,
   });
   await listen(vaultServer);
   const vaultUrl = `http://127.0.0.1:${vaultServer.address().port}`;
@@ -92,6 +96,9 @@ export async function startEvidenceStack({ units = ['vault', 'queue', 'maestro']
   return {
     vaultStore,
     identityService,
+    refusals,
+    /** The administrative path's header (the construction path's token). */
+    adminHeaders: () => ({ Authorization: `Bearer ${vaultToken}` }),
     vaultUrl,
     loggerUrl: `http://127.0.0.1:${loggerPort}`,
     env: (unit) => ({ ...envs[unit] }),

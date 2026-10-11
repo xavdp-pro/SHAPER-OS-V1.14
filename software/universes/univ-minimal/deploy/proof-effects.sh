@@ -50,8 +50,15 @@ check "vault-encrypted-at-rest" "the stored ciphertext does not contain the valu
   bash -c '! grep -q "$1" <<<"$2" && ! grep -q "$(printf %s "$1" | od -An -tx1 | tr -d " \n")" <<<"$2"' _ "$value" "$row"
 check "vault-identity" "vault_identity holds one key-check digest" \
   test "$(rootsql vault vault -e "SELECT COUNT(*) FROM vault_identity WHERE id=1 AND CHAR_LENGTH(key_check)=64")" = 1
+refusal_since="$(rootsql vault -e 'SELECT UTC_TIMESTAMP(3)')"
 check "vault-token-enforced" "an unauthenticated read is refused (401)" \
   test "$(curl -s -o /dev/null -w '%{http_code}' "$(url vault)/api/secret/proof/last-run")" = 401
+# DECISIONS-20261011 §H: the read-back above left its proof before the value
+# left — an opaque resource id, never the path or the value.
+check "vault-read-evidence" "SECRET_READ committed for the read-back, naming an opaque resource, receipted by Logger (both databases)" \
+  evidence_delivered vault "JSON_VALUE(body, '\$.event') = 'SECRET_READ' AND JSON_VALUE(body, '\$.data.result') = 'returned' AND JSON_VALUE(body, '\$.data.identity') = 'vault:admin' AND created_at >= '$since'"
+check "vault-read-evidence-opaque" "no read evidence names the secret's path or carries its value" \
+  test "$(rootsql vault vault -e "SELECT COUNT(*) FROM event_outbox WHERE created_at >= '$since' AND JSON_VALUE(body, '\$.event') = 'SECRET_READ' AND (body LIKE '%proof/last-run%' OR body LIKE '%$value%')")" = 0
 check "vault-evidence" "SECRET_STORED committed with the write, receipted by Logger and held there as vault's (both databases, root path)" \
   evidence_delivered vault "JSON_VALUE(body, '\$.event') = 'SECRET_STORED' AND JSON_VALUE(body, '\$.data.secretRef') = 'proof/last-run' AND created_at >= '$since'"
 check "vault-evidence-no-value" "the evidence carries the secret's name, never its value" \
@@ -71,5 +78,10 @@ for s in $HOLDS_CREDENTIAL; do
   check "$s-credential" "Vault issued a logger credential to $s's current incarnation ${inc:-?} (vault.unit_credentials, root path)" \
     test -n "$inc" -a "$(rootsql vault vault -e "SELECT COUNT(*) FROM unit_credentials c JOIN unit_identities i ON i.universe_id = c.universe_id AND i.unit_id = c.unit_id AND i.incarnation = c.incarnation AND i.epoch = c.epoch WHERE c.universe_id = '$UNIVERSE_ID' AND c.unit_id = '$s' AND c.incarnation = '$inc' AND c.audience = 'logger' AND NOT i.revoked" 2>/dev/null || echo 0)" -ge 1
 done
+
+# The unauthenticated read refused above is counted, not written per attempt:
+# its aggregate is committed when the window closes (one minute).
+check "vault-refusal-aggregated" "the refused anonymous read counted in a VAULT_REFUSALS_AGGREGATED row (admin, VAULT_TOKEN_MISSING), receipted by Logger" \
+  evidence_delivered vault "JSON_VALUE(body, '\$.event') = 'VAULT_REFUSALS_AGGREGATED' AND JSON_VALUE(body, '\$.data.action') = 'admin' AND JSON_VALUE(body, '\$.data.reason') = 'VAULT_TOKEN_MISSING' AND created_at >= '$refusal_since'" 120
 
 if (( FAILS == 0 )); then mv "$NEXT" "$LAST"; else rm -f "$NEXT"; fi

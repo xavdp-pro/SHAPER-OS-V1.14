@@ -10,6 +10,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CredentialError } from '../pkg-auth/unit-credentials.js';
+import { ADMIN_IDENTITY, requestIdOf } from './access-evidence.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // Standard GCM IV length (96 bits)
@@ -401,6 +402,11 @@ export function storeErrorStatus(err) {
  * @param {string} [options.vaultToken]
  * @param {string} [options.storageFile]
  * @param {VaultStore} [options.vaultStore]
+ * @param {object} [options.identityService] - VaultUnitIdentity (MariaDB)
+ * @param {object} [options.refusals] - access-evidence.js createRefusalRecorder
+ *   (MariaDB): every refused request is recorded, individually or as a
+ *   bounded aggregate (DECISIONS-20261011 §H)
+ * @param {string|null} [options.universe] - the universe the evidence names
  * @returns {http.Server}
  */
 export function createVaultServer({
@@ -411,6 +417,8 @@ export function createVaultServer({
   storageFile = null,
   vaultStore = null,
   identityService = null,
+  refusals = null,
+  universe = null,
 } = {}) {
   if (!vaultStore && !(typeof masterKey === 'string' && masterKey.trim())) {
     // A vault encrypted with a key published in this repository is not encrypted.
@@ -424,18 +432,26 @@ export function createVaultServer({
   const store = vaultStore || new VaultStore({ masterKey, storageFile });
 
   const server = http.createServer(async (req, res) => {
+    const requestId = requestIdOf(req);
     const sendJson = (statusCode, data) => {
-      res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+      // A secret's answer is never cached on its way.
+      res.writeHead(statusCode, { 'Content-Type': 'application/json', 'X-Request-Id': requestId, 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(data));
     };
 
     try {
-      await route(req, res, sendJson);
+      await route(req, res, sendJson, requestId);
     } catch (err) {
       const status = storeErrorStatus(err);
       sendJson(status, { error: status === 503 ? 'Vault storage unavailable' : 'Vault request failed', code: err.code || null, detail: err.message });
     }
   });
+
+  /** Records a refusal (never fails the refusal itself). */
+  const refused = async (fact) => {
+    if (!refusals) return;
+    try { await refusals.refused(fact); } catch { /* the recorder reports its own failure */ }
+  };
 
   async function readBody(req, maxBytes = 1048576) {
     let body = '';
@@ -448,7 +464,7 @@ export function createVaultServer({
     return body;
   }
 
-  async function route(req, res, sendJson) {
+  async function route(req, res, sendJson, requestId) {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
 
@@ -475,35 +491,55 @@ export function createVaultServer({
 
     // Bearer token authentication if configured
     if (identityService && req.method === 'POST' && pathname.startsWith('/api/identity/')) {
-      const raw = req.headers.authorization || '';
-      if (!/^Bearer [A-Za-z0-9_.-]+$/.test(raw)) throw new CredentialError('CREDENTIAL_INVALID');
-      const token = raw.slice(7);
-      let body;
-      try { body = JSON.parse((await readBody(req, 8192)) || '{}'); }
-      catch (err) { if (err instanceof CredentialError) throw err; throw new CredentialError('IDENTITY_REQUEST_INVALID', 400); }
-      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new CredentialError('IDENTITY_REQUEST_INVALID', 400);
-      if (pathname === '/api/identity/issue') {
-        if (Object.keys(body).some((k) => !['unit', 'incarnation', 'audience'].includes(k))) throw new CredentialError('IDENTITY_REQUEST_INVALID', 400);
-        const result = await identityService.issue({ ...body, bootstrapToken: token });
-        return sendJson(200, { token: result.token, expiresAt: result.claims.expiresAt });
+      const action = pathname === '/api/identity/issue' ? 'identity.issue' : pathname === '/api/identity/check' ? 'identity.check' : 'identity';
+      try {
+        const raw = req.headers.authorization || '';
+        if (!/^Bearer [A-Za-z0-9_.-]+$/.test(raw)) throw new CredentialError('CREDENTIAL_INVALID');
+        const token = raw.slice(7);
+        let body;
+        try { body = JSON.parse((await readBody(req, 8192)) || '{}'); }
+        catch (err) { if (err instanceof CredentialError) throw err; throw new CredentialError('IDENTITY_REQUEST_INVALID', 400); }
+        if (!body || typeof body !== 'object' || Array.isArray(body)) throw new CredentialError('IDENTITY_REQUEST_INVALID', 400);
+        if (pathname === '/api/identity/issue') {
+          if (Object.keys(body).some((k) => !['unit', 'incarnation', 'audience'].includes(k))) throw new CredentialError('IDENTITY_REQUEST_INVALID', 400);
+          const result = await identityService.issue({ ...body, bootstrapToken: token });
+          return sendJson(200, { token: result.token, expiresAt: result.claims.expiresAt });
+        }
+        if (pathname === '/api/identity/check') {
+          // A successful check is not recorded: it is the everyday path of
+          // every protected request in the universe.
+          await identityService.check(token, body.audience);
+          return sendJson(200, { active: true });
+        }
+        return sendJson(404, { code: 'IDENTITY_ROUTE_UNKNOWN' });
+      } catch (err) {
+        if (err instanceof CredentialError) {
+          await refused({ action, reason: err.reason || err.code, requestId, authenticated: err.authenticated === true,
+            ...(err.authenticated === true ? { unit: err.unit, incarnation: err.incarnation } : {}) });
+        }
+        throw err;
       }
-      if (pathname === '/api/identity/check') {
-        await identityService.check(token, body.audience);
-        return sendJson(200, { active: true });
-      }
-      return sendJson(404, { code: 'IDENTITY_ROUTE_UNKNOWN' });
     }
-    if (identityService && !vaultToken) return sendJson(401, { code: 'VAULT_ADMIN_CREDENTIAL_REQUIRED' });
+    if (identityService && !vaultToken) {
+      await refused({ action: 'admin', reason: 'VAULT_ADMIN_DISABLED', requestId, authenticated: false });
+      return sendJson(401, { code: 'VAULT_ADMIN_CREDENTIAL_REQUIRED' });
+    }
     if (vaultToken) {
       const authHeader = req.headers.authorization || '';
       const token = authHeader.replace(/^Bearer\s+/i, '').trim();
       if (token !== vaultToken) {
+        await refused({ action: 'admin', reason: token ? 'VAULT_TOKEN_INVALID' : 'VAULT_TOKEN_MISSING', requestId, authenticated: false });
         return sendJson(401, { error: 'Unauthorized: Invalid or missing VAULT_TOKEN.' });
       }
     }
+    const reader = { identity: ADMIN_IDENTITY, requestId, universe };
 
     // GET /api/secrets (List keys)
     if (req.method === 'GET' && pathname === '/api/secrets') {
+      if (typeof store.listKeysWithEvidence === 'function') {
+        const { keys } = await store.listKeysWithEvidence(reader);
+        return sendJson(200, { status: 'ok', keys, evidence: 'pending' });
+      }
       return sendJson(200, {
         status: 'ok',
         keys: await store.listKeys()
@@ -515,6 +551,13 @@ export function createVaultServer({
       const secretKey = decodeURIComponent(pathname.replace('/api/secret/', ''));
 
       if (req.method === 'GET') {
+        if (typeof store.readSecretWithEvidence === 'function') {
+          // The proof of the read is committed before the value leaves
+          // (DECISIONS-20261011 §H); it reaches Logger when the relay delivers it.
+          const read = await store.readSecretWithEvidence(secretKey, reader);
+          if (!read.found) return sendJson(404, { error: `Secret "${secretKey}" not found.` });
+          return sendJson(200, { status: 'ok', key: secretKey, data: read.value, evidence: 'pending' });
+        }
         const secret = await store.getSecret(secretKey);
         if (secret === null || secret === undefined) {
           return sendJson(404, { error: `Secret "${secretKey}" not found.` });

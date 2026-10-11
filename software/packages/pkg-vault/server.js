@@ -74,6 +74,7 @@ let vaultStore = null;
 let identityService = null;
 let evidenceRelay = null;
 let maintenance = null;
+let refusals = null;
 let storageFile = null;
 if (STORE === 'mariadb') {
   const { MariaDbVaultStore } = await import('./mariadb-store.js');
@@ -89,6 +90,13 @@ if (STORE === 'mariadb') {
     evidenceRelay = createVaultEvidenceRelay({
       pool: vaultStore.pool,
       identityService,
+      report: (event) => console.warn(`[brick-vault] ${JSON.stringify(event)}`),
+    });
+    // Reads and refusals leave evidence (DECISIONS-20261011 §H): refusals
+    // individually or as bounded aggregates flushed each minute.
+    const { createRefusalRecorder } = await import('./access-evidence.js');
+    refusals = createRefusalRecorder({
+      pool: vaultStore.pool, universe: process.env.SHAPER_UNIVERSE_ID,
       report: (event) => console.warn(`[brick-vault] ${JSON.stringify(event)}`),
     });
     // The declared cleanup classes (manifest dataLifecycle): credentials expired
@@ -127,12 +135,15 @@ const server = createVaultServer({
   storageFile,
   vaultStore,
   identityService,
+  refusals,
+  universe: process.env.SHAPER_UNIVERSE_ID || null,
 });
 
 server.on('listening', () => {
   console.log(`[brick-vault] Ready and listening on http://${HOST}:${server.address().port}`);
   evidenceRelay?.start();
   maintenance?.start();
+  refusals?.start();
 });
 
 /**
@@ -154,8 +165,11 @@ async function shutdown(signal) {
   stopping = true;
   console.log(`[brick-vault] Received ${signal}, shutting down...`);
   let code = 0;
+  // The last refusal counts are committed before the relay drains them.
+  await closeServer(server);
+  await refusals?.close();
   // All settle before the database closes, whichever finishes first.
-  const [, relayed] = await Promise.allSettled([closeServer(server), evidenceRelay ? evidenceRelay.close() : Promise.resolve(),
+  const [, relayed] = await Promise.allSettled([Promise.resolve(), evidenceRelay ? evidenceRelay.close() : Promise.resolve(),
     maintenance ? maintenance.close() : Promise.resolve()]);
   if (relayed.status === 'rejected') {
     // The batch in flight did not settle in time: its debt stays in MariaDB.

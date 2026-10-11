@@ -124,6 +124,43 @@ transport, which belongs to the later Logger chain. Proof:
 UTC — mutation evidence without the value, rollback when the outbox table is
 missing, and the drain to the real Logger under the self-issued credential.
 
+<a id="access-evidence"></a>
+## Evidence of reads and refusals (DECISIONS-20261011 §H)
+
+`access-evidence.js`, wired by the entrypoint on MariaDB:
+
+* **A read leaves its proof before the secret leaves.** `GET /api/secret/<key>`
+  reads and decrypts the row, commits `SECRET_READ` (action `secret.read`,
+  result `returned` or `not_found`, the requester `vault:admin`, an opaque
+  resource id, the universe, the request id, the instant) to the outbox, and
+  only then answers — `evidence: "pending"`, `Cache-Control: no-store`,
+  `X-Request-Id`. The outbox unwritable: `503`, no value. Logger down but the
+  outbox durable: the read succeeds and its evidence waits for the relay.
+  `GET /api/secrets` commits `SECRET_KEYS_LISTED` (a count, no key).
+* **The resource id is opaque**: `res-` and an HMAC of the normalized key under
+  a key derived from the master key — stable for one Vault, recomputable by an
+  operator who holds the master key, revealing no path to anyone else.
+* **A refusal carries a typed reason**, the requester's identity when it proved
+  one, the universe, its incarnation, the action, the resource, the result,
+  the instant and the request id — never a secret, a token, a body or a path.
+  Issuance refusals answer one code to the caller and keep their reason for
+  evidence: `IDENTITY_UNKNOWN`, `BOOTSTRAP_MISMATCH` (unauthenticated);
+  `IDENTITY_REVOKED`, `INCARNATION_NOT_CURRENT`, `BOOTSTRAP_EXPIRED`,
+  `AUDIENCE_NOT_GRANTED` (the bootstrap matched: authenticated). A check of a
+  validly signed credential Vault no longer holds current is
+  `CREDENTIAL_NOT_CURRENT` (authenticated); a malformed, forged or expired one
+  keeps its verification code (unauthenticated). Admin refusals are
+  `VAULT_TOKEN_MISSING`, `VAULT_TOKEN_INVALID`, `VAULT_ADMIN_DISABLED`.
+* **Bounded.** An authenticated refusal is committed individually
+  (`VAULT_REQUEST_REFUSED`) the first time in a five-minute window and counted
+  after; an unauthenticated one is only counted. Counts are committed each
+  minute as aggregates (`VAULT_REFUSALS_AGGREGATED`, at most 64 keys, the rest
+  folded into `REFUSALS_OVERFLOW`). A refusal that repeats — Vault's own relay
+  presenting a credential revoked under it, which makes Logger's check refuse
+  again on each delivery — costs at most two rows a window, never one per
+  attempt: no relay-induced loop. Counts not yet committed are lost with the
+  process (at most one minute). A successful identity check is not recorded.
+
 <a id="parent-registration"></a>
 ## Parent registration
 
