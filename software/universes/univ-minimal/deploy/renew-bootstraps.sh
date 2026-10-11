@@ -51,8 +51,50 @@ set -uo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$UNIV/manifest.json"
-if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then set -a; source "$ENV_FILE"; set +a
-elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then set -a; source "$UNIV/cfg-univ-minimal.env"; set +a
+# The settings file is read, never executed, and carries no secret
+# (SOL-DECISIONS-2 §M): the timer's service runs this script directly, so the
+# checks podman-up.sh makes are made here too, before anything is sourced. A
+# refusal halts the run (exit 1), and the failed unit reaches the watcher.
+# The same two functions as podman-up.sh, verbatim but for the tag.
+shaper_env_file_is_variables_only() {
+  local file="$1" bad status=0
+  bad="$(grep -nvE '^[[:space:]]*(#|$)|^[A-Z][A-Z0-9_]*=("([^"`$]|\$[^(])*\$?"|'"'"'[^'"'"']*'"'"'|[^[:blank:];&|()<>`'"'"'"]*)$' "$file")" || status=$?
+  if (( status == 1 )); then
+    return 0
+  elif (( status == 2 )); then
+    echo "[renew-bootstraps] cannot read $file — a file that cannot be checked is not sourced" >&2
+    return 1
+  fi
+  echo "[renew-bootstraps] $file is not a variables file — these lines would be EXECUTED by source, not exported:" >&2
+  echo "$bad" | sed 's/^/[renew-bootstraps]   line /' >&2
+  echo "[renew-bootstraps] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
+  return 1
+}
+SECRET_NAME_RE='(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASSPHRASE|API_KEY|MASTER_KEY|PRIVATE_KEY|ENCRYPTION_KEY|SECRET_KEY|ACCESS_KEY)$'
+shaper_env_file_carries_no_secret() {
+  local file="$1" line name value found=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*([A-Z][A-Z0-9_]*)=(.*)$ ]] || continue
+    name="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
+    [[ "$name" == PWD || "$name" == OLDPWD ]] && continue
+    [[ "$name" =~ $SECRET_NAME_RE ]] || continue
+    [[ -z "$value" || "$value" == '""' || "$value" == "''" ]] && continue
+    found+=("$name")
+  done < "$file"
+  (( ${#found[@]} == 0 )) && return 0
+  echo "[renew-bootstraps] $file gives a secret a value: ${found[*]} — a settings file carries parameters and *_FILE references only." >&2
+  echo "[renew-bootstraps] Put the secret in its root-only source file (the secrets store, deploy/unit-probes.sh secrets_of) and leave its line empty or remove it. Halt." >&2
+  return 1
+}
+shaper_source_env() {
+  shaper_env_file_is_variables_only "$1" || exit 1
+  shaper_env_file_carries_no_secret "$1" || exit 1
+  set -a; source "$1"; set +a
+}
+if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
+  shaper_source_env "$ENV_FILE"
+elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then
+  shaper_source_env "$UNIV/cfg-univ-minimal.env"
 fi
 UNIVERSE="${SHAPER_UNIVERSE:-univ-minimal}"
 APPS_ROOT="${SHAPER_APPS_ROOT:-/apps}"

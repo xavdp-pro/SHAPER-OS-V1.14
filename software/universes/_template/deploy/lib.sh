@@ -43,8 +43,29 @@ shaper_env_file_is_variables_only() {
   echo "[podman-up] only blank lines, # comments and KEY=value are allowed, the value quoted or a bare word without whitespace or shell operators; put a note for a human behind #" >&2
   return 1
 }
+# The settings file carries parameters and *_FILE references only
+# (SOL-DECISIONS-2 §M): univ-minimal's podman-up.sh refuses a secret value in
+# it, and so does every script here before it sources the file — deploy/base.sh
+# included, whose renewal and drills would otherwise inherit the value.
+SECRET_NAME_RE='(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|PWD|PASSPHRASE|API_KEY|MASTER_KEY|PRIVATE_KEY|ENCRYPTION_KEY|SECRET_KEY|ACCESS_KEY)$'
+shaper_env_file_carries_no_secret() {
+  local file="$1" line name value found=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*([A-Z][A-Z0-9_]*)=(.*)$ ]] || continue
+    name="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
+    [[ "$name" == PWD || "$name" == OLDPWD ]] && continue
+    [[ "$name" =~ $SECRET_NAME_RE ]] || continue
+    [[ -z "$value" || "$value" == '""' || "$value" == "''" ]] && continue
+    found+=("$name")
+  done < "$file"
+  (( ${#found[@]} == 0 )) && return 0
+  echo "[podman-up] $file gives a secret a value: ${found[*]} — a settings file carries parameters and *_FILE references only." >&2
+  echo "[podman-up] Put the secret in its root-only source file (the secrets store, deploy/unit-probes.sh secrets_of) and leave its line empty or remove it. Halt." >&2
+  return 1
+}
 shaper_source_env() {
   shaper_env_file_is_variables_only "$1" || exit 1
+  shaper_env_file_carries_no_secret "$1" || exit 1
   set -a; source "$1"; set +a
 }
 

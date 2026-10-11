@@ -54,6 +54,12 @@ const UNIV_BASE = path.join(SOFTWARE, 'universes/univ-base/deploy/podman-up.sh')
 const SOURCING_SCRIPTS = [
   { name: 'the template', file: TEMPLATE, sources: ['"$ENV_FILE"'] },
   { name: 'univ-base', file: UNIV_BASE, sources: ['"$ENV_FILE"', '"$UNIV/cfg-univ-base.env"'] },
+  // The renewal's two scripts: the timer's service runs renew-bootstraps.sh
+  // directly, never through a guarded wrapper (decisions L and M, wave 5).
+  ...['renew-bootstraps.sh', 'install-renewal-timer.sh'].map((name) => ({
+    name: `univ-minimal ${name}`, file: path.join(SOFTWARE, 'universes/univ-minimal/deploy', name),
+    sources: ['"$ENV_FILE"', '"$UNIV/cfg-univ-minimal.env"'],
+  })),
 ];
 
 // ---------------------------------------------------------------------------

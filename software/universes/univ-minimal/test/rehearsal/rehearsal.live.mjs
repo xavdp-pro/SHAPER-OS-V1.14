@@ -355,6 +355,28 @@ test('the parent\'s renewal extends every live bootstrap by 30 days, keeping inc
   const daily = renew();
   assert.equal(daily.status, 0, daily.stderr);
   assert.equal((daily.stdout.match(/ current /g) || []).length, 4);
+  // As the timer's service runs it (decisions L and M together): the
+  // universe's settings in ENV_FILE — parameters and *_FILE references only —
+  // and no secret in the renewal's environment; Vault's token stays a file.
+  const settings = path.join(workDir, 'cfg-renewal.env');
+  const settingsLines = [`SHAPER_UNIVERSE=univ-minimal`, `SHAPER_APPS_ROOT=${appsRoot}`, `PROOF_STATE_DIR=${proofDir}`,
+    'SHAPER_REGISTRY=localhost', 'SHAPER_IMAGE_TAG=rehearsal', 'VAULT_TOKEN=', 'VAULT_TOKEN_FILE=/run/secrets/VAULT_TOKEN'];
+  fs.writeFileSync(settings, `${settingsLines.join('\n')}\n`, { mode: 0o600 });
+  const serviceEnv = { ENV_FILE: settings, SHAPER_UNIVERSE: '', SHAPER_APPS_ROOT: '', PROOF_STATE_DIR: '' };
+  const asService = renew(serviceEnv);
+  assert.equal(asService.status, 0, `${asService.stdout}\n${asService.stderr}`);
+  assert.equal((asService.stdout.match(/ current /g) || []).length, 4, 'the same universe, read from its settings file');
+  assert.ok(fs.existsSync(tokenSource) && !fs.existsSync(legacyToken), 'the token stays in the store, never back beside the key');
+  // The same file giving the token a value is refused before it is sourced:
+  // nothing checked, nothing written, the value never printed.
+  const lastBefore = read(path.join(renewalDir, 'last.json'));
+  fs.writeFileSync(settings, `${settingsLines.join('\n').replace('VAULT_TOKEN=\n', `VAULT_TOKEN=${read(tokenSource).trim()}\n`)}\n`, { mode: 0o600 });
+  const leaky = renew(serviceEnv);
+  assert.equal(leaky.status, 1);
+  assert.match(leaky.stderr, /gives a secret a value: VAULT_TOKEN/);
+  for (const secret of secretsSeen()) assert.ok(!leaky.stdout.includes(secret) && !leaky.stderr.includes(secret));
+  assert.equal(read(path.join(renewalDir, 'last.json')), lastBefore, 'no run recorded');
+  fs.rmSync(settings);
   // One parent at a time: while another holds the lock, the renewal waits, then halts.
   const holder = spawn('flock', [path.join(appsRoot, 'vault/etc/vault/parent.lock'), 'sleep', '5'], { stdio: 'ignore' });
   try {

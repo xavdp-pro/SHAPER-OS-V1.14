@@ -9,9 +9,11 @@
 #                                              its service names the same ENV_FILE
 #   deploy/base.sh renew-bootstraps.sh         one renewal run, by hand
 #
-# The base's scripts source their settings file without the variables-only
-# guard; here the file has passed it first, and the universe is the manifest's.
-# Run them this way rather than from base/deploy/ directly.
+# The base's drills source their settings file without the variables-only and
+# no-secret guards (its renewal scripts make both checks themselves, since the
+# timer runs them directly); here the file has passed them first, and the
+# universe is the manifest's. Run them this way rather than from base/deploy/
+# directly.
 set -euo pipefail
 
 UNIV="$(cd "$(dirname "$0")/.." && pwd)"

@@ -281,7 +281,14 @@ statements carry digests only. `RENEW_WITHIN_SECONDS` and
 window), never in the timer. One parent at a time: `podman-up.sh` and the
 renewal hold `/apps/vault/etc/vault/parent.lock` (`flock`, closed to every
 podman child) while they read or change identities and records. A universe
-configured by `ENV_FILE` gets a service that names the same file.
+configured by `ENV_FILE` gets a service that names the same file. Both
+renewal scripts check that file as `podman-up.sh` does — read, never
+executed, and no secret-shaped variable with a value ([secret
+files](#secret-files)) — before they source it: the timer runs the renewal
+directly, through no guarded wrapper, and a refusal is a halt (exit 1) the
+watcher reports. The renewal itself consumes no secret file: it reaches
+Vault's database as root through the socket inside the unit, and its tool
+runs from Vault's image with no secret in its environment.
 
 <a id="host"></a>
 ## What the universe container must provide
@@ -492,6 +499,11 @@ Recorded so nobody reads the floor as the full target contract of the units
 - root reads every secret file and every process's environment: the files
   close the secrets to the other accounts and to podman's records, not to an
   authorized administrator;
+- `proof.sh`, `lifecycle-drill.sh` and `restore-drill.sh` source the
+  settings file without the variables-only and no-secret checks that
+  `podman-up.sh` and the renewal make: an operator runs them by hand after
+  `podman-up.sh` has checked the same file (a template universe runs them
+  through `deploy/base.sh`, which checks it first);
 - the bootstrap renewal is installed by `install-renewal-timer.sh`, a separate
   step after `podman-up.sh`;
 - refusal counts not yet committed (at most one minute) are lost with Vault's
