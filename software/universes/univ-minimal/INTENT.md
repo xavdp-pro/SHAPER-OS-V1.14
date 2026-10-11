@@ -366,8 +366,8 @@ events through the relay as evidence, never as the alert.
 It creates no identity, changes no incarnation, epoch or grant, never revives
 a revoked identity, restarts nothing, and prints no token: records and
 statements carry digests only. `RENEW_WITHIN_SECONDS` and
-`RENEW_EXTEND_SECONDS` exist to drill it (`lifecycle-drill.sh` uses a 40-day
-window), never in the timer. One parent at a time: `podman-up.sh` and the
+`RENEW_EXTEND_SECONDS` exist to drill it (`lifecycle-drill.sh` uses a window
+covering every recorded identity, 40 days at least), never in the timer. One parent at a time: `podman-up.sh` and the
 renewal hold `/apps/vault/etc/vault/parent.lock` (`flock`, closed to every
 podman child) while they read or change identities and records. A universe
 configured by `ENV_FILE` gets a service that names the same file. Both

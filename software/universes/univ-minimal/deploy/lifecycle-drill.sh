@@ -15,7 +15,7 @@
 #      nothing: the same containers, the same incarnations, no epoch moved
 #      (DECISIONS-20261011 §B);
 #   4. the parent's bootstrap renewal (renew-bootstraps.sh, drilled with a
-#      40-day window so every identity is due): each bootstrap extended by
+#      window covering every identity, 40 days at least): each bootstrap extended by
 #      exactly 30 days, its proof receipted by Logger, no incarnation, epoch
 #      or container changed; the daily run right after renews nothing
 #      (DECISIONS-20261011 §D);
@@ -197,8 +197,14 @@ expiries() { rootsql vault vault -e "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', TI
 shifted() { tr ',' '\n' <<<"$1" | awk -F: -v d="$2" '{ split($2, t, "."); printf "%s%s:%d", (NR > 1 ? "," : ""), $1, t[1] + d }'; }
 EXP_BEFORE="$(expiries)"
 renew_since="$(rootsql vault -e 'SELECT UTC_TIMESTAMP(3)')"
-renew_out="$(env -i "${SHAPER_CHILD_ENV[@]}" RENEW_WITHIN_SECONDS=$((40 * 86400)) bash "$UNIV/deploy/renew-bootstraps.sh" 2>&1)" \
-  && ok renewal "renew-bootstraps.sh (40-day drill window) ran: $(count_state "$renew_out" renewed) identities renewed" \
+# The drill's window covers every recorded identity, at least 40 days: an identity
+# renewed earlier (by hand, or by a parent's extra identities registered later) must be
+# due too, or the checks below, which expect every bootstrap extended, compare a partial run.
+latest_left="$(rootsql vault vault -e "SELECT GREATEST(0, COALESCE(MAX(TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), bootstrap_expires_at)), 0)) FROM unit_identities WHERE universe_id='$UNIVERSE_ID'" 2>/dev/null)"
+[[ "$latest_left" =~ ^[0-9]+$ ]] || latest_left=0
+drill_window=$(( latest_left + 86400 )); (( drill_window >= 40 * 86400 )) || drill_window=$(( 40 * 86400 ))
+renew_out="$(env -i "${SHAPER_CHILD_ENV[@]}" RENEW_WITHIN_SECONDS=$drill_window bash "$UNIV/deploy/renew-bootstraps.sh" 2>&1)" \
+  && ok renewal "renew-bootstraps.sh ($(( drill_window / 86400 ))-day drill window, every identity due) ran: $(count_state "$renew_out" renewed) identities renewed" \
   || fail renewal "renew-bootstraps.sh failed: $(tail -n 2 <<<"$renew_out" | tr '\n' ' ')"
 check renewal-extended "every recorded bootstrap extended by exactly 30 days (vault.unit_identities, root path)" \
   test -n "$EXP_BEFORE" -a "$(shifted "$(expiries)" 0)" = "$(shifted "$EXP_BEFORE" 2592000)"
