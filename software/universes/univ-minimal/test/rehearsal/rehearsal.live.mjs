@@ -172,7 +172,7 @@ test("the proof's helpers: Logger refuses anonymity, the proof writes and reads 
 
 test('a recreation is a new incarnation: epochs move, the old credential stops being current, the new one works', async () => {
   // A credential issued to the proof's current incarnation, kept aside.
-  const keep = probe(`logger_curl -s -o /dev/null "http://127.0.0.1:8620/api/events/last?event=NONE" && cp "$PROOF_DIR/identity/logger.header" "$PROOF_DIR/old.header" && echo kept`);
+  const keep = probe(`issue_proof_credential "$PROOF_DIR/old.header" && echo kept`);
   assert.match(keep.stdout, /kept/);
   const before = sql('vault', "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities");
   await sleep(1100); // a new UTC stamp
@@ -192,10 +192,53 @@ test('a recreation is a new incarnation: epochs move, the old credential stops b
   process.stdout.write(`# identities before: ${before}\n# identities after:  ${afterRows}\n`);
 });
 
-test('a changed SHAPER_UNIVERSE_ID is refused, and so is a missing identity under existing databases', () => {
+test('a changed SHAPER_UNIVERSE_ID is refused; a missing identity under an existing database halts, unless the known one is named', () => {
+  const idFile = path.join(appsRoot, 'vault/etc/vault/universe-id');
+  const known = read(idFile).trim();
   const changed = spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh')], { env: { ...env, SHAPER_UNIVERSE_ID: '11111111-2222-4333-8444-555555555555' }, encoding: 'utf8' });
   assert.notEqual(changed.status, 0);
   assert.match(changed.stderr, /never replaced under its databases/);
+  // A Vault database on disk (here only its directory) and no identity file.
+  const marker = path.join(appsRoot, 'vault/sav/mariadb/vault');
+  fs.mkdirSync(marker, { recursive: true });
+  fs.renameSync(idFile, `${idFile}.aside`);
+  try {
+    const lost = spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh')], { env, encoding: 'utf8' });
+    assert.notEqual(lost.status, 0);
+    assert.match(lost.stderr, /the vault database exists but the universe identity .* does not/);
+    assert.match(lost.stderr, /migrated \(INTENT\.md#migration, Rule 30\)/);
+    assert.ok(!fs.existsSync(idFile), 'no new identity was invented');
+    // Naming the known identity records it again (the run then stops at the
+    // stand-in datadir, which no engine uid owns: nothing else is touched).
+    const named = spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh')], { env: { ...env, SHAPER_UNIVERSE_ID: known }, encoding: 'utf8' });
+    assert.notEqual(named.status, 0);
+    assert.match(named.stderr, /belongs to uid [\s\S]* no recursive chown is made/);
+    assert.equal(read(idFile).trim(), known);
+  } finally {
+    fs.rmSync(path.join(appsRoot, 'vault/sav/mariadb'), { recursive: true, force: true });
+    if (!fs.existsSync(idFile)) fs.renameSync(`${idFile}.aside`, idFile); else fs.rmSync(`${idFile}.aside`, { force: true });
+  }
+});
+
+test('a re-run that stops before Vault holds the new registrations leaves the running units and the proof with working identities', async () => {
+  const sha = (f) => createHash('sha256').update(read(f)).digest('hex');
+  const staged = ['queue', 'maestro'].map((s) => path.join(appsRoot, s, 'etc/identity/bootstrap'));
+  const before = { files: staged.map(sha), proof: sha(path.join(proofDir, 'identity/bootstrap')), inc: read(path.join(proofDir, 'identity/incarnation')),
+    rows: sql('vault', "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities WHERE unit_id <> 'vault'") };
+  await sleep(1100);
+  const failed = spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/podman-up.sh')], { env: { ...env, FAKE_FAIL_APPLY: '1' }, encoding: 'utf8', timeout: 600000 });
+  assert.notEqual(failed.status, 0);
+  assert.match(failed.stderr, /root could not apply the unit registrations/);
+  assert.deepEqual(staged.map(sha), before.files, 'Queue and Maestro keep the bootstrap Vault holds');
+  assert.equal(sha(path.join(proofDir, 'identity/bootstrap')), before.proof);
+  assert.equal(read(path.join(proofDir, 'identity/incarnation')), before.inc);
+  assert.equal(sql('vault', "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities WHERE unit_id <> 'vault'"), before.rows);
+  const still = probe(`logger_curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8620/api/events/last?event=NONE"`);
+  assert.equal(still.stdout.trim(), '200', 'the proof still obtains and uses a credential');
+  // A complete run puts everything in order again.
+  await sleep(1100);
+  const again = up();
+  assert.equal(again.status, 0, `${again.stdout}\n${again.stderr}`);
 });
 
 test("proof.sh's effects section runs green twice: each unit's effect, its evidence in both databases, persistence across runs", () => {
@@ -206,5 +249,6 @@ test("proof.sh's effects section runs green twice: each unit's effect, its evide
     assert.match(r.stdout, /EFFECTS \d+ passed, 0 failed/);
     if (run === 2) assert.match(r.stdout, /OK\s+maestro-persisted/);
     for (const secret of secretsSeen()) assert.ok(!r.stdout.includes(secret) && !r.stderr.includes(secret), 'a secret in the proof output');
+    assert.deepEqual(fs.readdirSync(path.join(proofDir, 'identity')).filter((f) => f.endsWith('.header')), [], 'no credential header is left on disk');
   }
 });

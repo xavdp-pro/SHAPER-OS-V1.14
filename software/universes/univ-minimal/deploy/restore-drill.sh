@@ -51,13 +51,17 @@ fail() { FAILS=$((FAILS + 1)); printf '  FAIL   %-26s %s\n' "$1" "$2"; }
 
 drill_ctr() { echo "${UNIVERSE}-drill-$1"; }
 drillsql() { local s="$1"; shift; podman exec "$(drill_ctr "$s")" mariadb --no-defaults -S "/run/$s/mysqld.sock" -uroot -N -B "$@"; }
+# Fails closed: a table whose rows or checksum cannot be read makes the whole
+# fingerprint empty, never a list that compares equal on table names alone.
 fingerprint() {  # fingerprint <runner> <slug>: "table:rows:checksum" per base table
-  local runner="$1" s="$2" t
+  local runner="$1" s="$2" t rows sum out=""
   for t in $("$runner" "$s" -e "SELECT table_name FROM information_schema.tables WHERE table_schema='$s' AND table_type='BASE TABLE' ORDER BY 1"); do
-    printf '%s:%s:%s\n' "$t" \
-      "$("$runner" "$s" "$s" -e "SELECT COUNT(*) FROM \`$t\`")" \
-      "$("$runner" "$s" "$s" -e "CHECKSUM TABLE \`$t\` EXTENDED" | awk '{print $2}')"
+    rows="$("$runner" "$s" "$s" -e "SELECT COUNT(*) FROM \`$t\`")"
+    sum="$("$runner" "$s" "$s" -e "CHECKSUM TABLE \`$t\` EXTENDED" | awk '{print $2}')"
+    [[ "$rows" =~ ^[0-9]+$ && "$sum" =~ ^[0-9]+$ ]] || return 1
+    out+="$t:$rows:$sum"$'\n'
   done
+  printf '%s' "$out"
 }
 port_of() { jq -r --arg s "$1" '.bricks[] | select(.database.slug == $s) | .port' "$MANIFEST"; }
 uid_of() { jq -r --arg s "$1" '.bricks[] | select(.database.slug == $s) | .database.uid' "$MANIFEST"; }
@@ -78,34 +82,37 @@ NOWHERE="http://127.0.0.1:9"
 
 # What each unit's application needs to answer on its drill port — its own
 # identity inputs from the throwaway etc/identity/ — and nothing that writes
-# to the live universe.
-drill_args() {
-  local s="$1" port="$2" key="$3"
-  local identity="-e SHAPER_UNIVERSE_ID=$UNIVERSE_ID -v $4/etc/identity:/apps/$s/etc/identity:ro,Z"
-  local holds="-e SHAPER_UNIT_INCARNATION=$s-drill-$STAMP -e UNIT_BOOTSTRAP_TOKEN_FILE=/apps/$s/etc/identity/bootstrap"
-  local pin="-e UNIT_AUTH_PUBLIC_KEY_FILE=/apps/$s/etc/identity/vault-signing.pub"
+# to the live universe. Appended to DRILL_ARGS, one element per argument.
+drill_args() {  # <slug> <port> <key-file> <work>
+  local s="$1" port="$2" key="$3" work="$4"
+  local identity=(-e "SHAPER_UNIVERSE_ID=$UNIVERSE_ID" -v "$work/etc/identity:/apps/$s/etc/identity:ro,Z")
+  local holds=(-e "SHAPER_UNIT_INCARNATION=$s-drill-$STAMP" -e "UNIT_BOOTSTRAP_TOKEN_FILE=/apps/$s/etc/identity/bootstrap")
+  local pin=(-e "UNIT_AUTH_PUBLIC_KEY_FILE=/apps/$s/etc/identity/vault-signing.pub")
   case "$s" in
-    vault)   echo "$identity $holds -e LOGGER_URL=$NOWHERE -e VAULT_PORT=$port -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -v $key:/apps/vault/etc/vault/master.key:ro,Z" ;;
-    logger)  echo "$identity $pin -e VAULT_URL=http://127.0.0.1:$(port_of vault) -e LOGGER_PORT=$port" ;;
-    queue)   echo "$identity $holds $pin -e VAULT_URL=$NOWHERE -e LOGGER_URL=$NOWHERE -e QUEUE_PORT=$port -e QUEUE_AUTO_DISPATCH=0" ;;
-    maestro) echo "$identity $holds $pin -e VAULT_URL=$NOWHERE -e LOGGER_URL=$NOWHERE -e MAESTRO_PORT=$port -e MAESTRO_AUTO_START=0 -e MAESTRO_QUEUE_URL=$NOWHERE" ;;
+    vault)   DRILL_ARGS+=("${identity[@]}" "${holds[@]}" -e "LOGGER_URL=$NOWHERE" -e "VAULT_PORT=$port" -e VAULT_TOKEN
+               -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -v "$key:/apps/vault/etc/vault/master.key:ro,Z") ;;
+    logger)  DRILL_ARGS+=("${identity[@]}" "${pin[@]}" -e "VAULT_URL=http://127.0.0.1:$(port_of vault)" -e "LOGGER_PORT=$port") ;;
+    queue)   DRILL_ARGS+=("${identity[@]}" "${holds[@]}" "${pin[@]}" -e "VAULT_URL=$NOWHERE" -e "LOGGER_URL=$NOWHERE"
+               -e "QUEUE_PORT=$port" -e QUEUE_AUTO_DISPATCH=0) ;;
+    maestro) DRILL_ARGS+=("${identity[@]}" "${holds[@]}" "${pin[@]}" -e "VAULT_URL=$NOWHERE" -e "LOGGER_URL=$NOWHERE"
+               -e "MAESTRO_PORT=$port" -e MAESTRO_AUTO_START=0 -e "MAESTRO_QUEUE_URL=$NOWHERE") ;;
+    *) echo "restore-drill: no drill wiring for $s" >&2; return 1 ;;
   esac
 }
 start_drill() {  # <slug> <work> <mode> <port> [key-file] [extra -e…]
   local s="$1" work="$2" mode="$3" port="$4" key="$5" v; shift 5
-  local network=(--network none) volumes=()
+  local network=(--network none)
+  DRILL_ARGS=()
   [[ "$mode" == serve ]] && network=(--network host)
-  for v in $(volumes_of "$s"); do volumes+=(-v "$work/$v:/apps/$s/$v:Z"); done
-  # The Vault's drill token reaches the container by name, never on a command line.
-  # shellcheck disable=SC2046
+  for v in $(volumes_of "$s"); do DRILL_ARGS+=(-v "$work/$v:/apps/$s/$v:Z"); done
+  if [[ "$mode" == serve ]]; then drill_args "$s" "$port" "$key" "$work" || return 1; fi
+  # The Vault's drill token reaches the container by name (-e VAULT_TOKEN), never on a command line.
   VAULT_TOKEN="$DRILL_TOKEN" podman run -d --name "$(drill_ctr "$s")" --replace --restart=no "${network[@]}" \
     --stop-timeout 90 \
     --cap-drop=all --cap-add=CHOWN,DAC_OVERRIDE,FOWNER,KILL,SETGID,SETUID \
     --security-opt=no-new-privileges \
     -e HOST=127.0.0.1 -e UNIT_MODE="$mode" -e UNIT_HEALTH_URL="http://127.0.0.1:$port/api/health" "$@" \
-    "${volumes[@]}" \
-    $( [[ "$mode" == serve ]] && drill_args "$s" "$port" "$key" "$work" ) \
-    $( [[ "$mode" == serve && "$s" == vault ]] && echo "-e VAULT_TOKEN" ) \
+    "${DRILL_ARGS[@]}" \
     "$IMAGE" >/dev/null
 }
 # The throwaway unit's identity: the live pin (public), and a random bootstrap
@@ -126,8 +133,9 @@ KEY_FILE="$VAULT_ETC_DIR/master.key"
 # ── Control records, written through the live units' APIs ──────────────────
 CONTROL_KEY="restore-drill/$STAMP"
 CONTROL_VALUE="$(openssl rand -hex 16)"
-vault_curl -sf -o /dev/null -X POST -H "$H" -d "{\"data\":\"$CONTROL_VALUE\"}" \
-  "http://127.0.0.1:$(port_of vault)/api/secret/$CONTROL_KEY" \
+# The controlled value is a secret too: it travels on standard input, never in argv.
+vault_curl -sf -o /dev/null -X POST -H "$H" --data-binary @- \
+  "http://127.0.0.1:$(port_of vault)/api/secret/$CONTROL_KEY" <<<"{\"data\":\"$CONTROL_VALUE\"}" \
   && ok vault-control "controlled secret $CONTROL_KEY stored through the live Vault" \
   || fail vault-control "the live Vault refused the controlled secret"
 CONTROL_EVENT="$(logger_curl -s -X POST "http://127.0.0.1:$(port_of logger)/api/ingest" -H "$H" \
@@ -205,7 +213,7 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
     vault)
       ( umask 077; printf '%s' "$DRILL_TOKEN" > "$work/drill-token" )
       write_header "$work/drill.header" "$work/drill-token"
-      got="$(curl -sf -H @"$work/drill.header" "$D/api/secret/$CONTROL_KEY" | jq -r '.data // empty')"
+      got="$(curl_with_header "$work/drill.header" -sf "$D/api/secret/$CONTROL_KEY" | jq -r '.data // empty')"
       [[ "$got" == "$CONTROL_VALUE" ]] && ok vault-restore-decrypts "the restored Vault decrypts the controlled secret with the universe's key" \
         || fail vault-restore-decrypts "expected the controlled value, got '${got:0:8}…'"
       podman rm -f "$(drill_ctr "$s")" >/dev/null

@@ -205,13 +205,39 @@ describe('univ-minimal births the units in the order their identities need', () 
   });
 
   test('podman-up registers exactly the units that hold a credential, and pins the key for the ones that verify', () => {
-    const grants = /declare -A GRANTS=\(([^)]*)\)/.exec(up);
-    assert.ok(grants, 'the holders are declared once');
-    const holders = [...grants[1].matchAll(/\[([a-z]+)\]="logger=logger:ingest"/g)].map((m) => m[1]).sort();
-    assert.deepEqual(holders, UNITS.filter((s) => IDENTITY[s].bootstrap).sort());
-    const pinned = /^PINNED="([^"]+)"$/m.exec(up)[1].split(' ').sort();
-    assert.deepEqual(pinned, UNITS.filter((s) => IDENTITY[s].pin).sort());
-    assert.match(up, /^PROOF_GRANTS="logger=logger:ingest logger=logger:read:own"$/m);
+    const probes = fs.readFileSync(path.join(deploy, 'unit-probes.sh'), 'utf8');
+    const list = (name) => new RegExp(`^${name}="([^"]+)"$`, 'm').exec(probes)?.[1].split(' ').sort();
+    assert.deepEqual(list('HOLDS_CREDENTIAL'), UNITS.filter((s) => IDENTITY[s].bootstrap).sort());
+    assert.deepEqual(list('PINNED'), UNITS.filter((s) => IDENTITY[s].pin).sort());
+    assert.match(probes, /^HOLDER_GRANT="logger=logger:ingest"$/m);
+    assert.match(probes, /^PROOF_GRANTS="logger=logger:ingest logger=logger:read:own"$/m);
+    // Declared once: podman-up and the proofs read the same lists.
+    assert.match(up, /^source "\$UNIV\/deploy\/unit-probes\.sh"$/m);
+    assert.match(up, /^for slug in \$HOLDS_CREDENTIAL; do$/m);
+    for (const name of fs.readdirSync(deploy)) {
+      if (name === 'unit-probes.sh') continue;
+      const text = fs.readFileSync(path.join(deploy, name), 'utf8');
+      assert.doesNotMatch(text, /^\s*(HOLDS_CREDENTIAL|PINNED|PROOF_GRANTS|HOLDER_GRANT)=/m, `${name} redefines an identity list`);
+    }
+  });
+
+  test('a unit\'s bootstrap replaces the one in use only once Vault holds its digest; Vault\'s goes first', () => {
+    const apply = up.slice(up.indexOf('apply_registrations() {'), up.indexOf('# ── 8.'));
+    const verified = apply.indexOf('|| halt "Vault holds');
+    const delivered = apply.indexOf('mv -f "$STAGE/$slug.bootstrap"');
+    assert.ok(verified > 0 && delivered > verified, 'queue and maestro bootstraps are delivered after the read-back');
+    assert.ok(apply.indexOf('mv -f "$STAGE/proof.bootstrap"') > verified, "the proof's too");
+    const staging = up.slice(up.indexOf('for slug in $HOLDS_CREDENTIAL; do'), up.indexOf('apply_registrations() {'));
+    assert.match(staging, /mv -f "\$STAGE\/vault\.bootstrap" "\$APPS_ROOT\/vault\/etc\/identity\/bootstrap"/);
+    assert.deepEqual(staging.match(/\/etc\/identity\/bootstrap"/g), ['/etc/identity/bootstrap"'], "before Vault holds the digests, only Vault's own bootstrap is delivered");
+  });
+
+  test('every podman argument is one array element: no path is split on whitespace', () => {
+    assert.match(up, /"\$\{RUN_ARGS\[@\]\}"/);
+    assert.doesNotMatch(up, /\$\((unit_args|identity_args|volume_args)\b/);
+    const drill = fs.readFileSync(path.join(deploy, 'restore-drill.sh'), 'utf8');
+    assert.match(drill, /"\$\{DRILL_ARGS\[@\]\}"/);
+    assert.doesNotMatch(drill, /\$\( \[\[ "\$mode" == serve/);
   });
 
   test('the parent derives the pin and registers through pkg-vault/unit-registration.js, from the Vault image', () => {

@@ -13,8 +13,9 @@
 #      kept and the schema retained, not re-applied;
 #   3. recreation of the universe (deploy/podman-up.sh replaces every
 #      container): new containers, same markers, counts and password; each
-#      unit that holds a credential runs a new incarnation, the only one Vault
-#      now holds for it, and Vault has issued it a credential.
+#      unit that holds a credential runs a new incarnation, the one Vault now
+#      holds for it, and Vault has issued it a credential; a credential issued
+#      before the recreation is refused by Logger.
 #
 # The Vault and Logger markers are written under credentials (the Vault's API
 # token, the proof's Vault-signed identity), never on a command line.
@@ -43,7 +44,6 @@ mapfile -t UNITS < <(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$
 port() { jq -r --arg s "$1" '.bricks[] | select(.database.slug == $s) | .port' "$MANIFEST"; }
 url() { echo "http://127.0.0.1:$(port "$1")"; }
 UNIVERSE_ID="$(universe_uuid)"
-HOLDS_CREDENTIAL="vault queue maestro"
 
 passwd_digest() { podman exec "${UNIVERSE}-ctr-$1" sha256sum "/apps/$1/etc/mysql/localhost/passwd" 2>/dev/null | cut -d' ' -f1; }
 row_counts() {  # "<table>:<rows> ..." for every base table of the unit database
@@ -129,8 +129,9 @@ for s in "${UNITS[@]}"; do
 done
 after_checks restart
 
-# The unit's current incarnation is the one Vault holds, and Vault has issued
-# it a logger credential (waits up to 60 s for the unit's first renewal).
+# The unit's current incarnation is the one Vault holds — the registration of
+# this run was applied — and Vault has issued it a logger credential (waits up
+# to 60 s for the unit's first renewal).
 credential_current() {  # <slug>
   local s="$1" inc tries=60
   inc="$(unit_env "${UNIVERSE}-ctr-$s" SHAPER_UNIT_INCARNATION)"
@@ -149,6 +150,11 @@ for s in "${UNITS[@]}"; do
   ID_BEFORE[$s]="$(podman inspect -f '{{.Id}}' "${UNIVERSE}-ctr-$s")"
   INC_BEFORE[$s]="$(unit_env "${UNIVERSE}-ctr-$s" SHAPER_UNIT_INCARNATION)"
 done
+# A credential of the incarnation about to be replaced, kept aside root-only.
+OLD_CREDENTIAL="$PROOF_DIR/identity/before-recreation.header"
+issue_proof_credential "$OLD_CREDENTIAL" \
+  && ok old-credential "a logger credential issued to the proof's current incarnation, kept for after the recreation" \
+  || fail old-credential "Vault issued no credential to the proof before the recreation"
 if bash "$UNIV/deploy/podman-up.sh" >/dev/null; then ok recreate "deploy/podman-up.sh replaced every unit container"
 else fail recreate "deploy/podman-up.sh failed"; fi
 for s in "${UNITS[@]}"; do
@@ -157,12 +163,16 @@ for s in "${UNITS[@]}"; do
   check "recreate-$s-kept" "the new $ctr kept the password and the schema" \
     log_in_order "$ctr" "1970-01-01T00:00:00Z" "password: /apps/$s/etc/mysql/localhost/passwd kept" "schema: retained" "application: node server.js started"
   if [[ " $HOLDS_CREDENTIAL " == *" $s "* ]]; then
-    check "recreate-$s-incarnation" "a new incarnation (not ${INC_BEFORE[$s]:-?}), the only one Vault holds for $s, with a credential issued to it" \
+    check "recreate-$s-incarnation" "$s runs a new incarnation (not ${INC_BEFORE[$s]:-?})" \
       bash -c '[[ -n "$1" && "$1" != "$2" ]]' _ "$(unit_env "$ctr" SHAPER_UNIT_INCARNATION)" "${INC_BEFORE[$s]}"
-    check "recreate-$s-credential" "Vault issued a logger credential to $s's new incarnation" credential_current "$s"
+    check "recreate-$s-credential" "Vault holds that incarnation for $s and issued it a logger credential" credential_current "$s"
   fi
 done
 after_checks recreate
+check "recreate-old-credential-refused" "the credential issued before the recreation is refused by Logger (403: its incarnation is no longer current)" \
+  test "$(curl_with_header "$OLD_CREDENTIAL" -s -o /dev/null -w '%{http_code}' "$(url logger)/api/events/last?event=NONE")" = 403
+check "recreate-new-credential" "a credential issued to the proof's new incarnation is accepted (200)" \
+  test "$(logger_curl -s -o /dev/null -w '%{http_code}' "$(url logger)/api/events/last?event=NONE")" = 200
 
 vault_curl -sf -o /dev/null -X DELETE "$(url vault)/api/secret/lifecycle/$STAMP" \
   && ok vault-marker-removed "marker secret removed" || fail vault-marker-removed "the marker secret is still in the Vault"

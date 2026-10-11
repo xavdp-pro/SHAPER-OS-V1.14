@@ -137,6 +137,9 @@ async function main() {
         process.stdout.write(code >= 200 && code < 300 ? `ready: ${st.slug} (rehearsal process ${st.pid})\n` : `not ready: health ${code}\n`);
         process.exit(code >= 200 && code < 300 ? 0 : 1);
       }
+      // FAKE_FAIL_APPLY=1: the root path refuses a statement fed on standard input
+      // — the registrations — so a run can be stopped between staging and delivery.
+      if (prog === 'mariadb' && stdin && process.env.FAKE_FAIL_APPLY === '1') die('root path refused (FAKE_FAIL_APPLY)', 1);
       if (prog === 'mariadb' || prog === 'mariadb-dump') {
         const mapped = args.map((a, k) => (args[k - 1] === '-S' ? SOCKET : a.startsWith('--socket=') ? `--socket=${SOCKET}` : a));
         const bin = prog === 'mariadb' ? MARIADB : MARIADB.replace(/mariadb$/, 'mariadb-dump');

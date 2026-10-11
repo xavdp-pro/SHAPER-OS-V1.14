@@ -92,7 +92,8 @@ through its environment, by name; `etc/vault/` itself is never mounted.
 The universe identity is a lowercase UUID, `/apps/vault/etc/vault/universe-id`,
 generated once beside the master key (or named by `SHAPER_UNIVERSE_ID` at
 birth). With the key it derives Vault's Ed25519 signing key, and it is part of
-every Maestro occurrence id: a Vault or Maestro database without it is a halt,
+every Maestro occurrence id: a Vault or Maestro database without it is a halt —
+unless `SHAPER_UNIVERSE_ID` names the known identity, which is recorded again —
 never a new identity, and a `SHAPER_UNIVERSE_ID` that differs from the
 recorded one is refused.
 
@@ -114,11 +115,17 @@ run, before any unit starts:
    `PROOF_STATE_DIR` (`/var/lib/univ-proof/<universe>/identity/`). The
    statements root applies carry each bootstrap's SHA-256, never its value;
    they wait in `/apps/vault/etc/vault/registration/registration.sql`
-   (root-only).
+   (root-only). Vault's bootstrap is put in place at once (its new container
+   reads it at start); those of Queue, Maestro and the proof wait in that
+   root-only directory until Vault holds their digests, so a run that stops
+   halfway leaves the running units and the proof with identities that work.
+   The holders, the pinned units and the grants are declared once, in
+   `deploy/unit-probes.sh`, for `podman-up.sh` and the proofs alike.
 
 Then the units start in `bootOrder` — Vault alone first. As soon as Vault is
 ready, root applies the registrations to Vault's database through its socket
-(`mariadb -uroot vault < registration.sql`) and reads them back; only then do
+(`mariadb -uroot vault < registration.sql`), reads them back and delivers the
+staged bootstraps; only then do
 Logger, Queue and Maestro start, each in its own layer. Every unit receives
 `SHAPER_UNIVERSE_ID` and its `etc/identity/` read-only; a unit that holds a
 credential also receives `SHAPER_UNIT_INCARNATION` and
@@ -198,8 +205,9 @@ lost a row, every password file is the same; each unit's log shows the
 application stopped before MariaDB and MariaDB shut down cleanly, no crash
 recovery, then MariaDB ready, the password kept and the schema retained before
 the application started. After the recreation, each unit that holds a
-credential runs a new incarnation — the only one Vault holds for it — and Vault
-has issued it a credential.
+credential runs a new incarnation — the one Vault now holds for it — and Vault
+has issued it a credential; a credential issued before the recreation is
+refused by Logger, one issued after is accepted.
 
 <a id="restore"></a>
 ## Restore into a fresh volume

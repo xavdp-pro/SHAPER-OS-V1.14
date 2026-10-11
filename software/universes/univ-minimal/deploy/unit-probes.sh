@@ -111,9 +111,19 @@ probe_engine_args() {  # <procs-json> <socket>
 engine_pid_of() { jq -r '[.[] | select(.comm == "mariadbd") | .pid] | if length == 1 then .[0] else "" end' <<<"$1"; }
 
 # ── Identity and authenticated calls ────────────────────────────────────────
+# Who holds a Vault-signed credential — every unit that owes evidence to
+# Logger, each granted HOLDER_GRANT — and who pins Vault's public key: every
+# unit that verifies a credential, or the ones it receives. deploy/podman-up.sh
+# registers and pins exactly these; the proofs check exactly these. The proof's
+# own reader writes its events and reads them back, nothing else.
+HOLDS_CREDENTIAL="vault queue maestro"
+HOLDER_GRANT="logger=logger:ingest"
+PINNED="logger queue maestro"
+PROOF_GRANTS="logger=logger:ingest logger=logger:read:own"
+
 # What podman-up.sh, the parent, wrote: the universe UUID beside the Vault's
-# key material, and the proof's own reader identity (unit "proof",
-# logger:ingest and logger:read:own) under the proof's state directory.
+# key material, and the proof's own reader identity (unit "proof") under the
+# proof's state directory.
 VAULT_ETC_DIR="$APPS_ROOT/vault/etc/vault"
 PROOF_DIR="${PROOF_STATE_DIR:-/var/lib/univ-proof/$UNIVERSE}"
 universe_uuid() { cat "$VAULT_ETC_DIR/universe-id" 2>/dev/null; }
@@ -121,10 +131,17 @@ vault_base() { echo "http://127.0.0.1:$(jq -r '.bricks["brick-vault"].port' "$MA
 
 # A credential never reaches a command line: curl reads the Authorization
 # header from a root-only file (-H @file), written by the shell's own printf —
-# a builtin, so the value is in no process's argv.
+# a builtin, so the value is in no process's argv — and removed once used.
 #   write_header <header-file> <token-file>
 write_header() {
   ( umask 077; printf 'Authorization: Bearer %s\n' "$(tr -d '\n' < "$2")" > "$1" )
+}
+#   curl_with_header <header-file> <curl args…>   (the header file is removed after the call)
+curl_with_header() {
+  local header="$1" status; shift
+  curl -H @"$header" "$@"; status=$?
+  rm -f -- "$header"
+  return "$status"
 }
 
 # The Vault's administrative API, with the token the construction path holds.
@@ -132,25 +149,38 @@ write_header() {
 vault_curl() {
   install -d -m 0700 "$PROOF_DIR" "$PROOF_DIR/identity"
   write_header "$PROOF_DIR/identity/vault.header" "$VAULT_ETC_DIR/api-token" || return 1
-  curl -H @"$PROOF_DIR/identity/vault.header" "$@"
+  curl_with_header "$PROOF_DIR/identity/vault.header" "$@"
 }
 
-# Logger, under a Vault-signed credential issued to the proof's identity for
-# this call — it lives 300 s at most, and a recreated universe registers a new
-# incarnation, so one is never kept. The token goes from Vault's answer to the
-# header file through jq, never through a variable or an argument.
-#   logger_curl <curl args…>
-logger_curl() {
-  local dir="$PROOF_DIR/identity" incarnation
+# A Vault-signed logger credential for the proof's identity, written as an
+# Authorization header to <header-file> (root-only). The token goes from
+# Vault's answer to the file through jq, never through a variable or an
+# argument; the bootstrap's header is removed at once.
+#   issue_proof_credential <header-file>
+issue_proof_credential() {
+  local dir="$PROOF_DIR/identity" header="$1" incarnation status
   incarnation="$(cat "$dir/incarnation" 2>/dev/null)"
-  [[ -n "$incarnation" && -s "$dir/bootstrap" ]] || { echo "logger_curl: no proof identity in $dir — run deploy/podman-up.sh" >&2; return 1; }
+  [[ -n "$incarnation" && -s "$dir/bootstrap" ]] || { echo "issue_proof_credential: no proof identity in $dir — run deploy/podman-up.sh" >&2; return 1; }
   write_header "$dir/bootstrap.header" "$dir/bootstrap" || return 1
-  curl -sf -X POST -H @"$dir/bootstrap.header" -H 'Content-Type: application/json' \
+  curl_with_header "$dir/bootstrap.header" -sf -X POST -H 'Content-Type: application/json' \
     -d "{\"unit\":\"proof\",\"incarnation\":\"$incarnation\",\"audience\":\"logger\"}" \
     "$(vault_base)/api/identity/issue" \
-    | ( umask 077; jq -er '"Authorization: Bearer " + .token' > "$dir/logger.header" ) \
-    || { echo "logger_curl: Vault issued no credential to the proof's identity" >&2; return 1; }
-  curl -H @"$dir/logger.header" "$@"
+    | ( umask 077; jq -er '"Authorization: Bearer " + .token' > "$header" )
+  status=$?
+  if (( status != 0 )); then
+    rm -f -- "$header"
+    echo "issue_proof_credential: Vault issued no credential to the proof's identity" >&2
+    return 1
+  fi
+}
+
+# Logger, under a credential issued to the proof's identity for this call
+# alone — it lives 300 s at most, and a recreated universe registers a new
+# incarnation, so none is kept.
+#   logger_curl <curl args…>
+logger_curl() {
+  issue_proof_credential "$PROOF_DIR/identity/logger.header" || return 1
+  curl_with_header "$PROOF_DIR/identity/logger.header" "$@"
 }
 
 # One variable of a unit container's environment, as podman created it.

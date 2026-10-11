@@ -45,11 +45,8 @@ for b in $(jq -r '.bootOrder[][]' "$MANIFEST"); do
   VERSION_OF[$s]="$(jq -r --arg b "$b" '.bricks[$b].database.schemaVersion' "$MANIFEST")"
   VOLUMES_OF[$s]="$(jq -r --arg b "$b" '(.bricks[$b].database.volumes // ["etc/mysql", "sav", "log"]) | join(" ")' "$MANIFEST")"
 done
+# HOLDS_CREDENTIAL and PINNED come from unit-probes.sh, the list podman-up.sh registers.
 UNIVERSE_ID="$(universe_uuid)"
-# The units that hold a credential (a bootstrap and an incarnation) and the
-# ones that pin Vault's public key, as podman-up.sh registers them.
-HOLDS_CREDENTIAL="vault queue maestro"
-PINNED="logger queue maestro"
 
 # ── The Rule 26 inventory, unit by unit ─────────────────────────────────────
 gate_unit() {

@@ -65,8 +65,11 @@ done
 UNIVERSE="${SHAPER_UNIVERSE:-univ-minimal}"
 APPS_ROOT="${SHAPER_APPS_ROOT:-/apps}"
 [[ "$UNIVERSE" =~ ^univ-[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "[podman-up] SHAPER_UNIVERSE must be an instance slug (univ-…), got $UNIVERSE" >&2; exit 1; }
-# The proof's state and its reader identity (deploy/proof-effects.sh, unit-probes.sh).
-PROOF_DIR="${PROOF_STATE_DIR:-/var/lib/univ-proof/$UNIVERSE}"
+# Definitions shared with the proofs: who holds a credential and who pins
+# Vault's key (HOLDS_CREDENTIAL, HOLDER_GRANT, PINNED, PROOF_GRANTS), and where
+# the proof keeps its state and reader identity (PROOF_DIR).
+# shellcheck source=/dev/null
+source "$UNIV/deploy/unit-probes.sh"
 # One incarnation per unit per run: a recreated universe is a new incarnation,
 # and the credentials of the one before stop being current at once.
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -150,14 +153,16 @@ if [[ -s "$UNIVERSE_ID_FILE" ]]; then
   fi
 else
   for s in vault maestro; do
-    if [[ -d "$APPS_ROOT/$s/sav/mariadb/$s" ]]; then
-      halt "the $s database exists but the universe identity $UNIVERSE_ID_FILE does not. Restore it with the master key; a new one would change Vault's signing key and every occurrence id. Halt."
+    if [[ -d "$APPS_ROOT/$s/sav/mariadb/$s" && -z "${SHAPER_UNIVERSE_ID:-}" ]]; then
+      echo "[podman-up] the $s database exists but the universe identity $UNIVERSE_ID_FILE does not." >&2
+      echo "[podman-up] If it was lost, name the known UUID in SHAPER_UNIVERSE_ID (it is recorded again); a new one would change Vault's signing key and every occurrence id." >&2
+      halt "A universe born before unit identities (schema version 1) is not re-identified here: it is migrated (INTENT.md#migration, Rule 30). Halt."
     fi
   done
   UNIVERSE_ID="${SHAPER_UNIVERSE_ID:-$(cat /proc/sys/kernel/random/uuid)}"
   [[ "$UNIVERSE_ID" =~ $UUID_PATTERN ]] || halt "SHAPER_UNIVERSE_ID must be a lowercase UUID, got $UNIVERSE_ID"
   ( umask 022; printf '%s\n' "$UNIVERSE_ID" > "$UNIVERSE_ID_FILE" )
-  echo "[podman-up] universe identity $UNIVERSE_ID recorded for a universe being born ($UNIVERSE_ID_FILE)"
+  echo "[podman-up] universe identity $UNIVERSE_ID recorded ($UNIVERSE_ID_FILE)"
 fi
 [[ "$UNIVERSE_ID" =~ $UUID_PATTERN ]] || halt "$UNIVERSE_ID_FILE holds no lowercase UUID. Halt."
 export SHAPER_UNIVERSE_ID="$UNIVERSE_ID"
@@ -211,13 +216,10 @@ done
 [[ -n "${IMAGE_OF[vault]:-}" ]] || halt "the manifest declares no brick-vault: no unit could hold a credential"
 
 # ── 7. Unit identities: the parent's two steps (pkg-vault/unit-registration.js) ─
-# Who holds a Vault-signed credential, and for what: every unit that owes
-# evidence to Logger. Logger holds none — it verifies. Who pins Vault's public
-# key: every unit that verifies a credential, or the ones it receives.
-declare -A GRANTS=([vault]="logger=logger:ingest" [queue]="logger=logger:ingest" [maestro]="logger=logger:ingest")
-PINNED="logger queue maestro"
-# The proof's reader: it writes its own events and reads them back, nothing else.
-PROOF_GRANTS="logger=logger:ingest logger=logger:read:own"
+# Who holds a Vault-signed credential (HOLDS_CREDENTIAL, each granted
+# HOLDER_GRANT: the units that owe evidence to Logger; Logger holds none, it
+# verifies), who pins Vault's public key (PINNED) and what the proof's reader
+# may do (PROOF_GRANTS) are declared once, in unit-probes.sh.
 
 # The tool runs from the Vault image itself — the code that verifies what it
 # registers — with no network and no capability.
@@ -241,7 +243,11 @@ echo "[podman-up] Vault public key pinned for: $PINNED (sha256 $(sha256sum "$PIN
 
 # 7b. One fresh incarnation per unit: its bootstrap (a new file, owner-only)
 # and the one statement root applies to Vault's database — the bootstrap's
-# SHA-256, never its value. The statements wait in a root-only file.
+# SHA-256, never its value. The statements wait in a root-only file, and so do
+# the bootstraps of Queue, Maestro and the proof: each replaces the one in use
+# only once Vault holds its digest (apply_registrations), so a run that stops
+# before leaves the running units and the proof with an identity that works.
+# Vault's own goes in place now: its new container reads it at start.
 STAGE="$VAULT_ETC/registration"
 install -d -m 0700 -o root -g root "$STAGE"
 declare -A INCARNATION
@@ -257,27 +263,24 @@ register() {  # <unit> <incarnation> <grant>...
 }
 REGISTERED=""
 ( umask 077; : > "$STAGE/registration.sql.next" )
-for slug in vault queue maestro; do
-  [[ -n "${GRANTS[$slug]:-}" && -n "${IMAGE_OF[$slug]:-}" ]] || continue
+for slug in $HOLDS_CREDENTIAL; do
+  [[ -n "${IMAGE_OF[$slug]:-}" ]] || continue
   INCARNATION[$slug]="$slug-$STAMP"
-  # shellcheck disable=SC2086
-  register "$slug" "${INCARNATION[$slug]}" ${GRANTS[$slug]}
+  register "$slug" "${INCARNATION[$slug]}" "$HOLDER_GRANT"
   chown "${UID_OF[$slug]}:${UID_OF[$slug]}" "$STAGE/$slug.bootstrap"; chmod 0600 "$STAGE/$slug.bootstrap"
-  mv -f "$STAGE/$slug.bootstrap" "$APPS_ROOT/$slug/etc/identity/bootstrap"
 done
-install -d -m 0700 -o root -g root "$PROOF_DIR" "$PROOF_DIR/identity"
+mv -f "$STAGE/vault.bootstrap" "$APPS_ROOT/vault/etc/identity/bootstrap"
 # shellcheck disable=SC2086
 register proof "proof-$STAMP" $PROOF_GRANTS
-chmod 0600 "$STAGE/proof.bootstrap"; mv -f "$STAGE/proof.bootstrap" "$PROOF_DIR/identity/bootstrap"
-( umask 077; printf '%s\n' "proof-$STAMP" > "$PROOF_DIR/identity/incarnation" )
-rm -f -- "${PROOF_DIR:?}/identity/bootstrap.header" "${PROOF_DIR:?}/identity/logger.header" "${PROOF_DIR:?}/identity/vault.header"
+chmod 0600 "$STAGE/proof.bootstrap"
 mv -f "$STAGE/registration.sql.next" "$STAGE/registration.sql"
-echo "[podman-up] incarnations *-$STAMP registered for: ${!INCARNATION[*]} proof (bootstraps delivered owner-only)"
+echo "[podman-up] incarnations *-$STAMP registered for: ${!INCARNATION[*]} proof (bootstraps owner-only; Vault holds them once applied)"
 
-# Root applies the registrations through Vault's own socket, then reads them
-# back: every identity of this run live in Vault's database.
+# Root applies the registrations through Vault's own socket and reads them
+# back — every identity of this run live in Vault's database — and only then
+# are the staged bootstraps delivered, and the proof's incarnation recorded.
 apply_registrations() {
-  local ctr="${UNIVERSE}-ctr-vault" want got
+  local ctr="${UNIVERSE}-ctr-vault" want got slug
   want="$(( ${#INCARNATION[@]} + 1 ))"
   podman exec -i "$ctr" mariadb --no-defaults -S /run/vault/mysqld.sock -uroot -N -B vault < "$STAGE/registration.sql" \
     || halt "root could not apply the unit registrations to Vault's database"
@@ -285,30 +288,41 @@ apply_registrations() {
     "SELECT COUNT(*) FROM unit_identities WHERE universe_id = '$UNIVERSE_ID' AND NOT revoked
        AND bootstrap_expires_at > UTC_TIMESTAMP(3) AND CONCAT(unit_id, ':', incarnation) IN ($REGISTERED)")"
   [[ "$got" == "$want" ]] || halt "Vault holds $got of the $want registrations just applied"
-  echo "  OK   identities — $got incarnations live in Vault's database, applied by root"
+  for slug in "${!INCARNATION[@]}"; do
+    if [[ "$slug" != vault ]]; then mv -f "$STAGE/$slug.bootstrap" "$APPS_ROOT/$slug/etc/identity/bootstrap"; fi
+  done
+  install -d -m 0700 -o root -g root "$PROOF_DIR" "$PROOF_DIR/identity"
+  mv -f "$STAGE/proof.bootstrap" "$PROOF_DIR/identity/bootstrap"
+  ( umask 077; printf '%s\n' "proof-$STAMP" > "$PROOF_DIR/identity/incarnation" )
+  echo "  OK   identities — $got incarnations live in Vault's database, applied by root; bootstraps delivered"
 }
 
 # ── 8. Units, layer by layer, in the declared bootOrder ─────────────────────
+# Each unit's podman arguments, one array element per argument: no path is
+# ever split on whitespace.
+RUN_ARGS=()
+add() { RUN_ARGS+=("$@"); }
+
 # What each unit needs beyond its database and its identity — declared once, here.
 unit_args() {
   local slug="$1" port="$2"
   case "$slug" in
     vault)
-      echo "-e VAULT_PORT=$port -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -e VAULT_TOKEN -e LOGGER_URL=$LOGGER_URL"
-      echo "-v $KEY_FILE:/apps/vault/etc/vault/master.key:ro,Z"
+      add -e "VAULT_PORT=$port" -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -e VAULT_TOKEN -e "LOGGER_URL=$LOGGER_URL"
+      add -v "$KEY_FILE:/apps/vault/etc/vault/master.key:ro,Z"
       ;;
     logger)
-      echo "-e LOGGER_PORT=$port"
+      add -e "LOGGER_PORT=$port"
       ;;
     queue)
-      echo "-e QUEUE_PORT=$port -e LOGGER_URL=$LOGGER_URL -e QUEUE_AUTO_DISPATCH=0"
+      add -e "QUEUE_PORT=$port" -e "LOGGER_URL=$LOGGER_URL" -e QUEUE_AUTO_DISPATCH=0
       ;;
     maestro)
-      echo "-e MAESTRO_PORT=$port -e MAESTRO_AUTO_START=1 -e LOGGER_URL=$LOGGER_URL -e MAESTRO_QUEUE_URL=$QUEUE_URL"
-      echo "-e MAESTRO_TASKS_FILE=/apps/maestro/etc/task-schedule.json"
-      echo "-v $UNIV/task-schedule.json:/apps/maestro/etc/task-schedule.json:ro,Z"
+      add -e "MAESTRO_PORT=$port" -e MAESTRO_AUTO_START=1 -e "LOGGER_URL=$LOGGER_URL" -e "MAESTRO_QUEUE_URL=$QUEUE_URL"
+      add -e MAESTRO_TASKS_FILE=/apps/maestro/etc/task-schedule.json
+      add -v "$UNIV/task-schedule.json:/apps/maestro/etc/task-schedule.json:ro,Z"
       ;;
-    *) echo "[podman-up] no runtime wiring declared for unit $slug" >&2; return 1 ;;
+    *) halt "no runtime wiring declared for unit $slug" ;;
   esac
 }
 
@@ -317,18 +331,18 @@ unit_args() {
 # credential — its incarnation and bootstrap, or Vault's address and the pin.
 identity_args() {
   local slug="$1"
-  echo "-e SHAPER_UNIVERSE_ID=$UNIVERSE_ID -v $APPS_ROOT/$slug/etc/identity:/apps/$slug/etc/identity:ro,Z"
+  add -e "SHAPER_UNIVERSE_ID=$UNIVERSE_ID" -v "$APPS_ROOT/$slug/etc/identity:/apps/$slug/etc/identity:ro,Z"
   if [[ -n "${INCARNATION[$slug]:-}" ]]; then
-    echo "-e SHAPER_UNIT_INCARNATION=${INCARNATION[$slug]} -e UNIT_BOOTSTRAP_TOKEN_FILE=/apps/$slug/etc/identity/bootstrap"
+    add -e "SHAPER_UNIT_INCARNATION=${INCARNATION[$slug]}" -e "UNIT_BOOTSTRAP_TOKEN_FILE=/apps/$slug/etc/identity/bootstrap"
   fi
   if [[ " $PINNED " == *" $slug "* ]]; then
-    echo "-e VAULT_URL=$VAULT_URL -e UNIT_AUTH_PUBLIC_KEY_FILE=/apps/$slug/etc/identity/vault-signing.pub"
+    add -e "VAULT_URL=$VAULT_URL" -e "UNIT_AUTH_PUBLIC_KEY_FILE=/apps/$slug/etc/identity/vault-signing.pub"
   fi
 }
 
 volume_args() {
   local slug="$1" v
-  for v in ${VOLUMES_OF[$slug]}; do echo "-v $APPS_ROOT/$slug/$v:/apps/$slug/$v:Z"; done
+  for v in ${VOLUMES_OF[$slug]}; do add -v "$APPS_ROOT/$slug/$v:/apps/$slug/$v:Z"; done
 }
 
 wait_ready() {
@@ -359,12 +373,14 @@ while read -r bricks; do
     slug="$(jq -r --arg b "$brick" '.bricks[$b].database.slug' "$MANIFEST")"
     port="$(jq -r --arg b "$brick" '.bricks[$b].port' "$MANIFEST")"
 
+    RUN_ARGS=()
     # A restore into a fresh volume: RESTORE_DUMP_<slug>=/apps/<slug>/sav/restore/<file>.sql
     restore_var="RESTORE_DUMP_${slug}"
-    restore=()
-    [[ -n "${!restore_var:-}" ]] && restore=(-e "UNIT_RESTORE_DUMP=${!restore_var}")
+    if [[ -n "${!restore_var:-}" ]]; then add -e "UNIT_RESTORE_DUMP=${!restore_var}"; fi
+    volume_args "$slug"
+    identity_args "$slug"
+    unit_args "$slug" "$port"
 
-    # shellcheck disable=SC2046
     podman run -d --name "${UNIVERSE}-ctr-${slug}" --replace --network host --restart=always \
       --stop-timeout 90 \
       --cap-drop=all --cap-add=CHOWN,DAC_OVERRIDE,FOWNER,KILL,SETGID,SETUID \
@@ -372,10 +388,7 @@ while read -r bricks; do
       --health-cmd=/usr/local/bin/unit-ready --health-interval=15s --health-retries=3 --health-start-period=180s \
       -e HOST=127.0.0.1 \
       -e UNIT_HEALTH_URL="http://127.0.0.1:$port/api/health" \
-      "${restore[@]}" \
-      $(volume_args "$slug") \
-      $(identity_args "$slug") \
-      $(unit_args "$slug" "$port") \
+      "${RUN_ARGS[@]}" \
       "${IMAGE_OF[$slug]}" >/dev/null
   done
   for brick in $bricks; do
