@@ -157,10 +157,37 @@ pin. Vault and the units that owe evidence receive `LOGGER_URL`.
 A recreation is a new incarnation: the epoch of the recreated unit's identity
 moves, and the credentials of the container it replaces stop being current at
 once. A re-run that recreates nothing registers nothing: incarnations and
-epochs stay. A bootstrap expires after 30 days (pkg-vault's default): a
-universe whose units are kept that long must have their bootstraps renewed, or
-its units stop obtaining credentials and their evidence waits in their
-outboxes (never lost, reported once).
+epochs stay. A bootstrap expires after 30 days (pkg-vault's default); the
+parent's daily renewal extends a live incarnation's bootstrap before it
+expires, without restarting anything ([renewal](#renewal)).
+
+<a id="renewal"></a>
+## The parent's daily bootstrap renewal
+
+DECISIONS-20261011 §D. `deploy/install-renewal-timer.sh` (once, as root, after
+`podman-up.sh`) installs `<universe>-bootstrap-renewal.timer` and its service
+in the universe container, rendered from `systemd/`: daily, and at the next
+boot after a missed day. Each run is `deploy/renew-bootstraps.sh`, the parent
+acting through Vault's local administrative path — not a Maestro task, not a
+unit's own act:
+
+1. `pkg-vault/unit-registration.js renew`, from the running Vault's image (no
+   network, no capability), turns the parent's records
+   (`registration/records/*.json`, mounted read-only) into one transaction;
+2. root applies it through Vault's socket. Every record is checked against
+   Vault — universe, unit, incarnation, epoch, grants, recorded bootstrap
+   digest, not revoked, not expired. When all hold, each bootstrap expiring
+   within 7 days is extended by 30 days with its `UNIT_BOOTSTRAP_RENEWED`
+   proof in the same transaction. When one does not, nothing changes,
+   `UNIT_BOOTSTRAP_RENEWAL_HALTED` (level `ERROR`, each unit's state) is
+   committed for Logger, and the run exits 1 — the timer's service fails,
+   visible in `systemctl --failed`.
+
+It creates no identity, changes no incarnation, epoch or grant, never revives
+a revoked identity, restarts nothing, and prints no token: records and
+statements carry digests only. `RENEW_WITHIN_SECONDS` and
+`RENEW_EXTEND_SECONDS` exist to drill it (`lifecycle-drill.sh` uses a 40-day
+window), never in the timer.
 
 <a id="host"></a>
 ## What the universe container must provide
@@ -326,15 +353,15 @@ may not.
 Recorded so nobody reads the floor as the full target contract of the units
 (`operator-deliverables/*-FUNCTIONAL-UNIT-TARGET-2026-09-22.md`):
 
-- Queue's and Maestro's own APIs still rely on the `127.0.0.1` boundary; only
-  Logger and Vault's identity endpoints check Vault-signed credentials, and
-  Vault's generic secret API keeps its bearer token (Rule 0K);
-- a unit's bootstrap expires after 30 days and is re-delivered only by a run
-  of `podman-up.sh` — no automatic redelivery;
-- Vault records evidence of mutations and issuance, not of reads or refusals;
-  a Queue job settled as interrupted can still be PATCHed to `COMPLETED`;
+- Vault's generic secret API keeps its bearer token (Rule 0K); Logger, Queue,
+  Maestro and Vault's identity endpoints check Vault-signed credentials;
+- the bootstrap renewal is installed by `install-renewal-timer.sh`, a separate
+  step after `podman-up.sh`;
+- refusal counts not yet committed (at most one minute) are lost with Vault's
+  process;
 - no Logger cross-event chain or external checkpoint;
-- no Queue leases, attempts table or dead letter; no Maestro scheduler leases;
+- no Queue leases (renewal, expiry) over the durable attempts, and no dead
+  letter; no Maestro scheduler leases;
 - no automated partition maintenance, off-host encrypted recovery points or
   R2 layout (Rule 16 level 5); dumps are taken by the drill, not on a schedule;
 - the MariaDB engine version inside each image follows the Alpine release of

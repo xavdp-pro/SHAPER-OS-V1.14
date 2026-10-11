@@ -245,6 +245,44 @@ test('--recreate <slug> recreates that unit alone, under a new incarnation; the 
   assert.match(r.stdout, /bootstraps delivered: queue$/m, 'only queue registered');
 });
 
+test('the parent\'s renewal extends every live bootstrap by 30 days, keeping incarnations, epochs and containers (DECISIONS §D)', () => {
+  const renew = (extra = {}) => spawnSync('unshare', ['-r', 'bash', path.join(UNIV, 'deploy/renew-bootstraps.sh')], { env: { ...env, ...extra }, encoding: 'utf8', timeout: 120000 });
+  const expiries = () => Object.fromEntries(sql('vault', "SELECT CONCAT(unit_id, ' ', TIMESTAMPDIFF(SECOND, '1970-01-01', bootstrap_expires_at)) FROM unit_identities ORDER BY unit_id")
+    .split('\n').map((l) => l.split(' ')).map(([u, t]) => [u, Number(t)]));
+  const before = { expiries: expiries(), rows: identities(), pids: pids() };
+  // Every identity is due when the window is 40 days: a drill of the daily run.
+  const forced = renew({ RENEW_WITHIN_SECONDS: String(40 * 86400) });
+  assert.equal(forced.status, 0, `${forced.stdout}\n${forced.stderr}`);
+  for (const u of ['maestro', 'proof', 'queue', 'vault']) {
+    assert.match(forced.stdout, new RegExp(`^  ${u} +renewed `, 'm'));
+    assert.equal(expiries()[u] - before.expiries[u], 30 * 86400, `${u} extended by 30 days`);
+  }
+  assert.equal(identities(), before.rows, 'no incarnation, no epoch changed');
+  assert.deepEqual(pids(), before.pids, 'nothing restarted');
+  for (const secret of secretsSeen()) assert.ok(!forced.stdout.includes(secret) && !forced.stderr.includes(secret));
+  assert.equal(Number(sql('vault', "SELECT COUNT(*) FROM event_outbox WHERE JSON_VALUE(body, '$.event') = 'UNIT_BOOTSTRAP_RENEWED'")), 4, 'one proof per renewal');
+  // The daily run, the same day: nothing is due.
+  const daily = renew();
+  assert.equal(daily.status, 0, daily.stderr);
+  assert.equal((daily.stdout.match(/ current /g) || []).length, 4);
+  // A record that no longer matches Vault halts the run: nothing renewed, an alert.
+  const record = path.join(appsRoot, 'vault/etc/vault/registration/records/queue.json');
+  const kept = read(record);
+  fs.writeFileSync(record, kept.replace(/"bootstrapDigest":"[0-9a-f]{64}"/, `"bootstrapDigest":"${'0'.repeat(64)}"`));
+  try {
+    const now = expiries();
+    const halted = renew({ RENEW_WITHIN_SECONDS: String(80 * 86400) });
+    assert.equal(halted.status, 1);
+    assert.match(halted.stderr, /HALTED: 1 identity record\(s\) do not match/);
+    assert.match(halted.stdout, /^  queue +mismatch /m);
+    assert.match(halted.stdout, /^  vault +held /m);
+    assert.deepEqual(expiries(), now, 'nothing renewed');
+    assert.equal(Number(sql('vault', "SELECT COUNT(*) FROM event_outbox WHERE JSON_VALUE(body, '$.event') = 'UNIT_BOOTSTRAP_RENEWAL_HALTED' AND JSON_VALUE(body, '$.level') = 'ERROR'")), 1);
+  } finally {
+    fs.writeFileSync(record, kept, { mode: 0o600 });
+  }
+});
+
 test('a recreation is a new incarnation: epochs move, the old credential stops being current, the new one works', async () => {
   // A credential issued to the proof's current incarnation, kept aside.
   const keep = probe(`issue_proof_credential "$PROOF_DIR/old.header" && echo kept`);

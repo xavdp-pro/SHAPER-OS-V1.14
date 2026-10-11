@@ -7,7 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { registrationStatement, signingPublicKeyPem } from '../unit-registration.js';
+import { registrationStatement, renewalStatement, signingPublicKeyPem, validateRecord } from '../unit-registration.js';
 import { VaultUnitIdentity } from '../unit-identity.js';
 import { normalizeMasterKey } from '../index.js';
 
@@ -86,6 +86,50 @@ describe('the parent registers an incarnation without exposing its bootstrap', (
       const again = spawnSync(process.execPath, args, { env: { SHAPER_UNIVERSE_ID: universe }, encoding: 'utf8' });
       assert.equal(again.status, 1);
       assert.equal(fs.readFileSync(file, 'utf8'), token, 'the delivered token is untouched');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the parent renews bootstraps from its records, never from a secret (DECISIONS §D)', () => {
+  const record = { unit: 'queue', incarnation: 'queue-0123456789abcdef', epoch: 3, grants: { logger: ['logger:ingest'] }, bootstrapDigest: 'a'.repeat(64) };
+  const renewalId = '550e8400-e29b-41d4-a716-4466554400aa';
+
+  it('checks every recorded field against Vault, renews only when all hold, and alerts otherwise', () => {
+    const text = renewalStatement({ universe, records: [record], renewalId });
+    assert.match(text, /^DELIMITER \/\/$/m);
+    assert.match(text, /WHEN revoked THEN 'revoked'/);
+    assert.match(text, /WHEN incarnation <> 'queue-0123456789abcdef' OR epoch <> 3 OR grants <> '\{"logger":\["logger:ingest"\]\}'\n\s+OR bootstrap_digest <> 'a{64}' THEN 'mismatch'/);
+    assert.match(text, /WHEN bootstrap_expires_at <= UTC_TIMESTAMP\(3\) THEN 'expired'/);
+    assert.match(text, /TIMESTAMPADD\(SECOND, 604800, UTC_TIMESTAMP\(3\)\) THEN 'current'/, 'due within 7 days');
+    assert.match(text, /SET bootstrap_expires_at = TIMESTAMPADD\(SECOND, 2592000, bootstrap_expires_at\)/, 'extended by 30 days');
+    assert.match(text, /IF halted > 0 THEN\n\s+ROLLBACK;[\s\S]*UNIT_BOOTSTRAP_RENEWAL_HALTED[\s\S]*ELSE[\s\S]*UNIT_BOOTSTRAP_RENEWED[\s\S]*COMMIT;/);
+    assert.doesNotMatch(text, /INSERT INTO unit_identities|SET (incarnation|epoch|grants|revoked)\b/, 'creates no identity, changes no incarnation, epoch, grant or revocation');
+  });
+
+  it('refuses a record outside the grammar, so no value can carry SQL', () => {
+    for (const bad of [{ unit: "q'; DROP" }, { incarnation: "x' OR 1" }, { epoch: 0 }, { epoch: '3' }, { bootstrapDigest: 'zz' },
+      { grants: {} }, { grants: { logger: ['*'] } }, { grants: { "l'x": ['a'] } }]) {
+      assert.throws(() => validateRecord({ ...record, ...bad }), { code: 'RECORD_INVALID' }, JSON.stringify(bad));
+    }
+    assert.throws(() => renewalStatement({ universe, records: [record, record], renewalId }), { code: 'RENEWAL_INVALID' });
+    assert.throws(() => renewalStatement({ universe, records: [record], renewalId, withinSeconds: 10 }), { code: 'RENEWAL_INVALID' });
+    assert.throws(() => renewalStatement({ universe: 'nope', records: [record], renewalId }), { code: 'RENEWAL_INVALID' });
+  });
+
+  it('the command reads owner-only records and prints the statement', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-renew-'));
+    try {
+      const file = path.join(dir, 'queue.json');
+      fs.writeFileSync(file, JSON.stringify({ ...record, registeredAt: '2026-10-11T00:00:00Z' }), { mode: 0o600 });
+      const ok = spawnSync(process.execPath, [CLI, 'renew', '--record', file, '--within-seconds', '86400'], { env: { SHAPER_UNIVERSE_ID: universe }, encoding: 'utf8' });
+      assert.equal(ok.status, 0, ok.stderr);
+      assert.match(ok.stdout, /TIMESTAMPADD\(SECOND, 86400, UTC_TIMESTAMP\(3\)\)/);
+      fs.chmodSync(file, 0o644);
+      const refused = spawnSync(process.execPath, [CLI, 'renew', '--record', file], { env: { SHAPER_UNIVERSE_ID: universe }, encoding: 'utf8' });
+      assert.equal(refused.status, 1);
+      assert.match(refused.stderr, /RECORD_UNTRUSTED/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

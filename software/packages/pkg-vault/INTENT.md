@@ -161,6 +161,24 @@ missing, and the drain to the real Logger under the self-issued credential.
   attempt: no relay-induced loop. Counts not yet committed are lost with the
   process (at most one minute). A successful identity check is not recorded.
 
+<a id="bootstrap-renewal"></a>
+## Bootstrap renewal (DECISIONS-20261011 §D)
+
+`unit-registration.js renew --record <file>…` turns the parent's identity
+records (owner-only JSON: unit, incarnation, epoch, grants, bootstrap digest)
+into one compound statement root applies through the mariadb client. In one
+transaction each recorded row is locked and classified — `due` (consistent,
+expiring within 7 days), `current`, `mismatch` (incarnation, epoch, grants or
+digest differ), `revoked`, `expired`, `missing`. When every record is `due` or
+`current`, each `due` bootstrap is extended by 30 days from its present expiry
+with its `UNIT_BOOTSTRAP_RENEWED` outbox row in the same transaction;
+otherwise nothing changes and `UNIT_BOOTSTRAP_RENEWAL_HALTED` (level `ERROR`)
+is committed. The answer is one row per record (`renewed`, `current`, `held`,
+or the inconsistency). It never inserts an identity, never writes
+`incarnation`, `epoch`, `grants` or `revoked`, and never sees a bootstrap.
+Proof: `test/bootstrap-renewal.live.mjs` (applied by the real client as root,
+the evidence receipted by the real Logger).
+
 <a id="parent-registration"></a>
 ## Parent registration
 

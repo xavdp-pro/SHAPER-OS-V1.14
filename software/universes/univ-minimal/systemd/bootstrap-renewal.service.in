@@ -1,0 +1,13 @@
+# Intent: software/universes/univ-minimal/INTENT.md#renewal
+# Rendered by deploy/install-renewal-timer.sh. The parent's daily bootstrap
+# renewal (DECISIONS-20261011 §D): one run of deploy/renew-bootstraps.sh. Any
+# inconsistency between the parent's records and Vault halts it (exit 1): this
+# unit fails, visible in `systemctl --failed`, and Vault's outbox carries the
+# alert (UNIT_BOOTSTRAP_RENEWAL_HALTED) to Logger.
+[Unit]
+Description=SHAPER @UNIVERSE@: renew unit bootstraps before they expire
+After=podman-restart.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash @UNIV@/deploy/renew-bootstraps.sh

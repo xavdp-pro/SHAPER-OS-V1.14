@@ -1,0 +1,13 @@
+# Intent: software/universes/univ-minimal/INTENT.md#renewal
+# Rendered by deploy/install-renewal-timer.sh: daily, and at the next boot
+# after a missed day.
+[Unit]
+Description=SHAPER @UNIVERSE@: daily bootstrap renewal
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

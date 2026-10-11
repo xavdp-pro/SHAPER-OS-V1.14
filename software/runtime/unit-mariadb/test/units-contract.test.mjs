@@ -4,7 +4,9 @@
 // same way everywhere it is used. Static: what a build or a live run then
 // proves is in image-check.mjs and univ-minimal/deploy/.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -283,6 +285,30 @@ describe('univ-minimal births the units in the order their identities need', () 
       assert.doesNotMatch(text, /-e (VAULT_TOKEN|MYSQL_PWD|MYSQL_PASSWORD)=\$/, `${name} puts a secret on podman's command line`);
       assert.doesNotMatch(text, /--grant [^\n]*\$\(cat|bootstrap[^\n]*echo "\$\(cat/, `${name} prints a bootstrap`);
     }
+  });
+
+  test('the parent renews bootstraps daily from the universe container\'s timer, never through Maestro (DECISIONS §D)', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'renewal-units-'));
+    try {
+      const r = spawnSync('bash', [path.join(deploy, 'install-renewal-timer.sh')], {
+        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', SHAPER_UNIVERSE: 'univ-minimal', ENV_FILE: '/nonexistent' }, encoding: 'utf8' });
+      assert.equal(r.status, 0, r.stderr);
+      const service = fs.readFileSync(path.join(dir, 'univ-minimal-bootstrap-renewal.service'), 'utf8');
+      const timer = fs.readFileSync(path.join(dir, 'univ-minimal-bootstrap-renewal.timer'), 'utf8');
+      assert.match(service, /^Type=oneshot$/m);
+      assert.match(service, new RegExp(`^ExecStart=/usr/bin/env bash ${deploy.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/renew-bootstraps\\.sh$`, 'm'));
+      assert.match(timer, /^OnCalendar=daily$/m);
+      assert.match(timer, /^Persistent=true$/m);
+      assert.doesNotMatch(service + timer, /@UNIV/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(SOFTWARE, 'universes/univ-minimal/task-schedule.json'), 'utf8')).tasks, [], 'not a Maestro task');
+    const renew = fs.readFileSync(path.join(deploy, 'renew-bootstraps.sh'), 'utf8');
+    assert.match(renew, /podman run --rm --network none --cap-drop=all --security-opt=no-new-privileges --entrypoint node/);
+    assert.match(renew, /pkg-vault\/unit-registration\.js renew "\$\{RECORD_ARGS\[@\]\}"/);
+    assert.match(renew, /podman exec -i "\$CTR" mariadb --no-defaults -S \/run\/vault\/mysqld\.sock -uroot -N -B vault < "\$statement"/);
+    assert.doesNotMatch(renew, /podman (restart|run -d|stop)|--recreate/, 'the renewal restarts nothing');
   });
 
   test('the proofs address Maestro occurrences and drill units by the universe UUID, never the instance name', () => {

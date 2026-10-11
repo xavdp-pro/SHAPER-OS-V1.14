@@ -589,4 +589,4 @@ while read -r bricks; do
   layer=$((layer + 1))
 done < <(jq -r '.bootOrder[] | join(" ")' "$MANIFEST")
 
-echo "[podman-up] $UNIVERSE ($UNIVERSE_ID) is up. Prove it: bash $UNIV/deploy/proof.sh"
+echo "[podman-up] $UNIVERSE ($UNIVERSE_ID) is up. Prove it: bash $UNIV/deploy/proof.sh — bootstraps renew daily once bash $UNIV/deploy/install-renewal-timer.sh has run"

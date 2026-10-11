@@ -14,7 +14,12 @@
 #   3. a re-run of deploy/podman-up.sh, and its --preflight, recreate
 #      nothing: the same containers, the same incarnations, no epoch moved
 #      (DECISIONS-20261011 §B);
-#   4. recreation of the universe (podman-up.sh --recreate all replaces every
+#   4. the parent's bootstrap renewal (renew-bootstraps.sh, drilled with a
+#      40-day window so every identity is due): each bootstrap extended by
+#      exactly 30 days, its proof receipted by Logger, no incarnation, epoch
+#      or container changed; the daily run right after renews nothing
+#      (DECISIONS-20261011 §D);
+#   5. recreation of the universe (podman-up.sh --recreate all replaces every
 #      container): new containers, same markers, counts and password; each
 #      unit that holds a credential runs a new random incarnation, the one
 #      Vault now holds for it, and Vault has issued it a credential once it
@@ -180,7 +185,33 @@ done
 check rerun-epochs "no incarnation changed and no epoch moved in Vault (root path)" \
   test "$(rootsql vault vault -e "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities WHERE universe_id='$UNIVERSE_ID'" 2>/dev/null)" = "$EPOCHS_KEPT"
 
-# ── 4. Recreation: new containers over the same volumes ─────────────────────
+# ── 4. The parent's bootstrap renewal ─────────────────────────────────────
+printf '\n── bootstrap renewal\n'
+expiries() { rootsql vault vault -e "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', TIMESTAMPDIFF(SECOND, '1970-01-01', bootstrap_expires_at)) ORDER BY unit_id) FROM unit_identities WHERE universe_id='$UNIVERSE_ID'" 2>/dev/null; }
+shifted() { tr ',' '\n' <<<"$1" | awk -F: -v d="$2" '{ split($2, t, "."); printf "%s%s:%d", (NR > 1 ? "," : ""), $1, t[1] + d }'; }
+EXP_BEFORE="$(expiries)"
+renew_since="$(rootsql vault -e 'SELECT UTC_TIMESTAMP(3)')"
+renew_out="$(RENEW_WITHIN_SECONDS=$((40 * 86400)) bash "$UNIV/deploy/renew-bootstraps.sh" 2>&1)" \
+  && ok renewal "renew-bootstraps.sh (40-day drill window) ran: $(grep -c ' renewed ' <<<"$renew_out") identities renewed" \
+  || fail renewal "renew-bootstraps.sh failed: $(tail -n 2 <<<"$renew_out" | tr '\n' ' ')"
+check renewal-extended "every recorded bootstrap extended by exactly 30 days (vault.unit_identities, root path)" \
+  test -n "$EXP_BEFORE" -a "$(shifted "$(expiries)" 0)" = "$(shifted "$EXP_BEFORE" 2592000)"
+check renewal-kept "no incarnation changed and no epoch moved" \
+  test "$(rootsql vault vault -e "SELECT GROUP_CONCAT(CONCAT(unit_id, ':', incarnation, ':', epoch) ORDER BY unit_id) FROM unit_identities WHERE universe_id='$UNIVERSE_ID'" 2>/dev/null)" = "$EPOCHS_KEPT"
+for s in "${UNITS[@]}"; do
+  check "renewal-$s-not-restarted" "$s: the same container, nothing restarted" \
+    test "$(podman inspect -f '{{.Id}}' "${UNIVERSE}-ctr-$s" 2>/dev/null)" = "${ID_KEPT[$s]}"
+done
+check renewal-evidence "each renewal's proof (UNIT_BOOTSTRAP_RENEWED) committed with it and receipted by Logger (both databases)" \
+  evidence_delivered vault "JSON_VALUE(body, '\$.event') = 'UNIT_BOOTSTRAP_RENEWED' AND created_at >= '$renew_since'"
+check renewal-no-token "the renewal's output carries no bootstrap value" \
+  bash -c '! grep -qE "[0-9a-f]{64}" <<<"$1"' _ "$renew_out"
+daily_out="$(bash "$UNIV/deploy/renew-bootstraps.sh" 2>&1)" \
+  && ok renewal-daily "the daily run right after: nothing due ($(grep -c ' current ' <<<"$daily_out") current)" \
+  || fail renewal-daily "the daily run failed: $(tail -n 2 <<<"$daily_out" | tr '\n' ' ')"
+check renewal-daily-nothing "the daily run renewed nothing" bash -c '! grep -q " renewed " <<<"$1"' _ "$daily_out"
+
+# ── 5. Recreation: new containers over the same volumes ─────────────────────
 printf '\n── recreation\n'
 declare -A ID_BEFORE INC_BEFORE
 for s in "${UNITS[@]}"; do
