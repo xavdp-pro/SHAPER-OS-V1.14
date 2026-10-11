@@ -48,7 +48,7 @@ export function secretEvidence(event, key, extra = {}) {
   };
 }
 
-export const VAULT_SCHEMA_VERSION = 2;
+export const VAULT_SCHEMA_VERSION = 3;
 const KEY_VERSION = 1;
 
 export class MariaDbVaultStore {

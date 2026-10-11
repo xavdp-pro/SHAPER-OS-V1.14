@@ -47,7 +47,12 @@ reference qualification. The gaps are recorded, not implied.
 
 ## Signed runtime identity issuance
 
-Schema version 2 adds `unit_identities`, `unit_credentials` and `event_outbox`.
+Schema version 2 adds `unit_identities`, `unit_credentials` and `event_outbox`;
+version 3 adds `recovery_points` ([pkg-db retention](../pkg-db/INTENT.md#retention)).
+An hourly cleanup removes credential rows expired for more than 24 hours
+(`pruneExpiredCredentials`) — never `unit_identities`, never a row marked
+revoked — and delivered evidence as pkg-db declares it. Vault's relay issues
+itself a logger credential only when its outbox owes a row.
 The administrative parent registers an incarnation, exact audience-to-scope
 grants, bootstrap digest and bounded bootstrap expiry. Vault authenticates
 the bootstrap request against that row and commits credential metadata and

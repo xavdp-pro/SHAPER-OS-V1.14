@@ -73,6 +73,7 @@ const VAULT_TOKEN = process.env.VAULT_TOKEN || null;
 let vaultStore = null;
 let identityService = null;
 let evidenceRelay = null;
+let maintenance = null;
 let storageFile = null;
 if (STORE === 'mariadb') {
   const { MariaDbVaultStore } = await import('./mariadb-store.js');
@@ -89,6 +90,14 @@ if (STORE === 'mariadb') {
       pool: vaultStore.pool,
       identityService,
       report: (event) => console.warn(`[brick-vault] ${JSON.stringify(event)}`),
+    });
+    // The declared cleanup classes (manifest dataLifecycle): credentials expired
+    // over 24 h, delivered evidence over 30 days under a recovery point.
+    const { createMaintenanceLane, pruneDeliveredOutbox } = await import('../pkg-db/outbox.js');
+    const { pruneExpiredCredentials } = await import('./unit-identity.js');
+    maintenance = createMaintenanceLane({
+      jobs: { credentials: () => pruneExpiredCredentials(vaultStore.pool), outbox: () => pruneDeliveredOutbox(vaultStore.pool) },
+      report: (event) => console.log(`[brick-vault] ${JSON.stringify(event)}`),
     });
   } catch (err) {
     if (vaultStore) await vaultStore.close().catch(() => {});
@@ -123,6 +132,7 @@ const server = createVaultServer({
 server.on('listening', () => {
   console.log(`[brick-vault] Ready and listening on http://${HOST}:${server.address().port}`);
   evidenceRelay?.start();
+  maintenance?.start();
 });
 
 /**
@@ -144,8 +154,9 @@ async function shutdown(signal) {
   stopping = true;
   console.log(`[brick-vault] Received ${signal}, shutting down...`);
   let code = 0;
-  // Both settle before the database closes, whichever finishes first.
-  const [, relayed] = await Promise.allSettled([closeServer(server), evidenceRelay ? evidenceRelay.close() : Promise.resolve()]);
+  // All settle before the database closes, whichever finishes first.
+  const [, relayed] = await Promise.allSettled([closeServer(server), evidenceRelay ? evidenceRelay.close() : Promise.resolve(),
+    maintenance ? maintenance.close() : Promise.resolve()]);
   if (relayed.status === 'rejected') {
     // The batch in flight did not settle in time: its debt stays in MariaDB.
     console.error(`[brick-vault] ${relayed.reason?.code || 'SHUTDOWN_UNCONFIRMED'}: evidence delivery in flight not confirmed; the debt is retained`);

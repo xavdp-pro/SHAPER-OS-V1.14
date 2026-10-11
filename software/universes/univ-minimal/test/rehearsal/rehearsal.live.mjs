@@ -126,7 +126,26 @@ test('no secret value reaches a podman command line or the deploy output', () =>
   }
 });
 
-test('every credential holder obtains a credential for its current incarnation, and its evidence reaches Logger', async () => {
+// Work for each credential holder's outbox: a secret written and removed, a job.
+const oweEvidence = (tag) => probe(`
+  H='Content-Type: application/json'
+  vault_curl -sf -o /dev/null -X POST -H "$H" -d '{"data":"owe"}' "http://127.0.0.1:8610/api/secret/rehearsal/${tag}" && echo vault=ok
+  job="$(curl -s -X POST http://127.0.0.1:8640/api/jobs -H "$H" -d '{"type":"rehearsal.owe","payload":{},"idempotencyKey":"owe-${tag}"}' | jq -r '.job.id')"
+  curl -s -o /dev/null -X PATCH "http://127.0.0.1:8640/api/jobs/$job" -H "$H" -d '{"status":"COMPLETED","progress":100,"step":1,"result":{}}' && echo queue=ok
+`);
+
+test('an idle unit asks Vault for nothing: Queue, owing no evidence, holds no credential (DECISIONS §C)', async () => {
+  await sleep(8000); // four relay intervals
+  assert.equal(sql('vault', "SELECT COUNT(*) FROM unit_credentials WHERE unit_id='queue'"), '0', 'Queue obtained a credential with nothing to deliver');
+  // Maestro owes its MAESTRO_STARTED at start, so it did ask; Vault then owes
+  // the evidence of that issuance, so it asked once for itself.
+  assert.ok(await until(() => Number(sql('vault', "SELECT COUNT(*) FROM unit_credentials WHERE unit_id='maestro'")) >= 1));
+  assert.ok(Number(sql('vault', "SELECT COUNT(*) FROM event_outbox WHERE JSON_VALUE(body, '$.event') = 'UNIT_CREDENTIAL_ISSUED' AND JSON_VALUE(body, '$.data.unit') = 'maestro'")) >= 1);
+});
+
+test('every credential holder obtains a credential for its current incarnation once it owes evidence, and its evidence reaches Logger', async () => {
+  const work = oweEvidence('first');
+  assert.match(work.stdout, /vault=ok[\s\S]*queue=ok/, work.stderr);
   for (const s of ['vault', 'queue', 'maestro']) {
     const inc = JSON.parse(read(path.join(fakeState, `univ-minimal-ctr-${s}.json`))).env.SHAPER_UNIT_INCARNATION;
     const n = await until(() => Number(sql('vault', `SELECT COUNT(*) FROM unit_credentials WHERE unit_id='${s}' AND incarnation='${inc}' AND audience='logger'`)) >= 1);
@@ -185,6 +204,7 @@ test('a recreation is a new incarnation: epochs move, the old credential stops b
   assert.equal(old.stdout.trim(), '403', 'the previous incarnation\'s credential is refused');
   const fresh = probe(`logger_curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8620/api/events/last?event=NONE"`);
   assert.equal(fresh.stdout.trim(), '200');
+  oweEvidence('recreated');
   for (const s of ['vault', 'queue', 'maestro']) {
     const inc = JSON.parse(read(path.join(fakeState, `univ-minimal-ctr-${s}.json`))).env.SHAPER_UNIT_INCARNATION;
     assert.ok(await until(() => Number(sql('vault', `SELECT COUNT(*) FROM unit_credentials WHERE unit_id='${s}' AND incarnation='${inc}'`)) >= 1), `${s} renewed under ${inc}`);

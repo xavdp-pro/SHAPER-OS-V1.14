@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { adminQuery, resetUnit, unitDb } from './live/live-env.mjs';
 import { openUnitDb, withTransaction } from '../pool.js';
-import { appendOutbox, outboxStatus, relayOutbox } from '../outbox.js';
+import { appendOutbox, createEvidenceRelay, outboxStatus, pruneDeliveredOutbox, relayOutbox } from '../outbox.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 let pool;
@@ -100,5 +100,68 @@ describe('a damaged row', () => {
     const status = await outboxStatus(pool);
     assert.equal(status.invalid, 1, 'the damage is observable');
     assert.equal(status.pending, 1, 'and still owed');
+  });
+});
+
+describe('the lane asks for a credential only when something is due (DECISIONS §C)', () => {
+  it('an empty or not-yet-due outbox obtains no credential; a due row does, once per round', async () => {
+    await adminQuery('DELETE FROM queue.event_outbox');
+    let asked = 0;
+    const relay = createEvidenceRelay({ pool, credentials: async () => { asked += 1; return {}; }, deliver: async () => ({ id: 'r' }) });
+    for (let i = 0; i < 3; i++) assert.deepEqual(await relay.tick(), { delivered: 0, deferred: 0 });
+    await append(20);
+    await adminQuery('UPDATE queue.event_outbox SET next_attempt_at = TIMESTAMPADD(HOUR, 1, UTC_TIMESTAMP(3))');
+    assert.deepEqual(await relay.tick(), { delivered: 0, deferred: 0 }, 'a row in backoff is not deliverable work');
+    assert.equal(asked, 0);
+    await adminQuery('UPDATE queue.event_outbox SET next_attempt_at = UTC_TIMESTAMP(3)');
+    assert.deepEqual(await relay.tick(), { delivered: 1, deferred: 0 });
+    assert.equal(asked, 1);
+    await relay.close();
+  });
+});
+
+describe('delivered evidence is removed only as the dataLifecycle declares (DECISIONS §C)', () => {
+  const at = (days) => `TIMESTAMPADD(DAY, -${days}, UTC_TIMESTAMP(3))`;
+  async function rows() {
+    await adminQuery('DELETE FROM queue.event_outbox');
+    await adminQuery('DELETE FROM queue.recovery_points');
+    for (const n of [1, 2, 3, 4, 5, 6]) await append(100 + n);
+    const ids = (await adminQuery('SELECT event_id, JSON_VALUE(body, "$.data.n") AS n FROM queue.event_outbox'))
+      .reduce((m, r) => ({ ...m, [r.n]: r.event_id }), {});
+    const receipt = JSON.stringify({ id: 'logger-record', digest: 'd' });
+    // 101: delivered 40 days ago, receipted — removable under a later point.
+    await adminQuery(`UPDATE queue.event_outbox SET receipt = ?, delivered_at = ${at(40)} WHERE event_id = ?`, [receipt, ids[101]]);
+    // 102: delivered 10 days ago — inside the retention.
+    await adminQuery(`UPDATE queue.event_outbox SET receipt = ?, delivered_at = ${at(10)} WHERE event_id = ?`, [receipt, ids[102]]);
+    // 103: still owed after 40 days of failed attempts.
+    await adminQuery(`UPDATE queue.event_outbox SET created_at = ${at(40)}, attempts = 90, last_error = 'DELIVERY_UNCONFIRMED' WHERE event_id = ?`, [ids[103]]);
+    // 104: set aside as invalid 40 days ago.
+    await adminQuery(`UPDATE queue.event_outbox SET created_at = ${at(40)}, last_error = 'OUTBOX_ROW_INVALID' WHERE event_id = ?`, [ids[104]]);
+    // 105: delivered 35 days ago, after the recovery point below was taken.
+    await adminQuery(`UPDATE queue.event_outbox SET receipt = ?, delivered_at = ${at(35)} WHERE event_id = ?`, [receipt, ids[105]]);
+    // 106: delivered 40 days ago with a receipt that names no Logger record.
+    await adminQuery(`UPDATE queue.event_outbox SET receipt = '{}', delivered_at = ${at(40)} WHERE event_id = ?`, [ids[106]]);
+    return ids;
+  }
+  const remaining = async () => (await adminQuery('SELECT JSON_VALUE(body, "$.data.n") AS n FROM queue.event_outbox ORDER BY 1')).map((r) => Number(r.n));
+
+  it('without a recovery point, nothing is removed', async () => {
+    await rows();
+    assert.deepEqual(await pruneDeliveredOutbox(pool), { removed: 0, coveredUntil: null });
+    assert.deepEqual(await remaining(), [101, 102, 103, 104, 105, 106]);
+  });
+
+  it('a verified recovery point removes only the receipted rows it holds, delivered over 30 days ago', async () => {
+    await rows();
+    await adminQuery(`INSERT INTO queue.recovery_points (recovery_point_id, snapshot_at, verified_at, dump_sha256)
+      VALUES ('rp-live', ${at(38)}, ${at(38)}, REPEAT('a', 64))`);
+    const result = await pruneDeliveredOutbox(pool);
+    assert.equal(result.removed, 1);
+    assert.deepEqual(await remaining(), [102, 103, 104, 105, 106], 'owed, invalid, recent, uncovered and unreceipted rows stay');
+  });
+
+  it('the application account does it with its own grants (no DDL, no root)', async () => {
+    const [[who]] = await pool.query('SELECT CURRENT_USER() AS u');
+    assert.equal(who.u, 'queue@localhost');
   });
 });

@@ -61,4 +61,15 @@ record vault_digest "$(rootsql vault vault -e "SELECT SHA2(CONCAT(secret_key,iv,
 # ── Logger, Queue, Maestro ──────────────────────────────────────────────────
 unit_effects
 
+# ── Each holder's credential, obtained because it had evidence to deliver ──
+# A unit asks Vault for a credential only when its outbox owes a row
+# (DECISIONS-20261011 §C); every holder delivered evidence above, so each now
+# holds one issued to its current incarnation.
+section "identity — each holder's credential for its current incarnation, once it owed evidence"
+for s in $HOLDS_CREDENTIAL; do
+  inc="$(unit_env "${UNIVERSE}-ctr-$s" SHAPER_UNIT_INCARNATION)"
+  check "$s-credential" "Vault issued a logger credential to $s's current incarnation ${inc:-?} (vault.unit_credentials, root path)" \
+    test -n "$inc" -a "$(rootsql vault vault -e "SELECT COUNT(*) FROM unit_credentials c JOIN unit_identities i ON i.universe_id = c.universe_id AND i.unit_id = c.unit_id AND i.incarnation = c.incarnation AND i.epoch = c.epoch WHERE c.universe_id = '$UNIVERSE_ID' AND c.unit_id = '$s' AND c.incarnation = '$inc' AND c.audience = 'logger' AND NOT i.revoked" 2>/dev/null || echo 0)" -ge 1
+done
+
 if (( FAILS == 0 )); then mv "$NEXT" "$LAST"; else rm -f "$NEXT"; fi

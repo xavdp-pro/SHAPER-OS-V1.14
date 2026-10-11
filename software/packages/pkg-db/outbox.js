@@ -132,6 +132,113 @@ export async function relayOutbox(pool, { deliver, maxEvents = 10, timeoutMs = 3
 }
 
 /**
+ * Whether a row is due for delivery now: one read of the ready index, no lock
+ * and no transaction. The lane asks it before obtaining a credential, so an
+ * idle unit asks Vault for nothing (DECISIONS-20261011 §C).
+ * @param {import('mysql2/promise').Pool} pool
+ * @returns {Promise<boolean>}
+ */
+export async function hasDueEvidence(pool) {
+  const [rows] = await pool.query(`SELECT 1 AS due FROM event_outbox
+    WHERE delivered_at IS NULL AND receipt IS NULL AND next_attempt_at <= UTC_TIMESTAMP(3) LIMIT 1`);
+  return rows.length > 0;
+}
+
+/** Days a delivered, receipted row is kept before it may be removed. */
+export const DELIVERED_RETENTION_DAYS = 30;
+/**
+ * How far before a recovery point's snapshot a delivery must lie for that
+ * point to hold it: the settling transaction commits after its timestamp.
+ */
+export const RECOVERY_POINT_MARGIN_MINUTES = 5;
+
+/**
+ * Removes delivered evidence a unit no longer needs to hold, and nothing else
+ * (DECISIONS-20261011 §C, the unit's dataLifecycle): a row goes only when it
+ * carries Logger's verified receipt (stored by the relay only after deliverLog
+ * matched the claim), was delivered more than `retentionDays` ago, and a
+ * recovery point recorded by the administrative path after a verified restore
+ * was taken after that delivery — so the row survives in that dump. A row still
+ * owed, set aside as invalid, or failed is never removed; without any recovery
+ * point nothing is removed. Bounded per call.
+ *
+ * @param {import('mysql2/promise').Pool} pool
+ * @param {{ retentionDays?: number, limit?: number }} [options]
+ * @returns {Promise<{ removed: number, coveredUntil: string|null }>}
+ */
+export async function pruneDeliveredOutbox(pool, { retentionDays = DELIVERED_RETENTION_DAYS, limit = 500 } = {}) {
+  if (!Number.isInteger(retentionDays) || retentionDays < 1 || !Number.isInteger(limit) || limit < 1 || limit > 10000) {
+    throw new OutboxError('OUTBOX_PRUNE_INVALID');
+  }
+  const [[point]] = await pool.query('SELECT MAX(snapshot_at) AS covered FROM recovery_points');
+  if (!point || !point.covered) return { removed: 0, coveredUntil: null };
+  const [result] = await pool.query(`DELETE FROM event_outbox
+    WHERE receipt IS NOT NULL AND delivered_at IS NOT NULL AND last_error IS NULL
+      AND JSON_VALUE(receipt, '$.id') IS NOT NULL
+      AND delivered_at < TIMESTAMPADD(DAY, -?, UTC_TIMESTAMP(3))
+      AND delivered_at < TIMESTAMPADD(MINUTE, -?, ?)
+    ORDER BY delivered_at LIMIT ?`, [retentionDays, RECOVERY_POINT_MARGIN_MINUTES, point.covered, limit]);
+  return { removed: Number(result.affectedRows) || 0, coveredUntil: String(point.covered) };
+}
+
+/**
+ * A unit's periodic housekeeping, for a service lifecycle: each named job runs
+ * once per interval, one round at a time, its outcome kept for vitals and
+ * reported only when it removed something or failed. Started after listening,
+ * closed before the database closes.
+ *
+ * @param {object} options
+ * @param {Record<string, () => Promise<object>>} options.jobs
+ * @param {(event: object) => void} [options.report]
+ * @param {number} [options.intervalMs=3600000]
+ * @param {number} [options.firstDelayMs=60000]
+ */
+export function createMaintenanceLane({ jobs, report = () => {}, intervalMs = 3600000, firstDelayMs = 60000 } = {}) {
+  if (!jobs || typeof jobs !== 'object' || !Object.values(jobs).every((j) => typeof j === 'function')) {
+    throw new OutboxError('MAINTENANCE_LANE_INVALID');
+  }
+  const every = bounded(intervalMs, 3600000, 1000, 86400000, 'MAINTENANCE_LANE_INVALID');
+  const first = bounded(firstDelayMs, 60000, 0, 86400000, 'MAINTENANCE_LANE_INVALID');
+  const last = {};
+  let pending = null, timer = null, starter = null, stopping = false;
+  const round = () => {
+    if (stopping) return Promise.resolve(null);
+    if (pending) return pending;
+    pending = (async () => {
+      for (const [name, job] of Object.entries(jobs)) {
+        if (stopping) break;
+        try {
+          const result = await job();
+          last[name] = { at: new Date().toISOString(), ...result };
+          if (result && Number(result.removed) > 0) report({ event: 'MAINTENANCE_DONE', job: name, removed: Number(result.removed) });
+        } catch (err) {
+          last[name] = { at: new Date().toISOString(), error: err?.code || 'MAINTENANCE_FAILED' };
+          report({ event: 'MAINTENANCE_FAILED', job: name, code: err?.code || 'MAINTENANCE_FAILED' });
+        }
+      }
+      return { ...last };
+    })().finally(() => { pending = null; });
+    return pending;
+  };
+  return {
+    last,
+    round,
+    start() {
+      if (stopping || timer || starter) return;
+      starter = setTimeout(() => { starter = null; if (stopping) return; timer = setInterval(round, every); timer.unref?.(); void round(); }, first);
+      starter.unref?.();
+    },
+    async close() {
+      stopping = true;
+      if (starter) clearTimeout(starter);
+      if (timer) clearInterval(timer);
+      starter = null; timer = null;
+      await (pending ?? Promise.resolve()).catch(() => {});
+    },
+  };
+}
+
+/**
  * What a unit can say about its own evidence debt: how much is still owed and
  * since when. A down Logger is observable here, never silent.
  * @param {import('mysql2/promise').Pool} pool
@@ -165,9 +272,15 @@ const bounded = (value, fallback, min, max, code) => {
  * One non-overlapping delivery lane over a unit's outbox, for a service
  * lifecycle: start after listening, close before the database closes.
  *
- * `credentials()` runs before the relay opens its transaction: obtaining a
- * credential may itself append evidence to this outbox (Vault issuing to
- * itself), and it must not do so while the relay holds a row lock.
+ * A round first asks whether any row is due (hasDueEvidence); only then is
+ * `credentials()` called, so a unit with nothing to deliver obtains no
+ * credential (DECISIONS-20261011 §C). The credential client caches and renews
+ * before expiry. `credentials()` runs before the relay opens its transaction:
+ * obtaining a credential may itself append evidence to this outbox (Vault
+ * issuing to itself), and it must not do so while the relay holds a row lock.
+ * A refused or unavailable credential is retried after a backoff (two
+ * intervals, doubling to one minute), never on every tick: a unit Vault
+ * refuses does not hammer Vault, nor fill Vault's refusal evidence.
  * `deliver(entry, signal, headers)` returns a verified recipient receipt or
  * throws; anything else leaves the debt in place for a later attempt.
  *
@@ -180,6 +293,7 @@ const bounded = (value, fallback, min, max, code) => {
  * @param {number} [options.maxEvents=10]
  * @param {number} [options.timeoutMs=3000]
  * @param {number} [options.shutdownMs=15000]
+ * @param {() => number} [options.now=Date.now]
  */
 export function createEvidenceRelay({
   pool,
@@ -190,6 +304,7 @@ export function createEvidenceRelay({
   maxEvents = 10,
   timeoutMs = 3000,
   shutdownMs = 15000,
+  now = Date.now,
 } = {}) {
   if (!pool || typeof deliver !== 'function' || typeof credentials !== 'function') {
     throw new OutboxError('OUTBOX_RELAY_INVALID');
@@ -204,7 +319,9 @@ export function createEvidenceRelay({
   let timer = null;
   let stopping = false;
   let closed = null;
-  const last = { at: null, delivered: 0, deferred: 0, error: null };
+  let credentialFailures = 0;
+  let credentialRetryAt = 0;
+  const last = { at: null, delivered: 0, deferred: 0, error: null, idle: false };
   // A lane that keeps failing the same way says so once, then again when the
   // reason changes or after it has recovered: observable, not a flood.
   let lastReported = null;
@@ -218,12 +335,27 @@ export function createEvidenceRelay({
   const tick = () => {
     if (stopping) return Promise.resolve(null);
     if (pending) return pending;
+    if (now() < credentialRetryAt) return Promise.resolve(null);
     pending = (async () => {
+      try {
+        if (!(await hasDueEvidence(pool))) {
+          Object.assign(last, { at: new Date().toISOString(), delivered: 0, deferred: 0, invalid: 0, idle: true });
+          return { delivered: 0, deferred: 0 };
+        }
+      } catch (err) {
+        last.error = err?.code || 'DELIVERY_UNCONFIRMED';
+        say({ event: 'EVIDENCE_RELAY_UNAVAILABLE', code: last.error });
+        return null;
+      }
       let headers;
       try {
         headers = await credentials();
+        credentialFailures = 0;
+        credentialRetryAt = 0;
       } catch (err) {
         last.error = err?.code || 'IDENTITY_UNAVAILABLE';
+        credentialFailures += 1;
+        credentialRetryAt = now() + Math.min(60000, settings.intervalMs * 2 ** Math.min(credentialFailures, 10));
         say({ event: 'EVIDENCE_CREDENTIAL_UNAVAILABLE', code: last.error });
         return null;
       }
@@ -234,7 +366,7 @@ export function createEvidenceRelay({
           shouldStop: () => stopping,
           deliver: (entry, signal) => deliver(entry, signal, headers),
         });
-        Object.assign(last, { at: new Date().toISOString(), invalid: 0, ...result, error: null });
+        Object.assign(last, { at: new Date().toISOString(), invalid: 0, ...result, error: null, idle: false });
         if (result.invalid) say({ event: 'EVIDENCE_ROW_INVALID', code: 'OUTBOX_ROW_INVALID' });
         else if (result.deferred) say({ event: 'EVIDENCE_DELIVERY_DEFERRED', code: 'DELIVERY_UNCONFIRMED' });
         else if (lastReported !== null) {

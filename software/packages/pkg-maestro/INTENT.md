@@ -126,9 +126,11 @@ with its direct-to-bridge legacy path.
 <a id="evidence"></a>
 ## 4. Evidence: the outbox, not a local file
 
-Every report of the durable scheduler is an `event_outbox` row (schema version
-2, the pkg-db outbox table) written in the transaction of the change it
-reports. Store writes take an `evidence` argument; the scheduler builds the
+Every report of the durable scheduler is an `event_outbox` row (the pkg-db
+outbox table, since schema version 2; version 3 adds `recovery_points` for the
+declared cleanup of delivered evidence, [pkg-db retention](../pkg-db/INTENT.md#retention))
+written in the transaction of the change it reports. The relay asks Vault for
+a credential only when a row is due. Store writes take an `evidence` argument; the scheduler builds the
 entries, the store appends them before its commit:
 
 | Change (store write) | Evidence |

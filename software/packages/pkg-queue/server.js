@@ -38,6 +38,7 @@ const storeOptions = {
 
 let queue;
 let relay = null;
+let maintenance = null;
 if (STORE === 'mariadb') {
   const { MariaDbJobQueue } = await import('./mariadb-store.js');
   const slug = process.env.SHAPER_UNIT_SLUG || 'queue';
@@ -66,6 +67,13 @@ if (STORE === 'mariadb') {
       maxEvents: process.env.QUEUE_RELAY_BATCH,
       timeoutMs: process.env.QUEUE_RELAY_TIMEOUT_MS,
       shutdownMs: process.env.QUEUE_SHUTDOWN_TIMEOUT_MS,
+    });
+    // The declared cleanup class (manifest dataLifecycle): delivered evidence
+    // over 30 days, under a recovery point. Jobs and their history are kept.
+    const { createMaintenanceLane, pruneDeliveredOutbox } = await import('../pkg-db/outbox.js');
+    maintenance = createMaintenanceLane({
+      jobs: { outbox: () => pruneDeliveredOutbox(queue.pool) },
+      report: (event) => console.log(`[brick-queue] ${JSON.stringify(event)}`),
     });
   } catch (err) {
     if (queue) await queue.close().catch(() => {});
@@ -123,6 +131,7 @@ let worker = null;
 server.on('listening', () => {
   console.log(`[brick-queue] Ready and listening on http://${HOST}:${server.address().port}`);
   relay?.start();
+  maintenance?.start();
   if (AUTO) {
     worker = startQueueAgentWorker({
       queue: server.jobQueue,
@@ -155,8 +164,9 @@ async function shutdown(signal) {
   console.log(`[brick-queue] Received ${signal}, shutting down...`);
   if (worker) worker.stop();
   let code = 0;
-  // Both settle before the database closes, whichever finishes first.
-  const [, relayed] = await Promise.allSettled([closeServer(server), relay ? relay.close() : Promise.resolve()]);
+  // All settle before the database closes, whichever finishes first.
+  const [, relayed] = await Promise.allSettled([closeServer(server), relay ? relay.close() : Promise.resolve(),
+    maintenance ? maintenance.close() : Promise.resolve()]);
   if (relayed.status === 'rejected') {
     // The batch in flight did not settle in time: its debt stays in MariaDB.
     console.error(`[brick-queue] ${relayed.reason?.code || 'SHUTDOWN_UNCONFIRMED'}: evidence delivery in flight not confirmed; the debt is retained`);

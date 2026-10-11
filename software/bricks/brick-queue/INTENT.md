@@ -17,7 +17,7 @@ private MariaDB; the package intent states the contract
 4. Localhost or mesh bind only.
 5. Podman Quadlet lifecycle.
 6. One instance per universe.
-7. Every transition commits its evidence to the unit's outbox in the same transaction (schema version 2); the unit relays it to Logger under a logger credential renewed from Vault (`SHAPER_UNIT_INCARNATION`, `UNIT_BOOTSTRAP_TOKEN_FILE`, `UNIT_AUTH_PUBLIC_KEY_FILE`, `VAULT_URL`, `LOGGER_URL`, from `/apps/queue/etc/identity/`, mounted read-only). A job found `RUNNING` at start is settled `FAILED` as interrupted, whatever the worker setting.
+7. Every transition commits its evidence to the unit's outbox in the same transaction (schema version 3, with `recovery_points` for the declared cleanup); the unit relays it to Logger under a logger credential renewed from Vault (`SHAPER_UNIT_INCARNATION`, `UNIT_BOOTSTRAP_TOKEN_FILE`, `UNIT_AUTH_PUBLIC_KEY_FILE`, `VAULT_URL`, `LOGGER_URL`, from `/apps/queue/etc/identity/`, mounted read-only). A job found `RUNNING` at start is settled `FAILED` as interrupted, whatever the worker setting.
 
 ---
 

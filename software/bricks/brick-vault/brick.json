@@ -20,7 +20,7 @@
     "engineUid": 10611,
     "database": "mariadb-in-unit",
     "schema": "/apps/vault/app/packages/pkg-vault/sql/schema.sql",
-    "schemaVersion": 2,
+    "schemaVersion": 3,
     "volumes": [
       "etc/mysql",
       "sav",

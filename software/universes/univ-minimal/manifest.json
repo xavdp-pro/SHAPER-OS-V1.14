@@ -7,7 +7,21 @@
   "shape": "lxc",
   "dataLifecycle": {
     "personalData": false,
-    "retention": "unlimited — evidence and configuration only; each functional unit's MariaDB rows follow that unit's contract",
+    "retention": {
+      "summary": "evidence and configuration only; every class below is a row family of one unit's private MariaDB, and nothing is removed except the three cleanup classes (DECISIONS-20261011 §C)",
+      "vault.secrets": "unlimited — until deleted through Vault's administrative API",
+      "vault.unit_identities": "unlimited — a unit's current identity, incarnation, epoch and revocation are never removed automatically",
+      "vault.unit_credentials (expired)": "cleanup class: a credential row expired for more than 24 hours is removed by Vault (pruneExpiredCredentials); a row marked revoked is kept",
+      "<unit>.event_outbox (delivered)": "cleanup class: for vault, queue and maestro, a row delivered more than 30 days ago is removed only when it carries Logger's verified receipt and a recovery point recorded after a verified restore holds it (pruneDeliveredOutbox)",
+      "<unit>.event_outbox (owed, invalid or failed)": "unlimited — a row without a receipt, set aside as OUTBOX_ROW_INVALID or still retrying is never removed automatically",
+      "<unit>.recovery_points": "unlimited — written by the administrative path after a verified restore",
+      "logger.events (audit chain)": "unlimited for this wave",
+      "logger.ingest_keys (deduplication)": "unlimited for this wave",
+      "queue.jobs, queue.job_transitions": "unlimited",
+      "maestro.schedules, maestro.schedule_revisions, maestro.occurrences": "unlimited",
+      "sav/dumps (logical dumps)": "kept with the unit's sav volume; removed with it",
+      "proof state": "unlimited until the universe is terminated"
+    },
     "onTermination": "destroy every unit's declared volumes (etc/mysql, sav, and log where declared) and its etc/identity, the Vault master key, the universe identity, and the proof's state and reader identity; nothing is exported"
   },
   "description": "The minimal composition: Vault, Logger, Queue and Maestro, each one functional Podman holding its application and its own MariaDB server, two processes in one container (Rules 4 and 26, Turbinobash method). No cognition adapter, no catalogue brick, no domain.",
@@ -31,7 +45,7 @@
         "uid": 10610,
         "engineUid": 10611,
         "schema": "/apps/vault/app/packages/pkg-vault/sql/schema.sql",
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "volumes": [
           "etc/mysql",
           "sav",
@@ -91,7 +105,7 @@
         "uid": 10640,
         "engineUid": 10641,
         "schema": "/apps/queue/app/packages/pkg-queue/sql/schema.sql",
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "volumes": [
           "etc/mysql",
           "sav",
@@ -121,7 +135,7 @@
         "uid": 10630,
         "engineUid": 10631,
         "schema": "/apps/maestro/app/packages/pkg-maestro/sql/schema.sql",
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "volumes": [
           "etc/mysql",
           "sav"

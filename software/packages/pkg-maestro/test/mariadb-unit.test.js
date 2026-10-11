@@ -28,7 +28,7 @@ const sqlOnly = schema.replace(/--.*$/gm, '');
 describe('the schema belongs to the administrative path', () => {
   it('creates every table idempotently, as ordinary InnoDB', () => {
     const creates = [...sqlOnly.matchAll(/CREATE TABLE\s+(IF NOT EXISTS\s+)?(\w+)/g)];
-    assert.deepEqual(creates.map((m) => m[2]).sort(), ['event_outbox', 'occurrences', 'schedule_revisions', 'schedules', 'schema_meta']);
+    assert.deepEqual(creates.map((m) => m[2]).sort(), ['event_outbox', 'occurrences', 'recovery_points', 'schedule_revisions', 'schedules', 'schema_meta']);
     for (const m of creates) assert.ok(m[1], `${m[2]} is not created IF NOT EXISTS`);
     assert.equal((sqlOnly.match(/ENGINE=InnoDB/g) || []).length, creates.length);
     assert.doesNotMatch(sqlOnly, /PARTITION/i, 'active responsibility is not partitioned; archival is a declared gap');

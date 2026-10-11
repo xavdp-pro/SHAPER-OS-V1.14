@@ -77,5 +77,19 @@ CREATE TABLE IF NOT EXISTS event_outbox (
   CONSTRAINT outbox_body_limit CHECK (OCTET_LENGTH(body) <= 65536)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-INSERT INTO schema_meta (unit, version) VALUES ('vault', 2)
+-- Recovery points (DECISIONS-20261011 §C; the unit's dataLifecycle). Written
+-- by the administrative path only — the parent, once a logical dump of this
+-- database has been restored into a fresh volume and read back — never by the
+-- application. snapshot_at is taken before the dump's consistent snapshot; a
+-- delivered, receipted evidence row older than its retention is removed only
+-- when such a point holds it (pkg-db pruneDeliveredOutbox). Kept unlimited.
+CREATE TABLE IF NOT EXISTS recovery_points (
+  recovery_point_id VARCHAR(190) NOT NULL PRIMARY KEY,
+  snapshot_at DATETIME(3) NOT NULL,
+  verified_at DATETIME(3) NOT NULL,
+  dump_sha256 CHAR(64) NOT NULL,
+  KEY recovery_points_snapshot (snapshot_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+INSERT INTO schema_meta (unit, version) VALUES ('vault', 3)
   ON DUPLICATE KEY UPDATE version = GREATEST(version, VALUES(version));

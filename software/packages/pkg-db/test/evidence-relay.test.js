@@ -29,7 +29,17 @@ function fixture() {
       return [{}];
     },
   };
-  return { rows, conn, openTransactions: () => open, pool: { getConnection: async () => conn } };
+  const pool = {
+    getConnection: async () => conn,
+    // hasDueEvidence: one read, outside any transaction.
+    query: async (sql) => {
+      if (!/^SELECT 1 AS due FROM event_outbox/.test(sql)) throw new Error(`unexpected pool query: ${sql}`);
+      pool.dueReads += 1;
+      return [rows.filter((r) => !r.receipt).slice(0, 1).map(() => ({ due: 1 }))];
+    },
+    dueReads: 0,
+  };
+  return { rows, conn, openTransactions: () => open, pool };
 }
 
 describe('the evidence relay lane', () => {
@@ -45,6 +55,51 @@ describe('the evidence relay lane', () => {
     assert.deepEqual(await relay.tick(), { delivered: 1, deferred: 0 });
     assert.deepEqual(seen, [['credentials', 0], ['deliver', 0, 'Bearer transient']], 'no transaction is open during the send');
     assert.doesNotMatch(JSON.stringify(f.rows), /transient/);
+  });
+
+  it('obtains no credential while nothing is due: an idle unit asks Vault for nothing (DECISIONS §C)', async () => {
+    const f = fixture();
+    let asked = 0;
+    const relay = createEvidenceRelay({
+      pool: f.pool,
+      credentials: async () => { asked += 1; return { Authorization: 'Bearer transient' }; },
+      deliver: async () => assert.fail('nothing to send'),
+    });
+    for (let i = 0; i < 5; i++) assert.deepEqual(await relay.tick(), { delivered: 0, deferred: 0 });
+    assert.equal(asked, 0, 'no credential without deliverable work');
+    assert.equal(f.pool.dueReads, 5);
+    assert.equal(relay.last.idle, true);
+    await appendOutbox(f.conn, { pod: 'queue', event: 'JOB_CREATED', executionId: 'j1' });
+    const busy = createEvidenceRelay({ pool: f.pool, credentials: async () => { asked += 1; return {}; }, deliver: async () => ({ id: 'r1' }) });
+    assert.deepEqual(await busy.tick(), { delivered: 1, deferred: 0 });
+    assert.equal(asked, 1, 'work brings the credential');
+  });
+
+  it('a refused credential is asked again after a backoff, not on every tick', async () => {
+    const f = fixture();
+    await appendOutbox(f.conn, { pod: 'queue', event: 'JOB_CREATED', executionId: 'j1' });
+    let clock = 1_000_000, asked = 0, refuse = true;
+    const relay = createEvidenceRelay({
+      pool: f.pool, intervalMs: 2000, now: () => clock,
+      credentials: async () => { asked += 1; if (refuse) throw Object.assign(new Error('x'), { code: 'IDENTITY_ISSUE_DENIED' }); return {}; },
+      deliver: async () => ({ id: 'r1' }),
+    });
+    assert.equal(await relay.tick(), null);
+    assert.equal(await relay.tick(), null);
+    clock += 3999;
+    assert.equal(await relay.tick(), null);
+    assert.equal(asked, 1, 'within the backoff, Vault is not asked again');
+    clock += 1;
+    assert.equal(await relay.tick(), null);
+    assert.equal(asked, 2, 'after it, once');
+    clock += 7999;
+    assert.equal(await relay.tick(), null);
+    assert.equal(asked, 2, 'the backoff doubles');
+    clock += 1; refuse = false;
+    assert.deepEqual(await relay.tick(), { delivered: 1, deferred: 0 });
+    assert.equal(asked, 3);
+    clock += 1;
+    assert.deepEqual(await relay.tick(), { delivered: 0, deferred: 0 }, 'a success resets the backoff');
   });
 
   it('runs one batch at a time: a tick during a tick shares it', async () => {
@@ -112,18 +167,19 @@ describe('the evidence relay lane', () => {
   });
 });
 
-describe('every unit installs the same outbox table', () => {
+describe('every unit installs the same outbox and recovery-point tables', () => {
   const normalize = (text) => text.replace(/--[^\n]*\n/g, '\n').replace(/\s+/g, ' ').trim();
-  const table = (file) => {
-    const m = fs.readFileSync(file, 'utf8').match(/CREATE TABLE IF NOT EXISTS event_outbox \([\s\S]*?\) ENGINE=InnoDB[^;]*;/);
-    assert.ok(m, `${file} has no event_outbox table`);
+  const table = (file, name) => {
+    const m = fs.readFileSync(file, 'utf8').match(new RegExp(`CREATE TABLE IF NOT EXISTS ${name} \\([\\s\\S]*?\\) ENGINE=InnoDB[^;]*;`));
+    assert.ok(m, `${file} has no ${name} table`);
     return normalize(m[0]);
   };
-  const reference = table(path.join(here, '../sql/outbox.sql'));
-
-  for (const unit of ['vault', 'queue', 'maestro']) {
-    it(`${unit}'s schema carries the pkg-db outbox definition`, () => {
-      assert.equal(table(path.join(here, `../../pkg-${unit}/sql/schema.sql`)), reference);
-    });
+  for (const name of ['event_outbox', 'recovery_points']) {
+    const reference = table(path.join(here, '../sql/outbox.sql'), name);
+    for (const unit of ['vault', 'queue', 'maestro']) {
+      it(`${unit}'s schema carries the pkg-db ${name} definition`, () => {
+        assert.equal(table(path.join(here, `../../pkg-${unit}/sql/schema.sql`), name), reference);
+      });
+    }
   }
 });

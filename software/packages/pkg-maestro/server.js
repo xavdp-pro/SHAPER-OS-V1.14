@@ -57,6 +57,7 @@ if (STORE === 'memory') {
   }
 }
 let relay = null;
+let maintenance = null;
 
 console.log(`[brick-maestro] Starting on ${HOST}:${PORT}...`);
 
@@ -124,6 +125,13 @@ async function startDurable() {
       maxEvents: process.env.MAESTRO_RELAY_BATCH,
       timeoutMs: process.env.MAESTRO_RELAY_TIMEOUT_MS,
       shutdownMs: process.env.MAESTRO_SHUTDOWN_TIMEOUT_MS,
+    });
+    // The declared cleanup class (manifest dataLifecycle): delivered evidence
+    // over 30 days, under a recovery point. Schedules and occurrences are kept.
+    const { createMaintenanceLane, pruneDeliveredOutbox } = await import('../pkg-db/outbox.js');
+    maintenance = createMaintenanceLane({
+      jobs: { outbox: () => pruneDeliveredOutbox(store.pool) },
+      report: (event) => console.log(`[brick-maestro] ${JSON.stringify(event)}`),
     });
   } catch (err) {
     if (store) await store.close().catch(() => {});
@@ -232,6 +240,7 @@ server.on('listening', async () => {
   if (STORE === 'mariadb') {
     await scheduler.recordEvidence('MAESTRO_STARTED', { tasks: taskCount, autoStart: AUTO_START, store: STORE });
     relay?.start();
+    maintenance?.start();
   } else {
     // DEV scaffolding keeps its best-effort line; nothing durable is claimed.
     await ingestLog({
@@ -273,6 +282,7 @@ async function shutdown(signal) {
     // No new evidence after the scheduler has drained; then the relay settles
     // the batch in flight; the database closes last.
     await scheduler.drain().catch(() => {});
+    await maintenance?.close();
     try {
       await relay?.close();
     } catch (err) {

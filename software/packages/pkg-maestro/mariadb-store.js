@@ -28,7 +28,7 @@ import {
   sha256Hex,
 } from './occurrence.js';
 
-export const MAESTRO_SCHEMA_VERSION = 2;
+export const MAESTRO_SCHEMA_VERSION = 3;
 
 /** Columns an API reader may see; the frozen request stays inside the unit. */
 const PUBLIC_OCCURRENCE_COLUMNS = [

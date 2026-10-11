@@ -13,6 +13,29 @@ export function deriveSigningKey(masterKey, universe) {
   return createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
 }
 
+/** Hours an expired credential's row is kept after its expiry. */
+export const EXPIRED_CREDENTIAL_GRACE_HOURS = 24;
+
+/**
+ * Removes credential rows expired for more than 24 hours (DECISIONS-20261011
+ * §C, the universe's dataLifecycle). Never a unit's current identity, epoch or
+ * revocation: unit_identities is not touched, and a credential row marked
+ * revoked is kept. A token past its expiry is refused before any lookup, so
+ * its row proves nothing once the grace has passed. Bounded per call.
+ * @param {import('mysql2/promise').Pool} pool
+ * @param {{ graceHours?: number, limit?: number }} [options]
+ * @returns {Promise<{ removed: number }>}
+ */
+export async function pruneExpiredCredentials(pool, { graceHours = EXPIRED_CREDENTIAL_GRACE_HOURS, limit = 1000 } = {}) {
+  if (!Number.isInteger(graceHours) || graceHours < 1 || !Number.isInteger(limit) || limit < 1 || limit > 10000) {
+    throw new CredentialError('CREDENTIAL_PRUNE_INVALID', 500);
+  }
+  const [result] = await pool.query(`DELETE FROM unit_credentials
+    WHERE expires_at < TIMESTAMPADD(HOUR, -?, UTC_TIMESTAMP(3)) AND NOT revoked
+    ORDER BY expires_at LIMIT ?`, [graceHours, limit]);
+  return { removed: Number(result.affectedRows) || 0 };
+}
+
 export class VaultUnitIdentity {
   constructor({ pool, masterKey, universe, now = Date.now, ttl = 300 }) {
     if (typeof universe !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(universe)) {

@@ -32,7 +32,7 @@ import {
 import { UnitDbError } from '../pkg-db/index.js';
 import { assertSchema, openUnitDb, probeDb, withTransaction } from '../pkg-db/pool.js';
 
-export const QUEUE_SCHEMA_VERSION = 2;
+export const QUEUE_SCHEMA_VERSION = 3;
 
 /** Column order shared by INSERT, SELECT and the row mapping below. */
 export const JOB_COLUMN_NAMES = Object.freeze([

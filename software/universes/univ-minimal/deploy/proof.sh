@@ -8,9 +8,11 @@
 # that unit's database through the root path, never from the unit's own answer.
 #
 # Each unit's identity is checked too: the parent's pin and bootstrap where
-# the unit reads them, a credential Vault issued to the unit's current
-# incarnation, and no evidence owed to Logger for long. Logger is called under
-# a credential Vault issues to the proof's own identity (unit "proof").
+# the unit reads them, its current incarnation live in Vault, and no evidence
+# owed to Logger for long; after the effects, a credential Vault issued to that
+# incarnation once the unit had evidence to deliver (an idle unit asks for
+# none). Logger is called under a credential Vault issues to the proof's own
+# identity (unit "proof").
 #
 # Exit 0 only when every check passed. Nothing here writes to a unit's
 # database except through the unit's own API, and every job it creates ends in
@@ -133,8 +135,8 @@ gate_unit() {
     incarnation="$(unit_env "$ctr" SHAPER_UNIT_INCARNATION)"
     check "$s-bootstrap" "its bootstrap is a 0600 file owned by $s ($uid), and no bootstrap value is in its environment" \
       bash -c "[[ \"\$(podman exec '$ctr' stat -c '%F %a %u' /apps/$s/etc/identity/bootstrap 2>/dev/null)\" == 'regular file 600 $uid' ]] && ! podman inspect -f '{{range .Config.Env}}{{println .}}{{end}}' '$ctr' | grep -qE '^[A-Z_]*BOOTSTRAP[A-Z_]*=[0-9a-f]{64}\$'"
-    check "$s-credential" "Vault issued a logger credential to $s's current incarnation ${incarnation:-?} (vault.unit_credentials, root path)" \
-      test -n "$incarnation" -a "$(rootsql vault vault -e "SELECT COUNT(*) FROM unit_credentials c JOIN unit_identities i ON i.universe_id = c.universe_id AND i.unit_id = c.unit_id AND i.incarnation = c.incarnation AND i.epoch = c.epoch WHERE c.universe_id = '$UNIVERSE_ID' AND c.unit_id = '$s' AND c.incarnation = '$incarnation' AND c.audience = 'logger' AND NOT i.revoked" 2>/dev/null || echo 0)" -ge 1
+    check "$s-incarnation-live" "Vault holds $s's current incarnation ${incarnation:-?}, not revoked, its bootstrap unexpired (vault.unit_identities, root path)" \
+      test -n "$incarnation" -a "$(rootsql vault vault -e "SELECT COUNT(*) FROM unit_identities WHERE universe_id = '$UNIVERSE_ID' AND unit_id = '$s' AND incarnation = '$incarnation' AND NOT revoked AND bootstrap_expires_at > UTC_TIMESTAMP(3)" 2>/dev/null || echo 0)" = 1
     check "$s-evidence-flowing" "no evidence owed to Logger for more than 15 minutes in $s.event_outbox" \
       test "$(rootsql "$s" "$s" -e "SELECT COUNT(*) FROM event_outbox WHERE receipt IS NULL AND created_at < TIMESTAMPADD(MINUTE, -15, UTC_TIMESTAMP(3))" 2>/dev/null || echo unknown)" = 0
   fi

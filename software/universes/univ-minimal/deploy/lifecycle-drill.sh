@@ -129,9 +129,20 @@ for s in "${UNITS[@]}"; do
 done
 after_checks restart
 
+# Evidence for each credential holder to deliver: a unit asks Vault for a
+# credential only when its outbox owes a row (DECISIONS-20261011 §C). Maestro
+# owes its MAESTRO_STARTED at every start.
+owe_evidence() {  # <phase>
+  vault_curl -sf -o /dev/null -X POST -H "$H" -d "{\"data\":\"$1-$STAMP\"}" "$(url vault)/api/secret/lifecycle/$STAMP-$1"
+  local j
+  j="$(curl -s -X POST "$(url queue)/api/jobs" -H "$H" -d "{\"type\":\"lifecycle.owe\",\"payload\":{\"phase\":\"$1\"},\"idempotencyKey\":\"lifecycle-$STAMP-$1\"}" | jq -r '.job.id // empty')"
+  [[ -n "$j" ]] && curl -s -o /dev/null -X PATCH "$(url queue)/api/jobs/$j" -H "$H" -d '{"status":"COMPLETED","progress":100,"step":1,"result":{}}'
+  vault_curl -sf -o /dev/null -X DELETE "$(url vault)/api/secret/lifecycle/$STAMP-$1"
+}
+
 # The unit's current incarnation is the one Vault holds — the registration of
-# this run was applied — and Vault has issued it a logger credential (waits up
-# to 60 s for the unit's first renewal).
+# this run was applied — and Vault has issued it a logger credential once it
+# owed evidence (waits up to 60 s for the unit's relay).
 credential_current() {  # <slug>
   local s="$1" inc tries=60
   inc="$(unit_env "${UNIVERSE}-ctr-$s" SHAPER_UNIT_INCARNATION)"
@@ -157,6 +168,7 @@ issue_proof_credential "$OLD_CREDENTIAL" \
   || fail old-credential "Vault issued no credential to the proof before the recreation"
 if bash "$UNIV/deploy/podman-up.sh" >/dev/null; then ok recreate "deploy/podman-up.sh replaced every unit container"
 else fail recreate "deploy/podman-up.sh failed"; fi
+owe_evidence recreate
 for s in "${UNITS[@]}"; do
   ctr="${UNIVERSE}-ctr-$s"
   check "recreate-$s-new" "$ctr is a new container" test "$(podman inspect -f '{{.Id}}' "$ctr" 2>/dev/null)" != "${ID_BEFORE[$s]}"

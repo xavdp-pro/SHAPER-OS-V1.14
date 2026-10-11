@@ -20,7 +20,12 @@
 #   4. the same throwaway volumes started again in serve mode, on a drill port:
 #      the unit's application reads a control record back through its own API
 #      — the Vault decrypts a controlled secret with the universe's key, and a
-#      Vault started with any other key refuses to serve.
+#      Vault started with any other key refuses to serve;
+#   5. when every step of the unit passed, the dump is a verified recovery
+#      point: root records it in the live unit's recovery_points (the instant
+#      taken before the dump, its SHA-256), which lets the unit's declared
+#      cleanup remove delivered evidence that point holds (pkg-db
+#      INTENT.md#retention). A unit whose schema has no such table records none.
 #
 # A throwaway unit never reaches the live universe with a write: its
 # evidence relay and Queue address an unused port (127.0.0.1:9), and its
@@ -47,7 +52,8 @@ source "$UNIV/deploy/unit-probes.sh"
 
 PASS=0; FAILS=0
 ok()   { PASS=$((PASS + 1)); printf '  OK     %-26s %s\n' "$1" "$2"; }
-fail() { FAILS=$((FAILS + 1)); printf '  FAIL   %-26s %s\n' "$1" "$2"; }
+# A failure also marks the unit in hand: its dump is then no recovery point.
+fail() { FAILS=$((FAILS + 1)); unit_ok=0; printf '  FAIL   %-26s %s\n' "$1" "$2"; }
 
 drill_ctr() { echo "${UNIVERSE}-drill-$1"; }
 drillsql() { local s="$1"; shift; podman exec "$(drill_ctr "$s")" mariadb --no-defaults -S "/run/$s/mysqld.sock" -uroot -N -B "$@"; }
@@ -157,9 +163,10 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
   dumps="$APPS_ROOT/$s/sav/dumps"; install -d -m 0700 -o root -g root "$dumps"
   dump="$dumps/$s-$STAMP.sql"
   # The dump is kept only when the live tables did not move while it was taken.
-  livefp=""; attempt=0
+  livefp=""; attempt=0; unit_ok=1
   while (( attempt++ < 5 )); do
     before="$(fingerprint rootsql "$s")"
+    snapshot_at="$(rootsql "$s" -e 'SELECT UTC_TIMESTAMP(3)')"
     if podman exec "$live" mariadb-dump --no-defaults -S "/run/$s/mysqld.sock" -uroot --single-transaction --routines --triggers --databases "$s" > "$dump.part" \
        && [[ -s "$dump.part" ]]; then
       livefp="$(fingerprint rootsql "$s")"
@@ -249,6 +256,21 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
 
   podman rm -f "$(drill_ctr "$s")" >/dev/null 2>&1
   rm -rf "$work"
+
+  # Every step of this unit passed: the kept dump is a verified recovery point.
+  if [[ "$(rootsql "$s" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$s' AND table_name='recovery_points'" 2>/dev/null)" == 1 ]]; then
+    if (( unit_ok )); then
+      sum="$(sha256sum "$dump" | cut -d' ' -f1)"
+      if rootsql "$s" "$s" -e "INSERT INTO recovery_points (recovery_point_id, snapshot_at, verified_at, dump_sha256) VALUES ('rp-$STAMP', '$snapshot_at', UTC_TIMESTAMP(3), '$sum')" \
+         && [[ "$(rootsql "$s" "$s" -e "SELECT COUNT(*) FROM recovery_points WHERE recovery_point_id='rp-$STAMP' AND snapshot_at='$snapshot_at' AND dump_sha256='$sum'")" == 1 ]]; then
+        ok "$s-recovery-point" "rp-$STAMP recorded by root in $s.recovery_points (snapshot $snapshot_at, dump sha256 ${sum:0:16}…)"
+      else
+        fail "$s-recovery-point" "root could not record the verified recovery point"
+      fi
+    else
+      printf '  NOTE   %-26s %s\n' "$s-recovery-point" "not recorded: a step of this unit failed"
+    fi
+  fi
 done
 
 vault_curl -sf -o /dev/null -X DELETE "http://127.0.0.1:$(port_of vault)/api/secret/$CONTROL_KEY" \

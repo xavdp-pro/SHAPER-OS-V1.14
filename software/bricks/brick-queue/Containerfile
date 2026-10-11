@@ -19,7 +19,7 @@ LABEL org.shaper.unit.uid="10640"
 LABEL org.shaper.unit.engine-uid="10641"
 LABEL org.shaper.unit.database="mariadb-in-unit"
 LABEL org.shaper.unit.schema="/apps/queue/app/packages/pkg-queue/sql/schema.sql"
-LABEL org.shaper.unit.schema-version="2"
+LABEL org.shaper.unit.schema-version="3"
 
 # The engine account is created first, with its fixed uid, so the MariaDB
 # package's install script keeps it instead of picking whatever uid is free: a
@@ -57,7 +57,7 @@ ENV NODE_ENV=production \
     UNIT_UID=10640 \
     UNIT_ENGINE_UID=10641 \
     UNIT_SCHEMA_FILE=/apps/queue/app/packages/pkg-queue/sql/schema.sql \
-    UNIT_SCHEMA_VERSION=2 \
+    UNIT_SCHEMA_VERSION=3 \
     QUEUE_PORT=8640 \
     QUEUE_STORE=mariadb
 

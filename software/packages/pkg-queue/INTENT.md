@@ -198,7 +198,11 @@ What this storage does not yet provide, against the Queue target contract of
 ## Transactional evidence delivery
 
 Schema version 2 adds the unpartitioned `event_outbox`, installed through the
-administrative path. Enqueue, progress/status and quality-verdict writes append
+administrative path; version 3 adds `recovery_points`, written by the
+administrative path only, which lets the hourly cleanup remove delivered,
+receipted evidence older than 30 days that a verified recovery point holds
+([pkg-db retention](../pkg-db/INTENT.md#retention)). The relay asks Vault for
+a credential only when a row is due. Enqueue, progress/status and quality-verdict writes append
 evidence in their owning transaction; failed outbox writes roll back the job
 change and emit no success. Evidence excludes job payloads and results.
 

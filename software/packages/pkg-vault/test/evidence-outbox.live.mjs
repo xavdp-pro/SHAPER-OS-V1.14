@@ -15,6 +15,7 @@ import { adminQuery, unitDb } from '../../pkg-db/test/live/live-env.mjs';
 import { startEvidenceStack } from '../../pkg-logger/test/live/evidence-stack.mjs';
 import { createVaultEvidenceRelay } from '../evidence-runtime.js';
 import { openUnitDb } from '../../pkg-db/pool.js';
+import { pruneExpiredCredentials } from '../unit-identity.js';
 
 const VALUE = 'live-secret-value-that-must-never-leave';
 let stack;
@@ -84,6 +85,23 @@ describe('Vault evidence is committed with the change it reports', () => {
     assert.equal(await store.getSecret('mailbox/rollback'), null, 'the secret was rolled back with its evidence');
   });
 
+  it('an idle Vault issues itself no credential: nothing due, nothing asked (DECISIONS §C)', async () => {
+    const drain = vaultRelay();
+    for (let i = 0; i < 3; i++) await drain.tick(); // whatever earlier steps left
+    await drain.close();
+    // A fresh lane holds no cached credential: before §C its first tick issued one.
+    const relay = vaultRelay();
+    try {
+      const issued = async () => Number((await adminQuery("SELECT COUNT(*) AS n FROM vault.unit_credentials WHERE unit_id = 'vault'"))[0].n);
+      const before = await issued();
+      for (let i = 0; i < 5; i++) assert.deepEqual(await relay.tick(), { delivered: 0, deferred: 0 });
+      assert.equal(await issued(), before, 'no issuance while the outbox owes nothing');
+      assert.equal(Number((await adminQuery('SELECT COUNT(*) AS n FROM vault.event_outbox WHERE receipt IS NULL'))[0].n), 0);
+    } finally {
+      await relay.close();
+    }
+  });
+
   it('the Vault relay drains its outbox to Logger under its own credential', async () => {
     await stack.vaultStore.setSecret('provider/key', { apiKey: VALUE });
     const relay = vaultRelay();
@@ -105,5 +123,33 @@ describe('Vault evidence is committed with the change it reports', () => {
     } finally {
       await relay.close();
     }
+  });
+});
+
+describe('expired credentials are removed after 24 hours, and nothing else (DECISIONS §C)', () => {
+  it('keeps current, recently expired and revoked rows, and every identity', async () => {
+    const universe = '550e8400-e29b-41d4-a716-446655440000';
+    await adminQuery('DELETE FROM vault.unit_credentials');
+    const identitiesBefore = await adminQuery('SELECT unit_id, incarnation, epoch, revoked FROM vault.unit_identities ORDER BY unit_id');
+    const rows = [
+      ['old', 'TIMESTAMPADD(HOUR, -30, UTC_TIMESTAMP(3))', 0],
+      ['recent', 'TIMESTAMPADD(HOUR, -20, UTC_TIMESTAMP(3))', 0],
+      ['current', 'TIMESTAMPADD(SECOND, 200, UTC_TIMESTAMP(3))', 0],
+      ['revoked', 'TIMESTAMPADD(HOUR, -30, UTC_TIMESTAMP(3))', 1],
+    ];
+    for (const [name, expires, revoked] of rows) {
+      await adminQuery(`INSERT INTO vault.unit_credentials (credential_id, universe_id, unit_id, incarnation, epoch, audience, expires_at, revoked)
+        VALUES (?, ?, 'queue', 'queue-live-1', 1, 'logger', ${expires}, ?)`, [`00000000-0000-4000-8000-00000000000${rows.indexOf(rows.find((r) => r[0] === name))}`, universe, revoked]);
+    }
+    const { pool } = await openUnitDb({ slug: 'vault', ...unitDb() });
+    try {
+      assert.deepEqual(await pruneExpiredCredentials(pool), { removed: 1 });
+      assert.deepEqual(await pruneExpiredCredentials(pool), { removed: 0 });
+    } finally {
+      await pool.end();
+    }
+    const left = await adminQuery("SELECT credential_id FROM vault.unit_credentials ORDER BY credential_id");
+    assert.deepEqual(left.map((r) => r.credential_id.slice(-1)), ['1', '2', '3'], 'only the row expired over 24 h ago is gone');
+    assert.deepEqual(await adminQuery('SELECT unit_id, incarnation, epoch, revoked FROM vault.unit_identities ORDER BY unit_id'), identitiesBefore);
   });
 });

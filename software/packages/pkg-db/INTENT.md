@@ -129,8 +129,14 @@ oldest row stopped all delivery.
 
 `createEvidenceRelay` is the one delivery lane a unit's service lifecycle
 runs: started after the service listens, a timer runs one non-overlapping
-batch at a time, the transport credential is obtained *before* the relay opens
-its transaction (Vault's own issuance appends to the same outbox), and `close()`
+batch at a time. Each round first reads whether a row is due
+(`hasDueEvidence`, no lock); only then is the transport credential obtained,
+so an idle unit asks Vault for nothing — before this, every unit issued itself
+a credential on every renewal whether or not it owed evidence
+(DECISIONS-20261011 §C). The credential is obtained *before* the relay opens
+its transaction (Vault's own issuance appends to the same outbox); a refused
+or unavailable credential is asked again after a backoff of two intervals
+doubling to one minute, not on every tick. `close()`
 waits a bounded time for the batch in flight before the database closes — an
 unconfirmed batch is reported, never claimed, and its debt stays. Repeated
 identical failures are reported once, then again when the reason changes or
@@ -141,6 +147,22 @@ is destroyed rather than used.
 
 Vault, Queue and Maestro carry this exact table in their own schema; a test
 holds the three definitions equal to `sql/outbox.sql`.
+
+<a id="retention"></a>
+## Declared cleanup (dataLifecycle)
+
+`sql/outbox.sql` also defines `recovery_points`, which the same three units
+carry (schema version 3). Only the administrative path writes it: the parent
+records a point once a logical dump of the unit's database has been restored
+into a fresh volume and read back (univ-minimal `deploy/restore-drill.sh`),
+with the instant taken before the dump's snapshot. `pruneDeliveredOutbox`
+then removes, in bounded batches, a row delivered more than 30 days ago only
+when it carries Logger's verified receipt and a recovery point taken after its
+delivery (five-minute margin) holds it. A row still owed, set aside as invalid
+or failed is never removed, and without a recovery point nothing is.
+`createMaintenanceLane` runs a unit's cleanup jobs hourly (first after one
+minute) in its service lifecycle, closed before the database. Each universe
+declares these classes in its `manifest.json` `dataLifecycle` (Rule 31).
 
 <a id="live-tests"></a>
 ## Live tests
