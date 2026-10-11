@@ -10,4 +10,5 @@ After=podman-restart.service
 
 [Service]
 Type=oneshot
+@ENV_LINE@
 ExecStart=/usr/bin/env bash @UNIV@/deploy/renew-bootstraps.sh

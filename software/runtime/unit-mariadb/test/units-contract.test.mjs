@@ -246,7 +246,8 @@ describe('univ-minimal births the units in the order their identities need', () 
       assert.ok(decide.includes(reason), reason);
     }
     assert.match(up, /--label "org\.shaper\.run-spec=\$\{SPEC_OF\[\$slug\]\}"/);
-    assert.match(up, /SPEC_OF\[\$slug\]="\$\(printf '%s\\0' "\$\{IMAGE_ID_OF\[\$slug\]\}" "\$\{FIXED_ARGS\[@\]\}" "\$\{RUN_ARGS\[@\]\}"/);
+    assert.match(up, /SPEC_OF\[\$slug\]="\$\(printf '%s\\0' "\$\{IMAGE_ID_OF\[\$slug\]\}" "\$\(content_of "\$slug"\)" "\$\{FIXED_ARGS\[@\]\}" "\$\{RUN_ARGS\[@\]\}"/);
+    assert.match(up, /maestro\) printf 'task-schedule:%s' "\$\(sha256sum < "\$UNIV\/task-schedule\.json"/, 'the schedule Maestro reads at start is part of its specification');
     // The incarnation is outside the specification: a kept unit keeps it.
     const spec = up.slice(up.indexOf('spec_args() {'), up.indexOf('declare -A SPEC_OF'));
     assert.doesNotMatch(spec, /SHAPER_UNIT_INCARNATION/);
@@ -299,10 +300,19 @@ describe('univ-minimal births the units in the order their identities need', () 
       assert.match(service, new RegExp(`^ExecStart=/usr/bin/env bash ${deploy.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/renew-bootstraps\\.sh$`, 'm'));
       assert.match(timer, /^OnCalendar=daily$/m);
       assert.match(timer, /^Persistent=true$/m);
-      assert.doesNotMatch(service + timer, /@UNIV/);
+      assert.doesNotMatch(service + timer, /@UNIV|@ENV_LINE/);
+      assert.doesNotMatch(service, /^Environment=ENV_FILE/m, 'without ENV_FILE, the universe\'s own variables file');
+      // A universe configured by ENV_FILE is renewed with that same file.
+      const envFile = path.join(dir, 'cfg-other.env');
+      fs.writeFileSync(envFile, 'SHAPER_UNIVERSE=univ-other\n');
+      const other = spawnSync('bash', [path.join(deploy, 'install-renewal-timer.sh')], {
+        env: { PATH: process.env.PATH, SYSTEMD_DIR: dir, NO_SYSTEMCTL: '1', ENV_FILE: envFile }, encoding: 'utf8' });
+      assert.equal(other.status, 0, other.stderr);
+      assert.match(fs.readFileSync(path.join(dir, 'univ-other-bootstrap-renewal.service'), 'utf8'), new RegExp(`^Environment=ENV_FILE=${envFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+    assert.match(fs.readFileSync(path.join(deploy, 'podman-up.sh'), 'utf8'), /restore_var="RESTORE_DUMP_\$\{slug\/\/-\/_\}"/, 'a hyphenated slug names a valid variable');
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(SOFTWARE, 'universes/univ-minimal/task-schedule.json'), 'utf8')).tasks, [], 'not a Maestro task');
     const renew = fs.readFileSync(path.join(deploy, 'renew-bootstraps.sh'), 'utf8');
     assert.match(renew, /podman run --rm --network none --cap-drop=all --security-opt=no-new-privileges --entrypoint node/);

@@ -163,6 +163,9 @@ or failed is never removed, and without a recovery point nothing is.
 `createMaintenanceLane` runs a unit's cleanup jobs hourly (first after one
 minute) in its service lifecycle, closed before the database. Each universe
 declares these classes in its `manifest.json` `dataLifecycle` (Rule 31).
+Declared limit: the application account's database-level grants cover
+`recovery_points` too; that only the administrative path writes it is a
+convention, not an enforced boundary.
 
 <a id="live-tests"></a>
 ## Live tests

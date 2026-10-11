@@ -134,13 +134,17 @@ export async function relayOutbox(pool, { deliver, maxEvents = 10, timeoutMs = 3
 /**
  * Whether a row is due for delivery now: one read of the ready index, no lock
  * and no transaction. The lane asks it before obtaining a credential, so an
- * idle unit asks Vault for nothing (DECISIONS-20261011 §C).
+ * idle unit asks Vault for nothing (DECISIONS-20261011 §C). A row set aside as
+ * OUTBOX_ROW_INVALID is not deliverable work: it never draws a credential on
+ * its own (it stays owed and counted in outboxStatus, and is looked at again
+ * with the next deliverable row, or once repaired and its mark cleared).
  * @param {import('mysql2/promise').Pool} pool
  * @returns {Promise<boolean>}
  */
 export async function hasDueEvidence(pool) {
   const [rows] = await pool.query(`SELECT 1 AS due FROM event_outbox
-    WHERE delivered_at IS NULL AND receipt IS NULL AND next_attempt_at <= UTC_TIMESTAMP(3) LIMIT 1`);
+    WHERE delivered_at IS NULL AND receipt IS NULL AND next_attempt_at <= UTC_TIMESTAMP(3)
+      AND (last_error IS NULL OR last_error <> 'OUTBOX_ROW_INVALID') LIMIT 1`);
   return rows.length > 0;
 }
 

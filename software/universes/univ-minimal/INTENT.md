@@ -190,7 +190,12 @@ It creates no identity, changes no incarnation, epoch or grant, never revives
 a revoked identity, restarts nothing, and prints no token: records and
 statements carry digests only. `RENEW_WITHIN_SECONDS` and
 `RENEW_EXTEND_SECONDS` exist to drill it (`lifecycle-drill.sh` uses a 40-day
-window), never in the timer.
+window), never in the timer. One parent at a time: `podman-up.sh` and the
+renewal hold `/apps/vault/etc/vault/parent.lock` (`flock`, closed to every
+podman child) while they read or change identities and records. A Vault born
+here with no record is a halt, never a quiet success; an answer that does not
+cover every record is a halt too. A universe configured by `ENV_FILE` gets a
+service that names the same file.
 
 <a id="host"></a>
 ## What the universe container must provide
@@ -386,6 +391,15 @@ Recorded so nobody reads the floor as the full target contract of the units
   step after `podman-up.sh`;
 - refusal counts not yet committed (at most one minute) are lost with Vault's
   process;
+- the renewal halts as a whole on any inconsistency, as decided ("inconsistency
+  stops and alerts"): one revoked, expired or missing identity among the
+  records also holds the consistent ones, so the alert must be acted on within
+  7 days or every held bootstrap expires — whether to renew the consistent ones
+  and alert on the rest is a decision to take;
+- `recovery_points` is written by the administrative path by convention only:
+  the application account's grants (`SELECT, INSERT, UPDATE, DELETE` on its
+  database) cover it, so a faulty application could record a point that no
+  dump holds and let its own cleanup remove receipted evidence early;
 - no Logger cross-event chain or external checkpoint;
 - no Queue leases (renewal, expiry) over the durable attempts, and no dead
   letter; no Maestro scheduler leases;

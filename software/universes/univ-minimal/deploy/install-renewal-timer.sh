@@ -17,8 +17,17 @@ UNIVERSE="${SHAPER_UNIVERSE:-univ-minimal}"
 [[ "$UNIV" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "[install-renewal-timer] the universe path $UNIV holds characters a unit file would misread" >&2; exit 1; }
 DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 NAME="${UNIVERSE}-bootstrap-renewal"
+# The service renews the universe this run was configured for: the same
+# variables file, named in its environment (none: the universe's own
+# cfg-univ-minimal.env, read by the script itself).
+ENV_LINE="# ENV_FILE: the universe's own cfg-univ-minimal.env"
+if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
+  ENV_FILE="$(cd "$(dirname "$ENV_FILE")" && pwd)/$(basename "$ENV_FILE")"
+  [[ "$ENV_FILE" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "[install-renewal-timer] $ENV_FILE holds characters a unit file would misread" >&2; exit 1; }
+  ENV_LINE="Environment=ENV_FILE=$ENV_FILE"
+fi
 for kind in service timer; do
-  sed -e "s|@UNIVERSE@|$UNIVERSE|g" -e "s|@UNIV@|$UNIV|g" "$UNIV/systemd/bootstrap-renewal.$kind.in" > "$DIR/$NAME.$kind.next"
+  sed -e "s|@UNIVERSE@|$UNIVERSE|g" -e "s|@UNIV@|$UNIV|g" -e "s|@ENV_LINE@|$ENV_LINE|g" "$UNIV/systemd/bootstrap-renewal.$kind.in" > "$DIR/$NAME.$kind.next"
   chmod 0644 "$DIR/$NAME.$kind.next"
   mv -f "$DIR/$NAME.$kind.next" "$DIR/$NAME.$kind"
 done

@@ -22,7 +22,7 @@
 // Without jq on the machine, jq-shim/ stands in for the subset these scripts use.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
@@ -228,6 +228,16 @@ test('--preflight says what a run would do and changes nothing', () => {
   assert.match(pre.stdout, /proof\s+keep\s+its identity is live in Vault/);
   const forced = up('--preflight', '--recreate', 'queue');
   assert.match(forced.stdout, /queue\s+recreate\s+asked \(--recreate\)/);
+  // What a unit reads only at start is part of its specification: Maestro's schedule.
+  const schedule = path.join(UNIV, 'task-schedule.json');
+  const declared = read(schedule);
+  fs.writeFileSync(schedule, `${declared}\n`);
+  try {
+    assert.match(up('--preflight').stdout, /maestro\s+recreate\s+another image or run specification/);
+  } finally {
+    fs.writeFileSync(schedule, declared);
+  }
+  assert.match(up('--preflight').stdout, /maestro\s+keep/);
   assert.deepEqual(snapshot(), before, 'nothing written, registered or started');
 });
 
@@ -265,6 +275,26 @@ test('the parent\'s renewal extends every live bootstrap by 30 days, keeping inc
   const daily = renew();
   assert.equal(daily.status, 0, daily.stderr);
   assert.equal((daily.stdout.match(/ current /g) || []).length, 4);
+  // One parent at a time: while another holds the lock, the renewal waits, then halts.
+  const holder = spawn('flock', [path.join(appsRoot, 'vault/etc/vault/parent.lock'), 'sleep', '5'], { stdio: 'ignore' });
+  try {
+    spawnSync('sleep', ['0.3']);
+    const locked = renew({ PARENT_LOCK_WAIT_SECONDS: '1' });
+    assert.equal(locked.status, 1);
+    assert.match(locked.stderr, /another parent run holds/);
+  } finally {
+    holder.kill();
+  }
+  // Records gone under an existing Vault database: a halt, not a quiet success.
+  const recordsDir = path.join(appsRoot, 'vault/etc/vault/registration/records');
+  fs.renameSync(recordsDir, `${recordsDir}.aside`);
+  try {
+    const none = renew();
+    assert.equal(none.status, 1);
+    assert.match(none.stderr, /a Vault was born here but .* records no identity: run deploy\/podman-up\.sh/);
+  } finally {
+    fs.renameSync(`${recordsDir}.aside`, recordsDir);
+  }
   // A record that no longer matches Vault halts the run: nothing renewed, an alert.
   const record = path.join(appsRoot, 'vault/etc/vault/registration/records/queue.json');
   const kept = read(record);

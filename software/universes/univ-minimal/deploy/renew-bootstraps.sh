@@ -45,11 +45,22 @@ UNIVERSE_ID="$(universe_uuid)"
   || halt "no universe identity in $VAULT_ETC_DIR/universe-id"
 export SHAPER_UNIVERSE_ID="$UNIVERSE_ID"
 
+# One parent at a time (podman-up.sh holds the same lock).
+[[ -d "$VAULT_ETC_DIR" ]] || halt "$VAULT_ETC_DIR is absent: no universe to renew"
+exec 9>"$VAULT_ETC_DIR/parent.lock"
+flock -w "${PARENT_LOCK_WAIT_SECONDS:-600}" 9 || halt "another parent run holds $VAULT_ETC_DIR/parent.lock"
+podman() { command podman "$@" 9>&-; }  # no child inherits the lock
+
 shopt -s nullglob
 records=("$RECORDS_DIR"/*.json)
 shopt -u nullglob
 if (( ${#records[@]} == 0 )); then
-  echo "[renew-bootstraps] no identity recorded in $RECORDS_DIR: nothing to renew"
+  # A Vault born without the parent's records (before 11 October 2026) has
+  # identities nobody renews: that is a halt, not a quiet success.
+  if [[ -s "$VAULT_ETC_DIR/master.key" || -d "$APPS_ROOT/vault/sav/mariadb/vault" ]]; then
+    halt "a Vault was born here but $RECORDS_DIR records no identity: run deploy/podman-up.sh, which records each identity it registers"
+  fi
+  echo "[renew-bootstraps] no Vault and no identity recorded: nothing to renew"
   exit 0
 fi
 CTR="${UNIVERSE}-ctr-vault"
@@ -69,9 +80,10 @@ podman run --rm --network none --cap-drop=all --security-opt=no-new-privileges -
 answer="$(podman exec -i "$CTR" mariadb --no-defaults -S /run/vault/mysqld.sock -uroot -N -B vault < "$statement")" \
   || halt "root could not apply the renewal to Vault's database"
 
-bad=0; held=0
+bad=0; held=0; answered=0
 while IFS=$'\t' read -r unit state expiry; do
   [[ -n "$unit" ]] || continue
+  answered=$((answered + 1))
   printf '  %-10s %-9s bootstrap expires %s\n' "$unit" "$state" "$expiry"
   case "$state" in
     renewed|current) ;;
@@ -79,5 +91,6 @@ while IFS=$'\t' read -r unit state expiry; do
     *) bad=$((bad + 1)) ;;
   esac
 done <<<"$answer"
+(( answered == ${#records[@]} )) || halt "Vault answered for $answered of ${#records[@]} identities: nothing is known renewed"
 (( bad == 0 && held == 0 )) || halt "$bad identity record(s) do not match what Vault holds: nothing was renewed ($held consistent one(s) held); UNIT_BOOTSTRAP_RENEWAL_HALTED is committed for Logger"
 echo "[renew-bootstraps] $UNIVERSE ($UNIVERSE_ID): ${#records[@]} identities checked; renewed what expired within $((WITHIN / 86400)) day(s)"

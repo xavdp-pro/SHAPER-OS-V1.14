@@ -79,7 +79,7 @@ export function accessEntry(event, level, data) {
 export function createRefusalRecorder({
   pool, universe, report = () => {}, windowMs = 60000, individualWindowMs = 300000, maxKeys = 64, now = Date.now,
 }) {
-  const counts = new Map();
+  let counts = new Map();
   const individual = new Map();
   let windowStart = now();
   let timer = null;
@@ -144,7 +144,11 @@ export function createRefusalRecorder({
         const end = now();
         for (const [key, at] of individual) if (end - at >= individualWindowMs) individual.delete(key);
         if (!counts.size) { windowStart = end; return 0; }
-        const batch = [...counts.values()];
+        // The window is taken whole before the commit: refusals counted while
+        // it commits go to the next window, never lost with the cleared one.
+        const taken = counts;
+        counts = new Map();
+        const batch = [...taken.values()];
         const window = { start: new Date(windowStart).toISOString(), end: new Date(end).toISOString() };
         try {
           await withTransaction(pool, async (conn) => {
@@ -157,10 +161,24 @@ export function createRefusalRecorder({
               await appendOutbox(conn, entry, { eventId });
             }
           });
-          counts.clear();
           windowStart = end;
           return batch.length;
         } catch (err) {
+          // Kept for the next window, merged with what arrived meanwhile.
+          for (const [key, a] of taken) {
+            const now = counts.get(key);
+            if (now) {
+              now.count += a.count;
+              now.firstAt = a.firstAt;
+            } else if (counts.size < maxKeys) {
+              counts.set(key, a);
+            } else {
+              const overflow = counts.get('overflow') || { action: '*', reason: 'REFUSALS_OVERFLOW', unit: null, incarnation: null,
+                authenticated: false, count: 0, firstAt: a.firstAt, lastAt: a.lastAt };
+              overflow.count += a.count;
+              counts.set('overflow', overflow);
+            }
+          }
           report({ event: 'VAULT_REFUSALS_UNFLUSHED', code: err?.code || 'OUTBOX_UNAVAILABLE', keys: batch.length });
           return 0;
         }

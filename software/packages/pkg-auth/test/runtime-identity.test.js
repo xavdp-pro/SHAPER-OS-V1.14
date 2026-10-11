@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { generateKeyPairSync } from 'node:crypto';
-import { runtimeCredentialClient } from '../runtime-identity.js';
+import { runtimeAuthorizer, runtimeCredentialClient } from '../runtime-identity.js';
 import { issueCredential } from '../unit-credentials.js';
 
 test('renewal coalesces callers, caches a verified token and refuses unsafe runtime files', async () => {
@@ -84,5 +84,24 @@ test('a short credential lifetime is still cached for half of it, not renewed on
     await client.headers('logger');
     await client.headers('logger');
     assert.equal(issued, 1, 'a 20 s credential is reused for its first 10 s');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('an authority Vault cannot confirm is 503 whatever Vault answered; Vault\'s refusals keep their status', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'unit-identity-check-'));
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const universe = '550e8400-e29b-41d4-a716-446655440000';
+  const env = { VAULT_URL: 'http://vault', SHAPER_UNIVERSE_ID: universe, SHAPER_UNIT_SLUG: 'queue', UNIT_AUTH_PUBLIC_KEY_FILE: path.join(dir, 'public.pem') };
+  fs.writeFileSync(env.UNIT_AUTH_PUBLIC_KEY_FILE, publicKey.export({ type: 'spki', format: 'pem' }), { mode: 0o444 });
+  const { token } = issueCredential({ universe, unit: 'maestro', incarnation: 'm-1', audience: 'queue', scopes: ['queue:read'], epoch: 1, revocationRef: 'maestro:1' }, privateKey);
+  const req = { headers: { authorization: `Bearer ${token}` } };
+  const vaultAnswering = (status, body) => async () => ({ ok: status < 300, status, json: async () => body });
+  try {
+    for (const status of [500, 502, 404, 418]) {
+      await assert.rejects(runtimeAuthorizer(env, vaultAnswering(status, { code: 'WHATEVER' }))(req, 'queue:read'), (err) => err.status === 503 && err.code === 'IDENTITY_UNAVAILABLE', String(status));
+    }
+    await assert.rejects(runtimeAuthorizer(env, vaultAnswering(403, { code: 'CREDENTIAL_REVOKED' }))(req, 'queue:read'), (err) => err.status === 403);
+    await assert.rejects(runtimeAuthorizer(env, vaultAnswering(401, { code: 'CREDENTIAL_INVALID' }))(req, 'queue:read'), (err) => err.status === 401);
+    assert.equal((await runtimeAuthorizer(env, vaultAnswering(200, { active: true }))(req, 'queue:read')).unit, 'maestro');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

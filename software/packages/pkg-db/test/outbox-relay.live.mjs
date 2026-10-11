@@ -116,6 +116,11 @@ describe('the lane asks for a credential only when something is due (DECISIONS Â
     await adminQuery('UPDATE queue.event_outbox SET next_attempt_at = UTC_TIMESTAMP(3)');
     assert.deepEqual(await relay.tick(), { delivered: 1, deferred: 0 });
     assert.equal(asked, 1);
+    // A row set aside as damaged is owed, not deliverable: it draws no credential.
+    await append(21);
+    await adminQuery("UPDATE queue.event_outbox SET last_error = 'OUTBOX_ROW_INVALID', next_attempt_at = UTC_TIMESTAMP(3) WHERE receipt IS NULL");
+    assert.deepEqual(await relay.tick(), { delivered: 0, deferred: 0 });
+    assert.equal(asked, 1, 'no credential for a damaged row alone');
     await relay.close();
   });
 });

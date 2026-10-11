@@ -68,6 +68,29 @@ describe('refusal evidence', () => {
   });
 });
 
+describe('a window is committed whole', () => {
+  it('refusals counted while the window commits are kept for the next one, none lost', async () => {
+    const rows = [];
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    const conn = { beginTransaction: async () => {}, commit: async () => { await gate; }, rollback: async () => {}, release() {},
+      execute: async (_sql, params) => { rows.push(JSON.parse(params[1])); return [{}]; } };
+    const r = createRefusalRecorder({ pool: { getConnection: async () => conn }, universe });
+    const fact = (reason) => ({ action: 'admin', reason, requestId: 'x', authenticated: false });
+    for (let i = 0; i < 3; i++) await r.refused(fact('VAULT_TOKEN_INVALID'));
+    const flushing = r.flush();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await r.refused(fact('VAULT_TOKEN_INVALID'));
+    await r.refused(fact('VAULT_TOKEN_MISSING'));
+    release();
+    assert.equal(await flushing, 1);
+    assert.equal(r.pending(), 2, 'the two counted during the commit wait for the next window');
+    await r.flush();
+    const total = rows.reduce((n, e) => n + e.data.count, 0);
+    assert.equal(total, 5, 'every refusal counted exactly once');
+  });
+});
+
 describe('what evidence names', () => {
   it('a secret by an opaque, stable id that reveals no path', () => {
     const key = Buffer.alloc(32, 9);

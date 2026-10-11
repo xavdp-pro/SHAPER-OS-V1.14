@@ -92,7 +92,7 @@ elif [[ -f "$UNIV/cfg-univ-minimal.env" ]]; then
   shaper_source_env "$UNIV/cfg-univ-minimal.env"
 fi
 
-for tool in podman jq openssl ss sha256sum; do
+for tool in podman jq openssl ss sha256sum flock; do
   command -v "$tool" >/dev/null || { echo "[podman-up] $tool is missing in the universe container — install it at first boot" >&2; exit 1; }
 done
 
@@ -158,6 +158,13 @@ KEY_FILE="$VAULT_ETC/master.key"
 if (( ! PREFLIGHT )); then
   install -d -m 0755 -o root -g root "$APPS_ROOT" "$APPS_ROOT/vault" "$APPS_ROOT/vault/etc"
   install -d -m 0700 -o root -g root "$VAULT_ETC"
+  # One parent at a time: podman-up and the bootstrap renewal hold this lock
+  # while they read or change Vault's identities and the parent's records.
+  exec 9>"$VAULT_ETC/parent.lock"
+  flock -w "${PARENT_LOCK_WAIT_SECONDS:-600}" 9 || halt "another parent run (podman-up.sh or renew-bootstraps.sh) holds $VAULT_ETC/parent.lock"
+  # The lock is this script's alone: no container, conmon or podman process
+  # may inherit it and hold it after the run.
+  podman() { command podman "$@" 9>&-; }
   if [[ ! -s "$TOKEN_FILE" ]]; then
     ( umask 077; openssl rand -hex 32 > "$TOKEN_FILE" )
   fi
@@ -256,8 +263,13 @@ for brick in $(jq -r '.bootOrder[][]' "$MANIFEST"); do
   [[ "$(jq -r '.engine' <<<"$db")" == mariadb && "$(jq -r '.placement' <<<"$db")" == in-unit ]] \
     || halt "$brick declares no MariaDB inside its own container — Rules 4 and 26 forbid starting it"
   image="$(resolve_image "$(jq -r --arg b "$brick" '.bricks[$b].image' "$MANIFEST")")"
-  podman pull -q "$image" >/dev/null 2>&1 || podman image exists "$image" \
-    || halt "image $image is neither pullable nor present"
+  if (( PREFLIGHT )); then
+    # A pull could move a local tag: preflight only reads what is present.
+    podman image exists "$image" || halt "image $image is not present (a run would try to pull it)"
+  else
+    podman pull -q "$image" >/dev/null 2>&1 || podman image exists "$image" \
+      || halt "image $image is neither pullable nor present"
+  fi
   label="$(podman image inspect -f '{{index .Labels "org.shaper.unit.slug"}}:{{index .Labels "org.shaper.unit.uid"}}:{{index .Labels "org.shaper.unit.engine-uid"}}:{{index .Labels "org.shaper.unit.schema-version"}}' "$image")"
   [[ "$label" == "$slug:$uid:$engine:$version" ]] \
     || halt "$image declares unit $label (slug:uid:engine-uid:schema-version); the manifest declares $slug:$uid:$engine:$version"
@@ -364,7 +376,8 @@ spec_args() {  # fills RUN_ARGS for <slug>, without its incarnation
   local slug="$1" restore_var
   RUN_ARGS=()
   # A restore into a fresh volume: RESTORE_DUMP_<slug>=/apps/<slug>/sav/restore/<file>.sql
-  restore_var="RESTORE_DUMP_${slug}"
+  # (a hyphen in the slug is an underscore in the variable's name: RESTORE_DUMP_brick_voice).
+  restore_var="RESTORE_DUMP_${slug//-/_}"
   if [[ -n "${!restore_var:-}" ]]; then add -e "UNIT_RESTORE_DUMP=${!restore_var}"; fi
   volume_args "$slug"
   identity_args "$slug"
@@ -372,10 +385,19 @@ spec_args() {  # fills RUN_ARGS for <slug>, without its incarnation
   add -e "UNIT_HEALTH_URL=http://127.0.0.1:${PORT_OF[$slug]}/api/health"
 }
 
+# What a unit reads only at its start, beyond its arguments, is part of its
+# specification too: a changed value recreates the unit (Maestro's declared
+# schedule; Vault's API token, by its digest, never its value).
+content_of() {
+  case "$1" in
+    vault) printf 'api-token:%s' "$(sha256sum < "$TOKEN_FILE" 2>/dev/null | cut -c1-64)" ;;
+    maestro) printf 'task-schedule:%s' "$(sha256sum < "$UNIV/task-schedule.json" | cut -c1-64)" ;;
+  esac
+}
 declare -A SPEC_OF ACTION REASON INCARNATION
 for slug in "${UNITS_IN_ORDER[@]}"; do
   spec_args "$slug"
-  SPEC_OF[$slug]="$(printf '%s\0' "${IMAGE_ID_OF[$slug]}" "${FIXED_ARGS[@]}" "${RUN_ARGS[@]}" | sha256sum | cut -c1-64)"
+  SPEC_OF[$slug]="$(printf '%s\0' "${IMAGE_ID_OF[$slug]}" "$(content_of "$slug")" "${FIXED_ARGS[@]}" "${RUN_ARGS[@]}" | sha256sum | cut -c1-64)"
 done
 
 RECORDS="$VAULT_ETC/registration/records"

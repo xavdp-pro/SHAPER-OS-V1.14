@@ -30,7 +30,13 @@ async function request(vaultUrl, path, token, body, fetchImpl) {
       body: JSON.stringify(body), signal: AbortSignal.timeout(3000),
     });
     const json = await response.json();
-    if (!response.ok) throw new CredentialError(json.code || 'IDENTITY_UNAVAILABLE', response.status);
+    // Vault's refusal (401, 403) is the caller's; anything else Vault answers
+    // — a 5xx, a 404, an unexpected status — leaves the authority unverified:
+    // 503, never passed through (DECISIONS-20261011 §E).
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) throw new CredentialError(json.code || 'CREDENTIAL_REVOKED', response.status);
+      throw new CredentialError('IDENTITY_UNAVAILABLE', 503);
+    }
     return json;
   } catch (err) {
     if (err instanceof CredentialError) throw err;
