@@ -262,7 +262,8 @@ describe('a storage failure is an unavailable queue, never a success', () => {
         fetchImpl: async (url, opts) => { audits.push(JSON.parse(opts.body).event); return { ok: true, json: async () => ({}) }; },
       });
       for (const name of ['jobCreated', 'jobUpdated', 'statusChange']) store.on(name, (job) => events.push([name, job.id]));
-      server = createQueueServer({ port: 0, host: '127.0.0.1', queue: store });
+      // allowAnonymous: this proves the storage refusal path, not authorization.
+      server = createQueueServer({ port: 0, host: '127.0.0.1', queue: store, allowAnonymous: true });
       await listening(server);
     });
 
@@ -295,7 +296,7 @@ describe('a storage failure is an unavailable queue, never a success', () => {
       assert.equal(health.status, 503);
       const h = await health.json();
       assert.equal(h.status, 'unavailable');
-      assert.equal(h.db.ok, false);
+      assert.deepEqual(Object.keys(h).sort(), ['service', 'status', 'timestamp'], 'the open health is minimal');
       const v = await fetch(`${base(server)}/api/vitals`);
       assert.equal(v.status, 503);
       assert.equal((await v.json()).checks.storage.ok, false);

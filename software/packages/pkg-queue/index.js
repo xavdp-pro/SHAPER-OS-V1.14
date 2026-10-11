@@ -429,8 +429,24 @@ async function readJson(req) {
 /** The one consumer of the DEV open surface (no credential, no identity). */
 export const DEV_CONSUMER = Object.freeze({ unit: 'dev', incarnation: 'dev' });
 
+/**
+ * The scope each Queue route requires of a caller's Vault-signed credential
+ * (DECISIONS-20261011 §E): separate grants to enqueue, to read, to claim and to
+ * update under an attempt. Only a minimal health is open.
+ */
+export const QUEUE_SCOPES = Object.freeze({
+  enqueue: 'queue:enqueue',
+  read: 'queue:read',
+  claim: 'queue:claim',
+  attempt: 'queue:attempt',
+});
+
 /** The body an error answers with; `error` stays the human-readable field. */
 export function errorBody(err, status) {
+  if (err && err.name === 'CredentialError') {
+    // Typed, never the credential or the verifier's text.
+    return { error: status === 503 ? 'Queue authority unverifiable' : 'Queue request refused', code: err.code };
+  }
   if (status === 503) {
     return { error: 'Queue storage unavailable', code: err.code || 'DB_UNAVAILABLE', detail: err.message };
   }
@@ -445,6 +461,12 @@ export function errorBody(err, status) {
  *   When omitted, an in-memory JobQueue is built from the options below — a
  *   library default for tests and tooling. The brick's entrypoint (server.js)
  *   always passes the store it selected explicitly.
+ * @param {(req: import('node:http').IncomingMessage, scope: string) => Promise<object>} [options.authorizeRequest]
+ *   pkg-auth's runtimeAuthorizer: verifies the caller's Vault-signed credential
+ *   for audience `queue` and the route's scope, current at Vault. Required on
+ *   the MariaDB store; without it only DEV stores serve, open.
+ * @param {boolean} [options.allowAnonymous] - tests of the MariaDB store's
+ *   refusal paths only; never an entrypoint's choice.
  */
 export function createQueueServer({
   port = 8640,
@@ -454,6 +476,8 @@ export function createQueueServer({
   enforceQualityGate = null,
   gedRoot = null,
   loggerUrl = null,
+  authorizeRequest = null,
+  allowAnonymous = false,
 } = {}) {
   const jobQueue = queue || new JobQueue({
     storageFile,
@@ -465,6 +489,12 @@ export function createQueueServer({
     gedRoot: gedRoot || process.env.GED_ROOT || null,
     loggerUrl: loggerUrl || process.env.LOGGER_URL || null,
   });
+  if (jobQueue.storageKind === 'mariadb' && !authorizeRequest && !allowAnonymous) {
+    // No "localhost means authorized": the durable Queue serves credentials only.
+    throw new QueueError('QUEUE_AUTH_REQUIRED', 'the MariaDB Queue requires unit authorization (runtimeAuthorizer)');
+  }
+  // The caller's verified claims, or null on the DEV open surface.
+  const authorize = async (req, scope) => (authorizeRequest ? authorizeRequest(req, scope) : null);
   const sseClients = new Set();
 
   const broadcast = (event, data) => {
@@ -508,33 +538,19 @@ export function createQueueServer({
     const pathname = url.pathname;
 
     if (req.method === 'GET' && (pathname === '/api/health' || pathname === '/health')) {
-      // Health reveals the store and its reachability, never a payload.
+      // The one open route, and a minimal one: whether the unit and its
+      // database answer. Counts, accounts and payloads are read under a
+      // credential (DECISIONS-20261011 §E).
       const db = typeof jobQueue.probe === 'function' ? await jobQueue.probe() : null;
-      if (db && !db.ok) {
-        return sendJson(503, {
-          status: 'unavailable',
-          service: 'brick-queue',
-          storage: jobQueue.storageKind,
-          db,
-          timestamp: new Date().toISOString(),
-        });
-      }
-      return sendJson(200, {
-        status: 'ok',
-        service: 'brick-queue',
-        storage: jobQueue.storageKind || 'memory',
-        ...(db ? { db } : {}),
-        jobsCount: await jobQueue.countJobs(),
-        sseClients: sseClients.size,
-        persisted: Boolean(jobQueue.persisted),
-        timestamp: new Date().toISOString(),
-      });
+      const ok = !db || db.ok;
+      return sendJson(ok ? 200 : 503, { status: ok ? 'ok' : 'unavailable', service: 'brick-queue', timestamp: new Date().toISOString() });
     }
 
     // Vital signs: evidence a reader can re-derive, never a verdict to believe.
     // `/api/health` above says a process is listening; this says what the brick
     // can prove about itself and about what it depends on.
     if (req.method === 'GET' && pathname === '/api/vitals') {
+      await authorize(req, QUEUE_SCOPES.read);
       const storage = await jobQueue.storageCheck();
       if (storage && storage.ok === false) {
         // The store is unreachable: say so with the evidence, not with counts
@@ -580,6 +596,7 @@ export function createQueueServer({
 
     // What this universe can absorb, measured rather than declared.
     if (req.method === 'GET' && pathname === '/api/capacity') {
+      await authorize(req, QUEUE_SCOPES.read);
       return sendJson(200, capacityReport(await jobQueue.listJobs(), {
         lanes: lanes(),
         windowSeconds: Number(url.searchParams.get('window') || 3600),
@@ -587,6 +604,7 @@ export function createQueueServer({
     }
 
     if (req.method === 'GET' && pathname === '/api/jobs/events') {
+      const authority = await authorize(req, QUEUE_SCOPES.read);
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -599,14 +617,18 @@ export function createQueueServer({
         res.write(': heartbeat\n\n');
       }, 30000);
 
+      // A stream lives no longer than the credential that opened it.
+      const expiry = authority ? setTimeout(() => res.end(), Math.max(0, authority.expiresAt * 1000 - Date.now())) : null;
       req.on('close', () => {
         clearInterval(heartbeat);
+        if (expiry) clearTimeout(expiry);
         sseClients.delete(res);
       });
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/jobs') {
+      await authorize(req, QUEUE_SCOPES.read);
       const status = url.searchParams.get('status') || undefined;
       const key = url.searchParams.get('idempotencyKey');
       if (key !== null) {
@@ -623,6 +645,7 @@ export function createQueueServer({
     }
 
     if (req.method === 'POST' && pathname === '/api/jobs') {
+      await authorize(req, QUEUE_SCOPES.enqueue);
       const parsed = await readJson(req);
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new QueueError('INVALID_JOB_REQUEST', 'a job request is a JSON object');
@@ -640,8 +663,9 @@ export function createQueueServer({
 
     const claimMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/claim$/);
     if (claimMatch && req.method === 'POST') {
+      const authority = await authorize(req, QUEUE_SCOPES.claim);
       const parsed = await readJson(req);
-      const { job, attempt, duplicate } = await jobQueue.claimJob(decodeURIComponent(claimMatch[1]), consumerOf(null), parsed);
+      const { job, attempt, duplicate } = await jobQueue.claimJob(decodeURIComponent(claimMatch[1]), consumerOf(authority), parsed);
       return sendJson(200, { status: 'ok', job, attempt, duplicate });
     }
 
@@ -650,14 +674,16 @@ export function createQueueServer({
       const jobId = decodeURIComponent(jobMatch[1]);
 
       if (req.method === 'GET') {
+        await authorize(req, QUEUE_SCOPES.read);
         const job = await jobQueue.getJob(jobId);
         if (!job) return sendJson(404, { error: `Job "${jobId}" not found.` });
         return sendJson(200, { status: 'ok', job });
       }
 
       if (req.method === 'PATCH' || req.method === 'POST') {
+        const authority = await authorize(req, QUEUE_SCOPES.attempt);
         const parsed = await readJson(req);
-        const { job, receipt, duplicate } = await jobQueue.updateAttempt(jobId, parsed, { consumer: consumerOf(null) });
+        const { job, receipt, duplicate } = await jobQueue.updateAttempt(jobId, parsed, { consumer: consumerOf(authority) });
         return sendJson(200, { status: 'ok', job, ...(receipt ? { receipt } : {}), ...(duplicate ? { duplicate } : {}) });
       }
     }

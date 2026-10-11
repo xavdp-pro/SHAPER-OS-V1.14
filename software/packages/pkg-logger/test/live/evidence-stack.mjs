@@ -31,9 +31,11 @@ const close = (server) => new Promise((resolve) => { server.closeAllConnections?
 
 /**
  * @param {object} [options]
- * @param {string[]} [options.units] - units registered with a logger:ingest grant
+ * @param {string[]} [options.units] - units registered, each with a logger:ingest grant
+ * @param {Record<string, Record<string, string[]>>} [options.grants] - a unit's
+ *   audience → scopes, instead of the default { logger: ['logger:ingest'] }
  */
-export async function startEvidenceStack({ units = ['vault', 'queue', 'maestro'] } = {}) {
+export async function startEvidenceStack({ units = ['vault', 'queue', 'maestro'], grants = {} } = {}) {
   const { workDir } = liveEnv();
   await resetUnit('vault');
   await resetUnit('logger');
@@ -61,7 +63,7 @@ export async function startEvidenceStack({ units = ['vault', 'queue', 'maestro']
     fs.writeFileSync(bootstrapFile, bootstrap, { mode: 0o600 });
     const incarnation = `${unit}-live-1`;
     const { sql, params } = registrationStatement({
-      universe: UNIVERSE, unit, incarnation, grants: { logger: ['logger:ingest'] }, bootstrapToken: bootstrap, ttlSeconds: 3600,
+      universe: UNIVERSE, unit, incarnation, grants: grants[unit] || { logger: ['logger:ingest'] }, bootstrapToken: bootstrap, ttlSeconds: 3600,
     });
     await adminQuery(`USE vault; ${sql}`, params);
     envs[unit] = {
@@ -93,10 +95,14 @@ export async function startEvidenceStack({ units = ['vault', 'queue', 'maestro']
     vaultUrl,
     loggerUrl: `http://127.0.0.1:${loggerPort}`,
     env: (unit) => ({ ...envs[unit] }),
-    credentials: (unit) => {
+    credentials: (unit, audience = 'logger') => {
       const client = runtimeCredentialClient(envs[unit]);
-      return () => client.headers('logger');
+      return () => client.headers(audience);
     },
+    /** The real runtimeAuthorizer a unit serving `audience` runs, checking at this Vault. */
+    authorizer: (audience) => runtimeAuthorizer({
+      VAULT_URL: vaultUrl, UNIT_AUTH_PUBLIC_KEY_FILE: publicKeyFile, SHAPER_UNIVERSE_ID: UNIVERSE, SHAPER_UNIT_SLUG: audience,
+    }),
     /** A Logger outage: the HTTP service stops; its database stays. */
     async stopLogger() { await close(loggerServer); loggerServer = null; },
     async startLogger() { await startLogger(); },

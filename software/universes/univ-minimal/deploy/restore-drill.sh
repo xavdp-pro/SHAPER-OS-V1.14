@@ -28,10 +28,13 @@
 #      INTENT.md#retention). A unit whose schema has no such table records none.
 #
 # A throwaway unit never reaches the live universe with a write: its
-# evidence relay and Queue address an unused port (127.0.0.1:9), and its
-# bootstrap is a random value no Vault ever registered. The one exception is
-# a read: the restored Logger checks the proof's credential at the live Vault,
-# the authority that issued it.
+# evidence relay's Logger and Maestro's Queue address an unused port
+# (127.0.0.1:9), and its bootstrap is a random value no Vault ever registered.
+# The exceptions are reads of the authority: the restored Logger, Queue and
+# Maestro check the proof's credential at the live Vault, the authority that
+# issued it (DECISIONS-20261011 §E: they serve credentials only), and a
+# restored unit with evidence owed asks the live Vault for a credential its
+# unregistered bootstrap never obtains (refused, retried after a backoff).
 #
 # Run it on a quiet universe, after proof.sh: the comparison is exact, and a
 # unit that writes between the dump and the comparison is reported, not hidden.
@@ -98,9 +101,9 @@ drill_args() {  # <slug> <port> <key-file> <work>
     vault)   DRILL_ARGS+=("${identity[@]}" "${holds[@]}" -e "LOGGER_URL=$NOWHERE" -e "VAULT_PORT=$port" -e VAULT_TOKEN
                -e VAULT_MASTER_KEY_FILE=/apps/vault/etc/vault/master.key -v "$key:/apps/vault/etc/vault/master.key:ro,Z") ;;
     logger)  DRILL_ARGS+=("${identity[@]}" "${pin[@]}" -e "VAULT_URL=http://127.0.0.1:$(port_of vault)" -e "LOGGER_PORT=$port") ;;
-    queue)   DRILL_ARGS+=("${identity[@]}" "${holds[@]}" "${pin[@]}" -e "VAULT_URL=$NOWHERE" -e "LOGGER_URL=$NOWHERE"
+    queue)   DRILL_ARGS+=("${identity[@]}" "${holds[@]}" "${pin[@]}" -e "VAULT_URL=http://127.0.0.1:$(port_of vault)" -e "LOGGER_URL=$NOWHERE"
                -e "QUEUE_PORT=$port" -e QUEUE_AUTO_DISPATCH=0) ;;
-    maestro) DRILL_ARGS+=("${identity[@]}" "${holds[@]}" "${pin[@]}" -e "VAULT_URL=$NOWHERE" -e "LOGGER_URL=$NOWHERE"
+    maestro) DRILL_ARGS+=("${identity[@]}" "${holds[@]}" "${pin[@]}" -e "VAULT_URL=http://127.0.0.1:$(port_of vault)" -e "LOGGER_URL=$NOWHERE"
                -e "MAESTRO_PORT=$port" -e MAESTRO_AUTO_START=0 -e "MAESTRO_QUEUE_URL=$NOWHERE") ;;
     *) echo "restore-drill: no drill wiring for $s" >&2; return 1 ;;
   esac
@@ -247,8 +250,8 @@ for s in $(jq -r '.bootOrder[][] as $b | .bricks[$b].database.slug' "$MANIFEST")
       ;;
     maestro)
       want="$(rootsql maestro maestro -e "SELECT schedule_id FROM schedules ORDER BY 1" | paste -sd,)"
-      got="$(curl -s "$D/api/tasks?include=disabled" | jq -r '[.tasks[].slug] | sort | join(",")')"
-      [[ "$(curl -s -o /dev/null -w '%{http_code}' "$D/api/occurrences?limit=10")" == 200 && "$got" == "$want" ]] \
+      got="$(maestro_curl -s "$D/api/tasks?include=disabled" | jq -r '[.tasks[].slug] | sort | join(",")')"
+      [[ "$(maestro_curl -s -o /dev/null -w '%{http_code}' "$D/api/occurrences?limit=10")" == 200 && "$got" == "$want" ]] \
         && ok maestro-restore-reads "the restored Maestro lists the live schedules [${want:-none}] and serves its occurrences" \
         || fail maestro-restore-reads "expected schedules [$want], got [$got]"
       ;;

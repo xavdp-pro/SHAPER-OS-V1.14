@@ -318,8 +318,10 @@ describe('the brick runs Maestro as its own account on its own database', () => 
   });
 });
 
+// allowAnonymous: these prove storage refusals and request validation, not
+// authorization (that is test/authorization.test.js).
 async function withServer(scheduler, work) {
-  const server = createMaestroServer({ port: 0, host: '127.0.0.1', scheduler });
+  const server = createMaestroServer({ port: 0, host: '127.0.0.1', scheduler, allowAnonymous: true });
   await new Promise((resolve) => server.once('listening', resolve));
   try {
     await work(`http://127.0.0.1:${server.address().port}`);

@@ -209,8 +209,10 @@ describe('univ-minimal births the units in the order their identities need', () 
     const list = (name) => new RegExp(`^${name}="([^"]+)"$`, 'm').exec(probes)?.[1].split(' ').sort();
     assert.deepEqual(list('HOLDS_CREDENTIAL'), UNITS.filter((s) => IDENTITY[s].bootstrap).sort());
     assert.deepEqual(list('PINNED'), UNITS.filter((s) => IDENTITY[s].pin).sort());
-    assert.match(probes, /^HOLDER_GRANT="logger=logger:ingest"$/m);
-    assert.match(probes, /^PROOF_GRANTS="logger=logger:ingest logger=logger:read:own"$/m);
+    // Every grant explicit and separate (DECISIONS-20261011 §E).
+    assert.match(probes, /^\s+vault\|queue\) echo "logger=logger:ingest" ;;$/m);
+    assert.match(probes, /^\s+maestro\) echo "logger=logger:ingest queue=queue:enqueue queue=queue:read" ;;$/m);
+    assert.match(probes, /^PROOF_GRANTS="logger=logger:ingest logger=logger:read:own queue=queue:enqueue queue=queue:read queue=queue:claim queue=queue:attempt maestro=maestro:read maestro=maestro:admin"$/m);
     // Declared once: podman-up and the proofs read the same lists.
     assert.match(up, /^source "\$UNIV\/deploy\/unit-probes\.sh"$/m);
     assert.match(up, /^for slug in \$HOLDS_CREDENTIAL; do$/m);

@@ -8,6 +8,11 @@
  * QUEUE_STORE=memory or QUEUE_STORE=file; nothing falls back to them, and
  * neither is accepted when a promotion or qualification flag is set.
  *
+ * On MariaDB every route but a minimal health requires a Vault-signed
+ * credential for audience `queue` and the route's scope (queue:enqueue,
+ * queue:read, queue:claim, queue:attempt): 401 absent or invalid, 403
+ * audience, scope or revocation, 503 when Vault cannot confirm it.
+ *
  * Lifecycle: open the store → settle every job left RUNNING as interrupted
  * (whatever the worker setting) → listen → start the evidence relay and, if
  * asked, the worker. Stop: worker, relay drain, server, database.
@@ -39,6 +44,7 @@ const storeOptions = {
 let queue;
 let relay = null;
 let maintenance = null;
+let authorizeRequest = null;
 if (STORE === 'mariadb') {
   const { MariaDbJobQueue } = await import('./mariadb-store.js');
   const slug = process.env.SHAPER_UNIT_SLUG || 'queue';
@@ -54,7 +60,10 @@ if (STORE === 'mariadb') {
     if (!storeOptions.loggerUrl) {
       throw Object.assign(new Error('LOGGER_URL is required with QUEUE_STORE=mariadb: committed evidence is owed to Logger'), { code: 'LOGGER_URL_MISSING' });
     }
-    const { runtimeCredentialClient } = await import('../pkg-auth/runtime-identity.js');
+    const { runtimeAuthorizer, runtimeCredentialClient } = await import('../pkg-auth/runtime-identity.js');
+    // Every route but a minimal health answers a Vault-signed credential for
+    // audience `queue`, checked current at Vault (DECISIONS-20261011 §E).
+    authorizeRequest = runtimeAuthorizer({ ...process.env, SHAPER_UNIT_SLUG: slug });
     const identityClient = runtimeCredentialClient({ ...process.env, SHAPER_UNIT_SLUG: slug });
     const { createEvidenceRelay } = await import('../pkg-db/outbox.js');
     const { deliverLog } = await import('../pkg-logger/ingest-client.js');
@@ -125,7 +134,7 @@ try {
 
 console.log(`[brick-queue] Starting Job Queue Gateway on ${HOST}:${PORT}...`);
 
-const server = createQueueServer({ port: PORT, host: HOST, queue });
+const server = createQueueServer({ port: PORT, host: HOST, queue, authorizeRequest });
 let worker = null;
 
 server.on('listening', () => {

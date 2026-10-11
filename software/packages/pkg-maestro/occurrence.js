@@ -391,6 +391,12 @@ export function classifyQueueAnswer({ status, body, error } = {}) {
   if (status === 408 || status === 425 || status === 429) {
     return { outcome: 'retry', reason: `queue_busy_${status}`, detail: String(body?.error || '') };
   }
+  // Queue refused Maestro's credential, not the request: a credential renews
+  // and a grant can be restored, so the same bytes may be accepted later —
+  // retried with the same key, bounded by the attempts, never settled at once.
+  if (status === 401 || (status === 403 && /^(CREDENTIAL|IDENTITY)_/.test(String(body?.code || '')))) {
+    return { outcome: 'retry', reason: `queue_unauthorized_${status}`, detail: String(body?.code || '') };
+  }
   if (status >= 400 && status < 500) {
     return { outcome: 'rejected', reason: `queue_rejected_${status}`, detail: String(body?.error || body?.code || '') };
   }

@@ -137,7 +137,10 @@ export class DurableMaestro {
    * @param {object} options.store - a MariaDbMaestroStore
    * @param {string} options.universeId - SHAPER_UNIVERSE_ID, part of every occurrence id
    * @param {string} options.queueUrl
-   * @param {string} [options.authToken] - bearer sent to Queue
+   * @param {string} [options.authToken] - static bearer sent to Queue (DEV and tests only)
+   * @param {() => Promise<Record<string, string>>} [options.credentials] - the
+   *   Authorization header of a Vault-signed `queue` credential, renewed before
+   *   expiry (pkg-auth runtimeCredentialClient); takes precedence
    * @param {string} [options.service]
    * @param {typeof fetch} [options.fetchImpl]
    * @param {() => number} [options.now]
@@ -150,6 +153,7 @@ export class DurableMaestro {
     universeId,
     queueUrl,
     authToken = '',
+    credentials = null,
     service = 'brick-maestro',
     fetchImpl = fetch,
     now = Date.now,
@@ -171,6 +175,7 @@ export class DurableMaestro {
     this.universeId = assertUniverseId(universeId);
     this.queueUrl = queueUrl.replace(/\/$/, '');
     this.authToken = authToken;
+    this.credentials = credentials;
     this.service = service;
     this.fetchImpl = fetchImpl;
     this.now = now;
@@ -584,16 +589,17 @@ export class DurableMaestro {
     }
   }
 
-  _headers() {
+  async _headers() {
     const headers = { 'Content-Type': 'application/json' };
-    if (this.authToken) headers.Authorization = `Bearer ${this.authToken}`;
+    if (this.credentials) Object.assign(headers, await this.credentials());
+    else if (this.authToken) headers.Authorization = `Bearer ${this.authToken}`;
     return headers;
   }
 
   async _post(requestText) {
     try {
       const res = await this.fetchImpl(`${this.queueUrl}/api/jobs`, {
-        method: 'POST', headers: this._headers(), body: requestText, signal: AbortSignal.timeout(this.requestTimeoutMs),
+        method: 'POST', headers: await this._headers(), body: requestText, signal: AbortSignal.timeout(this.requestTimeoutMs),
       });
       let body = null;
       try { body = await res.json(); } catch { body = null; }
@@ -607,7 +613,7 @@ export class DurableMaestro {
   async _lookup(key) {
     try {
       const res = await this.fetchImpl(`${this.queueUrl}/api/jobs?idempotencyKey=${encodeURIComponent(key)}`, {
-        headers: this._headers(), signal: AbortSignal.timeout(this.requestTimeoutMs),
+        headers: await this._headers(), signal: AbortSignal.timeout(this.requestTimeoutMs),
       });
       if (!res.ok) return null;
       const body = await res.json();
@@ -619,14 +625,15 @@ export class DurableMaestro {
 
   // ── Observation ───────────────────────────────────────────────────────────
 
+  /**
+   * The one open route, and a minimal one (DECISIONS-20261011 §E): whether the
+   * unit and its database answer. Schedules, counts and the universe are read
+   * under a credential (GET /api/vitals, /api/tasks).
+   */
   async health() {
     const db = await this.store.probe();
-    const base = {
-      service: this.service, isRunning: this.isRunning, storage: 'mariadb', universeId: this.universeId, db,
-      timestamp: new Date(this.now()).toISOString(),
-    };
-    if (!db.ok) return { ok: false, body: { status: 'unavailable', ...base } };
-    return { ok: true, body: { status: 'ok', ...base, tasksCount: await this.store.countEnabled() } };
+    const body = { status: db.ok ? 'ok' : 'unavailable', service: this.service, timestamp: new Date(this.now()).toISOString() };
+    return { ok: db.ok, body };
   }
 
   async vitals(now = this.now()) {

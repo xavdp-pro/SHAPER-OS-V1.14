@@ -16,8 +16,10 @@
 #   1. pin Vault's signing public key, derived here from the master key and
 #      the universe UUID, for every unit that verifies a credential;
 #   2. register a fresh incarnation of each unit that owes evidence to Logger
-#      (vault, queue, maestro: logger=logger:ingest) and of the proof's reader
-#      (logger:ingest, logger:read:own); each bootstrap is a new owner-only file;
+#      (vault, queue, maestro), each with its declared grants (grants_of in
+#      unit-probes.sh: logger:ingest, and Maestro's queue:enqueue and
+#      queue:read), and of the proof's identity (PROOF_GRANTS); each bootstrap
+#      is a new owner-only file;
 #   3. start Vault; once it is ready, root applies the registrations to Vault's
 #      database through its socket and reads them back;
 #   4. start Logger, Queue and Maestro, layer by layer.
@@ -66,7 +68,7 @@ UNIVERSE="${SHAPER_UNIVERSE:-univ-minimal}"
 APPS_ROOT="${SHAPER_APPS_ROOT:-/apps}"
 [[ "$UNIVERSE" =~ ^univ-[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "[podman-up] SHAPER_UNIVERSE must be an instance slug (univ-…), got $UNIVERSE" >&2; exit 1; }
 # Definitions shared with the proofs: who holds a credential and who pins
-# Vault's key (HOLDS_CREDENTIAL, HOLDER_GRANT, PINNED, PROOF_GRANTS), and where
+# Vault's key (HOLDS_CREDENTIAL, grants_of, PINNED, PROOF_GRANTS), and where
 # the proof keeps its state and reader identity (PROOF_DIR).
 # shellcheck source=/dev/null
 source "$UNIV/deploy/unit-probes.sh"
@@ -216,10 +218,10 @@ done
 [[ -n "${IMAGE_OF[vault]:-}" ]] || halt "the manifest declares no brick-vault: no unit could hold a credential"
 
 # ── 7. Unit identities: the parent's two steps (pkg-vault/unit-registration.js) ─
-# Who holds a Vault-signed credential (HOLDS_CREDENTIAL, each granted
-# HOLDER_GRANT: the units that owe evidence to Logger; Logger holds none, it
-# verifies), who pins Vault's public key (PINNED) and what the proof's reader
-# may do (PROOF_GRANTS) are declared once, in unit-probes.sh.
+# Who holds a Vault-signed credential (HOLDS_CREDENTIAL, each with grants_of:
+# the units that owe evidence to Logger; Logger holds none, it verifies), who
+# pins Vault's public key (PINNED) and what the proof's identity may do
+# (PROOF_GRANTS) are declared once, in unit-probes.sh.
 
 # The tool runs from the Vault image itself — the code that verifies what it
 # registers — with no network and no capability.
@@ -266,7 +268,8 @@ REGISTERED=""
 for slug in $HOLDS_CREDENTIAL; do
   [[ -n "${IMAGE_OF[$slug]:-}" ]] || continue
   INCARNATION[$slug]="$slug-$STAMP"
-  register "$slug" "${INCARNATION[$slug]}" "$HOLDER_GRANT"
+  # shellcheck disable=SC2046
+  register "$slug" "${INCARNATION[$slug]}" $(grants_of "$slug")
   chown "${UID_OF[$slug]}:${UID_OF[$slug]}" "$STAGE/$slug.bootstrap"; chmod 0600 "$STAGE/$slug.bootstrap"
 done
 mv -f "$STAGE/vault.bootstrap" "$APPS_ROOT/vault/etc/identity/bootstrap"

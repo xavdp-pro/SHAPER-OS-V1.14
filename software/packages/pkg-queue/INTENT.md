@@ -226,8 +226,32 @@ open reconstruction obligations; the durable attempts below are not a lease.
 The MariaDB entrypoint uses the protected runtime bootstrap file and pinned
 public key to obtain a short-lived `logger` audience credential. Every relay
 request carries that credential in its HTTP header; tokens never enter the
-outbox. Inbound Queue producer/consumer scopes and lease settlement remain
-open work and are not inferred from authenticated Logger delivery.
+outbox.
+
+<a id="authorization"></a>
+## Authorization: credentials on every route but health (DECISIONS-20261011 §E)
+
+On the MariaDB store, `createQueueServer` refuses to serve without an
+authorizer (`QUEUE_AUTH_REQUIRED`): the entrypoint passes pkg-auth's
+`runtimeAuthorizer` for audience `queue`, which verifies the caller's
+Vault-signed credential and checks it current at Vault. No caller is trusted
+for being on localhost. Each route requires its own scope, granted separately
+by the parent's registration:
+
+| Route | Scope |
+| :--- | :--- |
+| `POST /api/jobs` | `queue:enqueue` |
+| `GET /api/jobs`, `GET /api/jobs/<id>`, `GET /api/jobs/events`, `GET /api/vitals`, `GET /api/capacity` | `queue:read` |
+| `POST /api/jobs/<id>/claim` | `queue:claim` |
+| `PATCH /api/jobs/<id>` (under an attempt) | `queue:attempt` |
+
+`401` for an absent or invalid credential, `403` for another audience, a
+missing scope or a credential Vault no longer holds current, `503` when Vault
+cannot confirm it — never a default answer. An event stream ends when the
+credential that opened it expires. Claims and attempts bind to the unit and
+incarnation the credential names. Only `GET /api/health` is open, and minimal:
+`{status, service, timestamp}`, `503` when the database does not answer. The
+DEV stores serve open, as DEV scaffolding.
 
 <a id="attempts"></a>
 ## Attempts: claim, update, terminal (DECISIONS-20261011 §G)

@@ -35,6 +35,7 @@ export const QUEUE_ERROR_STATUS = Object.freeze({
   INVALID_JOB_UPDATE: 400,
   IDEMPOTENCY_KEY_INVALID: 400,
   ATTEMPT_REQUIRED: 400,
+  QUEUE_AUTH_REQUIRED: 503,
   ATTEMPT_FORBIDDEN: 403,
   JOB_NOT_FOUND: 404,
   IDEMPOTENCY_CONFLICT: 409,
@@ -50,6 +51,9 @@ export const QUEUE_ERROR_STATUS = Object.freeze({
  * @returns {number}
  */
 export function queueErrorStatus(err) {
+  // 401 absent or invalid credential, 403 audience, scope or revocation, 503
+  // authority unverifiable (DECISIONS-20261011 §E).
+  if (err && err.name === 'CredentialError') return err.status;
   if (err && err.name === 'QueueError') return QUEUE_ERROR_STATUS[err.code] ?? 500;
   if (err && err.name === 'UnitDbError') return 503;
   const code = String((err && err.code) || '');

@@ -277,7 +277,10 @@ describe('what a Queue answer means', () => {
     ['409 idempotency conflict', { status: 409, body: { code: 'IDEMPOTENCY_CONFLICT', error: 'different request' } }, 'conflict', 'queue_idempotency_conflict'],
     ['409 other conflict', { status: 409, body: { code: 'SOMETHING_ELSE' } }, 'rejected', 'queue_conflict_409'],
     ['400 validation', { status: 400, body: { error: 'bad payload' } }, 'rejected', 'queue_rejected_400'],
-    ['401 unauthorized', { status: 401, body: {} }, 'rejected', 'queue_rejected_401'],
+    // A refused credential is not a refused request: it renews (DECISIONS §E).
+    ['401 unauthorized', { status: 401, body: { code: 'CREDENTIAL_EXPIRED' } }, 'retry', 'queue_unauthorized_401'],
+    ['403 credential revoked', { status: 403, body: { code: 'CREDENTIAL_REVOKED' } }, 'retry', 'queue_unauthorized_403'],
+    ['403 other refusal', { status: 403, body: { code: 'ATTEMPT_FORBIDDEN' } }, 'rejected', 'queue_rejected_403'],
     ['429 busy', { status: 429, body: {} }, 'retry', 'queue_busy_429'],
     ['500 error', { status: 500, body: null }, 'retry', 'queue_error_500'],
     ['503 unavailable', { status: 503, body: { error: 'storage down' } }, 'retry', 'queue_error_503'],

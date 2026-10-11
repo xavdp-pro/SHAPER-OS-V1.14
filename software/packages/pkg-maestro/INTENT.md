@@ -123,6 +123,26 @@ with its direct-to-bridge legacy path.
   database's `event_outbox` until Logger receipts it; `LOG_DIR` serves only the
   memory scaffolding
 
+<a id="authorization"></a>
+## Authorization: credentials on every route but health (DECISIONS-20261011 §E)
+
+With the durable scheduler, `createMaestroServer` refuses to serve without an
+authorizer (`MAESTRO_AUTH_REQUIRED`): the entrypoint passes pkg-auth's
+`runtimeAuthorizer` for audience `maestro`. `maestro:read` reads
+(`GET /api/tasks`, `/api/occurrences`, `/api/vitals`); `maestro:admin`
+administers (`POST /api/tasks/register`, `/api/tasks/<slug>/tick`,
+`/api/scheduler/start`, `/api/scheduler/stop`) — separate grants, neither
+implies the other. `401` absent or invalid, `403` audience, scope or
+revocation, `503` authority unverifiable. Only `GET /api/health` is open,
+minimal (`{status, service, timestamp}`).
+
+Maestro reaches Queue under its own Vault-signed `queue` credential (granted
+`queue:enqueue` and `queue:read` by the parent), renewed before expiry by the
+same runtime credential client its relay uses. Queue refusing that credential
+(`401`, or `403` with a `CREDENTIAL_`/`IDENTITY_` code) is retried with the same
+idempotency key within the bounded attempts — never settled as a refused
+request at once; another `4xx` still is.
+
 <a id="evidence"></a>
 ## 4. Evidence: the outbox, not a local file
 

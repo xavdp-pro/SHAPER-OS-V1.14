@@ -3,10 +3,11 @@
 # Sourced by proof-effects.sh, definitions only: the real effects of Logger,
 # Queue and Maestro, each read back from the unit's own database through the
 # root path, and the evidence Queue and Maestro owe Logger read back from both
-# databases. Logger is called under the proof's own Vault-signed credential
-# (logger_curl, unit-probes.sh): every event this proof writes is sourced as
-# "proof". Every job this proof creates ends COMPLETED; it leaves nothing
-# PENDING behind.
+# databases. Logger, Queue and Maestro are called under the proof's own
+# Vault-signed credential, one audience each (logger_curl, queue_curl,
+# maestro_curl in unit-probes.sh): every event this proof writes is sourced as
+# "proof", every job it runs is claimed by "proof". Every job this proof
+# creates ends COMPLETED; it leaves nothing PENDING behind.
 
 H='Content-Type: application/json'
 
@@ -39,6 +40,9 @@ persisted_maestro() {
 effects_queue() {
   section "queue — one job per idempotency key, held in its own database"
   Q="$(url queue)"; K="$RUN_ID"
+  # DECISIONS-20261011 §E: only a minimal health is open.
+  check "queue-refuses-anonymous" "an enqueue, a read and a claim without a credential → 401; health stays open and minimal" \
+    test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$Q/api/jobs" -H "$H" -d '{"type":"anon"}')|$(curl -s -o /dev/null -w '%{http_code}' "$Q/api/jobs")|$(curl -s -o /dev/null -w '%{http_code}' -X POST "$Q/api/jobs/x/claim" -H "$H" -d '{}')|$(curl -s "$Q/api/health" | jq -r '"\(.status),\(.service),\(.db // "-"),\(.jobsCount // "-")"')" = "401|401|401|ok,brick-queue,-,-"
   body='{"type":"proof.ping","totalSteps":1,"payload":{"run":"'"$RUN_ID"'"},"idempotencyKey":"'"$K"'"}'
   code="$(queue_curl -s -o /tmp/proof-q1.json -w '%{http_code}' -X POST "$Q/api/jobs" -H "$H" -d "$body")"
   job="$(jq -r '.job.id // empty' /tmp/proof-q1.json)"
@@ -122,12 +126,14 @@ effects_maestro() {
   M="$(url maestro)"; S="task-proof-maestro"
   check "maestro-idle-declared" "the class declares no schedule: no enabled schedule before the proof" \
     test "$(rootsql maestro maestro -e "SELECT COUNT(*) FROM schedules WHERE enabled=1")" = 0
+  check "maestro-refuses-anonymous" "a read and a registration without a credential → 401" \
+    test "$(curl -s -o /dev/null -w '%{http_code}' "$M/api/tasks")|$(curl -s -o /dev/null -w '%{http_code}' -X POST "$M/api/tasks/register" -H "$H" -d '{}')" = "401|401"
   # A proof schedule whose first natural instant is in 2099: it fires only when
   # ticked, and the task file (which declares none) retires it at the restart below.
   check "maestro-register" "POST /api/tasks/register $S (anchored in 2099, never fires by itself)" \
-    curl -sf -o /dev/null -X POST "$M/api/tasks/register" -H "$H" \
+    maestro_curl -sf -o /dev/null -X POST "$M/api/tasks/register" -H "$H" \
       -d '{"slug":"'"$S"'","kind":"queue","jobType":"maestro.proof","cadenceSeconds":86400,"anchorAt":"2099-01-01T00:00:00.000Z","missedPolicy":"skip","instruction":"Maestro proof occurrence; the universe proof completes this job itself."}'
-  tick="$(curl -s -X POST "$M/api/tasks/$S/tick")"
+  tick="$(maestro_curl -s -X POST "$M/api/tasks/$S/tick")"
   occ="$(jq -r '.result.occurrence.occurrenceId // empty' <<<"$tick")"
   mjob="$(jq -r '.result.occurrence.queueJobId // empty' <<<"$tick")"
   planned="$(jq -r '.result.occurrence.plannedAt // empty' <<<"$tick")"
@@ -140,6 +146,8 @@ effects_maestro() {
     test "$(rootsql maestro maestro -e "SELECT CONCAT(state,'|',queue_job_id) FROM occurrences WHERE occurrence_id='$occ'")" = "ENQUEUED|$mjob"
   check "maestro-one-job" "Queue holds exactly one job under the occurrence id (queue.jobs, root path)" \
     test "$(rootsql queue queue -e "SELECT GROUP_CONCAT(id) FROM jobs WHERE idempotency_key='$occ'")" = "$mjob"
+  check "maestro-queue-credential" "Maestro reached Queue under its own Vault-signed queue credential (vault.unit_credentials, root path)" \
+    test "$(rootsql vault vault -e "SELECT COUNT(*) FROM unit_credentials WHERE universe_id = '$UNIVERSE_ID' AND unit_id = 'maestro' AND audience = 'queue' AND incarnation = '$(unit_env "${UNIVERSE}-ctr-maestro" SHAPER_UNIT_INCARNATION)'")" -ge 1
   rootsql maestro maestro -r -e "SELECT request_json FROM occurrences WHERE occurrence_id='$occ'" > "$STATE_DIR/frozen-request.json"
   check "maestro-replay-same-job" "the frozen request resent → 200, duplicate:true, the same job" \
     test "$(queue_curl -s -X POST "$(url queue)/api/jobs" -H "$H" --data-binary @"$STATE_DIR/frozen-request.json" | jq -r '"\(.duplicate)|\(.job.id)"')" = "true|$mjob"

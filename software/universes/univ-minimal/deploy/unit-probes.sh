@@ -112,14 +112,39 @@ engine_pid_of() { jq -r '[.[] | select(.comm == "mariadbd") | .pid] | if length 
 
 # ── Identity and authenticated calls ────────────────────────────────────────
 # Who holds a Vault-signed credential — every unit that owes evidence to
-# Logger, each granted HOLDER_GRANT — and who pins Vault's public key: every
-# unit that verifies a credential, or the ones it receives. deploy/podman-up.sh
-# registers and pins exactly these; the proofs check exactly these. The proof's
-# own reader writes its events and reads them back, nothing else.
+# Logger, each with the grants grants_of declares — and who pins Vault's public
+# key: every unit that verifies a credential, or the ones it receives.
+# deploy/podman-up.sh registers and pins exactly these; the proofs check
+# exactly these. Every grant is explicit and separate (DECISIONS-20261011 §E):
+# Maestro enqueues into Queue and reads it back, nothing more.
 HOLDS_CREDENTIAL="vault queue maestro"
-HOLDER_GRANT="logger=logger:ingest"
 PINNED="logger queue maestro"
-PROOF_GRANTS="logger=logger:ingest logger=logger:read:own"
+#   grants_of <unit>   → audience=scope …
+grants_of() {
+  case "$1" in
+    vault|queue) echo "logger=logger:ingest" ;;
+    maestro) echo "logger=logger:ingest queue=queue:enqueue queue=queue:read" ;;
+    *) return 1 ;;
+  esac
+}
+# The proof's own identity (unit "proof", a qualification identity, no Vault
+# administration): it writes its own events and reads them back, runs Queue
+# jobs as a consumer (enqueue, read, claim, update under its attempt), and
+# reads and administers Maestro to tick a proof schedule. Each right explicit.
+PROOF_GRANTS="logger=logger:ingest logger=logger:read:own queue=queue:enqueue queue=queue:read queue=queue:claim queue=queue:attempt maestro=maestro:read maestro=maestro:admin"
+# The grants as the registration tool records them in Vault (JSON, audiences
+# in first-seen order, each audience's scopes in the order given).
+#   grants_json <audience=scope>…
+grants_json() {
+  local -a auds=(); local -A scopes=(); local g a out=""
+  for g in "$@"; do
+    a="${g%%=*}"
+    [[ -v "scopes[$a]" ]] || auds+=("$a")
+    scopes[$a]+="${scopes[$a]:+,}\"${g#*=}\""
+  done
+  for a in "${auds[@]}"; do out+="${out:+,}\"$a\":[${scopes[$a]}]"; done
+  printf '{%s}' "$out"
+}
 
 # What podman-up.sh, the parent, wrote: the universe UUID beside the Vault's
 # key material, and the proof's own reader identity (unit "proof") under the
@@ -152,18 +177,20 @@ vault_curl() {
   curl_with_header "$PROOF_DIR/identity/vault.header" "$@"
 }
 
-# A Vault-signed logger credential for the proof's identity, written as an
-# Authorization header to <header-file> (root-only). The token goes from
-# Vault's answer to the file through jq, never through a variable or an
-# argument; the bootstrap's header is removed at once.
-#   issue_proof_credential <header-file>
+# A Vault-signed credential for the proof's identity and one audience (logger
+# by default), written as an Authorization header to <header-file>
+# (root-only). The token goes from Vault's answer to the file through jq, never
+# through a variable or an argument; the bootstrap's header is removed at once.
+#   issue_proof_credential <header-file> [audience]
 issue_proof_credential() {
-  local dir="$PROOF_DIR/identity" header="$1" incarnation status
+  local dir="$PROOF_DIR/identity" header="$1" audience="${2:-logger}" incarnation status
   incarnation="$(cat "$dir/incarnation" 2>/dev/null)"
   [[ -n "$incarnation" && -s "$dir/bootstrap" ]] || { echo "issue_proof_credential: no proof identity in $dir — run deploy/podman-up.sh" >&2; return 1; }
-  write_header "$dir/bootstrap.header" "$dir/bootstrap" || return 1
-  curl_with_header "$dir/bootstrap.header" -sf -X POST -H 'Content-Type: application/json' \
-    -d "{\"unit\":\"proof\",\"incarnation\":\"$incarnation\",\"audience\":\"logger\"}" \
+  local boot
+  boot="$(mktemp --suffix=.header "$dir/bootstrap-XXXXXX")" || return 1
+  write_header "$boot" "$dir/bootstrap" || { rm -f -- "$boot"; return 1; }
+  curl_with_header "$boot" -sf -X POST -H 'Content-Type: application/json' \
+    -d "{\"unit\":\"proof\",\"incarnation\":\"$incarnation\",\"audience\":\"$audience\"}" \
     "$(vault_base)/api/identity/issue" \
     | ( umask 077; jq -er '"Authorization: Bearer " + .token' > "$header" )
   status=$?
@@ -174,19 +201,29 @@ issue_proof_credential() {
   fi
 }
 
-# Logger, under a credential issued to the proof's identity for this call
+# A unit's API under a credential issued to the proof's identity for this call
 # alone — it lives 300 s at most, and a recreated universe registers a new
-# incarnation, so none is kept.
-#   logger_curl <curl args…>
-logger_curl() {
-  issue_proof_credential "$PROOF_DIR/identity/logger.header" || return 1
-  curl_with_header "$PROOF_DIR/identity/logger.header" "$@"
+# incarnation, so none is kept. Each call has its own root-only header file,
+# removed after use: calls may run in parallel.
+#   proof_curl <audience> <curl args…>
+proof_curl() {
+  local audience="$1" header; shift
+  install -d -m 0700 "$PROOF_DIR" "$PROOF_DIR/identity"
+  header="$(mktemp --suffix=.header "$PROOF_DIR/identity/$audience-XXXXXX")" || return 1
+  issue_proof_credential "$header" "$audience" || { rm -f -- "$header"; return 1; }
+  curl_with_header "$header" "$@"
 }
+#   logger_curl <curl args…>
+logger_curl() { proof_curl logger "$@"; }
+# Maestro answers credentials only (DECISIONS-20261011 §E).
+#   maestro_curl <curl args…>
+maestro_curl() { proof_curl maestro "$@"; }
 
 # ── Queue, as a client of its API ───────────────────────────────────────────
 queue_base() { echo "http://127.0.0.1:$(jq -r '.bricks["brick-queue"].port' "$MANIFEST")"; }
+# Queue answers credentials only (DECISIONS-20261011 §E).
 #   queue_curl <curl args…>
-queue_curl() { curl "$@"; }
+queue_curl() { proof_curl queue "$@"; }
 # A job run to its end the way a consumer runs one (DECISIONS-20261011 §G):
 # claimed — a durable attempt bound to the caller — then completed under that
 # attempt. Prints the completion's HTTP status; fails when no claim was granted.

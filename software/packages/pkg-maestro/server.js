@@ -13,6 +13,11 @@
  * explicitly. Nothing ever falls back to it, and it is refused when a
  * promotion or qualification flag is set.
  *
+ * On MariaDB every route but a minimal health requires a Vault-signed
+ * credential for audience `maestro` (maestro:read, maestro:admin), and every
+ * occurrence goes to Queue under Maestro's own `queue` credential
+ * (queue:enqueue, queue:read).
+ *
  * On MariaDB, every report is an outbox row committed with the change it
  * reports; one relay lane delivers them to Logger under a logger-audience
  * credential renewed from Vault. No local JSONL audit is written: LOG_DIR
@@ -58,6 +63,8 @@ if (STORE === 'memory') {
 }
 let relay = null;
 let maintenance = null;
+let authorizeRequest = null;
+let queueCredentials = null;
 
 console.log(`[brick-maestro] Starting on ${HOST}:${PORT}...`);
 
@@ -112,8 +119,13 @@ async function startDurable() {
     if (!LOGGER_URL) {
       throw Object.assign(new Error('LOGGER_URL is required with MAESTRO_STORE=mariadb: committed evidence is owed to Logger'), { code: 'LOGGER_URL_MISSING' });
     }
-    const { runtimeCredentialClient } = await import('../pkg-auth/runtime-identity.js');
+    const { runtimeAuthorizer, runtimeCredentialClient } = await import('../pkg-auth/runtime-identity.js');
+    // Every route but a minimal health answers a Vault-signed credential for
+    // audience `maestro`, checked current at Vault; Maestro calls Queue under
+    // its own `queue` credential (DECISIONS-20261011 §E).
+    authorizeRequest = runtimeAuthorizer({ ...process.env, SHAPER_UNIT_SLUG: slug });
     const identityClient = runtimeCredentialClient({ ...process.env, SHAPER_UNIT_SLUG: slug });
+    queueCredentials = () => identityClient.headers('queue');
     const { createEvidenceRelay } = await import('../pkg-db/outbox.js');
     const { deliverLog } = await import('../pkg-logger/ingest-client.js');
     relay = createEvidenceRelay({
@@ -143,7 +155,7 @@ async function startDurable() {
     store,
     universeId,
     queueUrl: QUEUE_URL,
-    authToken: BRIDGE_AUTH_TOKEN,
+    credentials: queueCredentials,
   });
   try {
     const { results, retired } = await scheduler.materializeDeclared(declarations);
@@ -225,7 +237,7 @@ async function startMemory() {
 
 const scheduler = STORE === 'mariadb' ? await startDurable() : await startMemory();
 
-const server = createMaestroServer({ port: PORT, host: HOST, scheduler });
+const server = createMaestroServer({ port: PORT, host: HOST, scheduler, authorizeRequest });
 
 if (AUTO_START && STORE === 'memory') scheduler.startScheduler();
 

@@ -135,6 +135,8 @@ gate_unit() {
     incarnation="$(unit_env "$ctr" SHAPER_UNIT_INCARNATION)"
     check "$s-bootstrap" "its bootstrap is a 0600 file owned by $s ($uid), and no bootstrap value is in its environment" \
       bash -c "[[ \"\$(podman exec '$ctr' stat -c '%F %a %u' /apps/$s/etc/identity/bootstrap 2>/dev/null)\" == 'regular file 600 $uid' ]] && ! podman inspect -f '{{range .Config.Env}}{{println .}}{{end}}' '$ctr' | grep -qE '^[A-Z_]*BOOTSTRAP[A-Z_]*=[0-9a-f]{64}\$'"
+    check "$s-grants" "Vault holds exactly $s's declared grants: $(grants_json $(grants_of "$s"))" \
+      test "$(rootsql vault vault -e "SELECT grants FROM unit_identities WHERE universe_id = '$UNIVERSE_ID' AND unit_id = '$s'" 2>/dev/null)" = "$(grants_json $(grants_of "$s"))"
     check "$s-incarnation-live" "Vault holds $s's current incarnation ${incarnation:-?}, not revoked, its bootstrap unexpired (vault.unit_identities, root path)" \
       test -n "$incarnation" -a "$(rootsql vault vault -e "SELECT COUNT(*) FROM unit_identities WHERE universe_id = '$UNIVERSE_ID' AND unit_id = '$s' AND incarnation = '$incarnation' AND NOT revoked AND bootstrap_expires_at > UTC_TIMESTAMP(3)" 2>/dev/null || echo 0)" = 1
     check "$s-evidence-flowing" "no evidence owed to Logger for more than 15 minutes in $s.event_outbox" \

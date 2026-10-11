@@ -13,6 +13,7 @@ idempotent occurrence per due instant to Queue; zero idle LLM waste.
 1. Scheduling only — no AI inference, no execution of the work it schedules.
 2. Requires Logger for its evidence: every change commits an outbox row in its own database (schema version 3, with `recovery_points` for the declared cleanup), relayed to Logger under a logger credential renewed from Vault (`SHAPER_UNIT_INCARNATION`, `UNIT_BOOTSTRAP_TOKEN_FILE`, `UNIT_AUTH_PUBLIC_KEY_FILE`, `VAULT_URL`, `LOGGER_URL`, from `/apps/maestro/etc/identity/`, mounted read-only). It writes no local log: the unit has no log volume.
 3. Tasks loaded from `MAESTRO_TASKS_FILE` — zero hardcoded mailboxes (Rule 0B).
+   Every route but a minimal `GET /api/health` requires a Vault-signed credential for audience `maestro` — `maestro:read` to read, `maestro:admin` to register, tick, start or stop — and Maestro reaches Queue under its own `queue` credential (`queue:enqueue`, `queue:read`) ([authorization](../../packages/pkg-maestro/INTENT.md#authorization)).
 4. Podman Quadlet lifecycle.
 5. Maestro's durable state — schedules, revisions, occurrences, Queue job ids —
    lives in its own private MariaDB (Rules 4 and 26): account, database and

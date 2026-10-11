@@ -19,7 +19,7 @@
 import http from 'node:http';
 import { EventLogger } from '../pkg-logger/index.js';
 import { vitals, ageSeconds } from '../pkg-logger/vitals.js';
-import { TASK_KINDS, parseOccurrenceQuery } from './occurrence.js';
+import { ScheduleError, TASK_KINDS, parseOccurrenceQuery } from './occurrence.js';
 
 /** Task kinds the base understands. A universe may not invent a fourth here. */
 export { TASK_KINDS };
@@ -232,6 +232,9 @@ export class MaestroScheduler {
  */
 export function storeErrorStatus(err) {
   if (!err) return 500;
+  // 401 absent or invalid credential, 403 audience, scope or revocation, 503
+  // authority unverifiable (DECISIONS-20261011 §E).
+  if (err.name === 'CredentialError') return err.status;
   if (err.name === 'UnitDbError') return 503;
   const code = String(err.code || '');
   if (/^(ER_|ECONN|PROTOCOL_|POOL_|ETIMEDOUT|EPIPE|EHOSTUNREACH)/.test(code)) return 503;
@@ -261,10 +264,26 @@ async function readBody(req) {
  * @param {number} [options.port=8630]
  * @param {string} [options.host='0.0.0.0']
  * @param {MaestroScheduler|object} [options.scheduler]
+ * @param {(req: import('node:http').IncomingMessage, scope: string) => Promise<object>} [options.authorizeRequest]
+ *   pkg-auth's runtimeAuthorizer for audience `maestro`. Required with the
+ *   durable scheduler; the in-memory DEV scheduler serves open.
+ * @param {boolean} [options.allowAnonymous] - tests of the durable refusal paths only
  * @returns {http.Server}
  */
-export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler = null } = {}) {
+/**
+ * The scope each Maestro route requires of a caller's Vault-signed credential
+ * (DECISIONS-20261011 §E): reading, and authorized administration (register,
+ * tick, start, stop). Only a minimal health is open.
+ */
+export const MAESTRO_SCOPES = Object.freeze({ read: 'maestro:read', admin: 'maestro:admin' });
+
+export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler = null, authorizeRequest = null, allowAnonymous = false } = {}) {
   const sched = scheduler || new MaestroScheduler();
+  if (typeof sched.listOccurrences === 'function' && !authorizeRequest && !allowAnonymous) {
+    // No "localhost means authorized": the durable Maestro serves credentials only.
+    throw new ScheduleError('MAESTRO_AUTH_REQUIRED', 'the durable Maestro requires unit authorization (runtimeAuthorizer)', 503);
+  }
+  const authorize = async (req, scope) => (authorizeRequest ? authorizeRequest(req, scope) : null);
 
   const server = http.createServer(async (req, res) => {
     const sendJson = (statusCode, data) => {
@@ -277,6 +296,10 @@ export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler =
       await route(req, sendJson);
     } catch (err) {
       const status = storeErrorStatus(err);
+      if (err?.name === 'CredentialError') {
+        // Typed, never the credential or the verifier's text.
+        return sendJson(status, { error: status === 503 ? 'Maestro authority unverifiable' : 'Maestro request refused', code: err.code });
+      }
       sendJson(status, {
         error: status === 503 ? 'Maestro storage unavailable' : err.message,
         code: err.code || null,
@@ -304,15 +327,18 @@ export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler =
     }
 
     if (req.method === 'GET' && (pathname === '/api/vitals' || pathname === '/vitals')) {
+      await authorize(req, MAESTRO_SCOPES.read);
       return sendJson(200, await sched.vitals());
     }
 
     if (req.method === 'GET' && pathname === '/api/tasks') {
+      await authorize(req, MAESTRO_SCOPES.read);
       const includeDisabled = url.searchParams.get('include') === 'disabled';
       return sendJson(200, { status: 'ok', tasks: await sched.listRegisteredTasks({ includeDisabled }) });
     }
 
     if (req.method === 'GET' && pathname === '/api/occurrences') {
+      await authorize(req, MAESTRO_SCOPES.read);
       if (typeof sched.listOccurrences !== 'function') {
         return sendJson(501, {
           error: 'occurrences are recorded only with MAESTRO_STORE=mariadb',
@@ -324,6 +350,7 @@ export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler =
     }
 
     if (req.method === 'POST' && pathname === '/api/tasks/register') {
+      await authorize(req, MAESTRO_SCOPES.admin);
       let parsed;
       try {
         parsed = JSON.parse((await readBody(req)) || '{}');
@@ -340,6 +367,7 @@ export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler =
     }
 
     if (req.method === 'POST' && pathname.startsWith('/api/tasks/') && pathname.endsWith('/tick')) {
+      await authorize(req, MAESTRO_SCOPES.admin);
       const slug = decodeURIComponent(pathname.split('/')[3] || '');
       try {
         const result = await sched.triggerBeat(slug);
@@ -352,6 +380,7 @@ export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler =
     }
 
     if (req.method === 'POST' && pathname === '/api/scheduler/start') {
+      await authorize(req, MAESTRO_SCOPES.admin);
       // The durable scheduler's first tick runs in the background; its
       // failures are recorded by the scheduler itself, never thrown here.
       Promise.resolve(sched.startScheduler()).catch(() => {});
@@ -359,6 +388,7 @@ export function createMaestroServer({ port = 8630, host = '0.0.0.0', scheduler =
     }
 
     if (req.method === 'POST' && pathname === '/api/scheduler/stop') {
+      await authorize(req, MAESTRO_SCOPES.admin);
       sched.stopScheduler();
       return sendJson(200, { status: 'ok', message: 'Scheduler stopped' });
     }

@@ -4,7 +4,9 @@
  * failed evidence write leaves the occurrence where it was, and the relay
  * delivers the beat → job → evidence loop to Logger, where Maestro's
  * BEAT_ENQUEUED and Queue's JOB_CREATED meet on one job id. No local JSONL is
- * written on this path.
+ * written on this path. Maestro reaches Queue as a unit does in a universe:
+ * under its own Vault-signed `queue` credential (queue:enqueue, queue:read),
+ * which Queue checks at Vault on every route (DECISIONS-20261011 §E).
  *
  * Run through software/packages/pkg-db/test/live/run-live.mjs.
  * Intent: software/packages/pkg-maestro/INTENT.md#evidence
@@ -40,15 +42,15 @@ const outbox = async () => (await adminQuery('SELECT event_id, body, receipt FRO
   .map((r) => ({ ...r, entry: JSON.parse(r.body) }));
 
 before(async () => {
-  stack = await startEvidenceStack();
+  stack = await startEvidenceStack({ grants: { maestro: { logger: ['logger:ingest'], queue: ['queue:enqueue', 'queue:read'] } } });
   await resetUnit('queue');
   await resetUnit('maestro');
   queue = await MariaDbJobQueue.open({ slug: 'queue', db: unitDb() });
-  queueServer = createQueueServer({ port: 0, host: '127.0.0.1', queue });
+  queueServer = createQueueServer({ port: 0, host: '127.0.0.1', queue, authorizeRequest: stack.authorizer('queue') });
   await listen(queueServer);
   queueUrl = `http://127.0.0.1:${queueServer.address().port}`;
   store = await MariaDbMaestroStore.open({ slug: 'maestro', db: unitDb() });
-  maestro = new DurableMaestro({ store, universeId: UNIVERSE, queueUrl });
+  maestro = new DurableMaestro({ store, universeId: UNIVERSE, queueUrl, credentials: stack.credentials('maestro', 'queue') });
 });
 
 after(async () => {
@@ -122,5 +124,45 @@ describe('Maestro evidence is committed with the change it reports', () => {
     walk(workDir);
     assert.deepEqual(jsonl, []);
     assert.equal(maestro.logger, undefined, 'the durable scheduler holds no file logger');
+  });
+});
+
+describe('Queue answers credentials only, checked at the real Vault (DECISIONS §E)', () => {
+  it('anonymous is 401; Maestro\'s credential enqueues and reads, and claims nothing (403)', async () => {
+    const anonymous = await fetch(`${queueUrl}/api/jobs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"type":"anon"}' });
+    assert.equal(anonymous.status, 401);
+    assert.equal((await fetch(`${queueUrl}/api/jobs`)).status, 401);
+    assert.equal((await fetch(`${queueUrl}/api/health`)).status, 200);
+    const headers = { ...(await stack.credentials('maestro', 'queue')()), 'Content-Type': 'application/json' };
+    const created = await fetch(`${queueUrl}/api/jobs`, { method: 'POST', headers, body: '{"type":"live.authorized"}' });
+    assert.equal(created.status, 201);
+    const { job } = await created.json();
+    assert.equal((await fetch(`${queueUrl}/api/jobs/${job.id}`, { headers })).status, 200);
+    const claim = await fetch(`${queueUrl}/api/jobs/${job.id}/claim`, { method: 'POST', headers, body: '{}' });
+    assert.deepEqual([claim.status, (await claim.json()).code], [403, 'CREDENTIAL_SCOPE_DENIED']);
+    // A logger credential is for Logger: another audience.
+    const loggerHeaders = await stack.credentials('maestro', 'logger')();
+    assert.equal((await fetch(`${queueUrl}/api/jobs`, { headers: loggerHeaders })).status, 403);
+  });
+
+  it('a credential Vault no longer holds current is refused (403), and Vault down is 503, not a default', async () => {
+    const headers = await stack.credentials('maestro', 'queue')();
+    await adminQuery("UPDATE vault.unit_identities SET revoked = TRUE WHERE unit_id = 'maestro'");
+    try {
+      assert.equal((await fetch(`${queueUrl}/api/jobs`, { headers })).status, 403);
+    } finally {
+      await adminQuery("UPDATE vault.unit_identities SET revoked = FALSE WHERE unit_id = 'maestro'");
+    }
+    const unreachable = createQueueServer({ port: 0, host: '127.0.0.1', queue,
+      authorizeRequest: (await import('../../pkg-auth/runtime-identity.js')).runtimeAuthorizer({
+        ...stack.env('queue'), VAULT_URL: 'http://127.0.0.1:9', SHAPER_UNIT_SLUG: 'queue' }) });
+    await listen(unreachable);
+    try {
+      const res = await fetch(`http://127.0.0.1:${unreachable.address().port}/api/jobs`, { headers: await stack.credentials('maestro', 'queue')() });
+      assert.deepEqual([res.status, (await res.json()).code], [503, 'IDENTITY_UNAVAILABLE']);
+    } finally {
+      unreachable.closeAllConnections?.();
+      await new Promise((resolve) => unreachable.close(resolve));
+    }
   });
 });

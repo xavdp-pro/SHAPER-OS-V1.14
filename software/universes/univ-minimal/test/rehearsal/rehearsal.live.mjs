@@ -114,7 +114,18 @@ test('Vault holds the four registrations by digest; the statements carry no boot
   }
   const rows = sql('vault', "SELECT CONCAT(unit_id, ' ', incarnation, ' ', epoch, ' ', grants) FROM unit_identities ORDER BY unit_id").split('\n');
   assert.equal(rows.length, 4, rows.join('\n'));
-  for (const r of rows) assert.match(r, /^(maestro|proof|queue|vault) \1-\d{8}T\d{6}Z 1 \{"logger":\["logger:ingest"(,"logger:read:own")?\]\}$/);
+  const grants = {
+    vault: '{"logger":["logger:ingest"]}',
+    queue: '{"logger":["logger:ingest"]}',
+    maestro: '{"logger":["logger:ingest"],"queue":["queue:enqueue","queue:read"]}',
+    proof: '{"logger":["logger:ingest","logger:read:own"],"queue":["queue:enqueue","queue:read","queue:claim","queue:attempt"],"maestro":["maestro:read","maestro:admin"]}',
+  };
+  for (const r of rows) {
+    const [unit, incarnation, epoch, granted] = r.split(' ');
+    assert.match(incarnation, new RegExp(`^${unit}-\\d{8}T\\d{6}Z$`));
+    assert.equal(epoch, '1');
+    assert.equal(granted, grants[unit], `${unit}'s grants, explicit and separate`);
+  }
 });
 
 test('no secret value reaches a podman command line or the deploy output', () => {
