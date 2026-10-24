@@ -1557,3 +1557,41 @@ rule is what killed the synonyms, and it keeps them dead.*
   failed them both. `docs/architecture/LEXICON.md` is that page, and the test
   `lexicon-and-code-agree.test.js` holds it, this rule and `pkg-governor`'s
   states to one set of names.
+
+---
+
+<a id="rule-38"></a>
+### Rule 38: Boundary-Hardened, Core-Permissive Topology & Primacy of Functional Materialization (Anti-Zeal Invariant)
+
+* **Tier Classification & Structural Status**: Structural Invariant (Tier 2).
+  Governs execution policy, resource allocation, and prevention of self-reinforcing autonomous agent verification deadlocks. Rule 38 does not supersede Tier 1 Systemic Invariants (Rule 0G, Rule 10, Rule 22, Rule 23, Rule 26, Rule 30) or Perimeter Network Sealing (Rule GEM-001).
+
+* **The Principle of Functional Genesis First ($\Phi_{\text{Genesis}} \xrightarrow{} \Phi_{\text{Calibration}}$)**:
+  * In system development, functional materialization is the primary objective: an unmaterialized or non-functional state provides zero utility.
+  * System construction proceeds in two explicit, decoupled phases:
+    1. **Phase 1: Functional Materialization ($\Phi_{\text{Genesis}}$)**: Direct empirical assembly of component interfaces. Components are connected, executed on iron, and validated for operational capability without speculative gating.
+    2. **Phase 2: Operational Calibration ($\Phi_{\text{Calibration}}$)**: Security, rate limiting, and defensive policies are calibrated exclusively against observed, measured vectors and explicit contract requirements, never against speculative hypotheticals.
+
+* **Topological Membrane Model ("Boundary-Hardened, Core-Permissive")**:
+  * **Perimeter Membrane (Hardened Boundary)**: The outermost boundary of any autonomous cell, host, or network space is strictly guarded (e.g. Rule GEM-001, cryptographically authenticated point-to-point tunnels, zero listening WAN sockets).
+  * **Intra-Boundary Trust (Permissive Core)**: Within a verified, sealed perimeter membrane, inter-component interactions are *Trusted by Topology*. Enforcing recursive, mutually untrusted micro-perimeters (e.g. mutual TLS, repetitive capability renegotiation, or synthetic privilege boundaries between co-located friendly units on local IPC) is prohibited where it induces dissipative kinetic overhead without increasing perimeter defense.
+
+* **The Kinetic Entropy Law of Verification ($E_k \sim \frac{1}{2} m v^2$)**:
+  * Every defensive check, synthetic abstraction, or intermediate gate adds computational mass ($m$) to the execution graph. As velocity ($v$) increases, dissipative operational overhead scales quadratically.
+  * Excessive internal gating produces entropic stagnation (infinite deliberation loops where resources are exhausted inspecting verified internal entities rather than delivering functionality).
+
+* **Prohibition of Phantom Invariants (Zero Speculative Gates)**:
+  * An agent shall not construct, infer, or enforce operational gates derived from hypothetical future states (e.g. unmeasured external resource contention or unbounded future write amplification) unless such gates are:
+    1. Formally declared in the architectural Canon;
+    2. Explicitly instructed by human authority;
+    3. Grounded in live, observable hardware telemetry (e.g. actual remaining storage, real memory limits, kernel events).
+  * Probabilistic cautions must be logged as telemetry observations; they shall never halt execution within a confirmed isolated workspace.
+
+* **Bounded Convergence & Hard Fail-Closed Arbitration ($k \le 2$)**:
+  * An iterative execution or recovery loop is strictly bounded. If two ($k = 2$) consecutive execution cycles fail to achieve substantive state advancement (verified byte materialization, cryptographic digest transition, or container readiness):
+    1. Synthesizing new speculative abstractions, intermediate emulation layers, or artificial throttling is strictly prohibited.
+    2. **Primitive Downgrade**: The agent is authorized exactly one ($k_{primitive} \le 1$) fallback attempt using the standard system primitive (canonical execution without wrappers).
+    3. **Fail-Closed State**: If the single primitive attempt fails, execution must halt immediately, emit raw diagnostic telemetry, and yield to human operator arbitration.
+
+* **Infrastructure Anti-Mock Invariant**:
+  * Infrastructure daemons, kernel interfaces, filesystem semantics, and inter-process IPC shall not be qualified solely through mocked execution layers. Conformance is certified exclusively against actual binaries and live daemons within the verified sandbox.
